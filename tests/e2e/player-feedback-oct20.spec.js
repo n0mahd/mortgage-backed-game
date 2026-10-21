@@ -247,6 +247,8 @@ test.describe('Player feedback 2026-10-20', () => {
             houses: 0,
         }));
         state.players[0].position = 1;
+        // The disabled Buy tile (with the "Owned by" title) shows once Alice has rolled onto the square.
+        state.players[0].diceRolled = true;
         await apiJson(request, 'patch', `${BASE_API}/games/${latest.id}/state`, {
             headers: { Authorization: `Bearer ${users.Alice.token}` },
             data: { game_state: state, action_type: 'host_state_repair', expected_version: latest.state_version },
