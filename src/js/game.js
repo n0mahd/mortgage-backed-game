@@ -2307,7 +2307,7 @@ function updatePlayerAssets(playerNumber) {
     const assetsHtml = player.properties.map(p => `
         <div class="asset-checkbox">
             <input type="checkbox" id="${playerNumber}-asset-${escapeAttr(p.id)}" value="${escapeAttr(p.id)}">
-            <label for="${playerNumber}-asset-${escapeAttr(p.id)}">${tradeAssetSwatch(p.id)}${escapeHtml(p.name)} ($${p.value})</label>
+            <label for="${playerNumber}-asset-${escapeAttr(p.id)}">${tradeAssetDot(p.id)}${escapeHtml(p.name)} ($${p.value})</label>
         </div>
     `).join('');
     const jailCardHtml = player.hasGetOutOfJailCard ? `
@@ -2401,13 +2401,39 @@ function renderTradeOffers() {
 }
 
 function renderTradeOfferSide(cash, assetIds) {
-    const lines = [];
-    if (Number(cash || 0) > 0) lines.push(`<li class="trade-asset-line">${tradeAssetSwatch(null)}${escapeHtml(`$${Number(cash).toFixed(2)}`)}</li>`);
-    (assetIds || []).forEach(id => {
-        lines.push(`<li class="trade-asset-line">${tradeAssetSwatch(id)}${escapeHtml(tradeAssetName(id))}</li>`);
+    const tags = [];
+    if (Number(cash || 0) > 0) {
+        tags.push(renderTradeAssetTag(`$${Number(cash).toFixed(2)}`, 'Cash', 'cash'));
+    }
+    sortTradeAssetIds(assetIds).forEach(id => {
+        const property = tradeAssetProperty(id);
+        if (!property) {
+            tags.push(renderTradeAssetTag(tradeAssetName(id), id === GAME_JAIL_CARD_ASSET_ID ? 'Card' : '', 'card'));
+            return;
+        }
+        tags.push(renderTradeAssetTag(property.name, property.color || 'Property', 'property', getPropertyColorValue(property.color)));
     });
-    if (lines.length === 0) return '<p class="empty-state">Nothing</p>';
-    return `<ul class="trade-asset-list">${lines.join('')}</ul>`;
+    if (tags.length === 0) return '<p class="empty-state">Nothing</p>';
+    return `<ul class="trade-asset-list">${tags.join('')}</ul>`;
+}
+
+function renderTradeAssetTag(name, groupLabel, kind, color) {
+    const style = color ? ` style="--property-color:${escapeAttr(color)};"` : '';
+    return `
+        <li class="trade-asset-tag ${kind}"${style}>
+            <span class="trade-asset-name">${escapeHtml(name)}</span>
+            ${groupLabel ? `<span class="trade-asset-group">${escapeHtml(groupLabel)}</span>` : ''}
+        </li>
+    `;
+}
+
+// Board order keeps each color group together in an offer.
+function sortTradeAssetIds(assetIds) {
+    const boardPosition = id => {
+        const square = typeof BOARD_SQUARES !== 'undefined' ? BOARD_SQUARES.find(sq => sq.propertyId === id) : null;
+        return square ? square.position : Number.MAX_SAFE_INTEGER;
+    };
+    return [...(assetIds || [])].sort((a, b) => boardPosition(a) - boardPosition(b));
 }
 
 function tradeAssetProperty(assetId) {
@@ -2420,12 +2446,10 @@ function tradeAssetName(assetId) {
     return property ? property.name : assetId;
 }
 
-// Color chip showing which group a traded asset belongs to; cash and cards get a hidden spacer chip.
-function tradeAssetSwatch(assetId) {
-    const property = assetId ? tradeAssetProperty(assetId) : null;
-    if (!property) return '<span class="trade-asset-swatch neutral" aria-hidden="true"></span>';
-    const color = getPropertyColorValue(property.color);
-    return `<span class="trade-asset-swatch" style="--property-color:${escapeAttr(color)};" title="${escapeAttr(property.color || '')}" aria-hidden="true"></span>`;
+function tradeAssetDot(assetId) {
+    const property = tradeAssetProperty(assetId);
+    if (!property) return '';
+    return `<span class="trade-asset-dot" style="--property-color:${escapeAttr(getPropertyColorValue(property.color))};" aria-hidden="true"></span>`;
 }
 
 function formatTradeOfferAge(createdAt) {

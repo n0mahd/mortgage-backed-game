@@ -1,6 +1,6 @@
 // @ts-check
 const { test, expect } = require('@playwright/test');
-const { BASE, BASE_API, loginPage, playerState } = require('./helpers');
+const { BASE, BASE_API, apiJson, loginPage, playerState } = require('./helpers');
 
 /**
  * Setup a 2-player game with some properties owned.
@@ -171,29 +171,61 @@ test.describe('Trading — UI', () => {
 
 test.describe('Trading — offer colors', () => {
     test('pending offer shows each property in its color group', async ({ page, request }) => {
-        const setup = await setupTradingGame(request);
+        const h = await apiJson(request, 'post', `${BASE_API}/auth/anonymous`);
+        const g = await apiJson(request, 'post', `${BASE_API}/auth/anonymous`);
+        const room = await apiJson(request, 'post', `${BASE_API}/rooms`, {
+            headers: { Authorization: `Bearer ${h.token}` },
+            data: { name: 'Trade Colors Room', player_name: 'Abdullah', max_players: 4 },
+        });
+        await apiJson(request, 'post', `${BASE_API}/rooms/${room.id}/join`, {
+            headers: { Authorization: `Bearer ${g.token}` },
+            data: { player_name: 'Matt' },
+        });
+        const prop = (id, name, color, owner) => ({ id, name, color, price: 200, rent: [10, 50, 150, 450, 625, 750], ownerId: owner.user.id, ownerName: owner === h ? 'Abdullah' : 'Matt', houses: 0 });
+        const game = await apiJson(request, 'post', `${BASE_API}/games`, {
+            headers: { Authorization: `Bearer ${h.token}` },
+            data: {
+                room_id: room.id,
+                game_state: {
+                    currentPlayerIndex: 0,
+                    players: [playerState(h.user.id, 'Abdullah'), playerState(g.user.id, 'Matt')],
+                    properties: [
+                        prop('prop-10', 'St. James Place', 'Orange', g),
+                        prop('prop-11', 'Tennessee Avenue', 'Orange', g),
+                        prop('prop-23', 'Pennsylvania Avenue', 'Green', g),
+                        prop('prop-12', 'New York Avenue', 'Orange', h),
+                        prop('prop-25', 'Park Place', 'Dark Blue', h),
+                    ],
+                    corporations: [], debts: [], marketOffers: [], gameLog: [],
+                    lastDiceRoll: null, lastCardDrawn: null,
+                    settings: { passGoAmount: 200, startingCash: 1500 },
+                },
+            },
+        });
 
-        const res = await request.post(`${BASE_API}/games/${setup.game.id}/actions`, {
-            headers: { Authorization: `Bearer ${setup.guestToken}` },
+        await apiJson(request, 'post', `${BASE_API}/games/${game.id}/actions`, {
+            headers: { Authorization: `Bearer ${g.token}` },
             data: {
                 actionId: `e2e-offer-colors-${Date.now()}`,
                 type: 'propose_trade',
-                payload: { player1Id: setup.guestId, player2Id: setup.hostId, player1Cash: 25, player2Cash: 0, player1AssetIds: ['prop-1'], player2AssetIds: ['prop-0'] },
-                expectedVersion: setup.game.state_version,
+                payload: { player1Id: g.user.id, player2Id: h.user.id, player1Cash: 50, player2Cash: 0, player1AssetIds: ['prop-23', 'prop-10', 'prop-11'], player2AssetIds: ['prop-12', 'prop-25'] },
+                expectedVersion: game.state_version,
             },
         });
-        expect(res.ok()).toBeTruthy();
 
         await page.setViewportSize({ width: 390, height: 844 });
-        await loginPage(page, setup.hostToken);
-        await page.goto(`${BASE}/game.html?room=${setup.room.id}`);
+        await loginPage(page, h.token);
+        await page.goto(`${BASE}/game.html?room=${room.id}`);
         await page.getByRole('button', { name: 'Market' }).click();
         const card = page.locator('#tradeOffersList .trade-offer-card');
-        await expect(card).toContainText('Bob proposed a trade', { timeout: 5000 });
+        await expect(card).toContainText('Matt proposed a trade', { timeout: 5000 });
 
-        const baltic = card.locator('.trade-asset-line', { hasText: 'Baltic Ave' }).locator('.trade-asset-swatch');
-        await expect(baltic).toHaveCSS('background-color', 'rgb(139, 69, 19)');
-        await expect(card.locator('.trade-asset-line', { hasText: '$25.00' }).locator('.trade-asset-swatch')).toHaveClass(/neutral/);
+        // Board order groups the oranges together ahead of the green.
+        await expect(card.locator('.trade-asset-tag.property').first()).toContainText('St. James Place');
+        const park = card.locator('.trade-asset-tag', { hasText: 'Park Place' });
+        await expect(park).toContainText('Dark Blue');
+        await expect(park).toHaveCSS('--property-color', '#2C3E9E');
+        await expect(card.locator('.trade-asset-tag.cash')).toContainText('$50.00');
         if (process.env.TRADE_COLORS_SHOT) await card.screenshot({ path: process.env.TRADE_COLORS_SHOT });
     });
 });
