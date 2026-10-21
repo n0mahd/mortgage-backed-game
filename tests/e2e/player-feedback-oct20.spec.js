@@ -220,10 +220,10 @@ test.describe('Player feedback 2026-10-20', () => {
 
         await bob.page.click('.nav-tab[data-section="game"]');
         await expect(bob.page.locator('.player-card.current-user')).toContainText('Get Out of Jail Free card');
-        await expect(bob.page.locator('.player-card.current-user')).toContainText('$1440.00');
+        await expect(bob.page.locator('.player-card.current-user')).toContainText('$1,440');
         await alice.page.click('.nav-tab[data-section="game"]');
         await expect(alice.page.locator('.player-card.current-user')).not.toContainText('Get Out of Jail Free card');
-        await expect(alice.page.locator('.player-card.current-user')).toContainText('$1560.00');
+        await expect(alice.page.locator('.player-card.current-user')).toContainText('$1,560');
         await alice.context.close();
         await bob.context.close();
     });

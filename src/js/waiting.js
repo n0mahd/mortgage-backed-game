@@ -206,11 +206,9 @@ function renderPlayers(members) {
                 ${member.user_id === currentRoom.host_id ?
                     '<span class="player-badge">Host</span>' : ''}
                 ${currentUser && member.user_id === currentUser.id ?
-                    '<span class="player-badge" style="background: #3498db;">You</span>' : ''}
+                    '<span class="player-badge badge-info">You</span>' : ''}
             </div>
-            <div style="color: #95a5a6; font-size: 0.9em;">
-                Joined ${formatTimeAgo(member.joined_at)}
-            </div>
+            <div class="player-item-meta">Joined ${formatTimeAgo(member.joined_at)}</div>
         </div>
     `).join('');
 }
@@ -258,11 +256,11 @@ function copyInviteCode(btn) {
 }
 
 function showCopySuccess(btn, originalText) {
-    btn.textContent = 'Copied!';
-    btn.style.background = 'linear-gradient(45deg, #2ecc71, #27ae60)';
+    btn.textContent = 'Copied';
+    btn.classList.add('is-done');
     setTimeout(() => {
         btn.textContent = originalText;
-        btn.style.background = '';
+        btn.classList.remove('is-done');
     }, 2000);
 }
 
@@ -295,8 +293,8 @@ async function sendInviteEmail() {
 
     if (!email || !currentRoom) return;
 
-    statusEl.textContent = 'Sending...';
-    statusEl.style.color = '';
+    statusEl.textContent = 'Sending…';
+    statusEl.classList.remove('is-success');
 
     try {
         await apiFetch('/rooms/send-code', {
@@ -309,8 +307,8 @@ async function sendInviteEmail() {
         return;
     }
 
-    statusEl.textContent = `Invite sent to ${email}!`;
-    statusEl.style.color = '#27ae60';
+    statusEl.textContent = `Invite sent to ${email}.`;
+    statusEl.classList.add('is-success');
     emailInput.value = '';
 }
 
@@ -420,3 +418,25 @@ if (document.readyState === 'loading') {
     bindWaitingRoomActions();
     initWaitingRoom();
 }
+
+// Native share sheet for the invite link, where the device supports it.
+function setupShareInvite() {
+    const button = document.getElementById('share-invite-btn');
+    if (!button || !navigator.share) return;
+    button.hidden = false;
+    button.addEventListener('click', async () => {
+        if (!currentRoom) return;
+        const url = new URL(`waiting.html?code=${encodeURIComponent(currentRoom.invite_code)}`, window.location.href).href;
+        try {
+            await navigator.share({
+                title: currentRoom.name || 'Mortgage Backed Monopoly',
+                text: `Join my Mortgage Backed Monopoly game. Room code ${currentRoom.invite_code}.`,
+                url,
+            });
+        } catch (error) {
+            if (error && error.name !== 'AbortError') console.warn('Share failed:', error);
+        }
+    });
+}
+
+document.addEventListener('DOMContentLoaded', setupShareInvite);

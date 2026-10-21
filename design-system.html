@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <meta name="robots" content="noindex">
+    <meta name="theme-color" content="#ECF1EC">
+    <link rel="icon" type="image/png" sizes="32x32" href="src/assets/favicon-32.png">
+    <title>Design system — Mortgage Backed Monopoly</title>
+    <link rel="preload" href="src/assets/fonts/besley-latin.woff2" as="font" type="font/woff2" crossorigin>
+    <link rel="stylesheet" href="src/css/tokens.css?v=2">
+    <link rel="stylesheet" href="src/css/style.css?v=14">
+    <style>
+        /* Specimen-only layout */
+        .spec-swatches { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: var(--s2); }
+        .spec-swatch { border-radius: var(--r-control); overflow: hidden; border: 1px solid var(--rule); background: var(--note); font-size: var(--text-caption); }
+        .spec-swatch i { display: block; height: 56px; }
+        .spec-swatch span { display: block; padding: var(--s2) var(--s3); }
+        .spec-row { display: flex; flex-wrap: wrap; gap: var(--s2); align-items: center; }
+        .spec-type p + p { margin-top: var(--s2); }
+        .spec-sheet { position: relative; padding: var(--s6) var(--s5) var(--s5); border-radius: var(--r-sheet); background: var(--paper); box-shadow: var(--lift-sheet); }
+        .spec-sheet::before { content: ''; position: absolute; top: 8px; left: 50%; width: 38px; height: 5px; margin-left: -19px; border-radius: 3px; background: var(--rule-strong); }
+        .spec-dock { position: static; margin-top: var(--s3); border-radius: var(--r-group); }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header class="app-bar">
+            <a class="app-bar-brand" href="index.html">Mortgage Backed Monopoly</a>
+        </header>
+
+        <div class="page-title">
+            <h1>Term Sheet</h1>
+            <p>The component vocabulary for every screen. Rules live in documents/design-system.md.</p>
+        </div>
+
+        <div class="section-heading"><h3>Color</h3></div>
+        <div class="spec-swatches">
+            <div class="spec-swatch"><i style="background:var(--paper)"></i><span>Paper #ECF1EC</span></div>
+            <div class="spec-swatch"><i style="background:var(--note)"></i><span>Note #FAFCF9</span></div>
+            <div class="spec-swatch"><i style="background:var(--ink)"></i><span>Ink #12261C</span></div>
+            <div class="spec-swatch"><i style="background:var(--forest)"></i><span>Forest #1B4332</span></div>
+            <div class="spec-swatch"><i style="background:var(--emerald)"></i><span>Emerald #2D6A4F</span></div>
+            <div class="spec-swatch"><i style="background:var(--mint-wash)"></i><span>Mint wash #DCEFE2</span></div>
+            <div class="spec-swatch"><i style="background:var(--gold-bright)"></i><span>Bond gold #D4A017</span></div>
+            <div class="spec-swatch"><i style="background:var(--danger)"></i><span>Default red #B42318</span></div>
+        </div>
+
+        <div class="section-heading"><h3>Type</h3></div>
+        <div class="group spec-type" style="padding: var(--s4)">
+            <p class="ticket-cash" style="color: var(--forest)">$1,500</p>
+            <p style="font-family: var(--font-money); font-size: var(--text-title1); font-weight: 700; color: var(--forest)">Besley for money and titles</p>
+            <p>System UI for everything you read and tap. Body is 17px, like iOS.</p>
+            <p class="empty-state">Tertiary text for hints and empty states.</p>
+        </div>
+
+        <div class="section-heading"><h3>Turn ticket</h3></div>
+        <section class="turn-ticket" style="--turn-color:#e74c3c">
+            <div class="ticket-top">
+                <span class="avatar" style="--token-color:#e74c3c" aria-hidden="true">AB</span>
+                <div class="ticket-heading">
+                    <h2 class="ticket-title">Your turn</h2>
+                    <span class="ticket-status">Rolled 7, now on Chance</span>
+                </div>
+                <span class="dice-pair" id="spec-dice"></span>
+            </div>
+            <div class="ticket-money">
+                <div><span class="ticket-money-label">Your cash</span><strong class="ticket-cash">$1,212</strong></div>
+                <div class="ticket-side">Net worth<strong>$2,940</strong></div>
+            </div>
+            <div class="turn-checklist">
+                <div class="turn-step complete"><span>Roll</span></div>
+                <div class="turn-step current"><span>Resolve</span></div>
+                <div class="turn-step upcoming"><span>Actions</span></div>
+                <div class="turn-step upcoming"><span>End</span></div>
+            </div>
+        </section>
+        <div class="turn-dock spec-dock">
+            <div class="dock-inner">
+                <div class="dock-row">
+                    <button class="btn btn-secondary action-btn-end-turn">End Turn</button>
+                    <button class="btn btn-success">Buy for $200</button>
+                </div>
+            </div>
+        </div>
+
+        <div class="section-heading"><h3>Buttons</h3></div>
+        <div class="spec-row">
+            <button class="btn btn-primary">Roll Dice</button>
+            <button class="btn btn-secondary">Start Auction</button>
+            <button class="btn btn-warning">Pay $50 Fine</button>
+            <button class="btn btn-danger">End Game</button>
+            <button class="btn btn-ghost">Log out</button>
+            <button class="btn btn-primary" disabled>Disabled</button>
+        </div>
+
+        <div class="section-heading"><h3>Moves</h3></div>
+        <div class="moves-grid">
+            <button class="btn btn-success btn-sm is-featured">Build Houses<small>You own a full set</small></button>
+            <button class="btn btn-secondary btn-sm">Create IPO<small>Take properties public</small></button>
+        </div>
+
+        <div class="section-heading"><h3>Context cards</h3></div>
+        <div class="turn-context">
+            <div class="landing-summary can-buy" style="--square-color:#F97C2A">
+                <span class="landing-deed"></span>
+                <div class="landing-copy"><span class="landing-label">You are on</span><strong>New York Ave</strong><p>Unowned property. Buy it or send it to auction.</p></div>
+                <span class="landing-price">$200</span>
+            </div>
+            <div class="card-effect-summary"><span>Chance</span><strong>Bank error in your favor</strong><p>Applied: received $200.</p></div>
+            <div class="turn-warning danger">You are $40 below zero. Recover before ending your turn or End Turn will declare bankruptcy.</div>
+        </div>
+
+        <div class="section-heading"><h3>Deeds and badges</h3></div>
+        <div class="player-card">
+            <div class="player-header">
+                <span class="avatar" style="--token-color:#3498db">SA</span>
+                <h3>Sara</h3>
+                <span class="badge">You</span><span class="badge badge-gold">Get Out of Jail Free card</span><span class="badge badge-danger">Bankrupt</span>
+            </div>
+            <div class="player-section-heading"><h4>Properties</h4><span>2 owned, worth $440</span></div>
+            <div class="owned-property-list">
+                <div class="owned-property-row" style="--property-color:#E74C3C">
+                    <div class="owned-property-copy">
+                        <div class="owned-property-title"><strong>Kentucky Avenue</strong></div>
+                        <div class="owned-property-meta"><span>Red street</span><span>Value $220</span></div>
+                        <div class="owned-property-chips"><span class="owned-property-chip set-chip complete">Monopoly</span><span class="owned-property-chip"><span class="development-icons"><span class="house-pip"></span><span class="house-pip"></span></span>2 houses</span><span class="owned-property-chip rent-chip">Rent $90</span></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="section-heading"><h3>Sheet</h3></div>
+        <div class="spec-sheet">
+            <div class="modal-header">Buy Property</div>
+            <p class="modal-hint">Buy it at list price, or let every player bid on it.</p>
+            <div class="sheet-actions">
+                <button class="btn btn-success">Buy Property</button>
+                <button class="btn btn-secondary">Start Auction</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="src/js/ui.js?v=1"></script>
+    <script>
+        document.getElementById('spec-dice').outerHTML = renderDicePair([3, 4]);
+    </script>
+</body>
+</html>

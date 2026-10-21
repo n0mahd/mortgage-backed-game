@@ -22,7 +22,7 @@ async function loadUserRooms() {
         if (rooms.length === 0) {
             roomsList.innerHTML = `
                 <div class="loading">
-                    <p>No active games yet. Create one to get started!</p>
+                    <p>No games yet. Create one and share the room code with friends.</p>
                 </div>
             `;
         } else {
@@ -37,7 +37,7 @@ async function loadUserRooms() {
         console.error('Error loading rooms:', error);
         document.getElementById('active-rooms-list').innerHTML = `
             <div class="loading">
-                <p style="color: #e74c3c;">Error loading games. Please refresh the page.</p>
+                <p class="turn-warning danger">Couldn't load your games. Check your connection and refresh.</p>
             </div>
         `;
     }
@@ -106,11 +106,9 @@ function renderRoomCard(room) {
                 <div class="room-status ${roomStatusClass(room.status)}">${escapeHtml(formatStatus(room.status))}</div>
             </div>
             <div class="room-info">
-                <span>${memberCount}/${maxPlayers} players</span>
-                <span>Created ${formatTimeAgo(room.created_at)}</span>
-            </div>
-            <div>
                 <span class="room-invite-code">${escapeHtml(room.invite_code)}</span>
+                <span>${memberCount} of ${maxPlayers} players</span>
+                <span>Created ${formatTimeAgo(room.created_at)}</span>
             </div>
         </div>
     `;

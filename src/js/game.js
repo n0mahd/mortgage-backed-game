@@ -744,7 +744,7 @@ function renderPlayerCard(player, isCurrentUser) {
     const cashFlow = getEntityCashFlow(player.userId);
     const bankruptBadge = player.bankrupt ? '<span class="badge badge-danger">Bankrupt</span>' : '';
     const jailBadge = player.inJail && !player.bankrupt ? '<span class="badge badge-gold">In Jail</span>' : '';
-    const jailCardBadge = player.hasGetOutOfJailCard ? '<span class="badge badge-gold">Get Out of Jail card</span>' : '';
+    const jailCardBadge = player.hasGetOutOfJailCard ? '<span class="badge badge-gold">Get Out of Jail Free card</span>' : '';
     const gameState = currentGame?.game_state;
     const isTurnPlayer = gameState && gameState.players[gameState.currentPlayerIndex]?.userId === player.userId;
     const cardClass = [player.bankrupt ? 'bankrupt' : '', isTurnPlayer ? 'is-turn-player' : ''].join(' ').trim();

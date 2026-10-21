@@ -164,7 +164,7 @@ test.describe('Game flow', () => {
         await page.waitForLoadState('domcontentloaded');
 
         // Should show starting cash (1500)
-        await expect(page.locator('body')).toContainText('1500', { timeout: 5000 });
+        await expect(page.locator('body')).toContainText('$1,500', { timeout: 5000 });
     });
 });
 

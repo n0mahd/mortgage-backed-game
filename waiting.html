@@ -2,109 +2,103 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <meta name="theme-color" content="#ECF1EC">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-title" content="Mortgage">
     <link rel="icon" type="image/png" sizes="32x32" href="src/assets/favicon-32.png">
     <link rel="apple-touch-icon" sizes="180x180" href="src/assets/apple-touch-icon.png">
-    <title>Waiting Room - Mortgage Backed Monopoly</title>
-    <link rel="stylesheet" href="src/css/style.css?v=10">
+    <title>Waiting room — Mortgage Backed Monopoly</title>
+    <link rel="preload" href="src/assets/fonts/besley-latin.woff2" as="font" type="font/woff2" crossorigin>
+    <link rel="stylesheet" href="src/css/tokens.css?v=2">
+    <link rel="stylesheet" href="src/css/style.css?v=14">
 </head>
 <body>
     <div class="container">
-        <div class="header">
-            <h1>Mortgage Backed Monopoly</h1>
-            <p><em>If they did it in 2008, it's fair game</em></p>
+        <header class="app-bar">
+            <a class="app-bar-brand" href="index.html">Mortgage Backed Monopoly</a>
             <div class="user-info">
                 <span id="user-email"></span>
-                <button id="leave-room-btn" class="btn btn-secondary btn-sm" style="display:none;">Leave Room</button>
+                <button id="leave-room-btn" class="btn btn-ghost btn-sm" style="display:none;">Leave</button>
             </div>
-        </div>
+        </header>
 
         <!-- Guest join form (shown when arriving via room code without auth) -->
         <div class="content" id="guest-join-section" style="display: none;">
             <div class="auth-container">
-                <h2>Join Game</h2>
-                <p style="color: #7f8c8d; margin-bottom: 20px;">
-                    Enter your name to join the room.
-                </p>
+                <div class="page-title">
+                    <h1>Join game</h1>
+                    <p>Pick the name other players will see.</p>
+                </div>
                 <div id="hotseat-resume-options" class="hotseat-resume-options"></div>
-                <div class="form-group">
-                    <label>Room Code:</label>
-                    <input type="text" id="guest-room-code" style="text-transform: uppercase; letter-spacing: 0.15em; font-weight: 600;" readonly>
+                <div class="auth-card">
+                    <div class="form-group">
+                        <label for="guest-room-code">Room code</label>
+                        <input type="text" id="guest-room-code" class="code-entry" readonly>
+                    </div>
+                    <div class="form-group">
+                        <label for="guest-player-name">Your player name</label>
+                        <input type="text" id="guest-player-name" placeholder="Your name" autocomplete="nickname" required>
+                    </div>
+                    <div id="guest-join-error" class="error-message"></div>
+                    <button id="guest-join-btn" class="btn btn-primary">Join Game</button>
                 </div>
-                <div class="form-group">
-                    <label>Your Player Name:</label>
-                    <input type="text" id="guest-player-name" placeholder="Enter your name" required>
-                </div>
-                <div id="guest-join-error" class="error-message"></div>
-                <button id="guest-join-btn" class="btn btn-primary">Join Game</button>
-                <p style="margin-top: 16px; text-align: center;">
-                    <a href="index.html" style="color: #7f8c8d; font-size: 0.9em;">Back to home</a>
-                </p>
+                <a class="quiet-link" href="index.html">Back to home</a>
             </div>
         </div>
 
         <div class="content" id="waiting-room-section">
             <div class="waiting-room-container">
-                <!-- Room Info Header -->
                 <div class="room-header-info">
-                    <h2 id="room-name">Loading...</h2>
+                    <h2 id="room-name">Loading…</h2>
                     <div class="room-meta">
                         <span class="room-status waiting" id="room-status">Waiting for players</span>
                         <span id="player-count">0/4 players</span>
                     </div>
                 </div>
 
-                <!-- Invite Code Display -->
                 <div class="invite-code-display">
-                    <h3>Share this code with your friends:</h3>
+                    <h3>Friends join with this code</h3>
                     <div class="invite-code-large" id="invite-code">------</div>
-                    <button id="copy-invite-code-btn" class="btn btn-sm">Copy Code</button>
+                    <div class="invite-actions">
+                        <button id="share-invite-btn" class="btn btn-sm" hidden>Share invite</button>
+                        <button id="copy-invite-code-btn" class="btn btn-sm">Copy Code</button>
+                    </div>
                 </div>
 
-                <!-- Players List -->
                 <div class="players-section">
-                    <h3>Players in Room</h3>
+                    <h3>Players</h3>
                     <div class="players-list" id="players-list">
                         <div class="loading">
                             <div class="spinner"></div>
-                            <p>Loading players...</p>
+                            <p>Loading players…</p>
                         </div>
                     </div>
                 </div>
 
-                <!-- Host Controls -->
                 <div class="host-controls" id="host-controls" style="display: none;">
-                    <div style="text-align: center; margin-top: 30px;">
-                        <button class="btn btn-success btn-large" id="start-game-btn">
-                            Start Game
-                        </button>
-                        <p id="start-help-text" style="margin-top: 10px; color: #7f8c8d;">
-                            Need at least 2 players to start
-                        </p>
-                    </div>
+                    <button class="btn btn-success btn-large" id="start-game-btn">Start Game</button>
+                    <p id="start-help-text" class="start-help">You need at least 2 players to start.</p>
 
-                    <!-- Invite Friends by Email -->
-                    <div style="margin-top: 24px; padding-top: 24px; border-top: 1px solid #ecf0f1;">
-                        <h4 style="margin-bottom: 12px;">Invite Friends by Email</h4>
-                        <div style="display: flex; gap: 8px; flex-wrap: wrap;">
-                            <input type="email" id="invite-email" placeholder="friend@email.com"
-                                style="flex: 1; min-width: 0; padding: 10px 12px; border: 1px solid #ddd; border-radius: 8px;">
+                    <div class="invite-email-panel">
+                        <h4>Invite by email</h4>
+                        <div class="input-row">
+                            <input type="email" id="invite-email" placeholder="friend@example.com" inputmode="email" autocomplete="email">
                             <button id="send-invite-btn" class="btn btn-secondary">Send Invite</button>
                         </div>
-                        <div id="invite-status" style="margin-top: 8px; font-size: 0.85em; color: #7f8c8d;"></div>
+                        <div id="invite-status" class="invite-status" role="status"></div>
                     </div>
                 </div>
 
-                <!-- Game Log -->
                 <div class="room-log">
                     <h4>Activity</h4>
-                    <div id="activity-log" class="game-log" style="max-height: 200px;">
-                        <div class="log-entry">Waiting for players to join...</div>
+                    <div id="activity-log" class="game-log">
+                        <div class="log-entry">Waiting for players to join…</div>
                     </div>
                 </div>
             </div>
         </div>
-        </div><!-- end waiting-room-section -->
     </div>
 
     <script src="/socket.io/socket.io.js"></script>

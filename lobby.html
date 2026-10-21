@@ -2,37 +2,45 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <meta name="theme-color" content="#ECF1EC">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-title" content="Mortgage">
     <link rel="icon" type="image/png" sizes="32x32" href="src/assets/favicon-32.png">
     <link rel="apple-touch-icon" sizes="180x180" href="src/assets/apple-touch-icon.png">
-    <title>Lobby - Mortgage Backed Monopoly</title>
-    <link rel="stylesheet" href="src/css/style.css?v=10">
+    <title>Your games — Mortgage Backed Monopoly</title>
+    <link rel="preload" href="src/assets/fonts/besley-latin.woff2" as="font" type="font/woff2" crossorigin>
+    <link rel="stylesheet" href="src/css/tokens.css?v=2">
+    <link rel="stylesheet" href="src/css/style.css?v=14">
 </head>
 <body>
     <div class="container">
-        <div class="header">
-            <h1>Mortgage Backed Monopoly</h1>
-            <p><em>If they did it in 2008, it's fair game</em></p>
+        <header class="app-bar">
+            <a class="app-bar-brand" href="index.html">Mortgage Backed Monopoly</a>
             <div class="user-info">
                 <span id="user-email"></span>
-                <button id="logout-btn" class="btn btn-secondary btn-sm">Logout</button>
+                <button id="logout-btn" class="btn btn-ghost btn-sm">Log out</button>
             </div>
-        </div>
+        </header>
 
         <div class="content">
             <div class="lobby-container">
-                <h2>Game Lobby</h2>
+                <div class="page-title">
+                    <h1>Your games</h1>
+                    <p>Pick up where you left off, or start a new room for your friends.</p>
+                </div>
 
                 <div class="lobby-actions">
-                    <button id="show-create-room-btn" class="btn btn-primary">Create New Game</button>
+                    <button id="show-create-room-btn" class="btn btn-primary btn-large">Create New Game</button>
                 </div>
 
                 <div class="rooms-section">
-                    <h3>Your Active Games</h3>
+                    <div class="section-heading"><h3>Active games</h3></div>
                     <div id="active-rooms-list" class="rooms-list">
                         <div class="loading">
                             <div class="spinner"></div>
-                            <p>Loading your games...</p>
+                            <p>Loading your games…</p>
                         </div>
                     </div>
                 </div>
@@ -43,20 +51,20 @@
     <!-- Create Room Modal -->
     <div class="modal" id="createRoomModal">
         <div class="modal-content">
-            <div class="modal-header">Create New Game</div>
+            <div class="modal-header">New game</div>
             <div class="form-group">
-                <label>Game Name:</label>
+                <label for="room-name">Game name</label>
                 <input type="text" id="room-name" placeholder="Sunday Night Game" required>
             </div>
             <div class="form-group">
-                <label>Max Players (2-8):</label>
-                <input type="number" id="max-players" min="2" max="8" value="4">
+                <label for="max-players">Max players (2–8)</label>
+                <input type="number" id="max-players" min="2" max="8" value="4" inputmode="numeric">
             </div>
             <div class="form-group">
-                <label>Your Player Name:</label>
-                <input type="text" id="host-player-name" placeholder="Your in-game name" required>
+                <label for="host-player-name">Your player name</label>
+                <input type="text" id="host-player-name" placeholder="Your in-game name" autocomplete="nickname" required>
             </div>
-            <div style="text-align: center;">
+            <div class="sheet-actions">
                 <button id="create-room-btn" class="btn btn-success">Create Game</button>
                 <button id="cancel-create-room-btn" class="btn btn-secondary">Cancel</button>
             </div>
@@ -65,6 +73,6 @@
 
     <script src="/socket.io/socket.io.js"></script>
     <script src="src/js/api.js?v=6"></script>
-    <script src="src/js/lobby.js?v=7"></script>
+    <script src="src/js/lobby.js?v=8"></script>
 </body>
 </html>

@@ -150,7 +150,7 @@ test.describe('Trading — UI', () => {
         await page.waitForLoadState('domcontentloaded');
 
         // Should show cash amounts
-        await expect(page.locator('body')).toContainText('1500', { timeout: 5000 });
+        await expect(page.locator('body')).toContainText('$1,500', { timeout: 5000 });
     });
 
     test('property names are shown in game state', async ({ page }) => {

@@ -73,7 +73,7 @@ ul { padding-left: 1.1em; }
     border: 0;
 }
 
-/* Money is always set in Besley with lining, tabular figures */
+/* Money is set in Besley with proportional lining figures. Besley's tabular zero is broken, so never enable tnum on it. */
 .money,
 .stat-value,
 .net-worth,
@@ -81,7 +81,7 @@ ul { padding-left: 1.1em; }
 .room-invite-code,
 .room-code-chip {
     font-family: var(--font-money);
-    font-variant-numeric: lining-nums tabular-nums;
+    font-variant-numeric: lining-nums proportional-nums;
 }
 
 .is-negative { color: var(--danger); }
@@ -410,7 +410,7 @@ input[type="checkbox"] {
     font-family: var(--font-money);
     font-weight: 700;
     font-size: var(--text-title3);
-    font-variant-numeric: lining-nums tabular-nums;
+    font-variant-numeric: lining-nums proportional-nums;
 }
 
 .inline-action-row,
@@ -804,6 +804,14 @@ input[type="checkbox"] {
 
 .nav-tab:active { color: var(--mint); }
 
+/* Focus rings on forest chrome need the light ring to stay visible */
+.nav-tabs :focus-visible,
+.turn-ticket :focus-visible,
+.landing-hero :focus-visible,
+.invite-code-display :focus-visible,
+#turn-banner :focus-visible,
+#hotseat-interstitial :focus-visible { outline-color: var(--mint); }
+
 .nav-tab .tab-dot {
     position: absolute;
     top: 9px;
@@ -924,7 +932,7 @@ input[type="checkbox"] {
     font-weight: 800;
     line-height: 1;
     letter-spacing: -0.02em;
-    font-variant-numeric: lining-nums tabular-nums;
+    font-variant-numeric: lining-nums proportional-nums;
     color: #fff;
 }
 
@@ -942,7 +950,7 @@ input[type="checkbox"] {
     font-size: var(--text-title3);
     font-weight: 700;
     color: #fff;
-    font-variant-numeric: lining-nums tabular-nums;
+    font-variant-numeric: lining-nums proportional-nums;
 }
 
 /* Turn progress rail */
@@ -1029,6 +1037,20 @@ input[type="checkbox"] {
     100% { transform: none; }
 }
 
+/* Narrow phones (SE, folds): keep the ticket to its essentials */
+@media (max-width: 400px) {
+    .turn-ticket { padding: var(--s3) var(--s3) var(--s3); }
+    .ticket-top { gap: var(--s2); }
+    .ticket-top .avatar { width: 32px; height: 32px; }
+    .game-header h2,
+    .ticket-title { font-size: var(--text-title3); }
+    .ticket-cash { font-size: 2.25rem; }
+    .ticket-money { margin-top: var(--s3); }
+    .die-face { width: 28px; height: 28px; padding: 4px; border-radius: 7px; }
+    .die-face i.pip { width: 5px; height: 5px; }
+    .turn-checklist { margin-top: var(--s3); }
+}
+
 /* ── 10. Game: context cards under the ticket ──────────────────── */
 
 .turn-context {
@@ -1086,7 +1108,7 @@ input[type="checkbox"] {
     font-size: var(--text-title3);
     font-weight: 700;
     color: var(--forest);
-    font-variant-numeric: lining-nums tabular-nums;
+    font-variant-numeric: lining-nums proportional-nums;
 }
 
 .turn-warning {
@@ -1167,7 +1189,7 @@ input[type="checkbox"] {
     font-family: var(--font-money);
     font-size: var(--text-title3);
     color: var(--forest);
-    font-variant-numeric: lining-nums tabular-nums;
+    font-variant-numeric: lining-nums proportional-nums;
 }
 
 .auction-panel > p {
@@ -1191,7 +1213,7 @@ input[type="checkbox"] {
 .auction-actions input {
     font-family: var(--font-money);
     font-weight: 700;
-    font-variant-numeric: lining-nums tabular-nums;
+    font-variant-numeric: lining-nums proportional-nums;
 }
 
 .auction-host-actions { margin-top: var(--s2); }
@@ -1235,6 +1257,11 @@ input[type="checkbox"] {
     flex: 0 0 auto;
     padding: 0 var(--s4);
     font-size: var(--text-sub);
+}
+
+.dock-row > .btn.action-btn-end-turn:disabled:only-child {
+    flex: 1 1 0;
+    font-size: var(--text-body);
 }
 
 .dock-row-choices > .btn {
@@ -1581,7 +1608,7 @@ input[type="checkbox"] {
 .player-stat-sm {
     font-family: var(--font-money);
     font-weight: 700;
-    font-variant-numeric: lining-nums tabular-nums;
+    font-variant-numeric: lining-nums proportional-nums;
     white-space: nowrap;
 }
 
@@ -1901,7 +1928,7 @@ input[type="checkbox"] {
     font-weight: 700;
     font-size: var(--text-footnote);
     color: var(--ink-3);
-    font-variant-numeric: lining-nums tabular-nums;
+    font-variant-numeric: lining-nums proportional-nums;
 }
 
 .mobile-square-copy { flex: 1; min-width: 0; }
@@ -1969,7 +1996,7 @@ input[type="checkbox"] {
 
 .mobile-board-player strong {
     font-family: var(--font-money);
-    font-variant-numeric: lining-nums tabular-nums;
+    font-variant-numeric: lining-nums proportional-nums;
 }
 
 /* Full board grid: only when there is room for it */
@@ -2144,7 +2171,7 @@ input[type="checkbox"] {
     font-size: var(--text-title1);
     font-weight: 800;
     color: var(--forest);
-    font-variant-numeric: lining-nums tabular-nums;
+    font-variant-numeric: lining-nums proportional-nums;
 }
 
 .corporation-card {
@@ -2269,7 +2296,7 @@ input[type="checkbox"] {
 #houseModalTotal {
     margin: var(--s4) 0 0 !important;
     font-family: var(--font-money);
-    font-variant-numeric: lining-nums tabular-nums;
+    font-variant-numeric: lining-nums proportional-nums;
 }
 
 .liquidation-summary { color: var(--ink-2); margin-bottom: var(--s3); }
@@ -2340,7 +2367,7 @@ input[type="checkbox"] {
     letter-spacing: 0.2em;
     text-align: center;
     color: var(--forest);
-    font-variant-numeric: lining-nums tabular-nums;
+    font-variant-numeric: lining-nums proportional-nums;
 }
 
 .move-device-code:empty { display: none; }
@@ -2377,7 +2404,7 @@ input[type="checkbox"] {
     letter-spacing: 0.3em;
     text-align: center;
     min-height: 64px !important;
-    font-variant-numeric: lining-nums tabular-nums;
+    font-variant-numeric: lining-nums proportional-nums;
 }
 
 .quiet-link {
@@ -2550,10 +2577,22 @@ input[type="checkbox"] {
     font-weight: 600;
 }
 
-.player-item > div:last-child {
-    font-size: var(--text-caption) !important;
-    color: var(--ink-3) !important;
+.player-item-meta {
+    font-size: var(--text-caption);
+    color: var(--ink-3);
+    white-space: nowrap;
 }
+
+.invite-actions {
+    position: relative;
+    z-index: 1;
+    display: flex;
+    justify-content: center;
+    gap: var(--s2);
+}
+
+.invite-actions .btn[hidden] { display: none; }
+.invite-actions .btn.is-done { --btn-bg: var(--mint); }
 
 .host-controls { margin-top: var(--s6); }
 .host-controls .btn-large { width: 100%; }
@@ -2580,6 +2619,8 @@ input[type="checkbox"] {
     font-size: var(--text-footnote);
     color: var(--ink-3);
 }
+
+.invite-status.is-success { color: var(--emerald); font-weight: 600; }
 
 .hotseat-resume-options {
     display: none;
@@ -2673,6 +2714,314 @@ input[type="checkbox"] {
     margin-top: var(--s4);
     font-size: var(--text-footnote);
     color: rgba(220, 239, 226, 0.6);
+}
+
+/* ── 17a. Landing page ───────────────────────────────────────── */
+
+.btn-gold {
+    --btn-bg: var(--gold-bright);
+    --btn-ink: var(--forest-deep);
+    --btn-press: #BF9014;
+}
+
+.btn-on-dark {
+    --btn-bg: rgba(255, 255, 255, 0.1);
+    --btn-ink: #fff;
+    --btn-press: rgba(255, 255, 255, 0.18);
+    box-shadow: inset 0 0 0 1px rgba(220, 239, 226, 0.35);
+}
+
+.landing-page { background: var(--paper); }
+
+.landing-hero {
+    position: relative;
+    padding: calc(var(--safe-top) + var(--s8)) var(--s4) var(--s8);
+    background: var(--guilloche), linear-gradient(170deg, var(--forest) 0%, var(--forest-deep) 100%);
+    color: #fff;
+    overflow: hidden;
+}
+
+/* Engraved frame, echoing the turn ticket */
+.landing-hero::after {
+    content: '';
+    position: absolute;
+    inset: calc(var(--safe-top) + 10px) 10px 10px;
+    border: 1px solid rgba(212, 160, 23, 0.3);
+    border-radius: var(--r-group);
+    pointer-events: none;
+}
+
+.landing-hero-inner {
+    position: relative;
+    z-index: 1;
+    max-width: var(--page-max);
+    margin: 0 auto;
+}
+
+.landing-wordmark {
+    font-family: var(--font-money);
+    font-size: var(--text-sub);
+    font-weight: 700;
+    color: var(--mint);
+}
+
+.landing-title {
+    margin-top: var(--s6);
+    font-family: var(--font-money);
+    font-size: clamp(2.5rem, 11vw, 4rem);
+    font-weight: 800;
+    line-height: 1.02;
+    letter-spacing: -0.02em;
+    color: #fff;
+    text-wrap: balance;
+}
+
+.landing-tagline {
+    margin-top: var(--s3);
+    font-size: var(--text-body);
+    color: rgba(220, 239, 226, 0.85);
+}
+
+.resume-card {
+    margin-top: var(--s8);
+    padding: var(--s4);
+    border-radius: var(--r-group);
+    background: var(--note);
+    color: var(--ink);
+    box-shadow: 0 18px 40px rgba(0, 0, 0, 0.25);
+}
+
+.resume-label {
+    display: block;
+    margin-bottom: var(--s2);
+    font-size: var(--text-sub);
+    font-weight: 650;
+}
+
+.code-input {
+    font-family: var(--font-money) !important;
+    font-weight: 700;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    font-variant-numeric: lining-nums proportional-nums;
+}
+
+.code-input::placeholder { letter-spacing: 0.18em; color: var(--rule-strong); }
+
+.resume-card .resume-error { margin: var(--s3) 0 0; }
+.resume-card .hotseat-resume-options { margin: var(--s3) 0 0; }
+
+.resume-more {
+    margin-top: var(--s3);
+    border-top: 1px solid var(--rule);
+}
+
+.resume-more summary {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    min-height: var(--tap);
+    padding-top: var(--s2);
+    font-size: var(--text-sub);
+    font-weight: 600;
+    color: var(--emerald);
+    cursor: pointer;
+    list-style: none;
+}
+
+.resume-more summary::-webkit-details-marker { display: none; }
+
+.resume-more summary::after {
+    content: '';
+    width: 9px;
+    height: 9px;
+    margin-right: 4px;
+    border-right: 2px solid currentColor;
+    border-bottom: 2px solid currentColor;
+    transform: rotate(45deg);
+    transition: transform var(--dur) var(--ease-out);
+}
+
+.resume-more[open] summary::after { transform: rotate(-135deg); }
+
+.hint {
+    margin: var(--s2) 0;
+    font-size: var(--text-footnote);
+    color: var(--ink-2);
+}
+
+.transfer-redeem { padding-bottom: var(--s3); }
+
+.forgot-link {
+    display: inline-flex;
+    align-items: center;
+    min-height: var(--tap);
+    font-size: var(--text-sub);
+    font-weight: 600;
+}
+
+.forgot-subform { display: none; padding-bottom: var(--s2); }
+
+.forgot-success {
+    display: none;
+    margin-top: var(--s2);
+    font-size: var(--text-footnote);
+    font-weight: 600;
+    color: var(--emerald);
+}
+
+.hero-cta {
+    display: flex;
+    flex-direction: column;
+    gap: var(--s2);
+    margin-top: var(--s4);
+}
+
+.landing-body {
+    max-width: var(--page-max);
+    margin: 0 auto;
+    padding: 0 var(--s4);
+}
+
+.landing-section { padding-top: var(--s10); }
+
+.landing-section > h2 {
+    font-family: var(--font-money);
+    font-size: var(--text-title1);
+    font-weight: 700;
+    color: var(--forest);
+    line-height: 1.1;
+}
+
+.landing-section > .section-lede { margin-top: var(--s2); }
+
+/* Feature cards are title deeds: color band, title, then rent-style lines */
+.deed-cards {
+    display: grid;
+    gap: var(--s3);
+    margin-top: var(--s4);
+}
+
+.deed-card {
+    padding: 6px;
+    border-radius: var(--r-deed);
+    background: var(--note);
+    border: 1px solid var(--rule-strong);
+}
+
+.deed-card header {
+    padding: var(--s3) var(--s3) var(--s4);
+    border-radius: 3px;
+    background: var(--deed-color);
+    color: #fff;
+    text-align: center;
+}
+
+.deed-card header span {
+    display: block;
+    font-size: var(--text-caption);
+    font-weight: 600;
+    opacity: 0.85;
+}
+
+.deed-card h3 {
+    margin-top: 2px;
+    font-family: var(--font-money);
+    font-size: var(--text-title3);
+    font-weight: 800;
+    color: #fff;
+}
+
+.deed-card dl { padding: var(--s3) var(--s3) var(--s1); }
+
+.deed-card dl div {
+    display: flex;
+    justify-content: space-between;
+    gap: var(--s3);
+    padding: 6px 0;
+    border-bottom: 1px dotted var(--rule-strong);
+    font-size: var(--text-sub);
+}
+
+.deed-card dl div:last-child { border-bottom: 0; }
+.deed-card dt { color: var(--ink-2); }
+
+.deed-card dd {
+    font-family: var(--font-money);
+    font-weight: 700;
+    text-align: right;
+    font-variant-numeric: lining-nums proportional-nums;
+}
+
+.deed-footnote {
+    padding: 0 var(--s3) var(--s3);
+    font-size: var(--text-footnote);
+    font-style: italic;
+    color: var(--ink-3);
+    text-align: center;
+}
+
+.steps {
+    margin: var(--s4) 0 var(--s5);
+    padding: 0;
+    list-style: none;
+    counter-reset: step;
+    background: var(--note);
+    border: 1px solid var(--rule);
+    border-radius: var(--r-group);
+    overflow: hidden;
+}
+
+.steps li {
+    counter-increment: step;
+    position: relative;
+    padding: var(--s3) var(--s4) var(--s3) 60px;
+    border-top: 1px solid var(--rule);
+    font-size: var(--text-sub);
+    color: var(--ink-2);
+}
+
+.steps li:first-child { border-top: 0; }
+
+.steps li::before {
+    content: counter(step);
+    position: absolute;
+    left: var(--s4);
+    top: var(--s3);
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    background: var(--forest);
+    color: #fff;
+    font-family: var(--font-money);
+    font-weight: 700;
+    font-size: var(--text-footnote);
+    line-height: 28px;
+    text-align: center;
+}
+
+.steps strong { display: block; color: var(--ink); }
+
+.landing-footer {
+    max-width: var(--page-max);
+    margin: var(--s10) auto 0;
+    padding: var(--s6) var(--s4) calc(var(--s8) + var(--safe-bottom));
+    border-top: 1px solid var(--rule);
+    font-size: var(--text-footnote);
+    color: var(--ink-3);
+}
+
+.landing-footer .landing-wordmark { color: var(--forest); margin-bottom: var(--s2); }
+.landing-footer p + p { margin-top: var(--s1); }
+
+@media (min-width: 900px) {
+    .landing-hero { padding-top: calc(var(--safe-top) + 72px); padding-bottom: 72px; }
+    .hero-cta { flex-direction: row; }
+    .hero-cta .btn { flex: 1; }
+    .landing-body,
+    .landing-footer { max-width: var(--page-wide); }
+    .deed-cards { grid-template-columns: repeat(3, 1fr); }
+    #how-it-works .btn-block { width: auto; }
 }
 
 /* ── 17. Larger screens ────────────────────────────────────────── */

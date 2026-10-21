@@ -2,54 +2,53 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <meta name="theme-color" content="#ECF1EC">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-title" content="Mortgage">
     <link rel="icon" type="image/png" sizes="32x32" href="src/assets/favicon-32.png">
     <link rel="apple-touch-icon" sizes="180x180" href="src/assets/apple-touch-icon.png">
-    <title>Play Locally — Mortgage Backed Monopoly</title>
-    <link rel="stylesheet" href="src/css/style.css?v=10">
+    <title>Play on one phone — Mortgage Backed Monopoly</title>
+    <link rel="preload" href="src/assets/fonts/besley-latin.woff2" as="font" type="font/woff2" crossorigin>
+    <link rel="stylesheet" href="src/css/tokens.css?v=2">
+    <link rel="stylesheet" href="src/css/style.css?v=14">
 </head>
 <body>
     <div class="container">
-        <div class="header">
-            <h1>Mortgage Backed Monopoly</h1>
-            <p><em>Play Locally — Pass the device between players</em></p>
-        </div>
+        <header class="app-bar">
+            <a class="app-bar-brand" href="index.html">Mortgage Backed Monopoly</a>
+        </header>
 
         <div class="content">
-            <div class="auth-container" style="max-width: 500px;">
-                <h2>Local Hotseat Game</h2>
-                <p style="color: #7f8c8d; margin-bottom: 24px;">
-                    Enter 2–6 player names. You'll take turns on the same device — a hand-off screen
-                    appears between turns so no one peeks at the other player's state.
-                </p>
-
-                <div id="player-name-fields">
-                    <div class="form-group">
-                        <label>Player 1</label>
-                        <input type="text" class="player-name-input" placeholder="Player 1 name" maxlength="20" autofocus>
-                    </div>
-                    <div class="form-group">
-                        <label>Player 2</label>
-                        <input type="text" class="player-name-input" placeholder="Player 2 name" maxlength="20">
-                    </div>
+            <div class="auth-container">
+                <div class="page-title">
+                    <h1>Play on one phone</h1>
+                    <p>Add 2 to 6 players and pass the phone around. A hand-off screen hides each player's view between turns.</p>
                 </div>
 
-                <div style="margin-bottom: 20px;">
-                    <button class="btn btn-secondary btn-sm" id="add-player-btn">
-                        + Add Player
-                    </button>
-                    <span style="color: #95a5a6; font-size: 0.85em; margin-left: 8px;">up to 6 players</span>
+                <div class="auth-card">
+                    <div id="player-name-fields">
+                        <div class="form-group">
+                            <label>Player 1</label>
+                            <input type="text" class="player-name-input" placeholder="Player 1 name" maxlength="20" autocomplete="off">
+                        </div>
+                        <div class="form-group">
+                            <label>Player 2</label>
+                            <input type="text" class="player-name-input" placeholder="Player 2 name" maxlength="20" autocomplete="off">
+                        </div>
+                    </div>
+
+                    <div class="add-player-row">
+                        <button class="btn btn-secondary btn-sm" id="add-player-btn">Add Player</button>
+                        <span>Up to 6 players</span>
+                    </div>
+
+                    <div id="hotseat-error" class="error-message"></div>
+
+                    <button class="btn btn-primary btn-large" id="start-hotseat-btn">Start Local Game</button>
                 </div>
-
-                <div id="hotseat-error" class="error-message"></div>
-
-                <button class="btn btn-primary btn-large" id="start-hotseat-btn"
-                        style="width: 100%; margin-bottom: 12px;">
-                    Start Local Game
-                </button>
-                <p style="text-align: center;">
-                    <a href="index.html" style="color: #7f8c8d; font-size: 0.9em;">Back to home</a>
-                </p>
+                <a class="quiet-link" href="index.html">Back to home</a>
             </div>
         </div>
     </div>

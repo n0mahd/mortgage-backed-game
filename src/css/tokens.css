@@ -20,7 +20,7 @@
     --note: #FAFCF9;            /* grouped surfaces, sheets */
     --ink: #12261C;             /* primary text */
     --ink-2: #3F5247;           /* secondary text */
-    --ink-3: #66776C;           /* tertiary text, placeholders (AA on --note) */
+    --ink-3: #596A5F;           /* tertiary text, placeholders (AA on paper, note, washes) */
     --rule: #D3DDD5;            /* hairlines between rows */
     --rule-strong: #B9C7BD;     /* input borders */
 
@@ -34,7 +34,7 @@
     --mint-wash: #DCEFE2;       /* tinted button and selected-row fill */
 
     /* Bond gold: premium moments only */
-    --gold: #9A6F0E;            /* gold text/icons on light */
+    --gold: #86600A;            /* gold text/icons on light (AA on --gold-wash) */
     --gold-bright: #D4A017;     /* gold fills and rules */
     --gold-wash: #F6EDD3;
 

@@ -2,324 +2,129 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <meta name="theme-color" content="#1B4332">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-title" content="Mortgage">
+    <meta name="description" content="A satirical Monopoly where you IPO your properties, borrow against them, and play your friends in real time.">
     <link rel="icon" type="image/png" sizes="32x32" href="src/assets/favicon-32.png">
     <link rel="apple-touch-icon" sizes="180x180" href="src/assets/apple-touch-icon.png">
-    <title>Mortgage Backed Monopoly — Play Monopoly Like Wall Street</title>
-    <link rel="stylesheet" href="src/css/landing.css?v=8">
+    <title>Mortgage Backed Monopoly — Play Monopoly like Wall Street</title>
+    <link rel="preload" href="src/assets/fonts/besley-latin.woff2" as="font" type="font/woff2" crossorigin>
+    <link rel="stylesheet" href="src/css/tokens.css?v=2">
+    <link rel="stylesheet" href="src/css/style.css?v=14">
 </head>
-<body>
+<body class="landing-page">
 
-    <!-- Navigation -->
-    <nav class="nav" id="main-nav">
-        <div class="nav-container">
-            <div class="nav-brand">
-                <span class="nav-brand-text">Mortgage Backed Monopoly</span>
-            </div>
-            <div class="nav-links">
-                <a href="auth.html" class="btn-nav">Create New Game</a>
-            </div>
-        </div>
-    </nav>
+    <section class="landing-hero">
+        <div class="landing-hero-inner">
+            <p class="landing-wordmark">Mortgage Backed Monopoly</p>
+            <h1 class="landing-title">Play Monopoly like Wall Street.</h1>
+            <p class="landing-tagline">If they did it in 2008, it's fair game.</p>
 
-    <!-- Hero Section -->
-    <section class="hero">
-        <!-- Decorative stock chart SVG background -->
-        <svg class="hero-chart-bg" viewBox="0 0 700 300" fill="none"
-             xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-            <polyline
-                points="0,260 70,225 130,245 190,185 240,205 300,130
-                        360,155 400,90 460,115 520,65 580,82 640,35 700,52"
-                stroke="#C9A227" stroke-width="2" fill="none"
-                stroke-linecap="round" stroke-linejoin="round"/>
-            <polygon
-                points="0,260 70,225 130,245 190,185 240,205 300,130
-                        360,155 400,90 460,115 520,65 580,82 640,35 700,52 700,300 0,300"
-                fill="url(#heroChartGrad)"/>
-            <defs>
-                <linearGradient id="heroChartGrad" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%"   stop-color="#C9A227" stop-opacity="0.25"/>
-                    <stop offset="100%" stop-color="#C9A227" stop-opacity="0"/>
-                </linearGradient>
-            </defs>
-        </svg>
-
-        <div class="hero-container">
-            <div class="hero-content">
-                <p class="hero-eyebrow">Live · Wall Street Edition · 2008 Rules</p>
-                <h1 class="hero-title">
-                    Play Monopoly
-                    <span class="hero-title-accent">Like Wall Street</span>
-                </h1>
-                <p class="hero-subtitle">"If they did it in 2008, it's fair game"</p>
-                <p class="hero-description">
-                    Transform classic Monopoly into a high-stakes financial game.
-                    IPO your properties, issue mortgage-backed securities, and build
-                    your real estate empire with Wall Street tactics.
-                </p>
-
-                <div class="hero-cta">
-                    <a href="auth.html" class="btn btn-primary btn-large">Create New Game</a>
-                    <a href="#resume" class="btn btn-ghost btn-large">Resume Existing Game</a>
-                    <a href="hotseat.html" class="btn btn-secondary btn-large">Play Locally (Hotseat)</a>
+            <div id="resume" class="resume-card">
+                <label class="resume-label" for="resume-code">Have a room code?</label>
+                <div class="input-row">
+                    <input type="text" id="resume-code" class="code-input"
+                           placeholder="ABCD12" maxlength="6" autocomplete="off"
+                           autocapitalize="characters" spellcheck="false">
+                    <button id="resume-code-btn" class="btn btn-primary">Join Game</button>
                 </div>
+                <div id="resume-error" class="resume-error" role="alert"></div>
+                <div id="hotseat-resume-options" class="hotseat-resume-options"></div>
 
-                <!-- Resume form -->
-                <div id="resume" class="resume-card">
-                    <h3>Resume Existing Game</h3>
-                    <p id="signed-out-notice" class="hint signed-out-notice" hidden>
-                        This browser isn't signed in to that game yet. On the device you've been playing on,
-                        tap "Play on another device" and enter its code below. You can also enter your room
-                        code, or <a href="auth.html">sign in with email</a> if you used one.
-                    </p>
-                    <p class="hint">Have a room code? Enter it to jump back in — no login needed.</p>
-                    <div class="input-row">
-                        <input type="text" id="resume-code" class="code-input"
-                               placeholder="ABCD12" maxlength="6"
-                               aria-label="Room code">
-                        <button id="resume-code-btn" class="btn btn-primary">Join Game</button>
-                    </div>
-                    <div id="resume-error" class="resume-error" role="alert"></div>
-                    <div id="hotseat-resume-options" class="hotseat-resume-options"></div>
+                <details class="resume-more">
+                    <summary>Other ways back in</summary>
 
                     <div id="transfer-redeem" class="transfer-redeem">
-                        <p class="hint">Have a code from another device? In your game, tap "Play on another device" to get one.</p>
+                        <p class="hint">Moving from another phone or browser? In your game, tap "Play on another device" to get a code.</p>
                         <div class="input-row">
                             <input type="text" id="transfer-code" class="code-input"
                                    placeholder="ABCD 2345" maxlength="9" autocomplete="one-time-code"
+                                   autocapitalize="characters" spellcheck="false"
                                    aria-label="Code from another device">
-                            <button id="transfer-code-btn" class="btn btn-primary">Continue here</button>
+                            <button id="transfer-code-btn" class="btn btn-secondary">Continue here</button>
                         </div>
                         <div id="transfer-error" class="resume-error" role="alert"></div>
                     </div>
-                    <a id="forgot-code-link" class="forgot-link" href="#">Forgot your code?</a>
 
-                    <!-- Forgot code subform -->
+                    <a id="forgot-code-link" class="forgot-link" href="#">Forgot your room code?</a>
                     <div id="forgot-code-form" class="forgot-subform">
-                        <p>Enter your email and we'll resend all your room codes.</p>
+                        <p class="hint">We'll email you the codes for every game you're in.</p>
                         <div class="input-row forgot-row">
                             <input type="email" id="forgot-email" class="email-input-field"
-                                   placeholder="your@email.com">
-                            <button id="send-forgot-code-btn" class="btn btn-primary">Send Codes</button>
+                                   placeholder="you@example.com" inputmode="email" autocomplete="email" aria-label="Email">
+                            <button id="send-forgot-code-btn" class="btn btn-secondary">Send Codes</button>
                         </div>
-                        <div id="forgot-success" class="forgot-success" role="status">
-                            Check your email for your room codes!
-                        </div>
+                        <div id="forgot-success" class="forgot-success" role="status">Sent. Check your email for your room codes.</div>
                         <div id="forgot-error" class="resume-error" role="alert"></div>
                     </div>
-                </div>
-            </div><!-- /hero-content -->
-
-            <div class="hero-visual">
-                <div class="stat-card reveal">
-                    <p class="stat-label">Seed Capital</p>
-                    <p class="stat-value">$1,500</p>
-                    <p class="stat-meta">Starting balance per player</p>
-                </div>
-                <div class="stat-card reveal reveal-delay-1">
-                    <p class="stat-label">Foreclosable Assets</p>
-                    <p class="stat-value">27</p>
-                    <p class="stat-meta">Properties eligible for MBS</p>
-                </div>
-                <div class="stat-card reveal reveal-delay-2">
-                    <p class="stat-label">Max Leverage</p>
-                    <p class="stat-value">∞</p>
-                    <p class="stat-meta">As God and Lehman intended</p>
-                </div>
-            </div>
-        </div><!-- /hero-container -->
-    </section>
-
-    <!-- Ticker Strip -->
-    <div class="ticker-strip" aria-hidden="true">
-        <div class="ticker-track">
-            <span class="up">MBS-AAA &nbsp;+12.4%</span>
-            <span class="ticker-divider">|</span>
-            <span class="flat">PROP-CORP &nbsp;$847</span>
-            <span class="ticker-divider">|</span>
-            <span class="down">CDO-ALPHA &nbsp;-3.2%</span>
-            <span class="ticker-divider">|</span>
-            <span class="flat">BANK-ONE &nbsp;$1,200</span>
-            <span class="ticker-divider">|</span>
-            <span class="down">SUBPRIME &nbsp;-8.7%</span>
-            <span class="ticker-divider">|</span>
-            <span class="up">RE-FUND &nbsp;+6.1%</span>
-            <span class="ticker-divider">|</span>
-            <span class="flat">MORT-SEC &nbsp;$2,400</span>
-            <span class="ticker-divider">|</span>
-            <!-- Duplicate for seamless loop -->
-            <span class="up">MBS-AAA &nbsp;+12.4%</span>
-            <span class="ticker-divider">|</span>
-            <span class="flat">PROP-CORP &nbsp;$847</span>
-            <span class="ticker-divider">|</span>
-            <span class="down">CDO-ALPHA &nbsp;-3.2%</span>
-            <span class="ticker-divider">|</span>
-            <span class="flat">BANK-ONE &nbsp;$1,200</span>
-            <span class="ticker-divider">|</span>
-            <span class="down">SUBPRIME &nbsp;-8.7%</span>
-            <span class="ticker-divider">|</span>
-            <span class="up">RE-FUND &nbsp;+6.1%</span>
-            <span class="ticker-divider">|</span>
-            <span class="flat">MORT-SEC &nbsp;$2,400</span>
-        </div>
-    </div>
-
-    <!-- Features Section -->
-    <section class="features" id="features">
-        <div class="features-container">
-            <div class="section-header reveal">
-                <span class="section-label">What You Can Do</span>
-                <h2 class="section-title">Wall Street Meets Board Games</h2>
-                <p class="section-subtitle">All the sophisticated financial instruments you remember from 2008</p>
+                </details>
             </div>
 
-            <div class="features-grid">
-                <div class="feature-card reveal">
-                    <div class="feature-icon-wrap">📈</div>
-                    <h3>IPO Your Properties</h3>
-                    <p>Create corporations from your real estate portfolio. Issue stock, raise capital, and trade shares with other players.</p>
-                    <ul class="feature-list">
-                        <li>Bundle properties into companies</li>
-                        <li>Set your own share price</li>
-                        <li>Distribute dividends</li>
-                    </ul>
-                </div>
-
-                <div class="feature-card reveal reveal-delay-1">
-                    <div class="feature-icon-wrap">💸</div>
-                    <h3>Issue Debt Instruments</h3>
-                    <p>Package your mortgages into securities. Collect interest, leverage your assets, and create complex financial structures.</p>
-                    <ul class="feature-list">
-                        <li>Create mortgage-backed securities</li>
-                        <li>Set interest rates</li>
-                        <li>Use properties as collateral</li>
-                    </ul>
-                </div>
-
-                <div class="feature-card reveal reveal-delay-2">
-                    <div class="feature-icon-wrap">🤝</div>
-                    <h3>Real-Time Multiplayer</h3>
-                    <p>Play with friends online in private rooms. See every trade, IPO, and bankruptcy in real-time.</p>
-                    <ul class="feature-list">
-                        <li>2–8 players per game</li>
-                        <li>Instant updates</li>
-                        <li>Share rooms with invite codes</li>
-                    </ul>
-                </div>
+            <div class="hero-cta">
+                <a href="auth.html" class="btn btn-gold btn-large">Create New Game</a>
+                <a href="hotseat.html" class="btn btn-on-dark btn-large">Play on one phone</a>
             </div>
         </div>
     </section>
 
-    <!-- How It Works Section -->
-    <section class="how-it-works" id="how-it-works">
-        <div class="how-container">
-            <div class="section-header reveal">
-                <span class="section-label">Getting Started</span>
-                <h2 class="section-title">How to Play</h2>
-            </div>
+    <main class="landing-body">
+        <section class="landing-section" id="features">
+            <h2>Every instrument from 2008</h2>
+            <p class="section-lede">Classic Monopoly, plus the financial engineering that made the crisis possible.</p>
 
-            <div class="steps">
-                <div class="step reveal">
-                    <div class="step-number">1</div>
-                    <h3>Enter Your Email</h3>
-                    <p>Click "Create New Game" — we'll send a one-time code. No password needed.</p>
-                </div>
-                <div class="step reveal reveal-delay-1">
-                    <div class="step-number">2</div>
-                    <h3>Set Up Your Room</h3>
-                    <p>Name your game, pick max players, and choose your nickname</p>
-                </div>
-                <div class="step reveal reveal-delay-2">
-                    <div class="step-number">3</div>
-                    <h3>Share Room Code</h3>
-                    <p>Friends join with the 6-character code — no account required</p>
-                </div>
-                <div class="step reveal reveal-delay-3">
-                    <div class="step-number">4</div>
-                    <h3>Watch It Collapse</h3>
-                    <p>Or succeed! Either way, it's more fun than 2008</p>
-                </div>
+            <div class="deed-cards">
+                <article class="deed-card" style="--deed-color:#2D6A4F">
+                    <header><span>Equity</span><h3>IPO your properties</h3></header>
+                    <dl>
+                        <div><dt>Bundle streets into a company</dt><dd>Yes</dd></div>
+                        <div><dt>Set your own share price</dt><dd>Any</dd></div>
+                        <div><dt>Shares per company</dt><dd>1–12</dd></div>
+                    </dl>
+                </article>
+                <article class="deed-card" style="--deed-color:#2C3E9E">
+                    <header><span>Credit</span><h3>Borrow against everything</h3></header>
+                    <dl>
+                        <div><dt>Interest per turn</dt><dd>5%</dd></div>
+                        <div><dt>Collateral</dt><dd>Your streets</dd></div>
+                        <div><dt>Maximum leverage</dt><dd>∞</dd></div>
+                    </dl>
+                    <p class="deed-footnote">As God and Lehman intended.</p>
+                </article>
+                <article class="deed-card" style="--deed-color:#E74C3C">
+                    <header><span>Live</span><h3>Play friends in real time</h3></header>
+                    <dl>
+                        <div><dt>Players per room</dt><dd>2–8</dd></div>
+                        <div><dt>Join with</dt><dd>A 6-letter code</dd></div>
+                        <div><dt>Accounts for guests</dt><dd>None</dd></div>
+                    </dl>
+                </article>
             </div>
-        </div>
-    </section>
+        </section>
 
-    <!-- CTA Section -->
-    <section class="cta-section">
-        <div class="cta-container reveal">
-            <h2>Ready to Play<br><em>Wall Street Monopoly?</em></h2>
-            <p>Free to play. No downloads. Just financial chaos with friends.</p>
-            <div class="cta-buttons">
-                <a href="auth.html" class="btn btn-primary btn-xl">Create New Game</a>
-                <a href="#resume" class="btn btn-ghost btn-xl">Resume Existing Game</a>
-                <a href="hotseat.html" class="btn btn-ghost btn-xl">Play Locally (Hotseat)</a>
-            </div>
-        </div>
-    </section>
+        <section class="landing-section" id="how-it-works">
+            <h2>How to start</h2>
+            <ol class="steps">
+                <li><strong>Enter your email.</strong> We send a one-time code. No password.</li>
+                <li><strong>Name your room.</strong> Pick a player limit and your in-game name.</li>
+                <li><strong>Share the code.</strong> Friends join from any phone, no account needed.</li>
+                <li><strong>Watch it collapse.</strong> Or don't. Either way it beats 2008.</li>
+            </ol>
+            <a href="auth.html" class="btn btn-primary btn-large btn-block">Create New Game</a>
+        </section>
+    </main>
 
-    <!-- Footer -->
-    <footer class="footer">
-        <div class="footer-container">
-            <div class="footer-content">
-                <div class="footer-section">
-                    <p class="footer-brand-name">Mortgage Backed Monopoly</p>
-                    <p class="footer-tagline">The most financially irresponsible way to play Monopoly.</p>
-                    <p class="footer-built-with">
-                        Built with <a href="https://claude.ai/claude-code" target="_blank" rel="noopener">Claude Code</a>
-                    </p>
-                </div>
-                <div class="footer-section">
-                    <h4>Game</h4>
-                    <ul class="footer-links">
-                        <li><a href="auth.html">Create New Game</a></li>
-                        <li><a href="#features">Features</a></li>
-                        <li><a href="#how-it-works">How to Play</a></li>
-                    </ul>
-                </div>
-                <div class="footer-section">
-                    <h4>Legal</h4>
-                    <p class="footer-legal">
-                        This is a parody game. Not affiliated with Hasbro or actual financial instruments.
-                        Please don't try any of this in real life.
-                    </p>
-                </div>
-            </div>
-            <div class="footer-bottom">
-                <p>&copy; 2025 Mortgage Backed Monopoly. All rights reserved. Probably.</p>
-            </div>
-        </div>
+    <footer class="landing-footer">
+        <p class="landing-wordmark">Mortgage Backed Monopoly</p>
+        <p>A parody. Not affiliated with Hasbro or any actual financial instrument. Please don't try this in real life.</p>
+        <p>Built with <a href="https://claude.ai/claude-code" target="_blank" rel="noopener">Claude Code</a>.</p>
     </footer>
 
     <script src="src/js/api.js?v=6"></script>
     <script>
-        /* ── Nav: transparent over hero, glass when scrolled ── */
-        const nav = document.getElementById('main-nav');
-        window.addEventListener('scroll', () => {
-            nav.classList.toggle('scrolled', window.scrollY > 60);
-        }, { passive: true });
-
-        /* ── Scroll reveal via IntersectionObserver ── */
-        const revealEls = document.querySelectorAll('.reveal');
-        const revealObserver = new IntersectionObserver((entries) => {
-            entries.forEach(entry => {
-                if (entry.isIntersecting) {
-                    entry.target.classList.add('revealed');
-                    revealObserver.unobserve(entry.target);
-                }
-            });
-        }, { threshold: 0.12, rootMargin: '0px 0px -40px 0px' });
-
-        revealEls.forEach(el => revealObserver.observe(el));
-
-        /* Immediately reveal elements already in the viewport on load */
         document.addEventListener('DOMContentLoaded', () => {
-            revealEls.forEach(el => {
-                const rect = el.getBoundingClientRect();
-                if (rect.top < window.innerHeight) {
-                    el.classList.add('revealed');
-                    revealObserver.unobserve(el);
-                }
-            });
-
             /* Enter key on resume code input */
             const codeInput = document.getElementById('resume-code');
             if (codeInput) {
@@ -339,12 +144,6 @@
             document.getElementById('transfer-code')?.addEventListener('keypress', (e) => {
                 if (e.key === 'Enter') continueWithTransferCode();
             });
-            if (new URLSearchParams(window.location.search).get('signin') === 'game') {
-                document.getElementById('signed-out-notice').hidden = false;
-                document.getElementById('resume')?.scrollIntoView();
-                document.getElementById('transfer-code')?.focus();
-            }
-
             const transferFromLink = new URLSearchParams(window.location.search).get('transfer');
             if (transferFromLink) {
                 document.getElementById('transfer-code').value = transferFromLink;
@@ -384,7 +183,7 @@
             const code = normalizeInviteCode(document.getElementById('resume-code').value);
             const errorEl = document.getElementById('resume-error');
             if (!code || code.length < 4) {
-                errorEl.textContent = 'Please enter a valid room code.';
+                errorEl.textContent = 'Room codes are 6 letters and numbers, like KLJZX8.';
                 errorEl.style.display = 'block';
                 return;
             }
@@ -400,6 +199,7 @@
 
         function showForgotCode() {
             document.getElementById('forgot-code-form').style.display = 'block';
+            document.getElementById('forgot-email')?.focus();
             return false;
         }
 
@@ -411,7 +211,7 @@
             errorEl.style.display = 'none';
 
             if (!email) {
-                errorEl.textContent = 'Please enter your email.';
+                errorEl.textContent = 'Enter the email you used to create your games.';
                 errorEl.style.display = 'block';
                 return;
             }

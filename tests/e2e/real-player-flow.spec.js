@@ -310,7 +310,7 @@ async function buyHouses(page) {
     await page.locator('#houseModalProperties button').filter({ hasText: '+' }).nth(0).click();
     await page.locator('#houseModalProperties button').filter({ hasText: '+' }).nth(1).click();
     await clickAndWaitForGameVersion(page, page.locator('#confirm-house-purchase-btn'));
-    await expect(page.locator('#gameContent')).toContainText(/Properties:/, { timeout: 10000 });
+    await expect(page.locator('#gameContent')).toContainText(/Properties/, { timeout: 10000 });
 }
 
 async function issueDebt(page, amount, rate) {
@@ -324,7 +324,7 @@ async function issueDebt(page, amount, rate) {
     await expect(page.locator('#loanRate')).toHaveAttribute('type', 'hidden');
     await clickAndWaitForGameVersion(page, page.locator('#process-debt-btn'));
     await expect(page.locator('#debtModal')).toBeHidden({ timeout: 10000 });
-    await expect(page.locator('#gameContent')).toContainText(new RegExp(`\\$${amount}\\.00 @ ${rate}%`), { timeout: 10000 });
+    await expect(page.locator('#gameContent')).toContainText(`${formatMoneyForUi(amount)} @ ${rate}%`, { timeout: 10000 });
     await expect(page.locator('#gameContent')).toContainText(/Interest next turn:/, { timeout: 10000 });
 }
 
@@ -335,7 +335,7 @@ async function settleDebt(page, amount) {
     await page.locator('#settlementAmount').fill(String(amount));
     await clickAndWaitForGameVersion(page, page.locator('#process-debt-btn'));
     await expect(page.locator('#debtModal')).toBeHidden({ timeout: 10000 });
-    await expect(page.locator('#gameContent')).toContainText(/Debts:/, { timeout: 10000 });
+    await expect(page.locator('#gameContent')).toContainText(/Debts/, { timeout: 10000 });
 }
 
 async function createIpo(page, ticker, shares, price, assetId) {
@@ -691,4 +691,9 @@ function captureBrowserIssues(page) {
 
 function autoAcceptDialogs(page) {
     page.on('dialog', dialog => dialog.accept());
+}
+
+// Mirrors formatMoney in src/js/ui.js: whole dollars with thousands separators.
+function formatMoneyForUi(amount) {
+    return `$${Number(amount).toLocaleString('en-US')}`;
 }

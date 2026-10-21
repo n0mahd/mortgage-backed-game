@@ -20,6 +20,7 @@ Start here:
 - Realtime sync: `subscribeToGame` in `src/js/api.js` emits on every room (re)join; `resyncGame` in `src/js/game.js` fetches missed updates on rejoin, `visibilitychange`, `online`, and a fallback poll. Game actions keep one `actionId` across network retries, relying on server idempotency in `game_actions`.
 - Device transfer: `POST /api/auth/transfer-code` and `/api/auth/redeem-transfer` in `backend/routes/auth.js` (one-time, hashed, 10-minute codes). The unauthenticated `claim-member` / `claim-hotseat` room routes only issue tokens for guest (anonymous) accounts.
 - Board rendering helpers: `src/js/board.js`.
+- Design system ("Term Sheet"): `documents/design-system.md` for the rules, `src/css/tokens.css` for tokens, `src/css/style.css` for all page styles (one stylesheet, mobile first), `src/js/ui.js` for `formatMoney`, dice, and toasts, and `design-system.html` for a live specimen.
 - Browser E2E tests: `tests/e2e/`.
 - Backend Jest tests: `backend/tests/`.
 
@@ -39,6 +40,7 @@ Fast verification commands:
 - Preserve the frontend's no-build model: classic scripts loaded from HTML, no bundler, no TypeScript migration, and no framework migration unless explicitly requested.
 - When changing game rules, update or add backend unit tests and update `documents/game-rules.md` or `README.md` when player-facing behavior changes.
 - When changing frontend behavior, prefer focused helpers under `src/js/game/` while keeping `src/js/game.js` as the page entry point.
+- New UI uses the design system's existing classes and tokens: no inline styles or raw hex values. Turn actions go in `renderActionButtons()`, optional moves in the moves grid, and host-only controls in `renderHostPanel()`. Check 320, 375, and 390px widths; `tests/e2e/mobile-layout.spec.js` guards the phone layout.
 - Do not bypass `apiFetch` for app API calls unless there is a specific reason.
 - Keep tests and dev data pointed at dev-only ports and paths.
 
