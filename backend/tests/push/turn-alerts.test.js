@@ -22,7 +22,7 @@ const vapid = webpush.generateVAPIDKeys();
 process.env.VAPID_PUBLIC_KEY = vapid.publicKey;
 process.env.VAPID_PRIVATE_KEY = vapid.privateKey;
 
-let app, db, pushServer, pushBase;
+let app, server, db, pushServer, pushBase, serverUrl;
 let received = [];
 let respondWith = 201;
 
@@ -56,12 +56,15 @@ beforeAll(async () => {
     });
     await new Promise(resolve => pushServer.listen(0, '127.0.0.1', resolve));
     pushBase = `https://127.0.0.1:${pushServer.address().port}`;
-    ({ app } = require('../../server'));
+    ({ app, server } = require('../../server'));
     db = require('../../db');
+    await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
+    serverUrl = `http://127.0.0.1:${server.address().port}`;
 });
 
 afterAll(async () => {
     await new Promise(resolve => pushServer.close(resolve));
+    await new Promise(resolve => server.close(resolve));
 });
 
 beforeEach(() => {
@@ -198,4 +201,66 @@ test('each player keeps at most five devices', async () => {
     expect(rows).toHaveLength(5);
     expect(rows.some(e => e.endsWith('/device-6'))).toBe(true);
     expect(rows.some(e => e.endsWith('/device-0'))).toBe(false);
+});
+
+describe('alerts only go to players who are not looking at the game', () => {
+    const { io: ioClient } = require('socket.io-client');
+
+    async function openGamePage(user, roomId) {
+        const socket = ioClient(serverUrl, { auth: { token: user.token }, transports: ['websocket'], forceNew: true });
+        await new Promise((resolve, reject) => {
+            socket.once('connect', resolve);
+            socket.once('connect_error', reject);
+        });
+        await new Promise(resolve => socket.emit('join_room', roomId, resolve));
+        return socket;
+    }
+
+    async function setVisible(socket, visible) {
+        socket.emit('presence', { visible });
+        await new Promise(r => setTimeout(r, 100));
+    }
+
+    async function passTurn(from, game) {
+        await act(from, game, 'roll_dice', {});
+        let ended = await act(from, game, 'end_turn');
+        if (ended.status === 400) {
+            await act(from, game, 'roll_dice', {});
+            ended = await act(from, game, 'end_turn');
+        }
+        expect(ended.status).toBe(200);
+    }
+
+    test('no push while the game is on screen; a push once it is hidden or closed', async () => {
+        const { alice, bob, game, room } = await startTwoPlayerGame();
+        await subscribe(bob, fakeBrowserSubscription('bob-phone'));
+        const page = await openGamePage(bob, room.id);
+
+        await setVisible(page, true);
+        await passTurn(alice, game);
+        expect(await waitForPushes(0)).toEqual([]);
+
+        await passTurn(bob, game);
+        await setVisible(page, false); // screen locked or app switched
+        await passTurn(alice, game);
+        expect((await waitForPushes(1)).map(p => p.path)).toEqual(['/push/bob-phone']);
+
+        received = [];
+        await passTurn(bob, game);
+        await setVisible(page, true);
+        page.disconnect(); // tab closed without saying it was hidden
+        await new Promise(r => setTimeout(r, 200));
+        await passTurn(alice, game);
+        expect((await waitForPushes(1)).map(p => p.path)).toEqual(['/push/bob-phone']);
+    });
+
+    test("another player's open page doesn't silence your alerts", async () => {
+        const { alice, bob, game, room } = await startTwoPlayerGame();
+        await subscribe(bob, fakeBrowserSubscription('bob-phone'));
+        const alicePage = await openGamePage(alice, room.id);
+        await setVisible(alicePage, true);
+        await passTurn(alice, game);
+        expect((await waitForPushes(1)).map(p => p.path)).toEqual(['/push/bob-phone']);
+        alicePage.disconnect();
+    });
 });

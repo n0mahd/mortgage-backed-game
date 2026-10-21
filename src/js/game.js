@@ -126,23 +126,35 @@ async function loadGameData(roomId) {
 function setupRealtimeSubscriptions() {
     gameChannel = subscribeToGame(currentRoom.id, async (game) => {
         await applyGameUpdate(game);
-    }, () => resyncGame());
+    }, () => {
+        reportPresence();
+        resyncGame();
+    });
     RejoinPrompts.watch(currentRoom.id);
 
     // Phones drop the socket when the screen locks or the browser goes to the
-    // background, so catch up whenever the page comes back.
+    // background, so catch up whenever the page comes back. The server also
+    // hears whether the game is on screen: turn alerts only go to players who
+    // aren't looking at it.
     document.addEventListener('visibilitychange', () => {
+        reportPresence();
         if (document.visibilityState === 'visible') resyncGame();
     });
     window.addEventListener('pageshow', (event) => {
+        reportPresence();
         if (event.persisted) resyncGame();
     });
+    window.addEventListener('pagehide', () => reportPresence(false));
     window.addEventListener('online', () => resyncGame());
     setInterval(() => {
         if (document.visibilityState !== 'visible') return;
         const connected = gameChannel?.isConnected();
         if (!connected || Date.now() - lastGameSyncAt > GAME_RESYNC_CONNECTED_MS) resyncGame();
     }, GAME_RESYNC_CHECK_MS);
+}
+
+function reportPresence(visible = document.visibilityState === 'visible') {
+    getSocket().emit('presence', { visible });
 }
 
 // Fetch the latest game and apply it only if it is newer than what is shown.

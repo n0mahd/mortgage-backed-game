@@ -5,6 +5,7 @@
 
 const db = require('../db');
 const { sendToUser } = require('./push');
+const { isPresent } = require('./presence');
 
 function currentPlayerOf(gameRow) {
     if (!gameRow) return null;
@@ -23,6 +24,8 @@ function notifyTurnChange(previousGame, updatedGame, actorUserId) {
     if (!next || next.bankrupt || next.userId === actorUserId) return;
     const previous = previousGame ? currentPlayerOf(previousGame) : null;
     if (previous && previous.userId === next.userId) return;
+    // The game is on their screen: the page itself buzzes and shows the turn.
+    if (isPresent(next.userId)) return;
 
     const room = db.prepare(`SELECT name FROM rooms WHERE id = ?`).get(updatedGame.room_id);
     const roomName = String(room?.name || 'your game').slice(0, 60);

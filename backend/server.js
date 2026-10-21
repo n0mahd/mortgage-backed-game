@@ -4,6 +4,7 @@ const { Server } = require('socket.io');
 const cors = require('cors');
 const { getConfig, getCorsOptions } = require('./config');
 const db = require('./db');
+const presence = require('./services/presence');
 const { router: authRouter, readToken, makeToken } = require('./routes/auth');
 
 const config = getConfig();
@@ -108,7 +109,14 @@ io.on('connection', (socket) => {
         socket.leave(`room:${roomId}`);
     });
 
-    socket.on('disconnect', () => {});
+    // The game page reports whether it is on screen, so turn alerts are only
+    // pushed to players who aren't looking at the game.
+    socket.on('presence', (state) => {
+        if (!socket.userId) return;
+        presence.setVisible(socket.userId, socket.id, !!state?.visible);
+    });
+
+    socket.on('disconnect', () => presence.forgetSocket(socket.userId, socket.id));
 });
 
 
