@@ -7,6 +7,8 @@
 process.env.DB_PATH = ':memory:';
 process.env.JWT_SECRET = 'test-secret';
 process.env.PUSH_ALLOW_LOCAL_ENDPOINTS = 'true';
+// Lets passTurn pin dice through payload.testDice, so turns never depend on luck.
+process.env.ALLOW_STATE_REPAIR = 'true';
 
 const crypto = require('crypto');
 const fs = require('fs');
@@ -221,16 +223,10 @@ describe('alerts only go to players who are not looking at the game', () => {
         await new Promise(r => setTimeout(r, 100));
     }
 
-    // Doubles mean rolling again before End Turn, so roll until the turn can end
-    // (three doubles send the player to Jail, which ends the rolling).
+    // A roll of 3 every turn only ever lands on unowned streets, so End Turn always works.
     async function passTurn(from, game) {
-        let ended;
-        for (let attempt = 0; attempt < 4; attempt++) {
-            await act(from, game, 'roll_dice', {});
-            ended = await act(from, game, 'end_turn');
-            if (ended.status !== 400) break;
-        }
-        expect(ended.status).toBe(200);
+        expect((await act(from, game, 'roll_dice', { testDice: [1, 2] })).status).toBe(200);
+        expect((await act(from, game, 'end_turn')).status).toBe(200);
     }
 
     test('no push while the game is on screen; a push once it is hidden or closed', async () => {
