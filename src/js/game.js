@@ -367,7 +367,7 @@ function renderPauseBanner(gameState) {
 
 function renderCashWarning(currentPlayer, isMyTurn) {
     if (!currentPlayer || currentPlayer.bankrupt) return '';
-    const outlook = getTurnEndOutlook(currentGame.game_state, currentPlayer);
+    const outlook = TurnEndOutlook.forPlayer(currentGame.game_state, currentPlayer);
     const { claim, unpaid, loanPayments, maturing, cash, cashAfter } = outlook;
     const shortfall = formatMoney(outlook.shortfall);
     const loanNote = loanPayments > 0 ? `, then ${formatMoney(loanPayments)} in loan payments` : '';
@@ -1028,7 +1028,7 @@ function renderActionButtons() {
     const currentPlayer = gameState.players[gameState.currentPlayerIndex];
     const { hasRolled, rollAgain } = getRollState(gameState, currentPlayer);
     const landing = getLandingSummary(gameState, currentPlayer);
-    const turnEnd = getTurnEndOutlook(gameState, currentPlayer);
+    const turnEnd = TurnEndOutlook.forPlayer(gameState, currentPlayer);
     const owesMoney = turnEnd.goesBankrupt;
     const endTurnLabel = owesMoney
         ? 'Declare Bankruptcy'

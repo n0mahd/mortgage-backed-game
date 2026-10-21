@@ -151,10 +151,6 @@ document.addEventListener('DOMContentLoaded', () => {
             });
         }
     });
-});
 
-if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', initLobby);
-} else {
     initLobby();
-}
+});

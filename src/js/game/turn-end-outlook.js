@@ -68,5 +68,5 @@
         };
     }
 
-    global.getTurnEndOutlook = getTurnEndOutlook;
+    global.TurnEndOutlook = { forPlayer: getTurnEndOutlook };
 })(window);
