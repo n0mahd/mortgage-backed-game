@@ -52,22 +52,51 @@ function escapeHtml(value) {
         .replace(/'/g, '&#39;');
 }
 
-async function sendInviteCodeEmail({ email, inviteCode, roomName }) {
-    if (!email || !inviteCode) return;
+// Outgoing mail is limited per sender and per recipient, so the endpoints
+// below can't be used to spam an address.
+const emailSenderLimit = createRateLimiter({ name: 'email_sender', ...config.rateLimits.emailSender });
+const emailRecipientLimit = createRateLimiter({ name: 'email_recipient', ...config.rateLimits.emailRecipient });
 
+function emailAllowed(senderKey, recipient) {
+    return emailSenderLimit.check(senderKey).allowed && emailRecipientLimit.check(recipient).allowed;
+}
+
+function plainSubjectText(value, maxLength) {
+    return String(value ?? '').replace(/[\p{C}]/gu, ' ').trim().slice(0, maxLength);
+}
+
+// Invite email: only an email-verified member of the room can send it, and the
+// code and room name come from the database, never from the request.
+async function sendInviteCodeEmail({ senderUserId, email, inviteCode }) {
+    const recipient = normalizeEmail(email);
+    if (!recipient || !isValidEmail(recipient)) throw new RoomError(400, 'Valid email required');
+
+    const sender = db.prepare(`SELECT email, is_anonymous FROM users WHERE id = ?`).get(senderUserId);
+    if (!sender || sender.is_anonymous || !sender.email) {
+        throw new RoomError(403, 'Sign in with your email to send invites');
+    }
+    const room = getRoomByInviteCode(inviteCode);
+    if (!room || !db.prepare(`SELECT 1 FROM room_members WHERE room_id = ? AND user_id = ?`).get(room.id, senderUserId)) {
+        throw new RoomError(404, 'Room not found');
+    }
+    if (!emailAllowed(`user:${senderUserId}`, recipient)) throw new RoomError(429, 'Too many emails. Try again later.');
+
+    const roomName = plainSubjectText(room.name, 60) || 'Mortgage Backed Monopoly';
     await sendEmail(
-        email,
-        `Your room code for ${roomName || 'Mortgage Backed Monopoly'}`,
-        `Your invite code is: ${inviteCode}\n\nShare it with friends to join your game.`,
-        `<p>Your invite code is: <strong>${inviteCode}</strong></p><p>Share it with friends to join your game.</p>`
+        recipient,
+        `Your room code for ${roomName}`,
+        `Your invite code is: ${room.invite_code}\n\nShare it with friends to join your game.`,
+        `<p>Your invite code is: <strong>${escapeHtml(room.invite_code)}</strong></p><p>Share it with friends to join your game.</p>`
     );
 }
 
-async function sendForgotRoomCodes(email) {
+async function sendForgotRoomCodes(email, requesterKey) {
     const normalizedEmail = normalizeEmail(email);
     if (!normalizedEmail || !isValidEmail(normalizedEmail)) {
         return { status: 400, body: { error: 'Valid email required' } };
     }
+    // Same answer whether or not anything is sent, so this can't probe accounts.
+    if (!emailAllowed(requesterKey, normalizedEmail)) return { status: 200, body: { ok: true } };
 
     const rooms = db.prepare(`
         SELECT DISTINCT rooms.name, rooms.invite_code, rooms.status
@@ -236,22 +265,24 @@ router.patch('/:id/status', requireAuth, (req, res) => {
 router.post('/send-code', async (req, res) => {
     if (req.body?.action === 'forgot_code') {
         try {
-            const result = await sendForgotRoomCodes(req.body.email);
+            const result = await sendForgotRoomCodes(req.body.email, getRequestActorKey(req));
             return res.status(result.status).json(result.body);
         } catch (err) {
-            console.error('Forgot room code email error:', err);
+            console.error('Forgot room code email error:', err.message);
             return res.json({ ok: true });
         }
     }
 
     requireAuth(req, res, async () => {
-        const { email, inviteCode, roomName } = req.body;
+        const { email, inviteCode } = req.body || {};
         try {
-            await sendInviteCodeEmail({ email, inviteCode, roomName });
+            await sendInviteCodeEmail({ senderUserId: req.userId, email, inviteCode });
+            res.json({ ok: true });
         } catch (err) {
-            console.error('Invite email error:', err);
+            if (err instanceof RoomError) return res.status(err.status).json({ error: err.message });
+            console.error('Invite email error:', err.message);
+            res.json({ ok: true });
         }
-        res.json({ ok: true });
     });
 });
 

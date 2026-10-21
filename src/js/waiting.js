@@ -298,11 +298,16 @@ async function sendInviteEmail() {
     statusEl.textContent = 'Sending...';
     statusEl.style.color = '';
 
-    await callSendRoomCode({
-        email,
-        inviteCode: currentRoom.invite_code,
-        roomName: currentRoom.name
-    });
+    try {
+        await apiFetch('/rooms/send-code', {
+            method: 'POST',
+            body: JSON.stringify({ email, inviteCode: currentRoom.invite_code })
+        });
+    } catch (err) {
+        statusEl.textContent = err.message || 'Could not send the invite.';
+        statusEl.style.color = '#c0392b';
+        return;
+    }
 
     statusEl.textContent = `Invite sent to ${email}!`;
     statusEl.style.color = '#27ae60';

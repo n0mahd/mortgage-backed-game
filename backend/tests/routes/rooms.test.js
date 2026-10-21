@@ -390,14 +390,99 @@ describe('POST /api/rooms/send-code', () => {
         expect(res.status).toBe(401);
     });
 
-    test('authenticated invite email is best effort', async () => {
-        const res = await request(app)
-            .post('/api/rooms/send-code')
-            .set('Authorization', `Bearer ${user1.token}`)
-            .send({ email: 'friend@test.com', inviteCode: 'INVITE' });
+    describe('what actually gets emailed', () => {
+        const http = require('http');
+        let mailServer;
+        let sent;
 
-        expect(res.status).toBe(200);
-        expect(res.body).toEqual({ ok: true });
+        beforeAll(async () => {
+            mailServer = http.createServer((req, res) => {
+                let body = '';
+                req.on('data', chunk => { body += chunk; });
+                req.on('end', () => {
+                    sent.push(JSON.parse(body));
+                    res.setHeader('Content-Type', 'application/json');
+                    res.end('{"id":"test"}');
+                });
+            });
+            await new Promise(resolve => mailServer.listen(0, '127.0.0.1', resolve));
+        });
+
+        afterAll(async () => {
+            delete process.env.USESEND_API_KEY;
+            delete process.env.USESEND_URL;
+            await new Promise(resolve => mailServer.close(resolve));
+        });
+
+        beforeEach(() => {
+            sent = [];
+            // The file-level beforeEach clears the key; point the mailer at the capture server.
+            process.env.USESEND_API_KEY = 'test-key';
+            process.env.USESEND_URL = `http://127.0.0.1:${mailServer.address().port}/emails`;
+        });
+
+        test('a member invite uses the room code and name from the database, escaped', async () => {
+            createRoomFixture(db, user1.id, { inviteCode: 'INVIT1', name: '<b>Friday</b> "game"' });
+
+            const res = await request(app)
+                .post('/api/rooms/send-code')
+                .set('Authorization', `Bearer ${user1.token}`)
+                .send({ email: 'Friend@Test.com', inviteCode: 'invit1', roomName: 'Click http://evil.example', html: '<script>' });
+
+            expect(res.status).toBe(200);
+            expect(sent).toHaveLength(1);
+            expect(sent[0].to).toEqual(['friend@test.com']);
+            expect(sent[0].subject).toBe('Your room code for <b>Friday</b> "game"');
+            expect(sent[0].html).toContain('<strong>INVIT1</strong>');
+            expect(JSON.stringify(sent[0])).not.toContain('evil.example');
+        });
+
+        test('guests cannot send invites', async () => {
+            const guest = createUserFixture(db, { anonymous: true });
+            createRoomFixture(db, guest.id, { inviteCode: 'INVIT2' });
+
+            const res = await request(app)
+                .post('/api/rooms/send-code')
+                .set('Authorization', `Bearer ${guest.token}`)
+                .send({ email: 'victim@test.com', inviteCode: 'INVIT2' });
+
+            expect(res.status).toBe(403);
+            expect(sent).toHaveLength(0);
+        });
+
+        test('only members of the room can send its invite', async () => {
+            createRoomFixture(db, user1.id, { inviteCode: 'INVIT3' });
+
+            const res = await request(app)
+                .post('/api/rooms/send-code')
+                .set('Authorization', `Bearer ${user2.token}`)
+                .send({ email: 'victim@test.com', inviteCode: 'INVIT3' });
+
+            expect(res.status).toBe(404);
+            expect(sent).toHaveLength(0);
+        });
+
+        test('made-up invite codes send nothing', async () => {
+            const res = await request(app)
+                .post('/api/rooms/send-code')
+                .set('Authorization', `Bearer ${user1.token}`)
+                .send({ email: 'victim@test.com', inviteCode: '<a href=x>' });
+
+            expect(res.status).toBe(404);
+            expect(sent).toHaveLength(0);
+        });
+
+        test('forgot_code escapes room names in the email body', async () => {
+            createRoomFixture(db, user1.id, { inviteCode: 'FORGT2', name: '<img src=x onerror=alert(1)>' });
+
+            await request(app)
+                .post('/api/rooms/send-code')
+                .send({ action: 'forgot_code', email: user1.email });
+
+            expect(sent).toHaveLength(1);
+            expect(sent[0].html).toContain('&lt;img src=x onerror=alert(1)&gt;');
+            expect(sent[0].html).not.toContain('<img');
+        });
     });
 });
 

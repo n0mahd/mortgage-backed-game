@@ -228,6 +228,39 @@ test.describe('Player feedback 2026-10-20', () => {
         await bob.context.close();
     });
 
+    test('a player name with quotes cannot inject HTML attributes', async ({ browser, request }) => {
+        const evilName = 'Mal" onmouseover="window.__xss=1" data-x="';
+        const { room, users } = await setupGame(request, { players: ['Alice', evilName] });
+        const config = await apiJson(request, 'get', `${BASE_API}/games/config`);
+        const evil = users[evilName];
+        // Make the evil player own Mediterranean Ave and put Alice on it, so the
+        // disabled Buy button's title reads "Owned by <name>".
+        const latest = await apiJson(request, 'get', `${BASE_API}/games/by-room/${room.id}`, {
+            headers: { Authorization: `Bearer ${users.Alice.token}` },
+        });
+        const state = latest.game_state;
+        state.properties = config.properties.map((prop, index) => ({
+            ...prop,
+            id: `prop-${index}`,
+            ownerId: index === 0 ? evil.user.id : null,
+            ownerName: index === 0 ? evilName : null,
+            houses: 0,
+        }));
+        state.players[0].position = 1;
+        await apiJson(request, 'patch', `${BASE_API}/games/${latest.id}/state`, {
+            headers: { Authorization: `Bearer ${users.Alice.token}` },
+            data: { game_state: state, action_type: 'host_state_repair', expected_version: latest.state_version },
+        });
+
+        const alice = await openGame(browser, room, users.Alice, { mobile: false });
+        const buy = alice.page.locator('#gameContent .action-btn-buy');
+        await expect(buy).toHaveAttribute('title', `Owned by ${evilName}.`);
+        expect(await buy.getAttribute('onmouseover')).toBeNull();
+        await buy.hover();
+        expect(await alice.page.evaluate(() => window.__xss)).toBeUndefined();
+        await alice.context.close();
+    });
+
     test('a player can move their game to another browser with a one-time link', async ({ browser, request }) => {
         const { room, users } = await setupGame(request);
         const alice = await openGame(browser, room, users.Alice);

@@ -77,6 +77,8 @@ function getConfig() {
             roomCreate: buildRateLimitConfig('ROOM_CREATE', rateLimitEnabled, { max: 12, windowMs: 60 * 60 * 1000 }),
             gameAction: buildRateLimitConfig('GAME_ACTION', rateLimitEnabled, { max: 120, windowMs: 60 * 1000 }),
             mcp: buildRateLimitConfig('MCP', rateLimitEnabled, { max: 300, windowMs: 60 * 1000 }),
+            emailSender: buildRateLimitConfig('EMAIL_SENDER', rateLimitEnabled, { max: 10, windowMs: 60 * 60 * 1000 }),
+            emailRecipient: buildRateLimitConfig('EMAIL_RECIPIENT', rateLimitEnabled, { max: 3, windowMs: 60 * 60 * 1000 }),
         },
     };
 }
