@@ -123,6 +123,14 @@ function refuseProductionTargets({ name, webPort, apiPort, dbPath, allowProducti
     }
 }
 
+// Throwaway Web Push keys, so turn alerts are switched on in the dev backend.
+function devVapidKeys() {
+    if (process.env.VAPID_PUBLIC_KEY && process.env.VAPID_PRIVATE_KEY) return {};
+    const webpush = require(path.join(ROOT, 'backend/node_modules/web-push'));
+    const { publicKey, privateKey } = webpush.generateVAPIDKeys();
+    return { VAPID_PUBLIC_KEY: publicKey, VAPID_PRIVATE_KEY: privateKey };
+}
+
 function startBackend({ apiPort, dbPath, config }) {
     const backend = spawn('node', ['server.js'], {
         cwd: path.join(ROOT, 'backend'),
@@ -134,6 +142,7 @@ function startBackend({ apiPort, dbPath, config }) {
             CORS_ORIGINS: '*',
             USESEND_URL: process.env.USESEND_URL || 'http://127.0.0.1:3001/api/v1/emails',
             ALLOW_STATE_REPAIR: 'true',
+            ...devVapidKeys(),
             ...(config.backendEnv || {}),
         },
         stdio: ['ignore', 'pipe', 'pipe'],
