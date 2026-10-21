@@ -20,13 +20,14 @@ const {
     resetTestDb,
 } = require('../helpers/fixtures');
 
-let app, db;
+let app, db, agentSeats;
 
 beforeAll(() => {
     const { app: a } = require('../../server');
     const d = require('../../db');
     app = a;
     db = d;
+    agentSeats = require('../../services/agentSeats');
 });
 
 beforeEach(() => {
@@ -99,25 +100,38 @@ describe('production rate limits', () => {
         expect(db.prepare(`SELECT COUNT(*) AS count FROM game_actions WHERE game_id = ?`).get(game.id).count).toBe(1);
     });
 
-    test('limits MCP room creation per client like the HTTP route', async () => {
-        const callCreateRoom = id => request(app)
+    test('limits MCP game actions per seat like the HTTP route', async () => {
+        const { createAgentSeat, claimAgentSeat } = agentSeats;
+        const noopIo = { to: () => ({ emit() {} }) };
+        const host = createUserFixture(db);
+        const room = createRoomFixture(db, host.id, { maxPlayers: 4 });
+        const { key } = createAgentSeat({ roomId: room.id, hostUserId: host.id });
+        const { seat } = claimAgentSeat(noopIo, { key, playerName: 'Robo' });
+
+        const gameState = buildGameState(['Robo', 'Alice']);
+        gameState.players[0].userId = seat.user_id;
+        gameState.players[0].diceRolled = true;
+        gameState.players[1].userId = host.id;
+        const game = createGameFixture(db, room.id, { gameState });
+
+        const callAction = id => request(app)
             .post('/api/mcp')
             .set('Accept', 'application/json, text/event-stream')
             .send({
                 jsonrpc: '2.0',
                 id,
                 method: 'tools/call',
-                params: { name: 'create_room', arguments: { room_name: `Room ${id}`, player_name: 'Robo' } },
+                params: { name: 'take_action', arguments: { agent_key: key, type: 'end_turn' } },
             })
             .expect(200);
 
-        const first = await callCreateRoom(1);
+        const first = await callAction(1);
         expect(first.body.result.isError).toBeFalsy();
 
-        const limited = await callCreateRoom(2);
+        const limited = await callAction(2);
         expect(limited.body.result.isError).toBe(true);
         expect(limited.body.result.content[0].text).toMatch(/Too many requests/);
-        expect(db.prepare(`SELECT COUNT(*) AS count FROM rooms`).get().count).toBe(1);
+        expect(db.prepare(`SELECT COUNT(*) AS count FROM game_actions WHERE game_id = ?`).get(game.id).count).toBe(1);
     });
 
 });

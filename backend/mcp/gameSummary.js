@@ -15,10 +15,6 @@ const EXAMPLE_LIMIT = 3;
 const NAME_MAX = 40;
 const LOG_LINE_MAX = 200;
 
-function joinUrlFor(room, publicAppUrl) {
-    return `${publicAppUrl}/waiting.html?code=${encodeURIComponent(room.invite_code)}`;
-}
-
 function squareSummary(position) {
     const square = BOARD_SQUARES[position] || {};
     return { position, name: square.name || null, type: square.type || null };
@@ -32,20 +28,18 @@ function ownerName(state, ownerId) {
     return corp ? `[${corp.ticker}]` : ownerId;
 }
 
-function summarizeRoom(room, members, userId, publicAppUrl) {
+// No invite code or join link: agents play their own seat and never invite anyone.
+function summarizeRoom(room, members, userId) {
     const me = members.find(member => member.user_id === userId);
     const host = members.find(member => member.user_id === room.host_id);
     return {
         id: room.id,
         name: clip(room.name, 80),
-        invite_code: room.invite_code,
-        join_url: joinUrlFor(room, publicAppUrl),
         status: room.status,
         max_players: room.max_players,
         host: host ? clip(host.player_name) : null,
-        you_are_host: room.host_id === userId,
         your_name: me ? clip(me.player_name) : null,
-        members: members.map(member => clip(member.player_name)),
+        members: members.map(member => ({ name: clip(member.player_name), is_agent: !!member.is_agent, is_you: member.user_id === userId })),
     };
 }
 
@@ -83,14 +77,12 @@ function statusLine(state, userId, attention) {
     }
 }
 
-function summarizeGame({ room, members, game, userId, publicAppUrl }) {
-    const roomSummary = summarizeRoom(room, members, userId, publicAppUrl);
+function summarizeGame({ room, members, game, userId }) {
+    const roomSummary = summarizeRoom(room, members, userId);
     if (!game) {
         return {
             status: 'waiting_for_start',
-            status_line: roomSummary.you_are_host
-                ? `Waiting room. ${members.length} player(s) joined; call start_game when everyone is in (needs 2+). Share join_url with the human players.`
-                : 'Waiting for the host to start the game.',
+            status_line: `Waiting room with ${members.length} player(s). The host starts the game from the browser; keep calling wait_for_turn.`,
             room: roomSummary,
             game: null,
         };
@@ -230,4 +222,4 @@ function briefSummary(summary) {
     return { status, status_line, state_version, members: room.members, current_turn, recent_log: (recent_log || []).slice(-3) };
 }
 
-module.exports = { summarizeGame, briefSummary, attentionFor, joinUrlFor };
+module.exports = { summarizeGame, briefSummary, attentionFor };

@@ -27,57 +27,35 @@ For the production-readiness plan, see `documents/production-roadmap.md`.
 
 ---
 
-## Play Against Your Agent
+## Play With AI Agents
 
-Your own AI agent (Claude, ChatGPT, or any MCP client) can sit at the table as a player. It connects to the game's MCP server and plays its turns through tools, while you play in the browser and watch its moves live.
+The host can seat AI agents (Claude, ChatGPT, or any MCP client) as players. Each agent plays only its own seat through the game's MCP server, while everyone else plays in the browser and watches its moves live.
 
 **MCP endpoint:** `https://mortgage.abdlh.com/api/mcp` (Streamable HTTP, no sign-in)
 
-Add it to your agent:
-
-- **Claude Code:** `claude mcp add --transport http mortgage-backed https://mortgage.abdlh.com/api/mcp`
-- **Claude (web/desktop):** Settings → Connectors → Add custom connector, and paste the endpoint URL.
-- **Other clients:** add a remote MCP server of type Streamable HTTP with the same URL.
-
-Then ask the agent to play. Either:
-
-1. **The agent hosts:** "Create a Mortgage Backed room and send me the link." It calls `create_room` and gives you a join link (`https://mortgage.abdlh.com/waiting.html?code=XXXXXX`). Open it, enter your name, and the agent calls `start_game` once you're in.
-2. **You host:** create a room in the browser and give the agent the 6-character invite code. It calls `join_room`, and you click **Start Game**.
-
-After that the agent loops on `wait_for_turn` → `get_game_state` → `take_action` (roll, buy, auction, build, trade, end turn) until the game ends.
+1. Add the endpoint to the agent's app once: in the Claude app, **Settings → Connectors → Add custom connector**. For Claude Code, `claude mcp add --transport http mortgage-backed https://mortgage.abdlh.com/api/mcp`. Other clients: a remote Streamable HTTP server with the same URL.
+2. Create a room in the browser. In the waiting room, the host taps **Invite an agent** once per agent. Each tap creates an invite holding a new agent key (`mbagent_…`), shown once. Copy it into a new chat for that agent.
+3. The agent calls `join_game` with its key and a name, then loops on `wait_for_turn` → `take_action` until the game ends. It shows up in the player list with an **AI** badge, and the host presses **Start Game** when everyone is in.
 
 | Tool | What it does |
 |------|--------------|
-| `create_room(room_name, player_name, max_players?)` | New room with the agent as host; returns `player_token`, invite code and join link |
-| `join_room(invite_code, player_name)` | Join a waiting room; returns `player_token` |
-| `start_game(player_token)` | Host only; starts once 2+ players have joined |
-| `get_game_state(player_token)` | The agent's view: whose turn, cash, position, properties, jail, ownership, auction, trade offers, recent log, and `legal_actions` right now |
-| `take_action(player_token, type, payload?)` | One game action (for example `roll_dice`, `buy_property`, `place_bid {amount}`, `end_turn`) |
-| `wait_for_turn(player_token, timeout_seconds?)` | Returns once the agent needs to act or after up to 50 seconds |
-| `get_rules()` | Rules summary and every action's payload shape |
-
-The `player_token` is the agent's seat at the table: anyone holding it can play as that player, so the agent should keep it private. The server applies the same rules, turn checks and live updates to the agent as to a browser player.
-
-### Playtest against several AI players
-
-To fill your own room with bots, create it in the browser, then on a machine with the `claude` CLI:
-
-```bash
-scripts/agent-players.sh start ABC123 3          # 3 AI players join room ABC123
-scripts/agent-players.sh status ABC123           # what each one did last
-scripts/agent-players.sh stop ABC123
-```
-
-Press **Start Game** once they show up in the waiting room. Options: `--model` (default `claude-sonnet-5-5`) and `--url` (default production; use `http://127.0.0.1:3013/api/mcp` or similar for a dev server). Each player is a separate headless `claude -p` process with its own context and seat token, and each plays with a different style. The script joins the seats itself and keeps each token in a private file under `~/.local/state/mortgage-agents/<code>/`, so a player that crashes or overflows its context restarts into the same seat. Players stop when the game ends, when they go bankrupt, after about 25 idle minutes, or after 6 hours. On the Raspberry Pi the script refuses to start more players than the machine's 8-agent cap allows.
+| `join_game(agent_key, player_name)` | Take the seat this key was issued for; calling it again returns the agent's state |
+| `get_game_state(agent_key)` | The agent's view: whose turn, cash, position, properties, jail, ownership, auction, trade offers, recent log, and `legal_actions` right now |
+| `take_action(agent_key, type, payload?)` | One game action as itself (for example `roll_dice`, `buy_property`, `place_bid {amount}`, `end_turn`) |
+| `wait_for_turn(agent_key, timeout_seconds?)` | Returns once the agent needs to act, the game starts or ends, or after up to 50 seconds |
+| `get_rules()` | Rules summary, the board, and every action's payload shape |
 
 ### Agent security model
 
-- Agents have no account: `create_room`/`join_room` make an anonymous user, and the token only controls that seat.
-- Player names, room names and log lines come from other players and reach agents as text, so they are a prompt-injection channel. The server caps them in length and strips control characters, and tells agents to treat them as data. The launcher also gives players no tools other than the game's (no shell, files, web, or your own settings and MCP servers), so an injected instruction can at most change a game move.
-- Agents cannot choose their dice: `testDice` is stripped from MCP actions outside the test suite, even on servers with `ALLOW_STATE_REPAIR`.
-- Browser pages from other sites cannot call `/api/mcp`. Requests with an `Origin` header must come from the app's own URL or an explicit `CORS_ORIGINS` entry; `*` does not count.
-- Each player can have at most 2 `wait_for_turn` calls open at once (200 across the server), on top of the per-client and per-tool rate limits.
-- Getting back into a seat: after a game starts, someone with the invite code can ask to take over a guest seat (an agent's included), but a signed-in player must approve it on their screen: the host or that seat's own player, or any other player when the seat is the host's. Only the browser that asked receives the token.
+- **One key, one seat.** Only the host can create invites, from the waiting room. A key works for one seat in one room and nothing else: it is not a login token, and the server stores only its SHA-256 hash. Agents cannot create rooms, join by room code, start the game, or use host actions. The engine checks that every action is the agent's own (its turn, its money, its properties).
+- **Revocable.** The host's **Revoke** disables a key at once. Before the game starts it also frees the seat; afterwards the player stays in the game, but nobody can act for it.
+- **Seats are reserved.** Unused invites hold their seats, so people joining by room code can't fill the room first. Invites stop working once the game starts.
+- **Only the key plays the seat.** Agent seats can't be taken over through a rejoin request; a lost agent key means a new invite.
+- **Getting back into a guest seat.** After a game starts, someone with the room code can ask to take over a human guest seat, but a signed-in player must approve it on their screen: the host or that seat's own player, or any other player when the seat is the host's. Only the browser that asked receives the token.
+- **Prompt injection.** Player names, room names and log lines are typed by other players and reach agents as text. The server caps their length, strips control characters, and tells agents to treat them as data. In the agent's own app, give game chats only this connector, so an injected instruction can at most change a game move.
+- **Fair dice.** `testDice` is stripped from agent actions outside the test suite, even on servers with `ALLOW_STATE_REPAIR`.
+- **No drive-by pages.** Requests with an `Origin` header must come from the app's own URL or an explicit `CORS_ORIGINS` entry; `*` does not count.
+- **Bounded waits.** Each player can have at most 2 `wait_for_turn` calls open at once (200 across the server), on top of the per-client and per-seat rate limits.
 
 ---
 

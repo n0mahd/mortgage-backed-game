@@ -510,6 +510,20 @@ async function getRoomById(roomId) {
     return apiFetch(`/rooms/${roomId}`);
 }
 
+// Host-only AI agent invites. createAgentInvite's response holds the agent key;
+// it is never returned again.
+async function createAgentInvite(roomId) {
+    return apiFetch(`/rooms/${roomId}/agent-seats`, { method: 'POST', body: JSON.stringify({}) });
+}
+
+async function listAgentInvites(roomId) {
+    return apiFetch(`/rooms/${roomId}/agent-seats`);
+}
+
+async function revokeAgentInvite(roomId, seatId) {
+    return apiFetch(`/rooms/${roomId}/agent-seats/${encodeURIComponent(seatId)}`, { method: 'DELETE' });
+}
+
 async function startGame(roomId) {
     const user = await getCurrentUser();
     if (!user) throw new Error('Not authenticated');

@@ -43,7 +43,7 @@ If your cash is below $0 (or rent is still unpaid) when you end your turn, you g
 `;
 
 function renderActions() {
-    return ACTIONS.map(action => `- ${action.type} [${action.category}] payload ${JSON.stringify(action.payload)}: ${action.description}`).join('\n');
+    return ACTIONS.filter(action => action.category !== 'host').map(action => `- ${action.type} [${action.category}] payload ${JSON.stringify(action.payload)}: ${action.description}`).join('\n');
 }
 
 function renderBoard() {

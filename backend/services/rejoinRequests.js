@@ -8,6 +8,8 @@
 // - if the seat is the host's, any other player in the room;
 // - a whole-room (hotseat) request needs the host.
 // Email seats are never handed out this way: those players sign in with email.
+// Nor are AI agent seats: only the seat's agent key plays them
+// (services/agentSeats.js), so a token for one would bypass the host's invite.
 
 const crypto = require('crypto');
 const { v4: uuidv4 } = require('uuid');
@@ -66,10 +68,11 @@ function createRejoinRequest({ inviteCode, memberId }) {
     if (memberId) {
         const member = members.find(item => item.id === memberId);
         if (!member) throw new RoomError(404, 'Player not found in this room');
+        if (member.is_agent) throw new RoomError(403, 'AI player seats are played only by their agent. The host can invite a new agent.');
         if (!isAnonymousUser(member.user_id)) {
             throw new RoomError(403, 'This player signed in with email. Sign in with that email to continue.');
         }
-    } else if (!members.every(member => isAnonymousUser(member.user_id))) {
+    } else if (!members.every(member => isAnonymousUser(member.user_id) && !member.is_agent)) {
         throw new RoomError(403, 'Only same-device games can be resumed this way. Sign in to continue.');
     }
 

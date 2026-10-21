@@ -2810,6 +2810,47 @@ input[type="checkbox"] {
 .invite-status.is-success { color: var(--emerald); font-weight: 600; }
 .invite-status.is-error { color: var(--danger); font-weight: 600; }
 
+/* AI agent invites (host only) */
+.agent-invites-help {
+    margin-bottom: var(--s3);
+    font-size: var(--text-footnote);
+    color: var(--ink-2);
+}
+
+.agent-invite-status:not(:empty) {
+    margin-top: var(--s2);
+    font-size: var(--text-footnote);
+    color: var(--ink-3);
+}
+
+.agent-invite-list {
+    display: flex;
+    flex-direction: column;
+    margin-top: var(--s3);
+}
+
+.agent-invite-list:empty { display: none; }
+
+.agent-invite-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--s3);
+    padding: var(--s2) 0;
+    border-top: 1px solid var(--rule);
+    font-size: var(--text-sub);
+}
+
+.agent-invite-prompt {
+    min-height: 180px;
+    padding: var(--s3);
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: var(--text-footnote);
+    line-height: 1.45;
+}
+
+.player-badge-agent { background: #E3EEF6; color: var(--info); }
+
 .hotseat-resume-options {
     display: none;
     margin-bottom: var(--s4);

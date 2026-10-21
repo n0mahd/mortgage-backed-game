@@ -13,6 +13,7 @@ function resetTestDb(db) {
         DELETE FROM game_events;
         DELETE FROM games;
         DELETE FROM rejoin_requests;
+        DELETE FROM agent_seats;
         DELETE FROM room_members;
         DELETE FROM rooms;
         DELETE FROM otps;

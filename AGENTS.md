@@ -12,9 +12,8 @@ Start here:
 - Backend entry point: `backend/server.js`.
 - Backend routes: `backend/routes/`.
 - Authoritative game rules and all game-state mutation: `backend/domain/gameRules.js`.
-- Game persistence shared by HTTP routes and MCP (transaction, `state_version`, idempotency row, events, audit, Socket.IO broadcast): `backend/services/gameActions.js`. Room create/join and anonymous users: `backend/services/rooms.js`. In-process room change signal: `backend/services/roomEvents.js`.
-- MCP server for AI-agent players (`/api/mcp`, tools, agent state summary, rules text): `backend/mcp/`. Player-facing action catalog and dry-run legal-action list: `backend/domain/actionCatalog.js`.
-- Playtest launcher that seats N isolated headless `claude -p` players (game MCP tools only, no built-in tools) in a room: `scripts/agent-players.sh`. Keep players tool-less: game state carries text typed by other players.
+- Game persistence shared by HTTP routes and MCP (transaction, `state_version`, idempotency row, events, audit, Socket.IO broadcast): `backend/services/gameActions.js`. Room create/join and anonymous users: `backend/services/rooms.js`. Host-issued agent invites (one hashed key per seat, reservation, revocation): `backend/services/agentSeats.js`. In-process room change signal: `backend/services/roomEvents.js`.
+- MCP server for AI-agent players (`/api/mcp`, tools, agent state summary, rules text): `backend/mcp/`. Agents authenticate only with their seat's agent key and can act only as that seat; keep it that way (no room creation, room-code joins or host actions over MCP). Waiting-room invite UI: `src/js/agentInvites.js`. Player-facing action catalog and dry-run legal-action list: `backend/domain/actionCatalog.js`.
 - Frontend API and Socket.IO helpers: `src/js/api.js`.
 - Game screen entry point: `src/js/game.js`, with focused helpers under `src/js/game/`.
 - Realtime sync: `subscribeToGame` in `src/js/api.js` emits on every room (re)join; `resyncGame` in `src/js/game.js` fetches missed updates on rejoin, `visibilitychange`, `online`, and a fallback poll. Game actions keep one `actionId` across network retries, relying on server idempotency in `game_actions`.

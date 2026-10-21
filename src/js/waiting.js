@@ -159,6 +159,7 @@ async function loadRoomDataById(id) {
 
         if (isHost) {
             document.getElementById('host-controls').style.display = 'block';
+            if (room.status === 'waiting') AgentInvites.mount(room.id);
         }
 
         updateRoomStatus(room.status, room.room_members.length, room.max_players);
@@ -185,6 +186,7 @@ function subscribeToRoomUpdatesById(id) {
             document.getElementById('player-count').textContent =
                 `${room.room_members.length}/${room.max_players} players`;
             updateStartButtonState(room.room_members.length);
+            if (isHost) AgentInvites.refresh();
             logActivity('Player list updated');
         },
         async (room) => {
@@ -213,6 +215,7 @@ function renderPlayers(members) {
                 <strong>${escapeHtml(member.player_name)}</strong>
                 ${member.user_id === currentRoom.host_id ?
                     '<span class="player-badge">Host</span>' : ''}
+                ${member.is_agent ? '<span class="player-badge player-badge-agent">AI</span>' : ''}
                 ${currentUser && member.user_id === currentUser.id ?
                     '<span class="player-badge badge-info">You</span>' : ''}
             </div>
