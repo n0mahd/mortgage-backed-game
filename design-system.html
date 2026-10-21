@@ -9,7 +9,7 @@
     <title>Design system — Mortgage Backed Monopoly</title>
     <link rel="preload" href="src/assets/fonts/besley-latin.woff2" as="font" type="font/woff2" crossorigin>
     <link rel="stylesheet" href="src/css/tokens.css?v=2">
-    <link rel="stylesheet" href="src/css/style.css?v=14">
+    <link rel="stylesheet" href="src/css/style.css?v=15">
     <style>
         /* Specimen-only layout */
         .spec-swatches { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: var(--s2); }
@@ -62,7 +62,7 @@
                     <h2 class="ticket-title">Your turn</h2>
                     <span class="ticket-status">Rolled 7, now on Chance</span>
                 </div>
-                <span class="dice-pair" id="spec-dice"></span>
+                <span class="dice-pair" role="img" aria-label="Rolled 3 and 4, total 7"> <span class="die-face " aria-hidden="true"><i class=""></i><i class=""></i><i class="pip"></i><i class=""></i><i class="pip"></i><i class=""></i><i class="pip"></i><i class=""></i><i class=""></i></span><span class="die-face " aria-hidden="true"><i class="pip"></i><i class=""></i><i class="pip"></i><i class=""></i><i class=""></i><i class=""></i><i class="pip"></i><i class=""></i><i class="pip"></i></span> </span>
             </div>
             <div class="ticket-money">
                 <div><span class="ticket-money-label">Your cash</span><strong class="ticket-cash">$1,212</strong></div>
@@ -141,9 +141,5 @@
         </div>
     </div>
 
-    <script src="src/js/ui.js?v=1"></script>
-    <script>
-        document.getElementById('spec-dice').outerHTML = renderDicePair([3, 4]);
-    </script>
 </body>
 </html>

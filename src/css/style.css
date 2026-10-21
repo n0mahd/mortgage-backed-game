@@ -2622,6 +2622,7 @@ input[type="checkbox"] {
 }
 
 .invite-status.is-success { color: var(--emerald); font-weight: 600; }
+.invite-status.is-error { color: var(--danger); font-weight: 600; }
 
 .hotseat-resume-options {
     display: none;

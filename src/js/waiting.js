@@ -301,7 +301,7 @@ async function sendInviteEmail() {
     if (!email || !currentRoom) return;
 
     statusEl.textContent = 'Sending…';
-    statusEl.classList.remove('is-success');
+    statusEl.classList.remove('is-success', 'is-error');
 
     try {
         await apiFetch('/rooms/send-code', {
@@ -310,7 +310,7 @@ async function sendInviteEmail() {
         });
     } catch (err) {
         statusEl.textContent = err.message || 'Could not send the invite.';
-        statusEl.style.color = '#c0392b';
+        statusEl.classList.add('is-error');
         return;
     }
 
