@@ -14,6 +14,7 @@ const JWT_SECRET = config.jwtSecret;
 const JWT_EXPIRY = config.jwtExpiry;
 const otpSendLimits = new Map();
 const otpVerifyLimits = new Map();
+const transferRedeemLimits = new Map();
 const authRateLimit = createRateLimiter({
     name: 'auth',
     ...config.rateLimits.auth,
@@ -129,6 +130,60 @@ router.get('/me', requireAuth, (req, res) => {
     const user = db.prepare(`SELECT id, email, is_anonymous FROM users WHERE id = ?`).get(req.userId);
     if (!user) return res.status(404).json({ error: 'User not found' });
     res.json(user);
+});
+
+// Moving to another device: the signed-in device asks for a short one-time
+// code, and the new device redeems it for its own token for the same user.
+const TRANSFER_CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+const TRANSFER_CODE_LENGTH = 8;
+const TRANSFER_CODE_TTL_MS = 10 * 60 * 1000;
+
+function hashTransferCode(code) {
+    return crypto.createHash('sha256').update(code).digest('hex');
+}
+
+function normalizeTransferCode(code) {
+    return String(code || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+}
+
+// POST /api/auth/transfer-code
+router.post('/transfer-code', requireAuth, authRateLimit, (req, res) => {
+    const user = db.prepare(`SELECT id FROM users WHERE id = ?`).get(req.userId);
+    if (!user) return res.status(404).json({ error: 'User not found' });
+
+    let code = '';
+    for (let i = 0; i < TRANSFER_CODE_LENGTH; i++) {
+        code += TRANSFER_CODE_ALPHABET[crypto.randomInt(TRANSFER_CODE_ALPHABET.length)];
+    }
+    const expiresAt = new Date(Date.now() + TRANSFER_CODE_TTL_MS);
+    db.prepare(`DELETE FROM device_transfer_codes WHERE user_id = ? AND used_at IS NULL`).run(req.userId);
+    db.prepare(`
+        INSERT INTO device_transfer_codes (code_hash, user_id, expires_at)
+        VALUES (?, ?, ?)
+    `).run(hashTransferCode(code), req.userId, toSqliteDate(expiresAt));
+
+    res.json({ code, expiresAt: expiresAt.toISOString() });
+});
+
+// POST /api/auth/redeem-transfer
+router.post('/redeem-transfer', authRateLimit, (req, res) => {
+    const code = normalizeTransferCode(req.body?.code);
+    if (code.length !== TRANSFER_CODE_LENGTH) return res.status(400).json({ error: 'Enter the 8-character code' });
+    if (isRateLimited(transferRedeemLimits, req.ip, 10, 15 * 60 * 1000)) {
+        return res.status(429).json({ error: 'Too many attempts. Try again later.' });
+    }
+
+    const codeHash = hashTransferCode(code);
+    const record = db.prepare(`
+        SELECT user_id FROM device_transfer_codes
+        WHERE code_hash = ? AND used_at IS NULL AND expires_at > datetime('now')
+    `).get(codeHash);
+    if (!record) return res.status(400).json({ error: 'That code is invalid or has expired' });
+
+    db.prepare(`UPDATE device_transfer_codes SET used_at = datetime('now') WHERE code_hash = ?`).run(codeHash);
+    const user = db.prepare(`SELECT id, email, is_anonymous FROM users WHERE id = ?`).get(record.user_id);
+    if (!user) return res.status(404).json({ error: 'User not found' });
+    res.json({ token: makeToken(user.id), user: { ...user, is_anonymous: !!user.is_anonymous } });
 });
 
 router.post('/signout', requireAuth, (req, res) => {

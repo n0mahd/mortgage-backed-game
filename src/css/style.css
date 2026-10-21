@@ -267,6 +267,11 @@ body {
     color: #922b21;
 }
 
+.badge-warning {
+    background: rgba(243, 156, 18, 0.16);
+    color: #9a6300;
+}
+
 .player-name {
     font-size: 1.5em;
     font-weight: bold;
@@ -2360,4 +2365,28 @@ body {
     margin-top: 20px;
     font-size: 0.82rem;
     color: rgba(255, 255, 255, 0.5);
+}
+
+/* Play on another device */
+#move-device-btn {
+    margin-left: 12px;
+}
+
+.move-device-code {
+    margin: 12px 0;
+    font-family: monospace;
+    font-size: 2rem;
+    font-weight: 700;
+    letter-spacing: 0.2em;
+    text-align: center;
+}
+
+#moveDeviceLink {
+    width: 100%;
+}
+
+.modal-actions {
+    display: flex;
+    justify-content: center;
+    gap: 8px;
 }

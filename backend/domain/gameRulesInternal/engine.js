@@ -80,6 +80,7 @@ const HOUSE_COSTS = {
 };
 
 const JAIL_FINE_AMOUNT = 50;
+const JAIL_CARD_ASSET_ID = 'get-out-of-jail-free';
 
 const CHANCE_CARDS = [
     { id: 'ch-1', text: 'Advance to GO. Collect $200.', action: { type: 'advance_to', position: 0 } },
@@ -1373,21 +1374,50 @@ function getTradeTerms(state, payload) {
     return { player1, player2, player1Cash, player2Cash, player1AssetIds, player2AssetIds };
 }
 
+// Trade asset lists hold property ids plus, optionally, JAIL_CARD_ASSET_ID for
+// a held Get Out of Jail Free card.
+function splitTradeAssets(assetIds) {
+    return {
+        propertyIds: assetIds.filter(id => id !== JAIL_CARD_ASSET_ID),
+        jailCard: assetIds.includes(JAIL_CARD_ASSET_ID),
+    };
+}
+
 function validateTradeTerms(state, terms) {
     const { player1, player2, player1Cash, player2Cash, player1AssetIds, player2AssetIds } = terms;
     if (player1.cash < player1Cash || player2.cash < player2Cash) throw new GameRuleError(400, 'Insufficient trade cash');
-    validatePropertyTransferList(state, player1, player1AssetIds);
-    validatePropertyTransferList(state, player2, player2AssetIds);
+    const side1 = splitTradeAssets(player1AssetIds);
+    const side2 = splitTradeAssets(player2AssetIds);
+    validatePropertyTransferList(state, player1, side1.propertyIds);
+    validatePropertyTransferList(state, player2, side2.propertyIds);
+    validateJailCardTransfer(player1, player2, side1.jailCard, side2.jailCard);
+    validateJailCardTransfer(player2, player1, side2.jailCard, side1.jailCard);
+}
+
+function validateJailCardTransfer(from, to, givesCard, receivesCard) {
+    if (!givesCard) return;
+    if (!from.hasGetOutOfJailCard) throw new GameRuleError(400, `${from.name} has no Get Out of Jail Free card to trade`);
+    if (to.hasGetOutOfJailCard && !receivesCard) {
+        throw new GameRuleError(400, `${to.name} already holds a Get Out of Jail Free card`);
+    }
 }
 
 function applyTradeTransfer(state, terms) {
     const { player1, player2, player1Cash, player2Cash, player1AssetIds, player2AssetIds } = terms;
+    const side1 = splitTradeAssets(player1AssetIds);
+    const side2 = splitTradeAssets(player2AssetIds);
     player1.cash = player1.cash - player1Cash + player2Cash;
     player2.cash = player2.cash - player2Cash + player1Cash;
     if (player1Cash > 0) recordCashFlow(state, player1.userId, player2.userId, player1Cash);
     if (player2Cash > 0) recordCashFlow(state, player2.userId, player1.userId, player2Cash);
-    transferProperties(state, player1, player2, player1AssetIds);
-    transferProperties(state, player2, player1, player2AssetIds);
+    transferProperties(state, player1, player2, side1.propertyIds);
+    transferProperties(state, player2, player1, side2.propertyIds);
+    if (side1.jailCard !== side2.jailCard) {
+        const giver = side1.jailCard ? player1 : player2;
+        const receiver = side1.jailCard ? player2 : player1;
+        giver.hasGetOutOfJailCard = false;
+        receiver.hasGetOutOfJailCard = true;
+    }
 }
 
 function trade(state, actor, payload, events) {
@@ -2282,11 +2312,14 @@ function ownsCompleteGroup(state, userId, color) {
     return group.length > 0 && group.every(p => p.ownerId === userId);
 }
 
+// Going to Jail by any route ends the turn: no doubles re-roll and no Jail
+// choice until the player's next turn.
 function sendToJail(player) {
     player.position = 10;
     player.inJail = true;
     player.jailTurns = 0;
     player.doubleCount = 0;
+    player.diceRolled = true;
 }
 
 function releaseFromJail(player) {
@@ -2386,4 +2419,5 @@ module.exports = {
     shuffleDeck,
     findNearestType,
     GameRuleError,
+    JAIL_CARD_ASSET_ID,
 };

@@ -1080,3 +1080,10 @@ body {
     align-items: center;
   }
 }
+
+/* Continue on this device with a code from another device */
+.transfer-redeem {
+  margin-top: 18px;
+  padding-top: 14px;
+  border-top: 1px solid rgba(255,255,255,0.12);
+}

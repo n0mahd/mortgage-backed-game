@@ -7,6 +7,15 @@ let gameChannel = null;
 let currentPlayerData = null;
 let pendingWinnerStateAfterLiquidation = null;
 let gameActionInFlight = false;
+let lastGameSyncAt = 0;
+let gameResyncInFlight = null;
+
+// A connected socket delivers updates as they happen; this poll only catches
+// updates missed while a phone slept or the connection dropped.
+const GAME_RESYNC_CONNECTED_MS = 30000;
+const GAME_RESYNC_CHECK_MS = 5000;
+const GAME_JAIL_CARD_ASSET_ID = 'get-out-of-jail-free';
+const ACTION_RETRY_DELAYS_MS = [500, 1500, 3000];
 
 // Hotseat mode (same-device local play)
 let isHotseatMode = false;
@@ -58,8 +67,10 @@ document.addEventListener('DOMContentLoaded', async () => {
                     <p style="color:#e74c3c;font-size:1.1rem;margin-bottom:16px;">
                         Failed to load game: ${escapeHtml(error.message)}
                     </p>
+                    <button class="btn btn-primary" data-reload-page>Try again</button>
                     <a href="lobby.html" class="btn btn-secondary">Back to Lobby</a>
                 </div>`;
+            gameContent.querySelector('[data-reload-page]')?.addEventListener('click', () => window.location.reload());
         }
     }
 });
@@ -81,6 +92,8 @@ async function loadGameData(roomId) {
         if (!game) throw new Error('Game not found for this room');
 
         currentGame = game;
+        lastGameSyncAt = Date.now();
+        document.getElementById('move-device-btn')?.toggleAttribute('hidden', isHotseatMode);
 
         // Find current player data
         const gameState = game.game_state;
@@ -110,7 +123,49 @@ async function loadGameData(roomId) {
 function setupRealtimeSubscriptions() {
     gameChannel = subscribeToGame(currentRoom.id, async (game) => {
         await applyGameUpdate(game);
+    }, () => resyncGame());
+
+    // Phones drop the socket when the screen locks or the browser goes to the
+    // background, so catch up whenever the page comes back.
+    document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'visible') resyncGame();
     });
+    window.addEventListener('pageshow', (event) => {
+        if (event.persisted) resyncGame();
+    });
+    window.addEventListener('online', () => resyncGame());
+    setInterval(() => {
+        if (document.visibilityState !== 'visible') return;
+        const connected = gameChannel?.isConnected();
+        if (!connected || Date.now() - lastGameSyncAt > GAME_RESYNC_CONNECTED_MS) resyncGame();
+    }, GAME_RESYNC_CHECK_MS);
+}
+
+// Fetch the latest game and apply it only if it is newer than what is shown.
+function resyncGame() {
+    if (!currentRoom || gameActionInFlight) return Promise.resolve();
+    if (gameResyncInFlight) return gameResyncInFlight;
+    gameResyncInFlight = (async () => {
+        try {
+            const game = await apiFetch(`/games/by-room/${currentRoom.id}`);
+            lastGameSyncAt = Date.now();
+            if (Number(game.state_version ?? 0) > Number(currentGame?.state_version ?? -1)) {
+                await applyGameUpdate(game);
+            }
+        } catch (error) {
+            console.warn('Game resync failed:', error);
+        } finally {
+            gameResyncInFlight = null;
+        }
+    })();
+    return gameResyncInFlight;
+}
+
+function isMyTurnIn(game) {
+    const gameState = game?.game_state;
+    if (!gameState || gameState.ended || gameState.paused || !currentUser) return false;
+    const currentPlayer = gameState.players[gameState.currentPlayerIndex];
+    return !!currentPlayer && currentPlayer.userId === currentUser.id;
 }
 
 async function applyGameUpdate(game, options = {}) {
@@ -119,9 +174,14 @@ async function applyGameUpdate(game, options = {}) {
     const currentVersion = Number(currentGame?.state_version ?? -1);
     if (!options.force && incomingVersion < currentVersion) return;
 
+    const wasMyTurn = isMyTurnIn(currentGame);
     currentGame = game;
+    lastGameSyncAt = Date.now();
     const gameState = game.game_state;
     currentPlayerData = gameState.players.find(p => p.userId === currentUser.id);
+    if (!wasMyTurn && isMyTurnIn(game) && !isHotseatMode && window.TurnAlert) {
+        window.TurnAlert.buzz();
+    }
 
     renderGameState(gameState);
     await loadGameLog();
@@ -602,6 +662,10 @@ function renderPlayerCard(player, isCurrentUser) {
     const netWorth = player.cash + totalPropertyValue + corporationValue - debtTotal;
     const cashFlow = getEntityCashFlow(player.userId);
     const bankruptBadge = player.bankrupt ? '<span class="badge badge-danger">Bankrupt</span>' : '';
+    const jailBadges = [
+        player.inJail ? '<span class="badge badge-warning">In jail</span>' : '',
+        player.hasGetOutOfJailCard ? '<span class="badge">Get Out of Jail Free card</span>' : '',
+    ].join('');
     const cardClass = player.bankrupt ? 'bankrupt' : '';
 
     const cardDetails = `
@@ -660,6 +724,7 @@ function renderPlayerCard(player, isCurrentUser) {
                     <h3>${escapeHtml(player.name)}</h3>
                     <span class="badge">You</span>
                     ${bankruptBadge}
+                    ${jailBadges}
                 </div>
                 ${cardDetails}
             </div>
@@ -671,6 +736,7 @@ function renderPlayerCard(player, isCurrentUser) {
             <div class="player-card-summary">
                 <span class="player-name-sm">${escapeHtml(player.name)}</span>
                 ${bankruptBadge}
+                ${jailBadges}
                 <span class="player-stat-sm">$${player.cash.toFixed(0)}</span>
                 <span class="player-stat-sm">NW: $${netWorth.toFixed(0)}</span>
                 <span class="player-card-chevron">▼</span>
@@ -1716,7 +1782,7 @@ async function endTurn() {
 
     } catch (error) {
         console.error('Error ending turn:', error);
-        alert('Failed to end turn');
+        alert(error.message || 'Failed to end turn');
     }
 }
 
@@ -1796,23 +1862,28 @@ async function performGameAction(type, payload = {}) {
     setGameActionUiBusy(true);
 
     try {
-        const result = await apiFetch(`/games/${currentGame.id}/actions`, {
-            method: 'POST',
-            body: JSON.stringify({
-                actionId: makeActionId(),
-                type,
-                payload,
-                expectedVersion: currentGame.state_version
-            })
+        // One actionId for every retry: the server applies an action once and
+        // replays the saved result if the same id arrives again.
+        const body = JSON.stringify({
+            actionId: makeActionId(),
+            type,
+            payload,
+            expectedVersion: currentGame.state_version
         });
-        const events = result.events || [];
-        const sequenceWinnerAfterLiquidation = !!result.game?.game_state?.ended && hasLiquidationEvent(events);
-        await applyGameUpdate(result.game, { force: true, suppressWinner: sequenceWinnerAfterLiquidation });
-        const liquidationShown = showLiquidationSummaryFromEvents(events);
-        if (sequenceWinnerAfterLiquidation && liquidationShown) {
-            pendingWinnerStateAfterLiquidation = result.game.game_state;
-        } else if (sequenceWinnerAfterLiquidation) {
-            showWinnerFromState(result.game.game_state, winnerReasonFromState(result.game.game_state));
+        const result = await postGameActionWithRetry(body);
+        try {
+            const events = result.events || [];
+            const sequenceWinnerAfterLiquidation = !!result.game?.game_state?.ended && hasLiquidationEvent(events);
+            await applyGameUpdate(result.game, { force: true, suppressWinner: sequenceWinnerAfterLiquidation });
+            const liquidationShown = showLiquidationSummaryFromEvents(events);
+            if (sequenceWinnerAfterLiquidation && liquidationShown) {
+                pendingWinnerStateAfterLiquidation = result.game.game_state;
+            } else if (sequenceWinnerAfterLiquidation) {
+                showWinnerFromState(result.game.game_state, winnerReasonFromState(result.game.game_state));
+            }
+        } catch (renderError) {
+            // The action was saved; a display problem must not be reported as a failed move.
+            console.error('Error showing game update:', renderError);
         }
         return result;
     } catch (error) {
@@ -1821,10 +1892,30 @@ async function performGameAction(type, payload = {}) {
             alert('The game changed before your action was saved. Review the latest state and try again.');
             return null;
         }
+        if (!error.status) {
+            gameActionInFlight = false;
+            resyncGame();
+            throw new Error("Couldn't reach the game server. Check your connection; the game will refresh when you're back online.");
+        }
         throw error;
     } finally {
         gameActionInFlight = false;
         setGameActionUiBusy(false);
+    }
+}
+
+function isRetryableActionError(error) {
+    return !error.status || [502, 503, 504].includes(error.status);
+}
+
+async function postGameActionWithRetry(body) {
+    for (let attempt = 0; ; attempt++) {
+        try {
+            return await apiFetch(`/games/${currentGame.id}/actions`, { method: 'POST', body });
+        } catch (error) {
+            if (!isRetryableActionError(error) || attempt >= ACTION_RETRY_DELAYS_MS.length) throw error;
+            await new Promise(resolve => setTimeout(resolve, ACTION_RETRY_DELAYS_MS[attempt]));
+        }
     }
 }
 
@@ -1850,6 +1941,7 @@ function setGameActionUiBusy(isBusy) {
 async function refreshCurrentGame() {
     if (!currentRoom) return;
     currentGame = await getGameByRoomId(currentRoom.id);
+    lastGameSyncAt = Date.now();
     currentPlayerData = currentGame.game_state.players.find(p => p.userId === currentUser.id);
     renderGameState(currentGame.game_state);
     renderBoardTab();
@@ -2055,6 +2147,48 @@ function bindStaticGameControls() {
         window.location.href = 'lobby.html';
     });
     document.getElementById('dismiss-hotseat-btn')?.addEventListener('click', dismissHotseatInterstitial);
+    document.getElementById('move-device-btn')?.addEventListener('click', openMoveDeviceModal);
+    document.getElementById('share-move-device-btn')?.addEventListener('click', shareMoveDeviceLink);
+}
+
+// ---------------------------------------------------------------
+// Play on another device: a one-time code signs the other browser in as
+// this player. Hotseat games share one device, so they hide the button.
+// ---------------------------------------------------------------
+async function openMoveDeviceModal() {
+    const codeEl = document.getElementById('moveDeviceCode');
+    const linkEl = document.getElementById('moveDeviceLink');
+    const expiryEl = document.getElementById('moveDeviceExpiry');
+    codeEl.textContent = '…';
+    linkEl.value = '';
+    expiryEl.textContent = '';
+    openModal('moveDeviceModal');
+    try {
+        const { code, expiresAt } = await requestDeviceTransferCode();
+        const link = new URL('index.html', window.location.href);
+        link.searchParams.set('transfer', code);
+        codeEl.textContent = `${code.slice(0, 4)} ${code.slice(4)}`;
+        linkEl.value = link.toString();
+        const minutes = Math.max(1, Math.round((new Date(expiresAt) - Date.now()) / 60000));
+        expiryEl.textContent = `Works once, for the next ${minutes} minutes. Anyone with this code can play as you, so only share it with yourself.`;
+    } catch (error) {
+        codeEl.textContent = '';
+        expiryEl.textContent = error.message || 'Could not create a code. Try again.';
+    }
+}
+
+async function shareMoveDeviceLink() {
+    const link = document.getElementById('moveDeviceLink').value;
+    if (!link) return;
+    try {
+        await navigator.clipboard.writeText(link);
+        showToast('Link copied');
+    } catch {
+        const linkEl = document.getElementById('moveDeviceLink');
+        linkEl.focus();
+        linkEl.select();
+        showToast('Select the link and copy it');
+    }
 }
 
 function runGameAction(button) {
@@ -2176,8 +2310,14 @@ function updatePlayerAssets(playerNumber) {
             <label for="${playerNumber}-asset-${escapeAttr(p.id)}">${escapeHtml(p.name)} ($${p.value})</label>
         </div>
     `).join('');
+    const jailCardHtml = player.hasGetOutOfJailCard ? `
+        <div class="asset-checkbox">
+            <input type="checkbox" id="${playerNumber}-asset-${GAME_JAIL_CARD_ASSET_ID}" value="${GAME_JAIL_CARD_ASSET_ID}">
+            <label for="${playerNumber}-asset-${GAME_JAIL_CARD_ASSET_ID}">Get Out of Jail Free card</label>
+        </div>
+    ` : '';
 
-    document.getElementById(assetsId).innerHTML = assetsHtml || '<p>No properties</p>';
+    document.getElementById(assetsId).innerHTML = (assetsHtml + jailCardHtml) || '<p>No properties</p>';
 }
 
 function updateMarketActionState() {
@@ -2270,6 +2410,7 @@ function renderTradeOfferSide(cash, assetIds) {
 }
 
 function tradeAssetName(assetId) {
+    if (assetId === GAME_JAIL_CARD_ASSET_ID) return 'Get Out of Jail Free card';
     const property = currentGame?.game_state?.properties?.find(prop => prop.id === assetId);
     return property ? property.name : assetId;
 }
@@ -2364,7 +2505,7 @@ async function executeTransaction() {
         return;
     }
     if (player1Cash <= 0 && player2Cash <= 0 && player1Assets.length === 0 && player2Assets.length === 0) {
-        showMarketStatus('Add cash or property before executing a trade.', 'error');
+        showMarketStatus('Add cash, property, or a Get Out of Jail Free card before proposing a trade.', 'error');
         return;
     }
 

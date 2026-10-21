@@ -354,3 +354,63 @@ describe('POST /api/auth/signout', () => {
         expect(res.body).toHaveProperty('ok', true);
     });
 });
+
+// ---------------------------------------------------------------------------
+// Moving a session to another device
+// ---------------------------------------------------------------------------
+describe('POST /api/auth/transfer-code and /api/auth/redeem-transfer', () => {
+    test('a transfer code signs the new device in as the same user, once', async () => {
+        const user = createUserFixture(db, { anonymous: true });
+
+        const issued = await request(app)
+            .post('/api/auth/transfer-code')
+            .set('Authorization', `Bearer ${user.token}`);
+        expect(issued.status).toBe(200);
+        expect(issued.body.code).toMatch(/^[A-Z2-9]{8}$/);
+
+        // Codes are typed by hand, so lower case and separators are accepted.
+        const typed = `${issued.body.code.slice(0, 4).toLowerCase()}-${issued.body.code.slice(4)}`;
+        const redeemed = await request(app).post('/api/auth/redeem-transfer').send({ code: typed });
+        expect(redeemed.status).toBe(200);
+        expect(redeemed.body.user.id).toBe(user.id);
+
+        const me = await request(app).get('/api/auth/me').set('Authorization', `Bearer ${redeemed.body.token}`);
+        expect(me.body.id).toBe(user.id);
+
+        const again = await request(app).post('/api/auth/redeem-transfer').send({ code: issued.body.code });
+        expect(again.status).toBe(400);
+        expect(again.body.token).toBeUndefined();
+    });
+
+    test('issuing a new code invalidates the previous unused one', async () => {
+        const user = createUserFixture(db);
+        const first = await request(app).post('/api/auth/transfer-code').set('Authorization', `Bearer ${user.token}`);
+        await request(app).post('/api/auth/transfer-code').set('Authorization', `Bearer ${user.token}`);
+
+        const res = await request(app).post('/api/auth/redeem-transfer').send({ code: first.body.code });
+        expect(res.status).toBe(400);
+    });
+
+    test('expired codes are rejected', async () => {
+        const user = createUserFixture(db);
+        const issued = await request(app).post('/api/auth/transfer-code').set('Authorization', `Bearer ${user.token}`);
+        db.prepare(`UPDATE device_transfer_codes SET expires_at = datetime('now', '-1 minute')`).run();
+
+        const res = await request(app).post('/api/auth/redeem-transfer').send({ code: issued.body.code });
+        expect(res.status).toBe(400);
+        expect(res.body.error).toMatch(/expired/);
+    });
+
+    test('issuing a code requires being signed in', async () => {
+        const res = await request(app).post('/api/auth/transfer-code');
+        expect(res.status).toBe(401);
+    });
+
+    test('codes are stored hashed, never in plain text', async () => {
+        const user = createUserFixture(db);
+        const issued = await request(app).post('/api/auth/transfer-code').set('Authorization', `Bearer ${user.token}`);
+        const rows = db.prepare(`SELECT code_hash FROM device_transfer_codes`).all();
+        expect(rows).toHaveLength(1);
+        expect(rows[0].code_hash).not.toContain(issued.body.code);
+    });
+});

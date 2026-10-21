@@ -149,6 +149,11 @@ router.post('/by-code/:code/claim-member', (req, res) => {
 
     const user = db.prepare(`SELECT id, email, is_anonymous FROM users WHERE id = ?`).get(member.user_id);
     if (!user) return res.status(404).json({ error: 'Player account not found' });
+    // Anyone with the invite code can call this, so never hand out tokens for
+    // email accounts; those players sign in with their email instead.
+    if (!user.is_anonymous) {
+        return res.status(403).json({ error: 'This player signed in with email. Sign in with that email to continue.' });
+    }
 
     res.json({
         token: makeToken(user.id),
@@ -167,6 +172,14 @@ router.post('/by-code/:code/claim-hotseat', (req, res) => {
     const members = getRoomMembers(room.id);
     if (!isClosedToNewMembers(room, members)) {
         return res.status(400).json({ error: 'Room is still open for new players' });
+    }
+
+    const anonymousCount = db.prepare(`
+        SELECT COUNT(*) AS count FROM users
+        WHERE is_anonymous = 1 AND id IN (SELECT user_id FROM room_members WHERE room_id = ?)
+    `).get(room.id).count;
+    if (anonymousCount !== members.length) {
+        return res.status(403).json({ error: 'Only same-device games can be resumed this way. Sign in to continue.' });
     }
 
     const tokens = members.map(member => ({

@@ -6,7 +6,7 @@
     <link rel="icon" type="image/png" sizes="32x32" href="src/assets/favicon-32.png">
     <link rel="apple-touch-icon" sizes="180x180" href="src/assets/apple-touch-icon.png">
     <title>Game - Mortgage Backed Monopoly</title>
-    <link rel="stylesheet" href="src/css/style.css?v=12">
+    <link rel="stylesheet" href="src/css/style.css?v=13">
 </head>
 <body>
     <div class="container">
@@ -16,6 +16,7 @@
             <div class="user-info">
                 <span id="user-email"></span>
                 <span id="room-code" style="margin-left: 20px; font-family: monospace; background: rgba(64, 145, 108, 0.1); padding: 5px 10px; border-radius: 5px;"></span>
+                <button id="move-device-btn" class="btn btn-secondary btn-sm">Play on another device</button>
             </div>
         </div>
 
@@ -260,6 +261,22 @@
         </div>
     </div>
 
+    <div class="modal" id="moveDeviceModal">
+        <div class="modal-content">
+            <div class="modal-header">Play on another device</div>
+            <div class="form-group">
+                <p>On the other phone or browser, open this link, or go to the home page and enter the code under "Have a code from another device?".</p>
+                <p class="move-device-code" id="moveDeviceCode" aria-live="polite"></p>
+                <input type="text" id="moveDeviceLink" readonly aria-label="Link for the other device">
+                <p class="empty-state" id="moveDeviceExpiry"></p>
+            </div>
+            <div class="modal-actions">
+                <button id="share-move-device-btn" class="btn btn-primary">Copy link</button>
+                <button class="btn btn-secondary" data-close-modal="moveDeviceModal">Done</button>
+            </div>
+        </div>
+    </div>
+
     <div class="modal" id="winnerModal">
         <div class="modal-content">
             <div class="modal-header">Game Over!</div>
@@ -292,9 +309,10 @@
     </div>
 
     <script src="/socket.io/socket.io.js"></script>
-    <script src="src/js/api.js?v=4"></script>
+    <script src="src/js/api.js?v=5"></script>
     <script src="src/js/board.js?v=8"></script>
     <script src="src/js/game/action-dispatcher.js?v=1"></script>
-    <script src="src/js/game.js?v=20"></script>
+    <script src="src/js/game/turn-alert.js?v=1"></script>
+    <script src="src/js/game.js?v=21"></script>
 </body>
 </html>

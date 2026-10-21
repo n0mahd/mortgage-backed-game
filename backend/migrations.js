@@ -111,6 +111,20 @@ function migrate(db) {
                 ON rooms (status, created_at DESC);
         `);
     });
+
+    apply(db, '004_device_transfer_codes', () => {
+        db.exec(`
+            CREATE TABLE IF NOT EXISTS device_transfer_codes (
+                code_hash TEXT PRIMARY KEY,
+                user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                expires_at TEXT NOT NULL,
+                used_at TEXT,
+                created_at TEXT NOT NULL DEFAULT (datetime('now'))
+            );
+            CREATE INDEX IF NOT EXISTS idx_device_transfer_codes_user
+                ON device_transfer_codes (user_id);
+        `);
+    });
 }
 
 function apply(db, id, fn) {

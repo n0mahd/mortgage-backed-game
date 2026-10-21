@@ -6,7 +6,7 @@
     <link rel="icon" type="image/png" sizes="32x32" href="src/assets/favicon-32.png">
     <link rel="apple-touch-icon" sizes="180x180" href="src/assets/apple-touch-icon.png">
     <title>Mortgage Backed Monopoly — Play Monopoly Like Wall Street</title>
-    <link rel="stylesheet" href="src/css/landing.css?v=6">
+    <link rel="stylesheet" href="src/css/landing.css?v=7">
 </head>
 <body>
 
@@ -76,6 +76,17 @@
                     </div>
                     <div id="resume-error" class="resume-error" role="alert"></div>
                     <div id="hotseat-resume-options" class="hotseat-resume-options"></div>
+
+                    <div id="transfer-redeem" class="transfer-redeem">
+                        <p class="hint">Have a code from another device? In your game, tap "Play on another device" to get one.</p>
+                        <div class="input-row">
+                            <input type="text" id="transfer-code" class="code-input"
+                                   placeholder="ABCD 2345" maxlength="9" autocomplete="one-time-code"
+                                   aria-label="Code from another device">
+                            <button id="transfer-code-btn" class="btn btn-primary">Continue here</button>
+                        </div>
+                        <div id="transfer-error" class="resume-error" role="alert"></div>
+                    </div>
                     <a id="forgot-code-link" class="forgot-link" href="#">Forgot your code?</a>
 
                     <!-- Forgot code subform -->
@@ -273,7 +284,7 @@
         </div>
     </footer>
 
-    <script src="src/js/api.js?v=4"></script>
+    <script src="src/js/api.js?v=5"></script>
     <script>
         /* ── Nav: transparent over hero, glass when scrolled ── */
         const nav = document.getElementById('main-nav');
@@ -318,7 +329,44 @@
                 showForgotCode();
             });
             document.getElementById('send-forgot-code-btn')?.addEventListener('click', sendForgotCode);
+
+            document.getElementById('transfer-code-btn')?.addEventListener('click', () => continueWithTransferCode());
+            document.getElementById('transfer-code')?.addEventListener('keypress', (e) => {
+                if (e.key === 'Enter') continueWithTransferCode();
+            });
+            const transferFromLink = new URLSearchParams(window.location.search).get('transfer');
+            if (transferFromLink) {
+                document.getElementById('transfer-code').value = transferFromLink;
+                document.getElementById('resume')?.scrollIntoView();
+                continueWithTransferCode();
+            }
         });
+
+        /* ── Continue on this device with a code from another device ── */
+        async function continueWithTransferCode() {
+            const input = document.getElementById('transfer-code');
+            const button = document.getElementById('transfer-code-btn');
+            const errorEl = document.getElementById('transfer-error');
+            errorEl.style.display = 'none';
+            button.disabled = true;
+            try {
+                await redeemDeviceTransferCode(input.value);
+                // Drop the one-time code from the address bar and history.
+                window.history.replaceState(null, '', window.location.pathname);
+                const rooms = await getUserRooms();
+                const activeRoom = rooms.find(room => room.status === 'in_progress')
+                    || rooms.find(room => room.status === 'waiting');
+                if (activeRoom) {
+                    navigateToRoom(activeRoom);
+                } else {
+                    window.location.href = 'lobby.html';
+                }
+            } catch (err) {
+                errorEl.textContent = err.message || 'That code did not work. Get a new one and try again.';
+                errorEl.style.display = 'block';
+                button.disabled = false;
+            }
+        }
 
         /* ── Resume game functionality ── */
         function resumeWithCode() {

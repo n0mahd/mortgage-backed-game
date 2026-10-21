@@ -54,7 +54,13 @@ async function requireAuth() {
         return null;
     }
 
-    const user = await getCurrentUser();
+    let user;
+    try {
+        user = await getCurrentUser();
+    } catch (error) {
+        showPageLoadError(error.message);
+        return null;
+    }
     if (user) return user;
 
     localStorage.removeItem('auth_token');
@@ -62,13 +68,38 @@ async function requireAuth() {
     return null;
 }
 
+function showPageLoadError(message) {
+    const container = document.querySelector('.container') || document.body;
+    const notice = document.createElement('div');
+    notice.className = 'turn-warning danger';
+    notice.setAttribute('role', 'alert');
+    const text = document.createElement('p');
+    text.textContent = message;
+    const retry = document.createElement('button');
+    retry.className = 'btn btn-primary btn-sm';
+    retry.textContent = 'Try again';
+    retry.addEventListener('click', () => window.location.reload());
+    notice.append(text, retry);
+    container.prepend(notice);
+}
+
+// Returns null only when the server rejects the saved token. Network trouble
+// is retried and then thrown, so a refresh on a flaky connection never signs
+// a player out (guest players cannot sign back in).
 async function getCurrentUser() {
     const token = localStorage.getItem('auth_token');
     if (!token) return null;
-    try {
-        return await apiFetch('/auth/me');
-    } catch {
-        return null;
+    const retryDelaysMs = [500, 1500, 3000];
+    for (let attempt = 0; ; attempt++) {
+        try {
+            return await apiFetch('/auth/me');
+        } catch (error) {
+            if ([401, 403, 404].includes(error.status)) return null;
+            if (attempt >= retryDelaysMs.length) {
+                throw new Error("Couldn't reach the game server. Check your connection and refresh.");
+            }
+            await new Promise(resolve => setTimeout(resolve, retryDelaysMs[attempt]));
+        }
     }
 }
 
@@ -370,23 +401,50 @@ function subscribeToRoom(roomId, onMemberChange, onStatusChange) {
     };
 }
 
-// Subscribe to game state updates
-function subscribeToGame(roomId, onGameUpdate) {
+// Subscribe to game state updates. onJoined runs each time the socket has
+// (re)joined the room, so the page can fetch any updates it missed before
+// joining or while offline.
+function subscribeToGame(roomId, onGameUpdate, onJoined) {
     const socket = getSocket();
-    const join = () => socket.emit('join_room', roomId);
+    const join = () => socket.emit('join_room', roomId, (reply) => {
+        if (reply && reply.ok && onJoined) onJoined();
+    });
     join();
 
     function gameHandler(game) { if (onGameUpdate) onGameUpdate(game); }
-    socket.on('connect', join);
+    // Joining twice on the first connect is harmless; resyncs are coalesced.
+    const reconnectHandler = join;
+    socket.on('connect', reconnectHandler);
     socket.on('game:state_update', gameHandler);
 
     return {
+        isConnected() {
+            return socket.connected;
+        },
         unsubscribe() {
-            socket.off('connect', join);
+            socket.off('connect', reconnectHandler);
             socket.off('game:state_update', gameHandler);
             socket.emit('leave_room', roomId);
         }
     };
+}
+
+// ----------------------------------------------------------------
+// Moving a signed-in session to another browser or device
+// ----------------------------------------------------------------
+
+async function requestDeviceTransferCode() {
+    return apiFetch('/auth/transfer-code', { method: 'POST' });
+}
+
+async function redeemDeviceTransferCode(code) {
+    const data = await apiFetch('/auth/redeem-transfer', {
+        method: 'POST',
+        body: JSON.stringify({ code })
+    });
+    localStorage.setItem('auth_token', data.token);
+    sessionStorage.removeItem('hotseat_tokens');
+    return data;
 }
 
 // ----------------------------------------------------------------

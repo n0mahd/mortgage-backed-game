@@ -15,6 +15,7 @@ function resetTestDb(db) {
         DELETE FROM room_members;
         DELETE FROM rooms;
         DELETE FROM otps;
+        DELETE FROM device_transfer_codes;
         DELETE FROM users;
     `);
 }

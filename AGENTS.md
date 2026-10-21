@@ -13,6 +13,8 @@ Start here:
 - Authoritative game rules and all game-state mutation: `backend/domain/gameRules.js`.
 - Frontend API and Socket.IO helpers: `src/js/api.js`.
 - Game screen entry point: `src/js/game.js`, with focused helpers under `src/js/game/`.
+- Realtime sync: `subscribeToGame` in `src/js/api.js` emits on every room (re)join; `resyncGame` in `src/js/game.js` fetches missed updates on rejoin, `visibilitychange`, `online`, and a fallback poll. Game actions keep one `actionId` across network retries, relying on server idempotency in `game_actions`.
+- Device transfer: `POST /api/auth/transfer-code` and `/api/auth/redeem-transfer` in `backend/routes/auth.js` (one-time, hashed, 10-minute codes). The unauthenticated `claim-member` / `claim-hotseat` room routes only issue tokens for guest (anonymous) accounts.
 - Board rendering helpers: `src/js/board.js`.
 - Browser E2E tests: `tests/e2e/`.
 - Backend Jest tests: `backend/tests/`.

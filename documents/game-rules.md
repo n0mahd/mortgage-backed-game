@@ -24,6 +24,16 @@ This document assumes you already know standard Monopoly. It focuses on the new 
 
 Navigate to the site and enter your email address. A one-time code will be sent to that address; enter it to authenticate. No password required. You can also join a room anonymously without logging in.
 
+### Playing on Another Device
+
+To move your game to another phone or browser, tap **Play on another device** at the top of the game screen. It shows a one-time code and a link that work for 10 minutes. Open the link on the other device, or enter the code on the home page under "Have a code from another device?". Both devices stay signed in. Players who signed in with email can also just sign in with their email on the new device.
+
+Rejoining by room code ("Continue as an existing player") only works for guest players, never for players who signed in with email.
+
+### Your Turn
+
+The game vibrates your phone when it becomes your turn (Android browsers; on iPhone it is a light haptic tick where Safari allows it). If your phone sleeps or loses its connection, the game screen catches up automatically when you come back, so there is no need to refresh.
+
 ### Creating a Room
 
 1. After logging in, click **Create Room** on the lobby page.
@@ -296,12 +306,12 @@ Bank, tax, card, jail bail, and interest bankruptcies return your directly owned
 
 ### Player-to-Player Trades
 
-Trades let two players exchange any combination of cash and properties after both involved players agree.
+Trades let two players exchange any combination of cash, properties, and Get Out of Jail Free cards after both involved players agree.
 
 1. Go to the **Market** tab.
 2. Select **Player 1** and **Player 2** from the dropdowns.
 3. Enter how much cash each player contributes to the swap.
-4. Check the properties each player is transferring.
+4. Check the properties each player is transferring. A player holding a Get Out of Jail Free card can check it too, so the card can be sold for cash or swapped as part of a deal.
 5. Click **Propose Transaction** — the offer appears under **Pending Trade Offers**.
 6. The other involved player accepts to execute the transfer, or declines to reject it.
 
@@ -327,6 +337,8 @@ For simple cash transfers (rent side-deals, fines, gifts):
 - Drawing a "Go to Jail" Chance or Community Chest card.
 - Rolling **three consecutive doubles** in one turn.
 
+Going to Jail ends your move. Even if the roll that took you there was doubles, you do not roll again, and the Jail choices below only start on your next turn. You can still trade, manage debt, and so on before you end the turn.
+
 ### Escaping Jail
 
 At the start of each turn while in Jail, choose one available option:
@@ -339,7 +351,7 @@ At the start of each turn while in Jail, choose one available option:
 
 Leaving Jail by paying the fine or using a card happens before your move roll. Leaving Jail by rolling doubles or by forced third-turn bail consumes that turn's roll; you do not roll again afterward.
 
-If you hold a **Get Out of Jail Free** card (from a Chance or Community Chest draw), it stays in your hand until you choose to use it.
+If you hold a **Get Out of Jail Free** card (from a Chance or Community Chest draw), it stays in your hand until you choose to use it, or until you sell or trade it to another player through the Market tab. A player can hold one card at a time, so a player who already has one cannot receive another in a trade.
 
 While in Jail you can still buy properties, create IPOs, manage debt, and trade via the Market tab.
 
