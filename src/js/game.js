@@ -202,8 +202,8 @@ async function applyGameUpdate(game, options = {}) {
     lastGameSyncAt = Date.now();
     const gameState = game.game_state;
     currentPlayerData = gameState.players.find(p => p.userId === currentUser.id);
-    if (!wasMyTurn && isMyTurnIn(game) && !isHotseatMode && window.TurnAlert) {
-        window.TurnAlert.buzz();
+    if (!wasMyTurn && isMyTurnIn(game) && !isHotseatMode) {
+        TurnAlert.buzz();
     }
 
     renderGameState(gameState);
@@ -229,7 +229,6 @@ function renderGameState(gameState) {
     const landing = getLandingSummary(gameState, currentPlayer);
 
     document.body.classList.toggle('is-my-turn', isMyTurn && !paused);
-    document.body.classList.toggle('game-paused', paused);
 
     const orderedPlayers = [
         ...gameState.players.filter(p => p.userId === currentUser.id),
@@ -250,7 +249,7 @@ function renderGameState(gameState) {
                 ${isSpectator ? renderSpectatorNote() : (paused ? renderPausedActions(gameState) : (isMyTurn ? renderActionButtons() : renderNonTurnActions()))}
             </div>
 
-            <div class="game-layout-side">
+            <div>
                 <div class="section-heading">
                     <h3>Players</h3>
                     <span>${gameState.players.filter(p => !p.bankrupt).length} still solvent</span>
@@ -281,8 +280,7 @@ function renderGameState(gameState) {
 
 function getPlayerColor(player) {
     const index = currentGame?.game_state?.players?.findIndex(p => p.userId === player?.userId) ?? -1;
-    const palette = typeof PLAYER_COLORS !== 'undefined' ? PLAYER_COLORS : ['#2D6A4F'];
-    return palette[Math.max(index, 0) % palette.length];
+    return PLAYER_COLORS[Math.max(index, 0) % PLAYER_COLORS.length];
 }
 
 function renderTurnTicket(gameState, currentPlayer, isMyTurn, paused) {
@@ -304,9 +302,9 @@ function renderTurnTicket(gameState, currentPlayer, isMyTurn, paused) {
     else status = `Rolled ${dice ? dice[0] + dice[1] : ''}, now on ${BOARD_SQUARES[currentPlayer.position || 0]?.name || 'the board'}`;
 
     return `
-        <section class="game-header turn-ticket${isMyTurn ? ' is-mine' : ''}${paused ? ' is-paused' : ''}" style="--turn-color:${escapeAttr(getPlayerColor(currentPlayer))}">
+        <section class="game-header turn-ticket${isMyTurn ? ' is-mine' : ''}${paused ? ' is-paused' : ''}" style="--turn-color:${escapeHtml(getPlayerColor(currentPlayer))}">
             <div class="ticket-top">
-                <span class="avatar" style="--token-color:${escapeAttr(getPlayerColor(currentPlayer))}" aria-hidden="true">${escapeHtml(playerInitials(currentPlayer.name))}</span>
+                <span class="avatar" style="--token-color:${escapeHtml(getPlayerColor(currentPlayer))}" aria-hidden="true">${escapeHtml(playerInitials(currentPlayer.name))}</span>
                 <div class="ticket-heading">
                     <h2 class="ticket-title"><span class="sr-only">Current Turn: ${escapeHtml(currentPlayer.name)}</span><span aria-hidden="true">${escapeHtml(visibleTitle)}</span></h2>
                     <span class="ticket-status ${isMyTurn && !paused ? 'turn-indicator' : 'waiting-indicator'}">${escapeHtml(status)}</span>
@@ -332,7 +330,7 @@ function renderLandingSummary(landing, currentPlayer, isMyTurn) {
     const square = BOARD_SQUARES[currentPlayer.position || 0] || {};
     const who = isMyTurn ? 'You are on' : `${currentPlayer.name} is on`;
     return `
-        <div class="landing-summary ${landing.canBuy ? 'can-buy' : ''}" style="--square-color:${escapeAttr(square.color || 'var(--rule-strong)')}">
+        <div class="landing-summary ${landing.canBuy ? 'can-buy' : ''}" style="--square-color:${escapeHtml(square.color || 'var(--rule-strong)')}">
             <span class="landing-deed" aria-hidden="true"></span>
             <div class="landing-copy">
                 <span class="landing-label">${escapeHtml(who)}</span>
@@ -533,8 +531,6 @@ function getRollState(gameState, player) {
 function getLandingSummary(gameState, player) {
     const position = player.position || 0;
     const square = BOARD_SQUARES[position] || BOARD_SQUARES[0];
-    const dice = Array.isArray(gameState.lastDiceRoll) ? gameState.lastDiceRoll : null;
-    const label = dice ? `Rolled ${dice[0]} + ${dice[1]}` : `Position ${position}`;
     const property = square.propertyId
         ? gameState.properties.find(prop => prop.id === square.propertyId)
         : null;
@@ -544,7 +540,6 @@ function getLandingSummary(gameState, player) {
 
     if (unowned && !canBuy) {
         return {
-            label,
             squareName: square.name,
             detail: `Unowned ${square.type.replace('_', ' ')}. You can only buy where you land, so roll first.`,
             canBuy,
@@ -553,7 +548,6 @@ function getLandingSummary(gameState, player) {
 
     if (canBuy) {
         return {
-            label,
             squareName: square.name,
             detail: `Unowned ${square.type.replace('_', ' ')}. Buy it or send it to auction.`,
             canBuy,
@@ -564,7 +558,6 @@ function getLandingSummary(gameState, player) {
     if (isBuyableSquare && property && property.ownerId) {
         const ownerName = describeOwner(gameState, property.ownerId, property.ownerName).label;
         return {
-            label,
             squareName: square.name,
             detail: property.ownerId === player.userId ? 'You already own this square.' : `Owned by ${ownerName}.${corporationRentNote(gameState, property.ownerId, player.userId)}`,
             canBuy: false,
@@ -582,7 +575,6 @@ function getLandingSummary(gameState, player) {
     };
 
     return {
-        label,
         squareName: square.name,
         detail: detailsByType[square.type] || 'No purchasable property on this square.',
         canBuy: false,
@@ -659,8 +651,7 @@ function getOwnedPropertyDetails(player) {
 }
 
 function getPropertyBoardPosition(propertyId) {
-    const square = (typeof BOARD_SQUARES !== 'undefined' ? BOARD_SQUARES : [])
-        .find(item => item.propertyId === propertyId);
+    const square = BOARD_SQUARES.find(item => item.propertyId === propertyId);
     return square ? square.position : 999;
 }
 
@@ -672,7 +663,7 @@ function propertyAssetValue(property) {
 }
 
 function getPropertyColorValue(color) {
-    if (typeof PROP_COLORS !== 'undefined' && PROP_COLORS[color]) return PROP_COLORS[color];
+    if (PROP_COLORS[color]) return PROP_COLORS[color];
     if (color && !color.includes(' ')) return color;
     return '#64748b';
 }
@@ -681,7 +672,7 @@ function getPropertyColorValue(color) {
 function propertyDot(propertyId) {
     const property = currentGame?.game_state?.properties?.find(prop => prop.id === propertyId);
     if (!property) return '';
-    return `<span class="property-dot" style="--property-color:${escapeAttr(getPropertyColorValue(property.color))};" aria-hidden="true"></span>`;
+    return `<span class="property-dot" style="--property-color:${escapeHtml(getPropertyColorValue(property.color))};" aria-hidden="true"></span>`;
 }
 
 function getReadableTextColor(colorValue) {
@@ -772,7 +763,7 @@ function renderOwnedProperties(player, ownedProperties) {
     const totalValue = ownedProperties.reduce((sum, prop) => sum + propertyAssetValue(prop), 0);
 
     return `
-        <div class="player-properties">
+        <div>
             <div class="player-section-heading">
                 <h4>Properties</h4>
                 <span>${ownedProperties.length} owned, worth ${formatMoney(Math.round(totalValue))}</span>
@@ -788,7 +779,7 @@ function renderOwnedProperties(player, ownedProperties) {
                     const groupClass = groupStatus.complete ? 'complete' : 'partial';
 
                     return `
-                        <div class="owned-property-row" style="--property-color:${escapeAttr(color)};--property-ink:${escapeAttr(ink)};">
+                        <div class="owned-property-row" style="--property-color:${escapeHtml(color)};--property-ink:${escapeHtml(ink)};">
                             ${getPropertyIconHtml(property)}
                             <div class="owned-property-copy">
                                 <div class="owned-property-title">
@@ -800,7 +791,7 @@ function renderOwnedProperties(player, ownedProperties) {
                                 </div>
                                 <div class="owned-property-chips">
                                     <span class="owned-property-chip set-chip ${groupClass}">${escapeHtml(groupStatus.label)}</span>
-                                    <span class="owned-property-chip development-chip">
+                                    <span class="owned-property-chip">
                                         <span class="development-icons">${renderDevelopmentIcons(property)}</span>
                                         ${escapeHtml(developmentLabel)}
                                     </span>
@@ -881,7 +872,7 @@ function renderPlayerCard(player, isCurrentUser) {
         return `
             <div class="player-card current-user ${cardClass}">
                 <div class="player-header">
-                    <span class="avatar" style="--token-color:${escapeAttr(getPlayerColor(player))}" aria-hidden="true">${escapeHtml(playerInitials(player.name))}</span>
+                    <span class="avatar" style="--token-color:${escapeHtml(getPlayerColor(player))}" aria-hidden="true">${escapeHtml(playerInitials(player.name))}</span>
                     <h3>${escapeHtml(player.name)}</h3>
                     <span class="badge">You</span>
                     ${bankruptBadge}${jailBadge}${jailCardBadge}
@@ -895,7 +886,7 @@ function renderPlayerCard(player, isCurrentUser) {
     return `
         <div class="player-card player-card-other collapsed ${cardClass}" data-player-id="${player.userId}">
             <div class="player-card-summary" role="button" tabindex="0" aria-expanded="false">
-                <span class="avatar" style="--token-color:${escapeAttr(getPlayerColor(player))}" aria-hidden="true">${escapeHtml(playerInitials(player.name))}</span>
+                <span class="avatar" style="--token-color:${escapeHtml(getPlayerColor(player))}" aria-hidden="true">${escapeHtml(playerInitials(player.name))}</span>
                 <span class="player-name-sm">${escapeHtml(player.name)}<small>${player.bankrupt ? 'Bankrupt' : (player.inJail ? 'In Jail' : escapeHtml(square ? square.name : ''))}</small></span>
                 <span class="player-stat-sm">${formatMoney(player.cash)}</span>
                 <svg class="player-card-chevron" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 8l5 5 5-5"/></svg>
@@ -990,11 +981,6 @@ function renderCorporationAssetSummary(corpId) {
     return `<span class="corp-assets-owned">Assets: ${assets}</span>`;
 }
 
-function getMyShares(corp) {
-    const holder = (corp.shareholders || []).find(item => item.userId === currentUser.id);
-    return holder ? Number(holder.shares || 0) : 0;
-}
-
 function getListedShares(corp) {
     return Math.max(0, Number(corp.availableShares || 0));
 }
@@ -1075,7 +1061,7 @@ function renderActionButtons() {
 
     const buyTile = buyInDock || (!hasRolled && !auctionOpen) ? '' : (auctionOpen
         ? '<button class="btn btn-secondary btn-sm action-btn-buy" disabled>Auction Open<small>Bid in the panel above</small></button>'
-        : `<button class="btn btn-secondary btn-sm action-btn-buy" disabled title="${escapeAttr(landing.detail)}">${escapeHtml(buyUnavailableLabel(landing))}<small>${escapeHtml(landing.squareName)}</small></button>`);
+        : `<button class="btn btn-secondary btn-sm action-btn-buy" disabled title="${escapeHtml(landing.detail)}">${escapeHtml(buyUnavailableLabel(landing))}<small>${escapeHtml(landing.squareName)}</small></button>`);
 
     return `
         <div class="action-buttons turn-dock">
@@ -1377,15 +1363,14 @@ async function openBuyPropertyModal() {
     }
 
     const propertiesHtml = `
-        <div class="property-card selected" data-property-id="${escapeAttr(property.id)}">
-            <div class="property-color" style="background-color: ${escapeAttr(getPropertyColorValue(property.color))}"></div>
+        <div class="property-card" data-property-id="${escapeHtml(property.id)}">
+            <div class="property-color" style="background-color: ${escapeHtml(getPropertyColorValue(property.color))}"></div>
             <div class="property-name">${escapeHtml(property.name)}</div>
             <div class="property-price">${formatMoney(property.price)}</div>
         </div>
     `;
 
     selectedPropertyId = property.id;
-    document.getElementById('purchasePrice').value = property.price;
     document.getElementById('purchasePriceDisplay').textContent = `$${Number(property.price).toFixed(2)}`;
     document.getElementById('availableProperties').innerHTML = propertiesHtml;
     renderBuyForChoices(property);
@@ -1408,7 +1393,7 @@ function renderBuyForChoices(property) {
     };
     const option = (value, title, detail, disabled, checked) => `
         <label class="trade-destination-option">
-            <input type="radio" name="buyFor" value="${escapeAttr(value)}"${checked ? ' checked' : ''}${disabled ? ' disabled' : ''}>
+            <input type="radio" name="buyFor" value="${escapeHtml(value)}"${checked ? ' checked' : ''}${disabled ? ' disabled' : ''}>
             <span><strong>${escapeHtml(title)}</strong><small>${escapeHtml(detail)}</small></span>
         </label>
     `;
@@ -1429,20 +1414,6 @@ function renderBuyForChoices(property) {
 
 let selectedPropertyId = null;
 
-function selectProperty(propertyId) {
-    selectedPropertyId = propertyId;
-    document.querySelectorAll('.property-card').forEach(card => {
-        card.classList.remove('selected');
-    });
-    const selectedCard = Array.from(document.querySelectorAll('.property-card'))
-        .find(card => card.dataset.propertyId === propertyId);
-    if (selectedCard) selectedCard.classList.add('selected');
-
-    const property = currentGame.game_state.properties.find(p => p.id === propertyId);
-    document.getElementById('purchasePrice').value = property.price;
-    document.getElementById('purchasePriceDisplay').textContent = `$${Number(property.price).toFixed(2)}`;
-}
-
 async function confirmPurchase() {
     if (!selectedPropertyId) {
         alert('Please select a property');
@@ -1462,8 +1433,6 @@ async function confirmPurchase() {
         alert('This property is not available for purchase.');
         return;
     }
-
-    const purchasePrice = property.price;
 
     try {
         const corpId = document.querySelector('#buyForChoices input[name="buyFor"]:checked')?.value || '';
@@ -1536,8 +1505,8 @@ async function openIPOModal() {
         const built = groupHasBuildingsUi(p.color);
         return `
         <div class="asset-checkbox">
-            <input type="checkbox" id="ipo-asset-${escapeAttr(p.id)}" value="${escapeAttr(p.id)}"${built ? ` data-built-group="${escapeAttr(p.color)}"` : ''}>
-            <label for="ipo-asset-${escapeAttr(p.id)}">${propertyDot(p.id)}${escapeHtml(p.name)} <span class="debt-detail">${formatMoney(p.value)}</span>${built ? ` <span class="debt-detail">Has buildings: goes in with the whole ${escapeHtml(p.color)} group</span>` : ''}</label>
+            <input type="checkbox" id="ipo-asset-${escapeHtml(p.id)}" value="${escapeHtml(p.id)}"${built ? ` data-built-group="${escapeHtml(p.color)}"` : ''}>
+            <label for="ipo-asset-${escapeHtml(p.id)}">${propertyDot(p.id)}${escapeHtml(p.name)} <span class="debt-detail">${formatMoney(p.value)}</span>${built ? ` <span class="debt-detail">Has buildings: goes in with the whole ${escapeHtml(p.color)} group</span>` : ''}</label>
         </div>
     `;
     }).join('');
@@ -1549,7 +1518,7 @@ async function openIPOModal() {
     existing.hidden = runCorps.length === 0;
     existing.innerHTML = runCorps.length ? `
         <small>Or add these properties to a company you already run:</small>
-        ${runCorps.map(corp => `<button class="btn btn-secondary btn-sm" data-game-action="open-add-to-corporation" data-corp-id="${escapeAttr(corp.id)}">Add to ${escapeHtml(corp.ticker)}</button>`).join('')}
+        ${runCorps.map(corp => `<button class="btn btn-secondary btn-sm" data-game-action="open-add-to-corporation" data-corp-id="${escapeHtml(corp.id)}">Add to ${escapeHtml(corp.ticker)}</button>`).join('')}
     ` : '';
     // A built group goes into an IPO whole, so ticking one street ticks the group.
     container.querySelectorAll('input[data-built-group]').forEach(input => {
@@ -1651,7 +1620,7 @@ function renderLoanRow(debt, corp, isMyTurn) {
     const borrower = corp ? `${corp.ticker} (corporation)` : 'Personal';
     const autopayId = `loan-autopay-${debt.id}`;
     const amountId = `loan-pay-${debt.id}`;
-    const ids = `data-debt-id="${escapeAttr(debt.id)}" data-corp-id="${escapeAttr(corp ? corp.id : '')}"`;
+    const ids = `data-debt-id="${escapeHtml(debt.id)}" data-corp-id="${escapeHtml(corp ? corp.id : '')}"`;
     let schedule;
     if (status.dueInFull) {
         const when = status.dueThisTurn ? 'when you end this turn' : `at the end of ${corp ? 'the chairman\'s' : 'your'} next turn`;
@@ -1672,14 +1641,14 @@ function renderLoanRow(debt, corp, isMyTurn) {
             <p class="loan-schedule">${escapeHtml(schedule)}</p>
             <div class="asset-list">
                 <div class="asset-checkbox">
-                    <input type="checkbox" role="switch" id="${escapeAttr(autopayId)}" data-loan-autopay ${ids}${status.autopay ? ' checked' : ''}${status.dueInFull ? ' disabled' : ''}>
-                    <label for="${escapeAttr(autopayId)}">Autopay</label>
+                    <input type="checkbox" role="switch" id="${escapeHtml(autopayId)}" data-loan-autopay ${ids}${status.autopay ? ' checked' : ''}${status.dueInFull ? ' disabled' : ''}>
+                    <label for="${escapeHtml(autopayId)}">Autopay</label>
                 </div>
             </div>
             <div class="loan-pay">
-                <label class="field-label" for="${escapeAttr(amountId)}">Pay an amount</label>
+                <label class="field-label" for="${escapeHtml(amountId)}">Pay an amount</label>
                 <div class="inline-action-row">
-                    <input type="number" inputmode="decimal" min="0" step="0.01" id="${escapeAttr(amountId)}" placeholder="Up to ${escapeAttr(formatMoney(Math.min(cash, status.balance)))}"${payDisabled}>
+                    <input type="number" inputmode="decimal" min="0" step="0.01" id="${escapeHtml(amountId)}" placeholder="Up to ${escapeHtml(formatMoney(Math.min(cash, status.balance)))}"${payDisabled}>
                     <button type="button" class="btn btn-secondary btn-sm" data-loan-pay ${ids}${payDisabled}>Pay</button>
                 </div>
                 <button type="button" class="btn btn-success btn-sm btn-block" data-loan-payoff ${ids}${payDisabled || (cash < status.balance ? ' disabled' : '')}>Pay off ${formatMoney(status.balance)}</button>
@@ -1747,8 +1716,8 @@ function renderLoanTerms(containerId, amountInputId) {
             : 'Enter an amount to see the payments';
         return `
             <div class="asset-checkbox">
-                <input type="radio" name="${escapeAttr(containerId)}" id="${escapeAttr(id)}" value="${term}"${String(term) === selected ? ' checked' : ''}>
-                <label for="${escapeAttr(id)}">${term} turns at ${rates[term]}% per turn<span class="debt-detail">${escapeHtml(detail)}</span></label>
+                <input type="radio" name="${escapeHtml(containerId)}" id="${escapeHtml(id)}" value="${term}"${String(term) === selected ? ' checked' : ''}>
+                <label for="${escapeHtml(id)}">${term} turns at ${rates[term]}% per turn<span class="debt-detail">${escapeHtml(detail)}</span></label>
             </div>
         `;
     }).join('');
@@ -1760,7 +1729,7 @@ function selectedLoanTerm(containerId) {
 
 function debtIssuerOptionsHtml() {
     const corporationOptions = getEligibleDebtCorporations().map(corp =>
-        `<option value="corporation:${escapeAttr(corp.id)}">${escapeHtml(corp.ticker)} Corporation</option>`
+        `<option value="corporation:${escapeHtml(corp.id)}">${escapeHtml(corp.ticker)} Corporation</option>`
     );
     return [
         '<option value="player">Personal</option>',
@@ -1805,8 +1774,8 @@ function renderBorrowingLimit() {
 function renderRefinanceDebtOptions() {
     const debts = getPersonalDebts();
     const debtsHtml = debts.map((debt, index) => `
-        <div class="asset-checkbox debt-choice">
-            <input type="checkbox" id="refinance-debt-${index}" value="${index}" data-debt-id="${escapeAttr(debt.id || '')}">
+        <div class="asset-checkbox">
+            <input type="checkbox" id="refinance-debt-${index}" value="${index}" data-debt-id="${escapeHtml(debt.id || '')}">
             <label for="refinance-debt-${index}">
                 ${debtOptionLabel(debt, index)}
             </label>
@@ -2017,15 +1986,15 @@ async function openCorporationModal() {
             ${CorporationDesk.renderOfferButton(corp)}
             ${canAddProperty ? `
                 <div class="offer-property-for-shares">
-                    <button class="btn btn-success" data-game-action="open-add-to-corporation" data-corp-id="${escapeAttr(corp.id)}"${isMyTurn ? '' : ' disabled'}>Add properties to ${escapeHtml(corp.ticker)}</button>
+                    <button class="btn btn-success" data-game-action="open-add-to-corporation" data-corp-id="${escapeHtml(corp.id)}"${isMyTurn ? '' : ' disabled'}>Add properties to ${escapeHtml(corp.ticker)}</button>
                     <small>${isMyTurn ? `Move more of your properties into ${escapeHtml(corp.ticker)}.` : 'You can do this on your turn.'}</small>
                 </div>
             ` : ''}
             ${canBuy ? `
                 <div class="buy-shares-form">
-                    <label for="buyShares-${escapeAttr(corp.id)}">${buyLabel} (up to ${buyableShares})</label>
-                    <input type="number" inputmode="numeric" id="buyShares-${escapeAttr(corp.id)}" min="1" max="${buyableShares}" value="1">
-                    <button class="btn btn-primary" data-game-action="buy-shares" data-corp-id="${escapeAttr(corp.id)}">Buy</button>
+                    <label for="buyShares-${escapeHtml(corp.id)}">${buyLabel} (up to ${buyableShares})</label>
+                    <input type="number" inputmode="numeric" id="buyShares-${escapeHtml(corp.id)}" min="1" max="${buyableShares}" value="1">
+                    <button class="btn btn-primary" data-game-action="buy-shares" data-corp-id="${escapeHtml(corp.id)}">Buy</button>
                 </div>
             ` : ''}
         </div>
@@ -2048,7 +2017,7 @@ function renderChairmanGovernance(corp) {
     const myShares = sharesForUi(corp, currentUser.id);
     const candidates = chairmanCandidateOptions(corp);
     const voteOptions = candidates.map(player =>
-        `<option value="${escapeAttr(player.userId)}">${escapeHtml(player.name)}</option>`
+        `<option value="${escapeHtml(player.userId)}">${escapeHtml(player.name)}</option>`
     ).join('');
     const required = majorityThresholdUi(corp);
     const openVotes = (corp.chairmanVotes || []).filter(vote => vote.status === 'open');
@@ -2063,7 +2032,7 @@ function renderChairmanGovernance(corp) {
                         <strong>${escapeHtml(vote.candidateName)}</strong>
                         <span>${ShareDeals.count(supportedShares)}/${ShareDeals.count(corp.totalShares)} shares supporting, ${ShareDeals.count(required)} needed</span>
                     </div>
-                    ${canSupport ? `<button class="btn btn-primary btn-sm" data-game-action="support-chairman-vote" data-corp-id="${escapeAttr(corp.id)}" data-vote-id="${escapeAttr(vote.id)}">Support</button>` : ''}
+                    ${canSupport ? `<button class="btn btn-primary btn-sm" data-game-action="support-chairman-vote" data-corp-id="${escapeHtml(corp.id)}" data-vote-id="${escapeHtml(vote.id)}">Support</button>` : ''}
                 </div>
             `;
         }).join('')
@@ -2076,18 +2045,18 @@ function renderChairmanGovernance(corp) {
             ${hasMajoritySharesUi(corp, currentUser.id) ? `
                 <div class="governance-control">
                     <label>Majority change:</label>
-                    <select id="chairmanMajority-${escapeAttr(corp.id)}">${voteOptions}</select>
-                    <button class="btn btn-primary btn-sm" data-game-action="change-chairman-majority" data-corp-id="${escapeAttr(corp.id)}">Change Chairman</button>
+                    <select id="chairmanMajority-${escapeHtml(corp.id)}">${voteOptions}</select>
+                    <button class="btn btn-primary btn-sm" data-game-action="change-chairman-majority" data-corp-id="${escapeHtml(corp.id)}">Change Chairman</button>
                 </div>
             ` : ''}
             ${myShares > 0 ? `
                 <div class="governance-control">
                     <label>Propose vote:</label>
-                    <select id="chairmanVoteCandidate-${escapeAttr(corp.id)}">${voteOptions}</select>
-                    <button class="btn btn-secondary btn-sm" data-game-action="propose-chairman-vote" data-corp-id="${escapeAttr(corp.id)}">Propose</button>
+                    <select id="chairmanVoteCandidate-${escapeHtml(corp.id)}">${voteOptions}</select>
+                    <button class="btn btn-secondary btn-sm" data-game-action="propose-chairman-vote" data-corp-id="${escapeHtml(corp.id)}">Propose</button>
                 </div>
             ` : ''}
-            <div class="chairman-votes">
+            <div>
                 ${openVotesHtml}
             </div>
         </div>
@@ -2232,23 +2201,16 @@ function dismissHotseatInterstitial() {
     document.getElementById('hotseat-interstitial').style.display = 'none';
 }
 
-// End Game - compute net worth and show winner screen
-async function triggerEndGame(gameState, reason) {
+// Host-triggered end game: the server ranks players by net worth.
+async function hostEndGame() {
+    if (!confirm('End the game now and declare a winner by net worth?')) return;
     try {
         await performGameAction('host_end_game', {});
-        showWinnerFromState(currentGame.game_state, reason);
-
+        showWinnerFromState(currentGame.game_state, 'Host ended the game.');
     } catch (error) {
         logActionError('Error ending game:', error);
         alert(error.message || 'Failed to end game: ' + error.message);
     }
-}
-
-// Host-triggered end game
-async function hostEndGame() {
-    if (!confirm('End the game now and declare a winner by net worth?')) return;
-    const gameState = currentGame.game_state;
-    await triggerEndGame(gameState, 'Host ended the game.');
 }
 
 async function hostPauseGame() {
@@ -2456,15 +2418,11 @@ function openModal(modalId) {
     const modal = document.getElementById(modalId);
     if (!modal) return;
     modal.classList.add('active');
-    modal.style.display = 'flex';
 }
 
 function closeModal(modalId) {
     const modal = document.getElementById(modalId);
-    if (modal) {
-        modal.classList.remove('active');
-        modal.style.display = 'none';
-    }
+    if (modal) modal.classList.remove('active');
     if (modalId === 'liquidationModal' && pendingWinnerStateAfterLiquidation) {
         const winnerState = pendingWinnerStateAfterLiquidation;
         pendingWinnerStateAfterLiquidation = null;
@@ -2561,12 +2519,6 @@ function bindStaticGameControls() {
             return;
         }
 
-        const propertyCard = event.target.closest('.property-card[data-property-id]');
-        if (propertyCard) {
-            selectProperty(propertyCard.dataset.propertyId);
-            return;
-        }
-
         const switchButton = event.target.closest('[data-switch-section]');
         if (switchButton) {
             document.querySelector(`.nav-tab[data-section="${switchButton.dataset.switchSection}"]`)?.click();
@@ -2574,7 +2526,7 @@ function bindStaticGameControls() {
         }
 
         const actionButton = event.target.closest('[data-game-action]');
-        if (actionButton) runGameAction(actionButton);
+        if (actionButton) GameActionDispatcher.run(actionButton);
     });
 
     document.addEventListener('keydown', (event) => {
@@ -2668,7 +2620,7 @@ async function openMoveDeviceModal() {
 const TURN_ALERT_HINT = "Get a buzz when it's your turn and the game isn't open.";
 
 function turnAlertCopy(state) {
-    const standalone = window.TurnNotifications.isStandalone();
+    const standalone = TurnNotifications.isStandalone();
     switch (state) {
         case 'needs-home-screen':
             return {
@@ -2717,7 +2669,7 @@ async function renderTurnAlerts(statusMessage) {
     actions.innerHTML = '';
     setText('turnAlertsHint', 'Checking this device…');
     setText('turnAlertsNote', '');
-    const state = await window.TurnNotifications.status().catch(() => 'unavailable');
+    const state = await TurnNotifications.status().catch(() => 'unavailable');
     const copy = turnAlertCopy(state);
     setText('turnAlertsHint', copy.hint);
     setText('turnAlertsNote', copy.note);
@@ -2734,8 +2686,8 @@ async function openTurnAlertsModal() {
 }
 
 async function refreshTurnAlertsButton() {
-    if (!window.TurnNotifications || isHotseatMode) return;
-    const state = await window.TurnNotifications.status().catch(() => 'unavailable');
+    if (isHotseatMode) return;
+    const state = await TurnNotifications.status().catch(() => 'unavailable');
     document.getElementById('turn-alerts-btn')?.classList.toggle('is-on', state === 'on');
 }
 
@@ -2751,19 +2703,19 @@ async function handleTurnAlertsAction(event) {
     try {
         switch (action) {
             case 'add-to-home-screen':
-                await window.TurnNotifications.openAddToHomeScreen();
+                await TurnNotifications.openAddToHomeScreen();
                 return;
             case 'enable':
-                await window.TurnNotifications.enable();
+                await TurnNotifications.enable();
                 await renderTurnAlerts('Alerts turned on.');
                 return;
             case 'test': {
-                const { sent } = await window.TurnNotifications.sendTest();
+                const { sent } = await TurnNotifications.sendTest();
                 await renderTurnAlerts(sent ? 'Test alert sent. It should arrive in a few seconds.' : "The test alert didn't reach this device. Turn alerts off and on again.");
                 return;
             }
             case 'disable':
-                await window.TurnNotifications.disable();
+                await TurnNotifications.disable();
                 await renderTurnAlerts('Alerts turned off for this device.');
                 return;
         }
@@ -2786,14 +2738,6 @@ async function shareMoveDeviceLink() {
     }
 }
 
-function runGameAction(button) {
-    if (!window.GameActionDispatcher) {
-        console.warn('Game action dispatcher is not loaded:', button.dataset.gameAction);
-        return;
-    }
-    window.GameActionDispatcher.run(button);
-}
-
 function populatePlayerDropdowns() {
     const gameState = currentGame.game_state;
 
@@ -2804,7 +2748,7 @@ function populatePlayerDropdowns() {
     if (!player1Select || !player2Select || !paymentFromPlayer || !paymentToPlayer) return;
 
     const playersHtml = gameState.players.map(p =>
-        `<option value="${escapeAttr(p.userId)}">${escapeHtml(p.name)}</option>`
+        `<option value="${escapeHtml(p.userId)}">${escapeHtml(p.name)}</option>`
     ).join('');
 
     const previous = {
@@ -2895,7 +2839,7 @@ function renderTradingAs(side) {
     const previous = select.dataset.playerId === userId ? select.value : '';
     group.hidden = corps.length === 0;
     select.innerHTML = [`<option value="">${escapeHtml(userId === currentUser.id ? 'Yourself' : (player?.name || 'Themselves'))}</option>`]
-        .concat(corps.map(corp => `<option value="${escapeAttr(corp.id)}">${escapeHtml(corp.ticker)} (treasury ${formatMoney(corp.cash)})</option>`))
+        .concat(corps.map(corp => `<option value="${escapeHtml(corp.id)}">${escapeHtml(corp.ticker)} (treasury ${formatMoney(corp.cash)})</option>`))
         .join('');
     select.dataset.playerId = userId || '';
     setSelectValue(select, previous, '');
@@ -2988,8 +2932,8 @@ function updatePlayerAssets(playerNumber) {
         }
         return `
         <div class="asset-checkbox">
-            <input type="checkbox" id="${playerNumber}-asset-${escapeAttr(p.id)}" value="${escapeAttr(p.id)}">
-            <label for="${playerNumber}-asset-${escapeAttr(p.id)}">${propertyDot(p.id)}${escapeHtml(p.name)} <span class="debt-detail">${formatMoney(p.value)}</span></label>
+            <input type="checkbox" id="${playerNumber}-asset-${escapeHtml(p.id)}" value="${escapeHtml(p.id)}">
+            <label for="${playerNumber}-asset-${escapeHtml(p.id)}">${propertyDot(p.id)}${escapeHtml(p.name)} <span class="debt-detail">${formatMoney(p.value)}</span></label>
         </div>
     `;
     }).join('');
@@ -3003,10 +2947,10 @@ function updatePlayerAssets(playerNumber) {
     const sharesHtml = (player.corporations || [])
         .filter(corp => Number(corp.sharesOwned || 0) > 0 && !corp.insolvent)
         .map(corp => {
-            const inputId = `${playerNumber}-shares-${escapeAttr(corp.id)}`;
+            const inputId = `${playerNumber}-shares-${escapeHtml(corp.id)}`;
             return `
                 <div class="asset-checkbox asset-shares">
-                    <input type="number" class="trade-share-input" id="${inputId}" data-corp-id="${escapeAttr(corp.id)}" data-total-shares="${Number(corp.totalShares)}" min="0" max="${Number(corp.sharesOwned)}" step="1" value="0">
+                    <input type="number" class="trade-share-input" id="${inputId}" data-corp-id="${escapeHtml(corp.id)}" data-total-shares="${Number(corp.totalShares)}" min="0" max="${Number(corp.sharesOwned)}" step="1" value="0">
                     <label for="${inputId}">${escapeHtml(corp.ticker)} shares (holds ${ShareDeals.count(corp.sharesOwned)} of ${ShareDeals.count(corp.totalShares)})</label>
                     <span class="trade-share-pct" aria-live="polite"></span>
                 </div>
@@ -3041,15 +2985,15 @@ function renderCorporationTradeAssets(container, playerNumber, corp, holderKey) 
         }
         return `
         <div class="asset-checkbox">
-            <input type="checkbox" id="${playerNumber}-asset-${escapeAttr(p.id)}" value="${escapeAttr(p.id)}">
-            <label for="${playerNumber}-asset-${escapeAttr(p.id)}">${propertyDot(p.id)}${escapeHtml(p.name)} <span class="debt-detail">${formatMoney(value)}</span></label>
+            <input type="checkbox" id="${playerNumber}-asset-${escapeHtml(p.id)}" value="${escapeHtml(p.id)}">
+            <label for="${playerNumber}-asset-${escapeHtml(p.id)}">${propertyDot(p.id)}${escapeHtml(p.name)} <span class="debt-detail">${formatMoney(value)}</span></label>
         </div>`;
     }).join('');
     const treasury = Number(corp.treasuryShares || 0);
-    const inputId = `${playerNumber}-shares-${escapeAttr(corp.id)}`;
+    const inputId = `${playerNumber}-shares-${escapeHtml(corp.id)}`;
     const sharesHtml = treasury > 0 ? `
         <div class="asset-checkbox asset-shares">
-            <input type="number" class="trade-share-input" id="${inputId}" data-corp-id="${escapeAttr(corp.id)}" data-total-shares="${Number(corp.totalShares)}" min="0" max="${treasury}" step="1" value="0">
+            <input type="number" class="trade-share-input" id="${inputId}" data-corp-id="${escapeHtml(corp.id)}" data-total-shares="${Number(corp.totalShares)}" min="0" max="${treasury}" step="1" value="0">
             <label for="${inputId}">${escapeHtml(corp.ticker)} treasury shares (has ${ShareDeals.count(treasury)} of ${ShareDeals.count(corp.totalShares)})</label>
             <span class="trade-share-pct" aria-live="polite"></span>
         </div>` : '';
@@ -3098,7 +3042,7 @@ function renderTradeDestination(playerNumber) {
     const giverName = giver.userId === currentUser.id ? 'your' : `${giver.name}'s`;
     const option = (value, title, detail) => `
         <label class="trade-destination-option">
-            <input type="radio" name="${playerNumber}-destination" value="${escapeAttr(value)}"${value === (previous || '') ? ' checked' : ''}>
+            <input type="radio" name="${playerNumber}-destination" value="${escapeHtml(value)}"${value === (previous || '') ? ' checked' : ''}>
             <span><strong>${escapeHtml(title)}</strong><small>${escapeHtml(detail)}</small></span>
         </label>
     `;
@@ -3150,7 +3094,7 @@ function tradeInvolvesLLC(terms) {
 
 function renderShareDealSummary(summary, options = {}) {
     const rows = summary.rows.map(row => `
-        <tr><td>${escapeHtml(row.label)}</td><td class="${escapeAttr(row.tone || '')}">${escapeHtml(row.value)}</td></tr>
+        <tr><td>${escapeHtml(row.label)}</td><td class="${escapeHtml(row.tone || '')}">${escapeHtml(row.value)}</td></tr>
     `).join('');
     const even = options.showEven && summary.evenShares ? `
         <p class="share-deal-even">An even trade is ${ShareDeals.count(summary.evenShares.shares)} of ${ShareDeals.count(summary.evenShares.total)} ${escapeHtml(summary.evenShares.ticker)} shares (${escapeHtml(ShareDeals.percent(summary.evenShares.shares, summary.evenShares.total))}).
@@ -3242,8 +3186,8 @@ function openAddToCorporationModal(corpId) {
         const note = built ? `Has buildings: goes in with the whole ${p.color} group` : '';
         return `
         <div class="asset-checkbox">
-            <input type="checkbox" id="add-corp-asset-${escapeAttr(p.id)}" value="${escapeAttr(p.id)}"${built ? ` data-built-group="${escapeAttr(p.color)}"` : ''}>
-            <label for="add-corp-asset-${escapeAttr(p.id)}">${propertyDot(p.id)}${escapeHtml(p.name)} <span class="debt-detail">${formatMoney(p.value)}</span>${note ? ` <span class="debt-detail">${escapeHtml(note)}</span>` : ''}</label>
+            <input type="checkbox" id="add-corp-asset-${escapeHtml(p.id)}" value="${escapeHtml(p.id)}"${built ? ` data-built-group="${escapeHtml(p.color)}"` : ''}>
+            <label for="add-corp-asset-${escapeHtml(p.id)}">${propertyDot(p.id)}${escapeHtml(p.name)} <span class="debt-detail">${formatMoney(p.value)}</span>${note ? ` <span class="debt-detail">${escapeHtml(note)}</span>` : ''}</label>
         </div>
     `;
     }).join('') || '<p class="empty-state">You have no properties to add.</p>';
@@ -3425,9 +3369,9 @@ function renderTradeOffers() {
                 </div>
                 ${hasActions ? `
                     <div class="trade-offer-actions">
-                        ${canAccept ? `<button class="btn btn-success btn-sm" data-game-action="accept-trade-offer" data-offer-id="${escapeAttr(offer.id)}">Accept</button>` : ''}
-                        ${canCancel ? `<button class="btn btn-secondary btn-sm" data-game-action="cancel-trade-offer" data-offer-id="${escapeAttr(offer.id)}">${expired ? 'Clear Expired' : (canAccept ? 'Decline' : 'Cancel')}</button>` : ''}
-                        ${canHostCancel ? `<button class="btn btn-danger btn-sm" data-game-action="host-cancel-trade-offer" data-offer-id="${escapeAttr(offer.id)}">${expired ? 'Clear Expired' : 'Host Cancel'}</button>` : ''}
+                        ${canAccept ? `<button class="btn btn-success btn-sm" data-game-action="accept-trade-offer" data-offer-id="${escapeHtml(offer.id)}">Accept</button>` : ''}
+                        ${canCancel ? `<button class="btn btn-secondary btn-sm" data-game-action="cancel-trade-offer" data-offer-id="${escapeHtml(offer.id)}">${expired ? 'Clear Expired' : (canAccept ? 'Decline' : 'Cancel')}</button>` : ''}
+                        ${canHostCancel ? `<button class="btn btn-danger btn-sm" data-game-action="host-cancel-trade-offer" data-offer-id="${escapeHtml(offer.id)}">${expired ? 'Clear Expired' : 'Host Cancel'}</button>` : ''}
                     </div>
                 ` : `<p class="empty-state">${canClearExpired ? 'Clear this expired offer from the involved player view.' : 'Waiting on the involved players'}</p>`}
             </div>
@@ -3464,7 +3408,7 @@ function renderTradeOfferSide(cash, assetIds, shareLots, intoCorpId) {
 }
 
 function renderTradeAssetTag(name, groupLabel, kind, color) {
-    const style = color ? ` style="--property-color:${escapeAttr(color)};"` : '';
+    const style = color ? ` style="--property-color:${escapeHtml(color)};"` : '';
     return `
         <li class="trade-asset-tag ${kind}"${style}>
             <span class="trade-asset-name">${escapeHtml(name)}</span>
@@ -3476,7 +3420,7 @@ function renderTradeAssetTag(name, groupLabel, kind, color) {
 // Board order keeps each color group together in an offer.
 function sortTradeAssetIds(assetIds) {
     const boardPosition = id => {
-        const square = typeof BOARD_SQUARES !== 'undefined' ? BOARD_SQUARES.find(sq => sq.propertyId === id) : null;
+        const square = BOARD_SQUARES.find(sq => sq.propertyId === id);
         return square ? square.position : Number.MAX_SAFE_INTEGER;
     };
     return [...(assetIds || [])].sort((a, b) => boardPosition(a) - boardPosition(b));
@@ -3733,7 +3677,7 @@ function openHouseModal(corpId = null) {
     const preferred = builders.find(b => b.id === (corpId || '')) || builders[0];
     houseBuildForCorpId = preferred.id;
     const select = document.getElementById('houseBuildFor');
-    select.innerHTML = builders.map(b => `<option value="${escapeAttr(b.id)}">${escapeHtml(b.label)}</option>`).join('');
+    select.innerHTML = builders.map(b => `<option value="${escapeHtml(b.id)}">${escapeHtml(b.label)}</option>`).join('');
     select.value = houseBuildForCorpId;
     document.getElementById('houseBuildForGroup').hidden = builders.length < 2;
     select.onchange = () => {
@@ -3773,14 +3717,14 @@ function openHouseModal(corpId = null) {
             return `
                 <div class="house-property-row">
                     <div>
-                        <span class="house-swatch" style="background:${escapeAttr(PROP_COLORS[prop.color])}"></span>
+                        <span class="house-swatch" style="background:${escapeHtml(PROP_COLORS[prop.color])}"></span>
                         <strong>${escapeHtml(prop.name)}</strong>
                         <small>${formatMoney(costPer)} per improvement</small>
                     </div>
                     <div class="house-count-control">
-                        <button data-game-action="adjust-house" data-property-id="${escapeAttr(prop.id)}" data-delta="-1" ${delta <= 0 ? 'disabled' : ''}>−</button>
+                        <button data-game-action="adjust-house" data-property-id="${escapeHtml(prop.id)}" data-delta="-1" ${delta <= 0 ? 'disabled' : ''}>−</button>
                         <span>${escapeHtml(developmentLabel)}</span>
-                        <button data-game-action="adjust-house" data-property-id="${escapeAttr(prop.id)}" data-delta="1" ${isAtHotel ? 'disabled' : ''}>+</button>
+                        <button data-game-action="adjust-house" data-property-id="${escapeHtml(prop.id)}" data-delta="1" ${isAtHotel ? 'disabled' : ''}>+</button>
                     </div>
                 </div>`;
         }).join('');

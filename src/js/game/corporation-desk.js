@@ -49,10 +49,6 @@
         return global.escapeHtml(value);
     }
 
-    function attr(value) {
-        return global.escapeAttr(value);
-    }
-
     function sharesOf(corp, userId) {
         return Number((corp.shareholders || []).find(h => h.userId === userId)?.shares || 0);
     }
@@ -96,7 +92,7 @@
                 ${debtWarning}
                 <div class="governance-control">
                     ${canSwitch || lockedTurns === 0
-                        ? `<button class="btn btn-primary btn-sm" data-game-action="set-rent-policy" data-corp-id="${attr(corp.id)}" data-policy="${other}"${canSwitch ? '' : ' disabled'}>Switch to ${otherLabel}</button>`
+                        ? `<button class="btn btn-primary btn-sm" data-game-action="set-rent-policy" data-corp-id="${esc(corp.id)}" data-policy="${other}"${canSwitch ? '' : ' disabled'}>Switch to ${otherLabel}</button>`
                         : ''}
                     ${mine > 0 && lockedTurns > 0 ? proposeButton(corp, other, otherLabel) : ''}
                 </div>
@@ -117,7 +113,7 @@
     }
 
     function proposeButton(corp, policy, label) {
-        return `<button class="btn btn-secondary btn-sm" data-game-action="propose-rent-policy" data-corp-id="${attr(corp.id)}" data-policy="${policy}">Ask every shareholder to switch to ${label}</button>`;
+        return `<button class="btn btn-secondary btn-sm" data-game-action="propose-rent-policy" data-corp-id="${esc(corp.id)}" data-policy="${policy}">Ask every shareholder to switch to ${label}</button>`;
     }
 
     // An open rent-policy vote: who agreed, who hasn't yet, and Agree / Reject
@@ -143,8 +139,8 @@
                     <span>Proposed by ${esc(vote.proposedByName || 'a shareholder')}. Agreed: ${esc(agreed.map(nameOf).join(', ') || 'nobody yet')}. Waiting for: ${esc(waiting.map(nameOf).join(', '))}. It switches when everyone agrees; one no closes it.</span>
                 </div>
                 ${canAnswer ? `
-                    <button class="btn btn-primary btn-sm" data-game-action="vote-rent-policy" data-corp-id="${attr(corp.id)}" data-approve="true">Agree</button>
-                    <button class="btn btn-secondary btn-sm" data-game-action="vote-rent-policy" data-corp-id="${attr(corp.id)}" data-approve="false">Reject</button>
+                    <button class="btn btn-primary btn-sm" data-game-action="vote-rent-policy" data-corp-id="${esc(corp.id)}" data-approve="true">Agree</button>
+                    <button class="btn btn-secondary btn-sm" data-game-action="vote-rent-policy" data-corp-id="${esc(corp.id)}" data-approve="false">Reject</button>
                 ` : ''}
             </div>
         `;
@@ -192,13 +188,13 @@
             <div class="corp-runner-tools">
                 <h4>Spend the treasury (${money(cash)})</h4>
                 <div class="buy-shares-form">
-                    <label for="dividend-${attr(corp.id)}">Pay a dividend, split by shares</label>
-                    <input type="number" inputmode="decimal" id="dividend-${attr(corp.id)}" min="1" max="${Math.floor(cash)}" value="${Math.floor(cash / 2) || ''}">
-                    <button class="btn btn-primary btn-sm" data-game-action="pay-dividend" data-corp-id="${attr(corp.id)}"${myTurn && cash >= 1 ? '' : ' disabled'}>Pay dividend</button>
+                    <label for="dividend-${esc(corp.id)}">Pay a dividend, split by shares</label>
+                    <input type="number" inputmode="decimal" id="dividend-${esc(corp.id)}" min="1" max="${Math.floor(cash)}" value="${Math.floor(cash / 2) || ''}">
+                    <button class="btn btn-primary btn-sm" data-game-action="pay-dividend" data-corp-id="${esc(corp.id)}"${myTurn && cash >= 1 ? '' : ' disabled'}>Pay dividend</button>
                 </div>
                 <div class="governance-control">
-                    <button class="btn btn-secondary btn-sm" data-game-action="build-for-corporation" data-corp-id="${attr(corp.id)}"${myTurn && ownsGroup ? '' : ' disabled'}>Build houses for ${esc(corp.ticker)}</button>
-                    <button class="btn btn-secondary btn-sm" data-game-action="trade-as-corporation" data-corp-id="${attr(corp.id)}">Trade as ${esc(corp.ticker)}</button>
+                    <button class="btn btn-secondary btn-sm" data-game-action="build-for-corporation" data-corp-id="${esc(corp.id)}"${myTurn && ownsGroup ? '' : ' disabled'}>Build houses for ${esc(corp.ticker)}</button>
+                    <button class="btn btn-secondary btn-sm" data-game-action="trade-as-corporation" data-corp-id="${esc(corp.id)}">Trade as ${esc(corp.ticker)}</button>
                 </div>
                 <small>${ownsGroup ? '' : `${esc(corp.ticker)} can build once it owns a whole colour group. `}To buy a property for ${esc(corp.ticker)}, land on it and choose ${esc(corp.ticker)} when you buy.</small>
                 ${turnNote}
@@ -247,9 +243,9 @@
         if (!mine) return '';
         return `
             <div class="offer-property-for-shares">
-                <button class="btn btn-success" data-game-action="open-property-offer" data-corp-id="${attr(corp.id)}">Offer a property to ${esc(corp.ticker)}</button>
+                <button class="btn btn-success" data-game-action="open-property-offer" data-corp-id="${esc(corp.id)}">Offer a property to ${esc(corp.ticker)}</button>
                 <small>At book value or your price, for new ${esc(corp.ticker)} shares or treasury cash. ${esc(corp.chairmanName || 'The chairman')} accepts, declines or counters.</small>
-                <button class="btn btn-secondary btn-sm" data-game-action="offer-property-for-shares" data-corp-id="${attr(corp.id)}">Or trade it for ${esc(corp.chairmanName || 'the chairman')}'s own shares</button>
+                <button class="btn btn-secondary btn-sm" data-game-action="offer-property-for-shares" data-corp-id="${esc(corp.id)}">Or trade it for ${esc(corp.chairmanName || 'the chairman')}'s own shares</button>
             </div>
         `;
     }
@@ -285,14 +281,14 @@
                 ${global.renderShareDealSummary(summary)}
                 ${canAnswer ? `
                     <div class="trade-offer-actions">
-                        <button class="btn btn-success btn-sm" data-game-action="respond-property-offer" data-offer-id="${attr(offer.id)}" data-response="accept">Accept</button>
-                        <input type="number" class="counter-price-input" id="counter-${attr(offer.id)}" min="1" step="1" inputmode="decimal" value="${Math.round(offer.price)}" aria-label="Counter price">
-                        <button class="btn btn-secondary btn-sm" data-game-action="respond-property-offer" data-offer-id="${attr(offer.id)}" data-response="counter">Counter</button>
-                        <button class="btn btn-secondary btn-sm" data-game-action="respond-property-offer" data-offer-id="${attr(offer.id)}" data-response="decline">${isOfferer ? 'Withdraw' : 'Decline'}</button>
+                        <button class="btn btn-success btn-sm" data-game-action="respond-property-offer" data-offer-id="${esc(offer.id)}" data-response="accept">Accept</button>
+                        <input type="number" class="counter-price-input" id="counter-${esc(offer.id)}" min="1" step="1" inputmode="decimal" value="${Math.round(offer.price)}" aria-label="Counter price">
+                        <button class="btn btn-secondary btn-sm" data-game-action="respond-property-offer" data-offer-id="${esc(offer.id)}" data-response="counter">Counter</button>
+                        <button class="btn btn-secondary btn-sm" data-game-action="respond-property-offer" data-offer-id="${esc(offer.id)}" data-response="decline">${isOfferer ? 'Withdraw' : 'Decline'}</button>
                     </div>
                 ` : `
                     <p class="empty-state">Waiting for ${esc(waitingOn)}.</p>
-                    ${isOfferer ? `<div class="trade-offer-actions"><button class="btn btn-secondary btn-sm" data-game-action="respond-property-offer" data-offer-id="${attr(offer.id)}" data-response="decline">Withdraw</button></div>` : ''}
+                    ${isOfferer ? `<div class="trade-offer-actions"><button class="btn btn-secondary btn-sm" data-game-action="respond-property-offer" data-offer-id="${esc(offer.id)}" data-response="decline">Withdraw</button></div>` : ''}
                 `}
             </div>
         `;
@@ -329,8 +325,8 @@
             const note = built ? `Has buildings: goes with the whole ${p.color} group` : '';
             return `
                 <div class="asset-checkbox">
-                    <input type="checkbox" id="offer-asset-${attr(p.id)}" value="${attr(p.id)}"${built ? ` data-built-group="${attr(p.color)}"` : ''}>
-                    <label for="offer-asset-${attr(p.id)}">${global.propertyDot(p.id)}${esc(p.name)} <span class="debt-detail">${money(p.value)}</span>${note ? ` <span class="debt-detail">${esc(note)}</span>` : ''}</label>
+                    <input type="checkbox" id="offer-asset-${esc(p.id)}" value="${esc(p.id)}"${built ? ` data-built-group="${esc(p.color)}"` : ''}>
+                    <label for="offer-asset-${esc(p.id)}">${global.propertyDot(p.id)}${esc(p.name)} <span class="debt-detail">${money(p.value)}</span>${note ? ` <span class="debt-detail">${esc(note)}</span>` : ''}</label>
                 </div>
             `;
         }).join('') || '<p class="empty-state">You have no properties to offer.</p>';

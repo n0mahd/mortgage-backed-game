@@ -529,13 +529,8 @@ async function revokeAgentInvite(roomId, seatId) {
     return apiFetch(`/rooms/${roomId}/agent-seats/${encodeURIComponent(seatId)}`, { method: 'DELETE' });
 }
 
+// The server only lets the host start the game.
 async function startGame(roomId, settings = {}) {
-    const user = await getCurrentUser();
-    if (!user) throw new Error('Not authenticated');
-
-    const room = await getRoomById(roomId);
-    if (room.host_id !== user.id) throw new Error('Only the host can start the game');
-
     return apiFetch('/games', {
         method: 'POST',
         body: JSON.stringify({ room_id: roomId, settings })
@@ -653,10 +648,6 @@ function escapeHtml(text) {
         .replace(/>/g, '&gt;')
         .replace(/"/g, '&quot;')
         .replace(/'/g, '&#39;');
-}
-
-function escapeAttr(text) {
-    return escapeHtml(text);
 }
 
 function formatTimeAgo(dateString) {
