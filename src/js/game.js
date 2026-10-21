@@ -2254,7 +2254,7 @@ async function hostEndGame() {
 async function hostPauseGame() {
     if (!confirm('Pause the game for everyone? Players will not be able to take normal actions until the host resumes.')) return;
     try {
-        await performGameAction('host_pause_game', { reason: 'Host paused the game' });
+        if (!await performGameAction('host_pause_game', { reason: 'Host paused the game' })) return;
         showToast('Game paused.');
     } catch (error) {
         logActionError('Error pausing game:', error);
@@ -2265,7 +2265,7 @@ async function hostPauseGame() {
 async function hostResumeGame() {
     if (!confirm('Resume the game for everyone?')) return;
     try {
-        await performGameAction('host_resume_game', {});
+        if (!await performGameAction('host_resume_game', {})) return;
         showToast('Game resumed.');
     } catch (error) {
         logActionError('Error resuming game:', error);
@@ -3528,6 +3528,7 @@ function actionEventsInclude(result, type) {
 async function acceptTradeOffer(offerId) {
     try {
         const result = await performGameAction('accept_trade', { offerId });
+        if (!result) return;
         if (actionEventsInclude(result, 'trade_offer_expired')) {
             showMarketStatus('Trade offer expired before it could be accepted.', 'error');
         } else {
@@ -3542,6 +3543,7 @@ async function acceptTradeOffer(offerId) {
 async function cancelTradeOffer(offerId) {
     try {
         const result = await performGameAction('cancel_trade', { offerId });
+        if (!result) return;
         if (actionEventsInclude(result, 'trade_offer_expired')) {
             showMarketStatus('Trade offer expired and was cleared.', 'success');
         } else {
@@ -3557,6 +3559,7 @@ async function hostCancelTradeOffer(offerId) {
     if (!confirm('Cancel this trade offer as host? No cash or properties will move.')) return;
     try {
         const result = await performGameAction('host_cancel_trade_offer', { offerId });
+        if (!result) return;
         if (actionEventsInclude(result, 'trade_offer_expired')) {
             showMarketStatus('Trade offer expired and was cleared.', 'success');
         } else {
@@ -3597,7 +3600,7 @@ async function executeTransaction() {
     }
 
     try {
-        await performGameAction('propose_trade', terms);
+        if (!await performGameAction('propose_trade', terms)) return;
         showMarketStatus('Trade proposal sent. It will execute when the other player accepts.', 'success');
 
         // Reset form
@@ -3636,7 +3639,7 @@ async function makePayment() {
     }
 
     try {
-        await performGameAction('manual_payment', { fromPlayerId, toPlayerId, amount });
+        if (!await performGameAction('manual_payment', { fromPlayerId, toPlayerId, amount })) return;
         showMarketStatus('Payment completed successfully.', 'success');
         document.getElementById('paymentAmount').value = '';
         updateMarketActionState();
