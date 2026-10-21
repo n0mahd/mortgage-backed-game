@@ -194,6 +194,12 @@ ul { padding-left: 1.1em; }
 
 .room-code-chip:empty { display: none; }
 
+/* Very narrow phones: the icons and the code chip leave the room name too little room. */
+@media (max-width: 359px) {
+    .app-bar-icon { width: 36px; }
+    .room-code-chip { padding: 5px 7px; letter-spacing: 0.08em; }
+}
+
 /* Large title block that opens each non-game screen */
 .page-title {
     padding: var(--s5) 0 var(--s4);
@@ -213,19 +219,6 @@ ul { padding-left: 1.1em; }
     font-size: var(--text-sub);
     max-width: 38ch;
 }
-
-/* Legacy header (kept for pages that still use it) */
-.header {
-    padding: var(--s6) 0 var(--s4);
-}
-
-.header h1 {
-    font-family: var(--font-money);
-    font-size: var(--text-title1);
-    color: var(--forest);
-}
-
-.header p { color: var(--ink-2); }
 
 .user-info {
     display: flex;
@@ -2934,7 +2927,7 @@ input[type="checkbox"] {
     color: color-mix(in srgb, var(--mint-wash) 60%, transparent);
 }
 
-/* ── 17a. Landing page ───────────────────────────────────────── */
+/* ── 17. Landing page ──────────────────────────────────────────── */
 
 .landing-page { background: var(--paper); }
 
@@ -3230,92 +3223,7 @@ input[type="checkbox"] {
 .landing-footer .landing-wordmark { color: var(--forest); margin-bottom: var(--s2); }
 .landing-footer p + p { margin-top: var(--s1); }
 
-@media (min-width: 900px) {
-    .landing-hero { padding-top: calc(var(--safe-top) + 72px); padding-bottom: 72px; }
-    .hero-cta { flex-direction: row; }
-    .hero-cta .btn { flex: 1; }
-    .landing-body,
-    .landing-footer { max-width: var(--page-wide); }
-    .deed-cards { grid-template-columns: repeat(3, 1fr); }
-    #how-it-works .btn-block { width: auto; }
-}
-
-/* ── 17. Larger screens ────────────────────────────────────────── */
-
-@media (min-width: 900px) {
-    .game-page .container {
-        max-width: var(--page-wide);
-    }
-
-    /* Tab bar becomes a centered segmented control under the app bar */
-    .nav-tabs {
-        position: sticky;
-        top: calc(var(--topbar-h) + var(--safe-top));
-        bottom: auto;
-        left: auto;
-        right: auto;
-        z-index: calc(var(--z-app-bar) - 1);
-        width: max-content;
-        margin: var(--s2) auto var(--s3);
-        padding: 4px;
-        gap: 4px;
-        border-radius: var(--r-chip);
-        background: var(--forest);
-    }
-
-    .nav-tab {
-        flex-direction: row;
-        gap: var(--s2);
-        height: 40px;
-        padding: 0 var(--s5);
-        border-radius: var(--r-chip);
-        font-size: var(--text-footnote);
-    }
-
-    .nav-tab svg { width: 18px; height: 18px; }
-    .nav-tab.active { background: rgba(255, 255, 255, 0.14); }
-    .nav-tab.active::before { display: none; }
-    .nav-tab .tab-dot { top: 6px; left: auto; right: 10px; }
-
-    .game-page .container,
-    .game-page.is-my-turn .container { padding-bottom: var(--s10); }
-
-    #turn-banner { top: auto; bottom: var(--s6); }
-
-    /* Turn layout: ticket + actions left, players right */
-    #gameContent > .game-layout {
-        display: grid;
-        grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr);
-        gap: 0 var(--s6);
-        align-items: start;
-    }
-
-    .game-layout-main { position: sticky; top: calc(var(--topbar-h) + 64px); }
-
-    .turn-dock {
-        position: static;
-        margin-top: var(--s3);
-        padding: 0;
-        background: none;
-        box-shadow: none;
-        -webkit-backdrop-filter: none;
-        backdrop-filter: none;
-    }
-
-    .moves-grid { grid-template-columns: repeat(3, 1fr); }
-
-    .transaction-form { flex-direction: row; align-items: stretch; }
-    .transaction-side { flex: 1; }
-    .trade-swap { margin: 0 calc(var(--s3) * -1); }
-
-    .mobile-board-view { display: none; }
-    .board-tab-wrapper {
-        display: block;
-        width: 100%;
-        overflow-x: auto;
-        padding: var(--s4) 0;
-    }
-}
+/* ── 18. Rejoin prompt, turn alerts, Add to Home Screen ────────── */
 
 /* Rejoin prompt: shown to players who may let someone back into their seat. */
 .rejoin-prompt { z-index: var(--z-rejoin); }
@@ -3344,10 +3252,8 @@ input[type="checkbox"] {
 
 .rejoin-waiting { color: var(--ink-3); }
 
-/* ==========================================================================
-   Turn alerts: the bell in the game app bar, its sheet, and the
-   Add to Home Screen page (home-screen.html)
-   ========================================================================== */
+/* Turn alerts: the bell in the game app bar, its sheet, and the
+   Add to Home Screen page (home-screen.html) */
 
 /* The bell fills in when alerts are on for this device. */
 .turn-alerts-btn.is-on svg path:first-child { fill: currentColor; }
@@ -3447,8 +3353,88 @@ input[type="checkbox"] {
 
 .home-screen-launch .btn { margin-top: var(--s4); width: 100%; }
 
-/* Very narrow phones: three app-bar icons leave the room name too little room. */
-@media (max-width: 359px) {
-    .app-bar-icon { width: 36px; }
-    .room-code-chip { padding: 5px 7px; letter-spacing: 0.08em; }
+/* ── 19. Larger screens ────────────────────────────────────────── */
+
+@media (min-width: 900px) {
+    .game-page .container {
+        max-width: var(--page-wide);
+    }
+
+    /* Tab bar becomes a centered segmented control under the app bar */
+    .nav-tabs {
+        position: sticky;
+        top: calc(var(--topbar-h) + var(--safe-top));
+        bottom: auto;
+        left: auto;
+        right: auto;
+        z-index: calc(var(--z-app-bar) - 1);
+        width: max-content;
+        margin: var(--s2) auto var(--s3);
+        padding: 4px;
+        gap: 4px;
+        border-radius: var(--r-chip);
+        background: var(--forest);
+    }
+
+    .nav-tab {
+        flex-direction: row;
+        gap: var(--s2);
+        height: 40px;
+        padding: 0 var(--s5);
+        border-radius: var(--r-chip);
+        font-size: var(--text-footnote);
+    }
+
+    .nav-tab svg { width: 18px; height: 18px; }
+    .nav-tab.active { background: rgba(255, 255, 255, 0.14); }
+    .nav-tab.active::before { display: none; }
+    .nav-tab .tab-dot { top: 6px; left: auto; right: 10px; }
+
+    .game-page .container,
+    .game-page.is-my-turn .container { padding-bottom: var(--s10); }
+
+    #turn-banner { top: auto; bottom: var(--s6); }
+
+    /* Turn layout: ticket + actions left, players right */
+    #gameContent > .game-layout {
+        display: grid;
+        grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr);
+        gap: 0 var(--s6);
+        align-items: start;
+    }
+
+    .game-layout-main { position: sticky; top: calc(var(--topbar-h) + 64px); }
+
+    .turn-dock {
+        position: static;
+        margin-top: var(--s3);
+        padding: 0;
+        background: none;
+        box-shadow: none;
+        -webkit-backdrop-filter: none;
+        backdrop-filter: none;
+    }
+
+    .moves-grid { grid-template-columns: repeat(3, 1fr); }
+
+    .transaction-form { flex-direction: row; align-items: stretch; }
+    .transaction-side { flex: 1; }
+    .trade-swap { margin: 0 calc(var(--s3) * -1); }
+
+    .mobile-board-view { display: none; }
+    .board-tab-wrapper {
+        display: block;
+        width: 100%;
+        overflow-x: auto;
+        padding: var(--s4) 0;
+    }
+
+    /* Landing page */
+    .landing-hero { padding-top: calc(var(--safe-top) + 72px); padding-bottom: 72px; }
+    .hero-cta { flex-direction: row; }
+    .hero-cta .btn { flex: 1; }
+    .landing-body,
+    .landing-footer { max-width: var(--page-wide); }
+    .deed-cards { grid-template-columns: repeat(3, 1fr); }
+    #how-it-works .btn-block { width: auto; }
 }
