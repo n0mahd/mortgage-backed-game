@@ -10,6 +10,7 @@ const { getConfig, getCorsOptions } = require('./config');
 const db = require('./db');
 const presence = require('./services/presence');
 const { setSocketServer } = require('./services/roomEvents');
+const { isRoomMember } = require('./services/rooms');
 const { readToken, makeToken } = require('./auth');
 const { createMcpRouter } = require('./mcp/server');
 
@@ -60,12 +61,15 @@ app.get('/api/health', (_req, res) => {
     }
 });
 
-// Errors never expose stacks or server paths to clients, whatever the env.
+// Errors with a 4xx status (RoomError, GameRuleError, bad JSON) answer with
+// their message; anything else is a 500. Never a stack or server path.
 app.use((err, _req, res, _next) => {
     const status = Number.isInteger(err.status) && err.status >= 400 && err.status < 500 ? err.status : 500;
     if (status === 500) console.error('Unhandled request error:', err.message);
     if (res.headersSent) return;
-    res.status(status).json({ error: status === 500 ? 'Internal server error' : err.message });
+    const body = { error: status === 500 ? 'Internal server error' : err.message };
+    if (status === 409 && err.stateVersion !== undefined) body.state_version = err.stateVersion;
+    res.status(status).json(body);
 });
 
 // ----------------------------------------------------------------
@@ -75,7 +79,7 @@ app.use((err, _req, res, _next) => {
 // Authenticate socket via token query param or auth header
 io.use((socket, next) => {
     const token = socket.handshake.auth?.token || socket.handshake.query?.token;
-    if (!token) return next(); // allow unauthenticated (read-only observer)
+    if (!token) return next(); // connects, but join_room refuses it
     const result = readToken(token);
     if (!result) return next(new Error('Invalid token'));
     socket.userId = result.userId;
@@ -94,10 +98,7 @@ io.on('connection', (socket) => {
             reply({ ok: false, error: 'Not authenticated' });
             return;
         }
-        const membership = db.prepare(`
-            SELECT 1 FROM room_members WHERE room_id = ? AND user_id = ?
-        `).get(roomId, socket.userId);
-        if (!membership) {
+        if (!isRoomMember(roomId, socket.userId)) {
             reply({ ok: false, error: 'Not a room member' });
             return;
         }

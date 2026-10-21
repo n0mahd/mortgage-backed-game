@@ -18,16 +18,11 @@ const { McpServer } = require('@modelcontextprotocol/sdk/server/mcp.js');
 const { StreamableHTTPServerTransport } = require('@modelcontextprotocol/sdk/server/streamableHttp.js');
 const { getConfig } = require('../config');
 const { createRateLimiter, getRequestActorKey } = require('../rateLimit');
-const { RoomError, getRoomMembers } = require('../services/rooms');
+const { RoomError, getRoom, getRoomMembers } = require('../services/rooms');
 const { findSeatByKey, claimAgentSeat } = require('../services/agentSeats');
-const {
-    getGameByRoom,
-    getRoom,
-    parseGame,
-    applyGameAction,
-    GameRuleError,
-} = require('../services/gameActions');
+const { getGameByRoom, parseGame, applyGameAction } = require('../services/gameActions');
 const { onRoomUpdate } = require('../services/roomEvents');
+const { GameRuleError } = require('../domain/gameRules');
 const { ACTIONS } = require('../domain/actionCatalog');
 const { summarizeGame, briefSummary, attentionFor } = require('./gameSummary');
 const { getRulesText } = require('./rules');

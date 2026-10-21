@@ -1,11 +1,24 @@
+'use strict';
+
+// Rooms: create, join, leave, look up, rejoin requests, agent invites, and
+// room-code emails. Rule and storage logic lives in services/; handlers only
+// authenticate, call a service, broadcast, and answer. Errors carrying a 4xx
+// status (RoomError) are answered by the error handler in server.js.
+
 const express = require('express');
 const db = require('../db');
 const { requireAuth } = require('../auth');
-const { sendEmail } = require('../services/mailer');
 const { getConfig } = require('../config');
 const { createRateLimiter, getRequestActorKey } = require('../rateLimit');
-const { normalizeEmail, isValidEmail, normalizeInviteCode, plainText } = require('../helpers');
-const { RoomError, createRoom, joinRoom, getRoomMembers } = require('../services/rooms');
+const { emitToRoom } = require('../services/roomEvents');
+const {
+    RoomError,
+    createRoom,
+    joinRoom,
+    getRoomWithMembers,
+    getRoomByInviteCode,
+    isRoomMember,
+} = require('../services/rooms');
 const {
     createRejoinRequest,
     listApprovableRequests,
@@ -13,140 +26,27 @@ const {
     collectRejoinRequest,
     cancelRejoinRequest,
 } = require('../services/rejoinRequests');
-const { emitToRoom } = require('../services/roomEvents');
 const { createAgentSeat, listAgentSeats, revokeAgentSeat, agentInvitePrompt } = require('../services/agentSeats');
+const { sendInviteCodeEmail, sendForgotRoomCodes } = require('../services/roomEmails');
 
 const router = express.Router();
-const VALID_ROOM_STATUSES = new Set(['waiting', 'in_progress', 'completed']);
 const config = getConfig();
-const roomCreateRateLimit = createRateLimiter({
-    name: 'room_create',
-    ...config.rateLimits.roomCreate,
-    keyGenerator: getRequestActorKey,
-});
-
-const rejoinRequestRateLimit = createRateLimiter({
-    name: 'rejoin_request',
-    ...config.rateLimits.rejoinRequest,
-    keyGenerator: getRequestActorKey,
-});
-const rejoinCollectRateLimit = createRateLimiter({
-    name: 'rejoin_collect',
-    ...config.rateLimits.rejoinCollect,
-    keyGenerator: getRequestActorKey,
-});
-
-function getRoomWithMembers(roomId) {
-    const room = db.prepare(`SELECT * FROM rooms WHERE id = ?`).get(roomId);
-    if (!room) return null;
-    return attachRoomMembers(room);
-}
-
-function attachRoomMembers(room, members = getRoomMembers(room.id)) {
-    return { ...room, room_members: members };
-}
-
-function isRoomMember(roomId, userId) {
-    return !!db.prepare(`SELECT 1 FROM room_members WHERE room_id = ? AND user_id = ?`).get(roomId, userId);
-}
-
-function getRoomByInviteCode(code) {
-    return db.prepare(`SELECT * FROM rooms WHERE invite_code = ?`).get(normalizeInviteCode(code));
-}
-
-function escapeHtml(value) {
-    return String(value ?? '')
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;')
-        .replace(/"/g, '&quot;')
-        .replace(/'/g, '&#39;');
-}
-
-// Outgoing mail is limited per sender and per recipient, so the endpoints
-// below can't be used to spam an address.
-const emailSenderLimit = createRateLimiter({ name: 'email_sender', ...config.rateLimits.emailSender });
-const emailRecipientLimit = createRateLimiter({ name: 'email_recipient', ...config.rateLimits.emailRecipient });
-
-function emailAllowed(senderKey, recipient) {
-    return emailSenderLimit.check(senderKey).allowed && emailRecipientLimit.check(recipient).allowed;
-}
-
-// Invite email: only an email-verified member of the room can send it, and the
-// code and room name come from the database, never from the request.
-async function sendInviteCodeEmail({ senderUserId, email, inviteCode }) {
-    const recipient = normalizeEmail(email);
-    if (!recipient || !isValidEmail(recipient)) throw new RoomError(400, 'Valid email required');
-
-    const sender = db.prepare(`SELECT email, is_anonymous FROM users WHERE id = ?`).get(senderUserId);
-    if (!sender || sender.is_anonymous || !sender.email) {
-        throw new RoomError(403, 'Sign in with your email to send invites');
-    }
-    const room = getRoomByInviteCode(inviteCode);
-    if (!room || !db.prepare(`SELECT 1 FROM room_members WHERE room_id = ? AND user_id = ?`).get(room.id, senderUserId)) {
-        throw new RoomError(404, 'Room not found');
-    }
-    if (!emailAllowed(`user:${senderUserId}`, recipient)) throw new RoomError(429, 'Too many emails. Try again later.');
-
-    const roomName = plainText(room.name, 60) || 'Mortgage Backed Monopoly';
-    await sendEmail(
-        recipient,
-        `Your room code for ${roomName}`,
-        `Your invite code is: ${room.invite_code}\n\nShare it with friends to join your game.`,
-        `<p>Your invite code is: <strong>${escapeHtml(room.invite_code)}</strong></p><p>Share it with friends to join your game.</p>`
-    );
-}
-
-async function sendForgotRoomCodes(email, requesterKey) {
-    const normalizedEmail = normalizeEmail(email);
-    if (!normalizedEmail || !isValidEmail(normalizedEmail)) {
-        return { status: 400, body: { error: 'Valid email required' } };
-    }
-    // Same answer whether or not anything is sent, so this can't probe accounts.
-    if (!emailAllowed(requesterKey, normalizedEmail)) return { status: 200, body: { ok: true } };
-
-    const rooms = db.prepare(`
-        SELECT DISTINCT rooms.name, rooms.invite_code, rooms.status
-        FROM rooms
-        JOIN room_members ON room_members.room_id = rooms.id
-        JOIN users ON users.id = room_members.user_id
-        WHERE lower(users.email) = ?
-        ORDER BY rooms.created_at DESC
-    `).all(normalizedEmail);
-
-    if (rooms.length > 0) {
-        const listText = rooms.map(room => `${room.name}: ${room.invite_code} (${room.status})`).join('\n');
-        const listHtml = rooms
-            .map(room => `<li><strong>${escapeHtml(room.invite_code)}</strong> - ${escapeHtml(room.name)} (${escapeHtml(room.status)})</li>`)
-            .join('');
-
-        await sendEmail(
-            normalizedEmail,
-            'Your Mortgage Backed room codes',
-            `Here are your room codes:\n\n${listText}`,
-            `<p>Here are your room codes:</p><ul>${listHtml}</ul>`
-        );
-    }
-
-    return { status: 200, body: { ok: true } };
-}
+const VALID_ROOM_STATUSES = new Set(['waiting', 'in_progress', 'completed']);
+const roomCreateRateLimit = createRateLimiter({ name: 'room_create', ...config.rateLimits.roomCreate });
+const rejoinRequestRateLimit = createRateLimiter({ name: 'rejoin_request', ...config.rateLimits.rejoinRequest });
+const rejoinCollectRateLimit = createRateLimiter({ name: 'rejoin_collect', ...config.rateLimits.rejoinCollect });
 
 // POST /api/rooms — create room
 router.post('/', requireAuth, roomCreateRateLimit, (req, res) => {
     const { name, max_players, player_name } = req.body;
-    try {
-        res.json(createRoom({ hostUserId: req.userId, name, maxPlayers: max_players, playerName: player_name }));
-    } catch (err) {
-        if (err instanceof RoomError) return res.status(err.status).json({ error: err.message });
-        throw err;
-    }
+    res.json(createRoom({ hostUserId: req.userId, name, maxPlayers: max_players, playerName: player_name }));
 });
 
 // GET /api/rooms/by-code/:code — find room by invite code
 router.get('/by-code/:code', (req, res) => {
     const room = getRoomByInviteCode(req.params.code);
     if (!room) return res.status(404).json({ error: 'Room not found' });
-    res.json(attachRoomMembers(room));
+    res.json(getRoomWithMembers(room.id));
 });
 
 // Rejoining a started room after losing your token: see
@@ -156,42 +56,25 @@ function notifyRejoinChange(roomId) {
     emitToRoom(roomId, 'room:rejoin_request', { roomId });
 }
 
-function sendRoomError(res, err) {
-    if (err instanceof RoomError) return res.status(err.status).json({ error: err.message });
-    throw err;
-}
-
 // POST /api/rooms/by-code/:code/rejoin-requests — ask to take over one guest
 // seat ({ member_id }) or, with no member_id, every seat of a same-device game.
 router.post('/by-code/:code/rejoin-requests', rejoinRequestRateLimit, (req, res) => {
-    try {
-        const memberId = req.body?.member_id ? String(req.body.member_id) : null;
-        const result = createRejoinRequest({ inviteCode: req.params.code, memberId });
-        notifyRejoinChange(result.room.id);
-        res.json({ request_id: result.requestId, secret: result.secret, expires_at: result.expiresAt });
-    } catch (err) {
-        sendRoomError(res, err);
-    }
+    const memberId = req.body?.member_id ? String(req.body.member_id) : null;
+    const result = createRejoinRequest({ inviteCode: req.params.code, memberId });
+    notifyRejoinChange(result.room.id);
+    res.json({ request_id: result.requestId, secret: result.secret, expires_at: result.expiresAt });
 });
 
 // POST /api/rooms/rejoin-requests/:requestId/collect — the asking browser polls.
 router.post('/rejoin-requests/:requestId/collect', rejoinCollectRateLimit, (req, res) => {
-    try {
-        res.json(collectRejoinRequest({ requestId: req.params.requestId, secret: req.body?.secret }));
-    } catch (err) {
-        sendRoomError(res, err);
-    }
+    res.json(collectRejoinRequest({ requestId: req.params.requestId, secret: req.body?.secret }));
 });
 
 // POST /api/rooms/rejoin-requests/:requestId/cancel
 router.post('/rejoin-requests/:requestId/cancel', rejoinCollectRateLimit, (req, res) => {
-    try {
-        const { roomId } = cancelRejoinRequest({ requestId: req.params.requestId, secret: req.body?.secret });
-        notifyRejoinChange(roomId);
-        res.json({ ok: true });
-    } catch (err) {
-        sendRoomError(res, err);
-    }
+    const { roomId } = cancelRejoinRequest({ requestId: req.params.requestId, secret: req.body?.secret });
+    notifyRejoinChange(roomId);
+    res.json({ ok: true });
 });
 
 // GET /api/rooms/mine — rooms the current user is in
@@ -217,70 +100,45 @@ router.get('/:id', requireAuth, (req, res) => {
 
 // GET /api/rooms/:id/rejoin-requests — pending requests the caller can answer.
 router.get('/:id/rejoin-requests', requireAuth, (req, res) => {
-    try {
-        res.json(listApprovableRequests(req.params.id, req.userId));
-    } catch (err) {
-        sendRoomError(res, err);
-    }
+    res.json(listApprovableRequests(req.params.id, req.userId));
 });
 
 // POST /api/rooms/:id/rejoin-requests/:requestId/(approve|deny)
 router.post('/:id/rejoin-requests/:requestId/:decision(approve|deny)', requireAuth, (req, res) => {
-    try {
-        decideRejoinRequest({
-            roomId: req.params.id,
-            requestId: req.params.requestId,
-            userId: req.userId,
-            approve: req.params.decision === 'approve',
-        });
-        notifyRejoinChange(req.params.id);
-        res.json({ ok: true });
-    } catch (err) {
-        sendRoomError(res, err);
-    }
+    decideRejoinRequest({
+        roomId: req.params.id,
+        requestId: req.params.requestId,
+        userId: req.userId,
+        approve: req.params.decision === 'approve',
+    });
+    notifyRejoinChange(req.params.id);
+    res.json({ ok: true });
 });
 
 // POST /api/rooms/:id/join — join by room ID (already authenticated)
 router.post('/:id/join', requireAuth, (req, res) => {
     const { player_name } = req.body;
-    try {
-        res.json(joinRoom({ roomId: req.params.id, userId: req.userId, playerName: player_name }));
-    } catch (err) {
-        if (err instanceof RoomError) return res.status(err.status).json({ error: err.message });
-        throw err;
-    }
+    res.json(joinRoom({ roomId: req.params.id, userId: req.userId, playerName: player_name }));
 });
 
 // Agent invites (host only). The key is in the create response only.
 
 // POST /api/rooms/:id/agent-seats — create an invite for one AI agent
 router.post('/:id/agent-seats', requireAuth, (req, res) => {
-    try {
-        const { seat, key } = createAgentSeat({ roomId: req.params.id, hostUserId: req.userId, label: req.body?.label });
-        const room = getRoomWithMembers(req.params.id);
-        const mcpUrl = `${config.publicAppUrl}/api/mcp`;
-        res.status(201).json({ seat, key, mcp_url: mcpUrl, prompt: agentInvitePrompt({ roomName: room.name, key, mcpUrl }) });
-    } catch (err) {
-        sendRoomError(res, err);
-    }
+    const { seat, key } = createAgentSeat({ roomId: req.params.id, hostUserId: req.userId, label: req.body?.label });
+    const room = getRoomWithMembers(req.params.id);
+    const mcpUrl = `${config.publicAppUrl}/api/mcp`;
+    res.status(201).json({ seat, key, mcp_url: mcpUrl, prompt: agentInvitePrompt({ roomName: room.name, key, mcpUrl }) });
 });
 
 // GET /api/rooms/:id/agent-seats — the host's live agent invites
 router.get('/:id/agent-seats', requireAuth, (req, res) => {
-    try {
-        res.json(listAgentSeats({ roomId: req.params.id, hostUserId: req.userId }));
-    } catch (err) {
-        sendRoomError(res, err);
-    }
+    res.json(listAgentSeats({ roomId: req.params.id, hostUserId: req.userId }));
 });
 
 // DELETE /api/rooms/:id/agent-seats/:seatId — revoke an agent's key
 router.delete('/:id/agent-seats/:seatId', requireAuth, (req, res) => {
-    try {
-        res.json(revokeAgentSeat({ roomId: req.params.id, seatId: req.params.seatId, hostUserId: req.userId }));
-    } catch (err) {
-        sendRoomError(res, err);
-    }
+    res.json(revokeAgentSeat({ roomId: req.params.id, seatId: req.params.seatId, hostUserId: req.userId }));
 });
 
 // DELETE /api/rooms/:id/leave — leave room
@@ -307,27 +165,29 @@ router.patch('/:id/status', requireAuth, (req, res) => {
     res.json({ ok: true });
 });
 
+// POST /api/rooms/send-code — { action: 'forgot_code', email } mails the codes
+// of every room that email is in (no sign-in needed); otherwise a signed-in
+// member mails { inviteCode } to { email }. A failed send still answers ok.
 router.post('/send-code', async (req, res) => {
     if (req.body?.action === 'forgot_code') {
         try {
-            const result = await sendForgotRoomCodes(req.body.email, getRequestActorKey(req));
-            return res.status(result.status).json(result.body);
+            await sendForgotRoomCodes({ email: req.body.email, requesterKey: getRequestActorKey(req) });
         } catch (err) {
+            if (err instanceof RoomError) return res.status(err.status).json({ error: err.message });
             console.error('Forgot room code email error:', err.message);
-            return res.json({ ok: true });
         }
+        return res.json({ ok: true });
     }
 
     requireAuth(req, res, async () => {
         const { email, inviteCode } = req.body || {};
         try {
             await sendInviteCodeEmail({ senderUserId: req.userId, email, inviteCode });
-            res.json({ ok: true });
         } catch (err) {
             if (err instanceof RoomError) return res.status(err.status).json({ error: err.message });
             console.error('Invite email error:', err.message);
-            res.json({ ok: true });
         }
+        res.json({ ok: true });
     });
 });
 

@@ -1,10 +1,13 @@
 'use strict';
 
 // Authoritative game persistence shared by the HTTP routes and the MCP server.
-// Every game mutation runs through applyGameAction: one SQLite transaction with
-// the state_version check, the domain applyAction call, event rows, the
-// game_actions idempotency row, the audit log, and the Socket.IO broadcast.
-// Callers authenticate and authorize membership; game rules stay in the domain.
+// The only code that writes the games table:
+// - startGameForRoom creates a room's game.
+// - applyGameAction runs every game move: one SQLite transaction with the
+//   state_version check, the domain applyAction call, event rows, the
+//   game_actions idempotency row, the audit log, and the Socket.IO broadcast.
+// - repairGameState replaces the state wholesale (dev-only host repair).
+// Callers authenticate; game rules stay in the domain.
 
 const { v4: uuidv4 } = require('uuid');
 const db = require('../db');
@@ -12,10 +15,12 @@ const { getConfig } = require('../config');
 const { buildGameActionAuditRecord, logGameActionAudit } = require('./audit');
 const { emitToRoom, notifyRoom } = require('./roomEvents');
 const { notifyTurnChange } = require('./turnAlerts');
+const { getRoom, isRoomMember } = require('./rooms');
 const {
     createInitialGame,
     normalizeState,
     applyAction,
+    validateRepairedState,
     GameRuleError,
 } = require('../domain/gameRules');
 
@@ -32,16 +37,6 @@ function getGame(gameId) {
 
 function getGameByRoom(roomId) {
     return db.prepare(`SELECT * FROM games WHERE room_id = ?`).get(roomId);
-}
-
-function getRoom(roomId) {
-    return db.prepare(`SELECT * FROM rooms WHERE id = ?`).get(roomId);
-}
-
-function isRoomMember(roomId, userId) {
-    return !!db.prepare(`
-        SELECT 1 FROM room_members WHERE room_id = ? AND user_id = ?
-    `).get(roomId, userId);
 }
 
 function insertEvents(gameId, actorUserId, events) {
@@ -69,7 +64,7 @@ function publishGameUpdate(updatedGame) {
 
 // Create the game for a room (host only). Returns the parsed game. If a game
 // already exists for the room it is returned unchanged.
-function startGameForRoom({ roomId, actorUserId, gameState, minPlayers = 0 }) {
+function startGameForRoom({ roomId, actorUserId, gameState }) {
     if (!roomId) throw new GameRuleError(400, 'room_id required');
 
     const room = getRoom(roomId);
@@ -81,9 +76,6 @@ function startGameForRoom({ roomId, actorUserId, gameState, minPlayers = 0 }) {
 
     const gameId = uuidv4();
     const roomMembers = db.prepare(`SELECT * FROM room_members WHERE room_id = ? ORDER BY joined_at ASC`).all(roomId);
-    if (roomMembers.length < minPlayers) {
-        throw new GameRuleError(400, `Need at least ${minPlayers} players to start`);
-    }
     const initialState = normalizeState(gameState || createInitialGame(roomMembers));
     try {
         db.exec('BEGIN');
@@ -179,14 +171,42 @@ function applyGameAction({ gameId, actorUserId, actionId, type, payload, expecte
     return result;
 }
 
+// Replace a game's whole state, for a host repairing a stuck game on a dev
+// server (the route refuses unless ALLOW_STATE_REPAIR=true). No events or
+// audit are recorded. Returns the parsed game.
+function repairGameState({ gameId, actorUserId, gameState, actionType, expectedVersion }) {
+    if (!gameState) throw new GameRuleError(400, 'game_state required');
+    if (typeof expectedVersion !== 'number') throw new GameRuleError(400, 'expected_version required');
+
+    const game = getGame(gameId);
+    if (!game) throw new GameRuleError(404, 'Game not found');
+    if (!isRoomMember(game.room_id, actorUserId)) throw new GameRuleError(403, 'Not a room member');
+    const room = getRoom(game.room_id);
+    if (!room || room.host_id !== actorUserId) throw new GameRuleError(403, 'Not the host');
+    if (game.state_version !== expectedVersion) {
+        const err = new GameRuleError(409, 'Stale game state');
+        err.stateVersion = game.state_version;
+        throw err;
+    }
+    const shapeError = validateRepairedState(JSON.parse(game.game_state), gameState);
+    if (shapeError) throw new GameRuleError(400, shapeError);
+    if (actionType !== 'host_state_repair') throw new GameRuleError(400, 'Only host_state_repair is allowed');
+
+    db.prepare(`
+        UPDATE games
+        SET game_state = ?, state_version = state_version + 1, updated_at = datetime('now')
+        WHERE id = ?
+    `).run(JSON.stringify(normalizeState(gameState)), gameId);
+    const updatedGame = getGame(gameId);
+    publishGameUpdate(updatedGame);
+    return parseGame(updatedGame);
+}
+
 module.exports = {
     parseGame,
     getGame,
     getGameByRoom,
-    getRoom,
-    isRoomMember,
     startGameForRoom,
     applyGameAction,
-    publishGameUpdate,
-    GameRuleError,
+    repairGameState,
 };

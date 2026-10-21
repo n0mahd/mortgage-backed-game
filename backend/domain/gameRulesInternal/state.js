@@ -205,7 +205,55 @@ function syncDerivedPortfolios(state) {
     });
 }
 
+// Checks a whole state sent for host repair (PATCH /api/games/:id/state) keeps
+// the same players and properties and a consistent ownership. Returns an
+// error message or null.
+function validateRepairedState(beforeState, afterState) {
+    if (!afterState || !Array.isArray(afterState.players) || !Array.isArray(afterState.properties)) {
+        return 'Invalid game state shape';
+    }
+
+    const beforePlayerIds = (beforeState.players || []).map(player => player.userId).sort();
+    const afterPlayerIds = afterState.players.map(player => player.userId).sort();
+    if (JSON.stringify(beforePlayerIds) !== JSON.stringify(afterPlayerIds)) {
+        return 'Player list cannot be changed by state patch';
+    }
+
+    const beforePropertyIds = (beforeState.properties || []).map(prop => prop.id).sort();
+    const afterPropertyIds = afterState.properties.map(prop => prop.id).sort();
+    if (JSON.stringify(beforePropertyIds) !== JSON.stringify(afterPropertyIds)) {
+        return 'Property list cannot be changed by state patch';
+    }
+
+    const playerPropertyIds = new Set();
+    const propertyOwners = new Map(afterState.properties.map(prop => [prop.id, prop.ownerId]));
+    for (const player of afterState.players) {
+        if (!Array.isArray(player.properties) || !Array.isArray(player.corporations) || !Array.isArray(player.debts)) {
+            return 'Invalid player portfolio shape';
+        }
+        for (const prop of player.properties) {
+            if (playerPropertyIds.has(prop.id)) return 'Property duplicated across players';
+            playerPropertyIds.add(prop.id);
+            if (propertyOwners.get(prop.id) !== player.userId) {
+                return 'Player property ownership does not match master property owner';
+            }
+        }
+    }
+
+    for (const corp of afterState.corporations || []) {
+        const shares = (corp.shareholders || []).reduce((sum, shareholder) => sum + Number(shareholder.shares || 0), 0);
+        if (shares > Number(corp.totalShares || 0)) return 'Corporation shareholders exceed total shares';
+        for (const asset of corp.assets || []) {
+            if (propertyOwners.get(asset.id) !== corp.id) return 'Corporation asset ownership does not match master property owner';
+            if (playerPropertyIds.has(asset.id)) return 'Corporation asset is also held by a player';
+        }
+    }
+
+    return null;
+}
+
 module.exports = {
+    validateRepairedState,
     createInitialGame,
     normalizeState,
     validateStateInvariants,

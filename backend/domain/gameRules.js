@@ -22,7 +22,12 @@ const {
 const { GameRuleError } = require('./gameRulesInternal/util');
 const { calculateRent, calculateNetWorth } = require('./gameRulesInternal/ledger');
 const { applyCardEffect } = require('./gameRulesInternal/movement');
-const { createInitialGame, normalizeState, validateStateInvariants } = require('./gameRulesInternal/state');
+const {
+    createInitialGame,
+    normalizeState,
+    validateStateInvariants,
+    validateRepairedState,
+} = require('./gameRulesInternal/state');
 const { applyAction } = require('./gameRulesInternal/applyAction');
 
 module.exports = {
@@ -37,6 +42,7 @@ module.exports = {
     calculateRent,
     calculateNetWorth,
     validateStateInvariants,
+    validateRepairedState,
     applyCardEffect,
     shuffleDeck,
     findNearestType,
