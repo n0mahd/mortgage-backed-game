@@ -13,20 +13,12 @@ Thumbs.db
 *.swp
 *.swo
 
-# Google Drive files
-*.gdoc
-*.gsheet
-*.gslides
-# Local Netlify folder
-.netlify
-
 # Node
 node_modules/
 npm-debug.log*
 
 # Environment
 .env
-backend/.env
 
 # SQLite database (runtime artifact)
 backend/game.db
