@@ -243,7 +243,7 @@ function renderGameState(gameState) {
                         ${gameState.gameLog.slice(-5).reverse().map(entry => `
                             <div class="log-entry">
                                 <span class="log-time">${new Date(entry.timestamp).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}</span>
-                                <span class="log-message">${entry.message}</span>
+                                <span class="log-message">${escapeHtml(entry.message)}</span>
                             </div>
                         `).join('') || '<div class="log-entry"><span class="log-message empty-state">No moves yet.</span></div>'}
                     </div>
@@ -983,7 +983,7 @@ function renderActionButtons() {
 
     const buyTile = buyInDock || !hasRolled ? '' : (auctionOpen
         ? '<button class="btn btn-secondary btn-sm action-btn-buy" disabled>Auction Open<small>Bid in the panel above</small></button>'
-        : `<button class="btn btn-secondary btn-sm action-btn-buy" disabled title="${escapeHtml(landing.detail)}">${escapeHtml(buyUnavailableLabel(landing))}<small>${escapeHtml(landing.squareName)}</small></button>`);
+        : `<button class="btn btn-secondary btn-sm action-btn-buy" disabled title="${escapeAttr(landing.detail)}">${escapeHtml(buyUnavailableLabel(landing))}<small>${escapeHtml(landing.squareName)}</small></button>`);
 
     return `
         <div class="action-buttons turn-dock">
