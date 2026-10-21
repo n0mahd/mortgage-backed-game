@@ -49,6 +49,13 @@ for (const htmlFile of fs.readdirSync(ROOT).filter(name => name.endsWith('.html'
     }
 }
 
+// iOS opens pages outside the installed app's scope (such as auth.html) in an
+// in-app browser with a URL bar, so pin the scope to the whole site.
+const manifest = JSON.parse(fs.readFileSync(path.join(ROOT, 'manifest.webmanifest'), 'utf8'));
+if (manifest.scope !== '/' || !manifest.start_url) {
+    failures.push('manifest.webmanifest: must set scope "/" and a start_url so every page opens inside the installed app');
+}
+
 if (failures.length > 0) {
     console.error('Static asset checks failed:');
     for (const failure of failures) {
