@@ -7,6 +7,8 @@ brand rationale come from `documents/brand-book.md`; this page covers how they b
 - Components: `src/css/style.css` (one stylesheet for all pages; `landing.css` was retired).
 - Presentation helpers: `src/js/ui.js` (`formatMoney`, `playerInitials`, `renderDicePair`, `showToast`).
 - Specimen: `design-system.html` renders every component against real tokens.
+- Turn alerts: `src/js/turn-notifications.js` (state and Web Push), `home-screen.html` with
+  `src/js/home-screen.js` (Add to Home Screen handoff).
 
 ## Who it's for and what it must do
 
@@ -40,6 +42,9 @@ Rules:
 - Gold marks something valuable or time-sensitive. One gold element per view is the norm.
 - Board property colors (`PROP_COLORS` in `board.js`) and player colors (`PLAYER_COLORS`) are game data,
   not brand colors. Show them as deed bands, swatches, and avatars only.
+- The one outside color is Safari's own blue (`--safari-blue`, `#007AFF`), scoped to `.home-screen-steps`
+  and used only on the Share and Add to Home Screen glyphs, so people recognise the controls they're
+  looking for in Safari. Don't use it anywhere else.
 
 ## Type
 
@@ -65,7 +70,8 @@ Rules:
 ```
 Game screen (phone)
 ┌──────────────────────────────┐
-│ ‹  Room name        CODE  ⇄  │ app bar (sticky, translucent)
+│ ‹  Room name     CODE  ⇄  🔔 │ app bar: back, room, code, devices,
+│                              │ turn alerts (sticky, translucent)
 ├──────────────────────────────┤
 │ ▓ Your turn            ⚀ ⚁  │ turn ticket: whose turn, dice,
 │ ▓ $612        Net $1,632    │ your cash, 4-step rail
@@ -104,6 +110,36 @@ Jail choices get their own row above. Never put optional moves or host controls 
 
 **Host panel** (`renderHostPanel`). Pause/Resume and End Game, host only, dashed outline at the bottom
 of the game tab.
+
+**App bar icons** (`.app-bar-icon`). 44px square tap targets in emerald with a 24px inline SVG and an
+`aria-label` that names the action. The game app bar holds at most three: "Play on another device"
+(`#move-device-btn`) and the turn alerts bell (`#turn-alerts-btn`), after the room code chip. The bell is
+an outline when alerts are off and fills (`.is-on`) when they're on for this device, so state shows
+without words. Below 360px wide the icons narrow to 36px and the code chip tightens so the room name
+keeps its room. A fourth control goes in a sheet, not the bar.
+
+**Turn alerts sheet** (`#turnAlertsModal`, rendered by `renderTurnAlerts` in `game.js`). A standard sheet
+whose copy depends on the device (`TurnNotifications.status()`):
+- iPhone Safari: `.modal-hint` says alerts need the game on the Home Screen, and `.turn-alerts-note`
+  (a quiet note surface) says it's a shortcut to the site, not an App Store app. Actions: Add to Home
+  Screen (primary), Not now.
+- Off: Turn on alerts (primary), Not now.
+- On: Send a test alert, Turn off alerts, Done, all secondary: nothing urgent is left to do.
+- Blocked or unsupported: one sentence on where to fix it (iPhone Settings or the browser's site
+  settings), and Done.
+Results of an action show in `.turn-alerts-status` (emerald, footnote) rather than a toast, because the
+sheet is still open.
+
+**Add to Home Screen page** (`home-screen.html`). A plain page, not a sheet, because people leave Safari's
+chrome to follow it: the real app icon at 72px, a `.page-title` ("Add to Home Screen" plus one sentence
+saying what it is), then the steps as one `.group` list (`.home-screen-steps`): Tap Share, Tap Add to Home
+Screen, Open Mortgage from your Home Screen, Turn on alerts. Each row leads with a 40px glyph tile showing
+what to look for (Safari's Share and plus-square glyphs in Safari blue, our app icon, the emerald bell).
+The order is a real sequence, so the list is an `<ol>`; the glyphs carry it, so there are no number
+markers. A tertiary footnote says the address works once and expires in 10 minutes. Opened from the Home
+Screen, the same page shows "Opening your game" while it signs in; if the code has expired it says
+"Sign in again" in ordinary text with a primary button to the home page. That's a next step, not money at
+risk, so it isn't red.
 
 **Turn ticket** (`.turn-ticket`). The signature element. Don't reuse the guilloché (`--guilloche`)
 elsewhere except the invite code, the hotseat hand-off, and the landing hero, which share its meaning:
@@ -144,6 +180,9 @@ bar). `.turn-warning.danger` for blocking problems inline; plain `.turn-warning`
   or an error. Errors say what happened and what to do.
 - Existing button labels that tests match on stay Title Case (`End Turn`, `Roll Dice`, `Start Auction`).
   New labels use sentence case.
+- Name things the way the phone does. It's "Add to Home Screen", Apple's wording, never "install" or
+  "download the app": the game isn't an App Store app, and people should know nothing is being installed.
+  The feature is "turn alerts": "Turn on alerts", "Send a test alert", "Turn off alerts".
 
 ## Building new UI
 
@@ -152,6 +191,7 @@ bar). `.turn-warning.danger` for blocking problems inline; plain `.turn-warning`
    `--property-color` or `--token-color`).
 2. Turn actions go in `renderActionButtons()`; optional moves go in the moves grid; host-only controls go
    in `renderHostPanel()`.
-3. Check it at 320px, 375px, and 390px wide, and at 1280px. `tests/e2e/mobile-layout.spec.js` guards
+3. Check it at 320px, 375px, and 390px wide, and at 1280px. App bar controls are `.app-bar-icon`s with
+   an inline SVG and an `aria-label`; there's room for three after the room code, no more. `tests/e2e/mobile-layout.spec.js` guards
    against horizontal overflow and dock placement.
 4. Bump the `?v=` cache key of every CSS and JS file you change, in every HTML page that loads it.

@@ -21,6 +21,8 @@
         .spec-sheet { position: relative; padding: var(--s6) var(--s5) var(--s5); border-radius: var(--r-sheet); background: var(--paper); box-shadow: var(--lift-sheet); }
         .spec-sheet::before { content: ''; position: absolute; top: 8px; left: 50%; width: 38px; height: 5px; margin-left: -19px; border-radius: 3px; background: var(--rule-strong); }
         .spec-dock { position: static; margin-top: var(--s3); border-radius: var(--r-group); }
+        .spec-app-bar { position: static; margin: 0; padding-inline: var(--s2); }
+        .spec-app-bar + .spec-app-bar { border-top: 1px solid var(--rule); }
     </style>
 </head>
 <body>
@@ -139,6 +141,55 @@
                 <button class="btn btn-secondary">Start Auction</button>
             </div>
         </div>
+
+        <div class="section-heading"><h3>App bar icons</h3></div>
+        <div class="group">
+            <div class="app-bar spec-app-bar">
+                <span class="app-bar-back" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg></span>
+                <div class="app-bar-title"><strong>Friday night</strong><span>Sara</span></div>
+                <span class="room-code-chip">VDZMEY</span>
+                <button class="app-bar-icon" aria-label="Play on another device"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="9" height="15" rx="2"/><path d="M14 9h6M17.5 6.5L20 9l-2.5 2.5M20 15h-6M16.5 12.5L14 15l2.5 2.5"/></svg></button>
+                <button class="app-bar-icon turn-alerts-btn" aria-label="Turn alerts (off)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 16.5V11a6 6 0 0 1 12 0v5.5l1.5 2h-15z"/><path d="M10 20.5a2.2 2.2 0 0 0 4 0"/></svg></button>
+            </div>
+            <div class="app-bar spec-app-bar">
+                <span class="app-bar-back" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg></span>
+                <div class="app-bar-title"><strong>Friday night</strong><span>Sara</span></div>
+                <span class="room-code-chip">VDZMEY</span>
+                <button class="app-bar-icon" aria-label="Play on another device"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="9" height="15" rx="2"/><path d="M14 9h6M17.5 6.5L20 9l-2.5 2.5M20 15h-6M16.5 12.5L14 15l2.5 2.5"/></svg></button>
+                <button class="app-bar-icon turn-alerts-btn is-on" aria-label="Turn alerts (on)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 16.5V11a6 6 0 0 1 12 0v5.5l1.5 2h-15z"/><path d="M10 20.5a2.2 2.2 0 0 0 4 0"/></svg></button>
+            </div>
+        </div>
+
+        <div class="section-heading"><h3>Turn alerts sheet, iPhone Safari</h3></div>
+        <div class="spec-sheet">
+            <div class="modal-header">Turn alerts</div>
+            <p class="modal-hint">Get a buzz when it's your turn and the game isn't open. On iPhone, that needs the game on your Home Screen.</p>
+            <p class="turn-alerts-note">Adding it puts a Mortgage icon next to your apps that opens this game full screen. It's a shortcut to the site, not an App Store app, so there's nothing to download.</p>
+            <div class="sheet-actions">
+                <button class="btn btn-primary">Add to Home Screen</button>
+                <button class="btn btn-secondary">Not now</button>
+            </div>
+        </div>
+
+        <div class="section-heading"><h3>Add to Home Screen steps</h3></div>
+        <ol class="group home-screen-steps">
+            <li>
+                <span class="home-screen-glyph" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12M8 7l4-4 4 4"/><path d="M8.5 10.5H6.5v10h11v-10h-2"/></svg></span>
+                <div><strong>Tap Share</strong><small>The square with an arrow in Safari's toolbar.</small></div>
+            </li>
+            <li>
+                <span class="home-screen-glyph" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="16" height="16" rx="4"/><path d="M12 8.5v7M8.5 12h7"/></svg></span>
+                <div><strong>Tap Add to Home Screen</strong><small>Scroll down the list if you don't see it, then tap Add.</small></div>
+            </li>
+            <li>
+                <img class="home-screen-glyph home-screen-glyph-app" src="src/assets/apple-touch-icon.png" width="40" height="40" alt="">
+                <div><strong>Open Mortgage from your Home Screen</strong><small>Within 10 minutes. It opens your game, already signed in.</small></div>
+            </li>
+            <li>
+                <span class="home-screen-glyph" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 16.5V11a6 6 0 0 1 12 0v5.5l1.5 2h-15z"/><path d="M10 20.5a2.2 2.2 0 0 0 4 0"/></svg></span>
+                <div><strong>Turn on alerts</strong><small>Tap the bell at the top of the game, then Turn on alerts.</small></div>
+            </li>
+        </ol>
     </div>
 
 </body>
