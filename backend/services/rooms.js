@@ -1,7 +1,8 @@
 'use strict';
 
-// Room membership writes shared by the HTTP routes and the MCP server:
-// anonymous player accounts, room creation, and joining before a game starts.
+// Rooms and their members, shared by the HTTP routes, the socket server and
+// MCP: lookups, anonymous player accounts, room creation, and joining before
+// a game starts.
 
 const crypto = require('crypto');
 const { v4: uuidv4 } = require('uuid');
@@ -64,8 +65,12 @@ function canViewRoom(roomId, userId) {
     `).get(roomId, userId, userId);
 }
 
+function getRoom(roomId) {
+    return db.prepare(`SELECT * FROM rooms WHERE id = ?`).get(roomId);
+}
+
 function getRoomWithMembers(roomId) {
-    const room = db.prepare(`SELECT * FROM rooms WHERE id = ?`).get(roomId);
+    const room = getRoom(roomId);
     if (!room) return null;
     return { ...room, room_members: getRoomMembers(room.id) };
 }
@@ -160,6 +165,7 @@ module.exports = {
     PLAYER_NAME_MAX,
     sameName,
     canViewRoom,
+    getRoom,
     getRoomWithMembers,
     getRoomByInviteCode,
     createAnonymousUser,

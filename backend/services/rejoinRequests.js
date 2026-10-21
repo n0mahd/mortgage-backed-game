@@ -14,7 +14,7 @@
 const crypto = require('crypto');
 const { v4: uuidv4 } = require('uuid');
 const db = require('../db');
-const { RoomError, getRoomMembers, getRoomByInviteCode } = require('./rooms');
+const { RoomError, getRoom, getRoomMembers, getRoomByInviteCode } = require('./rooms');
 const { makeToken } = require('../auth');
 const { sha256Hex, toSqliteDate } = require('../helpers');
 
@@ -96,7 +96,7 @@ function countOtherRecentRequests(request) {
 
 // Pending requests in a room that this user may approve.
 function listApprovableRequests(roomId, userId) {
-    const room = db.prepare(`SELECT * FROM rooms WHERE id = ?`).get(roomId);
+    const room = getRoom(roomId);
     if (!room) throw new RoomError(404, 'Room not found');
     const members = getRoomMembers(room.id);
     if (!members.some(member => member.user_id === userId)) throw new RoomError(403, 'Not a room member');
@@ -126,7 +126,7 @@ function decideRejoinRequest({ roomId, requestId, userId, approve }) {
     if (!request || request.room_id !== roomId || request.status !== 'pending') {
         throw new RoomError(404, 'That request has expired or was already answered');
     }
-    const room = db.prepare(`SELECT * FROM rooms WHERE id = ?`).get(roomId);
+    const room = getRoom(roomId);
     const members = getRoomMembers(roomId);
     if (!room || !canApprove(room, members, request, userId)) {
         throw new RoomError(403, 'You cannot answer this request');
@@ -154,7 +154,7 @@ function collectRejoinRequest({ requestId, secret }) {
     `).run(requestId);
     if (claimed.changes !== 1) return { status: 'collected' };
 
-    const room = db.prepare(`SELECT * FROM rooms WHERE id = ?`).get(request.room_id);
+    const room = getRoom(request.room_id);
     const members = getRoomMembers(request.room_id);
     const roomWithMembers = { ...room, room_members: members };
 
