@@ -516,7 +516,8 @@ class Autoplay {
         await seat.page.locator('#player2Select').selectOption({ value: target.userId });
         await seat.page.locator('#player1Cash').fill(String(offer));
         await seat.page.locator('#player2Cash').fill('0');
-        const box = seat.page.locator(`#player2-asset-${wanted.id}`);
+        // Streets in built colour groups are greyed out (they can't be traded): leave those.
+        const box = seat.page.locator(`#player2-asset-${wanted.id}:not([disabled])`);
         if (await box.count()) await box.check();
         await this.firstTime('trade-form', [seat], 'market-trade-form');
         await this.act(seat, 'propose trade', () => seat.page.locator('#executeTradeBtn').click(), { allowRejection: true });
@@ -713,15 +714,31 @@ class Autoplay {
             if (chosen) {
                 const [kind] = chosen;
                 optionalDone.add(kind);
-                if (this.explore && !base.has(kind)) { await this.explore.run(kind, seat, me, state); continue; }
-                if (kind === 'houses') await this.buyHouses(seat, me);
-                if (kind === 'debt') await this.issueDebt(seat, 100 + Math.floor(this.rand() * 300), this.chance(0.5));
-                if (kind === 'settle') await this.settleDebt(seat);
-                if (kind === 'ipo') await this.createIpo(seat, me);
-                if (kind === 'shares') await this.buyShares(seat, this.pick(buyable));
-                if (kind === 'trade') await this.proposeTrade(seat, me, state);
-                if (kind === 'pay') await this.manualPayment(seat, state);
-                if (kind === 'pause') { this.resilienceDone.pause = true; await this.pauseAndResume(seat); }
+                if (this.explore && !base.has(kind)) {
+                    // One optional action going wrong must not end the game: log it and move on.
+                    try {
+                        await this.explore.run(kind, seat, me, state);
+                    } catch (err) {
+                        this.ctx.finding({ severity: 'low', category: 'harness', seat, title: `Explore action "${kind}" failed`, detail: String(err.message || err).split('\n')[0] });
+                        await this.closeModals(seat);
+                        await this.gameTab(seat).catch(() => {});
+                    }
+                    continue;
+                }
+                try {
+                    if (kind === 'houses') await this.buyHouses(seat, me);
+                    if (kind === 'debt') await this.issueDebt(seat, 100 + Math.floor(this.rand() * 300), true);
+                    if (kind === 'settle') await this.settleDebt(seat);
+                    if (kind === 'ipo') await this.createIpo(seat, me);
+                    if (kind === 'shares') await this.buyShares(seat, this.pick(buyable));
+                    if (kind === 'trade') await this.proposeTrade(seat, me, state);
+                    if (kind === 'pay') await this.manualPayment(seat, state);
+                    if (kind === 'pause') { this.resilienceDone.pause = true; await this.pauseAndResume(seat); }
+                } catch (err) {
+                    this.ctx.finding({ severity: 'low', category: 'harness', seat, title: `Optional action "${kind}" failed`, detail: String(err.message || err).split('\n')[0] });
+                    await this.closeModals(seat);
+                    await this.gameTab(seat).catch(() => {});
+                }
                 continue;
             }
 

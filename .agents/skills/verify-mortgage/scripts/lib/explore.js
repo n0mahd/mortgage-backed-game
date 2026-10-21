@@ -141,7 +141,7 @@ class Explore {
         if (kind === 'jail-card-trade') return this.jailCardTrade(seat, me, state);
         if (kind === 'pay') return bot.manualPayment(seat, state);
         if (kind === 'ipo') return bot.createIpo(seat, me);
-        if (kind === 'debt') return bot.issueDebt(seat, 100 + Math.floor(bot.rand() * 200), bot.chance(0.5));
+        if (kind === 'debt') return bot.issueDebt(seat, 100 + Math.floor(bot.rand() * 200), true);
         if (kind === 'settle') return this.partialOrFullSettle(seat, me);
         if (kind === 'trade') return bot.proposeTrade(seat, me, state);
         if (kind === 'probe') return this.refusalProbe(seat, me, state);
@@ -302,10 +302,12 @@ class Explore {
         await seat.page.locator('#player2Select').selectOption({ value: target.userId });
         await seat.page.locator('#player1Cash').fill('0');
         await seat.page.locator('#player2Cash').fill('0');
-        const give = seat.page.locator(`#player1-asset-${bot.pick(me.properties).id}`);
-        const get = seat.page.locator(`#player2-asset-${bot.pick(target.properties).id}`);
-        if (await give.count()) await give.check();
-        if (await get.count()) await get.check();
+        // Only streets that may be traded (built colour groups are greyed out).
+        const give = seat.page.locator('#player1Assets input[type="checkbox"]:not([disabled])');
+        const get = seat.page.locator('#player2Assets input[type="checkbox"]:not([disabled])');
+        if (!(await give.count()) || !(await get.count())) return bot.gameTab(seat);
+        await give.nth(Math.floor(bot.rand() * await give.count())).check();
+        await get.nth(Math.floor(bot.rand() * await get.count())).check();
         await bot.act(seat, 'propose property swap', () => seat.page.locator('#executeTradeBtn').click(), { allowRejection: true });
         await bot.gameTab(seat);
     }
