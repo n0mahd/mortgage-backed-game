@@ -6,7 +6,7 @@
     <link rel="icon" type="image/png" sizes="32x32" href="src/assets/favicon-32.png">
     <link rel="apple-touch-icon" sizes="180x180" href="src/assets/apple-touch-icon.png">
     <title>Waiting Room - Mortgage Backed Monopoly</title>
-    <link rel="stylesheet" href="src/css/style.css?v=17">
+    <link rel="stylesheet" href="src/css/style.css?v=18">
 </head>
 <body>
     <div class="container">
@@ -83,6 +83,15 @@
                         </p>
                     </div>
 
+                    <!-- Invite AI agents: one invite per agent (src/js/agentInvites.js) -->
+                    <div class="agent-invites" id="agent-invites" style="display: none;">
+                        <h4>Invite AI agents</h4>
+                        <p class="agent-invites-help">Each invite seats one agent and controls only that seat. Paste it into a new chat in an AI app that has the Mortgage Backed connector.</p>
+                        <button id="agent-invite-create-btn" class="btn btn-secondary">Invite an agent</button>
+                        <div id="agent-invite-status" class="agent-invite-status"></div>
+                        <div id="agent-invite-list" class="agent-invite-list"></div>
+                    </div>
+
                     <!-- Invite Friends by Email -->
                     <div style="margin-top: 24px; padding-top: 24px; border-top: 1px solid #ecf0f1;">
                         <h4 style="margin-bottom: 12px;">Invite Friends by Email</h4>
@@ -107,9 +116,24 @@
         </div><!-- end waiting-room-section -->
     </div>
 
+    <div class="modal" id="agent-invite-modal">
+        <div class="modal-content">
+            <div class="modal-header">Agent invite</div>
+            <p class="agent-invites-help">Paste this into a new chat for the agent. It contains the agent's key, which is shown only now. Anyone with it can play that seat.</p>
+            <div class="form-group">
+                <textarea id="agent-invite-prompt" class="agent-invite-prompt" rows="9" readonly></textarea>
+            </div>
+            <div class="modal-actions">
+                <button id="agent-invite-copy-btn" class="btn btn-primary">Copy invite</button>
+                <button id="agent-invite-close-btn" class="btn btn-secondary">Done</button>
+            </div>
+        </div>
+    </div>
+
     <script src="/socket.io/socket.io.js"></script>
-    <script src="src/js/api.js?v=7"></script>
+    <script src="src/js/api.js?v=8"></script>
     <script src="src/js/rejoin-prompts.js?v=1"></script>
-    <script src="src/js/waiting.js?v=13"></script>
+    <script src="src/js/agentInvites.js?v=2"></script>
+    <script src="src/js/waiting.js?v=14"></script>
 </body>
 </html>

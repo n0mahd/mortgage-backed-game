@@ -142,6 +142,26 @@ function migrate(db) {
                 ON rejoin_requests (room_id, status);
         `);
     });
+
+    // Host-issued seats for AI agents. The key is the agent's only credential
+    // (MCP tools take it on every call); only its SHA-256 hash is stored.
+    apply(db, '006_agent_seats', () => {
+        db.exec(`
+            CREATE TABLE IF NOT EXISTS agent_seats (
+                id TEXT PRIMARY KEY,
+                room_id TEXT NOT NULL REFERENCES rooms(id) ON DELETE CASCADE,
+                key_hash TEXT NOT NULL UNIQUE,
+                label TEXT,
+                created_by TEXT NOT NULL REFERENCES users(id),
+                user_id TEXT REFERENCES users(id),
+                joined_at TEXT,
+                revoked_at TEXT,
+                created_at TEXT NOT NULL DEFAULT (datetime('now'))
+            );
+            CREATE INDEX IF NOT EXISTS idx_agent_seats_room ON agent_seats (room_id);
+            CREATE INDEX IF NOT EXISTS idx_agent_seats_user ON agent_seats (user_id);
+        `);
+    });
 }
 
 function apply(db, id, fn) {

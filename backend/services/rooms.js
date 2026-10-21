@@ -16,8 +16,24 @@ class RoomError extends Error {
     }
 }
 
+// Members in join order; is_agent marks seats taken with a host-issued agent key.
 function getRoomMembers(roomId) {
-    return db.prepare(`SELECT * FROM room_members WHERE room_id = ? ORDER BY joined_at ASC`).all(roomId);
+    return db.prepare(`
+        SELECT room_members.*, EXISTS (
+            SELECT 1 FROM agent_seats
+            WHERE agent_seats.room_id = room_members.room_id AND agent_seats.user_id = room_members.user_id
+        ) AS is_agent
+        FROM room_members WHERE room_id = ? ORDER BY joined_at ASC
+    `).all(roomId).map(member => ({ ...member, is_agent: member.is_agent === 1 }));
+}
+
+// Agent invites not yet used hold a seat, so people joining by room code
+// cannot fill the room before the host's agents arrive.
+function pendingAgentSeatCount(roomId, exceptSeatId = null) {
+    return db.prepare(`
+        SELECT COUNT(*) AS count FROM agent_seats
+        WHERE room_id = ? AND user_id IS NULL AND revoked_at IS NULL AND id IS NOT ?
+    `).get(roomId, exceptSeatId).count;
 }
 
 function getRoomWithMembers(roomId) {
@@ -61,14 +77,15 @@ function createRoom({ hostUserId, name, maxPlayers: rawMaxPlayers, playerName })
 }
 
 // Join a waiting room. Joining a room you are already in returns it unchanged.
-function joinRoom(io, { roomId, userId, playerName }) {
+// agentSeatId is set when an agent takes the seat its invite reserved.
+function joinRoom(io, { roomId, userId, playerName, agentSeatId = null }) {
     const room = getRoomWithMembers(roomId);
     if (!room) throw new RoomError(404, 'Room not found');
 
     const alreadyJoined = room.room_members.some(m => m.user_id === userId);
     if (alreadyJoined) return room;
 
-    if (room.room_members.length >= room.max_players) {
+    if (room.room_members.length + pendingAgentSeatCount(room.id, agentSeatId) >= room.max_players) {
         throw new RoomError(400, 'Room is full');
     }
     if (room.status !== 'waiting') {
@@ -107,6 +124,7 @@ function generateUniqueInviteCode() {
 module.exports = {
     RoomError,
     getRoomMembers,
+    pendingAgentSeatCount,
     getRoomWithMembers,
     getRoomByInviteCode,
     createAnonymousUser,

@@ -5,7 +5,7 @@ const { sendEmail } = require('../mailer');
 const { getConfig } = require('../config');
 const { createRateLimiter, getRequestActorKey } = require('../rateLimit');
 const { normalizeEmail, isValidEmail, normalizeInviteCode } = require('../normalizers');
-const { RoomError, createRoom, joinRoom } = require('../services/rooms');
+const { RoomError, createRoom, joinRoom, getRoomMembers } = require('../services/rooms');
 const {
     createRejoinRequest,
     listApprovableRequests,
@@ -13,6 +13,7 @@ const {
     collectRejoinRequest,
     cancelRejoinRequest,
 } = require('../services/rejoinRequests');
+const { createAgentSeat, listAgentSeats, revokeAgentSeat, agentInvitePrompt } = require('../services/agentSeats');
 
 module.exports = (io) => {
 const router = express.Router();
@@ -43,10 +44,6 @@ function getRoomWithMembers(roomId) {
 
 function attachRoomMembers(room, members = getRoomMembers(room.id)) {
     return { ...room, room_members: members };
-}
-
-function getRoomMembers(roomId) {
-    return db.prepare(`SELECT * FROM room_members WHERE room_id = ? ORDER BY joined_at ASC`).all(roomId);
 }
 
 function isRoomMember(roomId, userId) {
@@ -255,6 +252,38 @@ router.post('/:id/join', requireAuth, (req, res) => {
     } catch (err) {
         if (err instanceof RoomError) return res.status(err.status).json({ error: err.message });
         throw err;
+    }
+});
+
+// Agent invites (host only). The key is in the create response only.
+
+// POST /api/rooms/:id/agent-seats — create an invite for one AI agent
+router.post('/:id/agent-seats', requireAuth, (req, res) => {
+    try {
+        const { seat, key } = createAgentSeat({ roomId: req.params.id, hostUserId: req.userId, label: req.body?.label });
+        const room = getRoomWithMembers(req.params.id);
+        const mcpUrl = `${config.publicAppUrl}/api/mcp`;
+        res.status(201).json({ seat, key, mcp_url: mcpUrl, prompt: agentInvitePrompt({ roomName: room.name, key, mcpUrl }) });
+    } catch (err) {
+        sendRoomError(res, err);
+    }
+});
+
+// GET /api/rooms/:id/agent-seats — the host's live agent invites
+router.get('/:id/agent-seats', requireAuth, (req, res) => {
+    try {
+        res.json(listAgentSeats({ roomId: req.params.id, hostUserId: req.userId }));
+    } catch (err) {
+        sendRoomError(res, err);
+    }
+});
+
+// DELETE /api/rooms/:id/agent-seats/:seatId — revoke an agent's key
+router.delete('/:id/agent-seats/:seatId', requireAuth, (req, res) => {
+    try {
+        res.json(revokeAgentSeat(io, { roomId: req.params.id, seatId: req.params.seatId, hostUserId: req.userId }));
+    } catch (err) {
+        sendRoomError(res, err);
     }
 });
 

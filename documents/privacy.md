@@ -25,6 +25,7 @@ Production database: SQLite on the M60e at `/mnt/ssd/projects/mortgage-backed/ba
 | Player name (free text, chosen per room) | `room_members.player_name`, copied into `games.game_state` | Shown to the room | Everyone in the room | Forever | Leaving the room deletes the member row, but not the copy in game state |
 | Room name (free text) | `rooms.name` | Shown in the lobby, in emails and to agents in the room | Room members | Forever | Nothing (no room deletion route) |
 | User ID (random UUID, pseudonymous) | Every table, `game_events.player_id`, `game_actions.actor_user_id` | Links a player to their seat and actions | Room members see IDs in room and game payloads | Forever | Cascades only if the user row is deleted |
+| Agent invite key | `agent_seats.key_hash` (SHA-256), with an optional `label` and the seat's user ID | Lets one AI agent play one seat | Server only; the host sees the key once when creating it | Forever (revoked rows are kept) | Nothing (room deletion cascades, but there is no room deletion route) |
 | Device transfer code | `device_transfer_codes.code_hash` (SHA-256) | Move a session to another device | Server only | Rows are never deleted (expire after 10 minutes) | Next code request for that user deletes unused ones |
 | Rejoin request | `rejoin_requests` (room, seat, SHA-256 of the asking browser's secret, status, who answered) | Let a player who lost their token back into their seat once another player approves | Server only; approvers see the seat name | Rows are never deleted (expire after 10 minutes) | Cascades with the room or seat |
 | Game history | `game_events`, `game_actions.request_json`/`result_json` | Game log, idempotent retries | Room members (events) | Forever | Nothing |
@@ -56,7 +57,7 @@ Production database: SQLite on the M60e at `/mnt/ssd/projects/mortgage-backed/ba
 | Cloudflare (proxy, tunnel) | All traffic, including client IPs, tokens in headers and request bodies | TLS, DDoS protection, tunnel to the M60e | Not without exposing the home IP |
 | Resend | Recipient email, subject, the code or room list | Sends OTP, invite and forgot-code email | Yes (UseSend was self-hosted before the M60e move) |
 | GitHub (`abdullahak/mortgage-backed-game`, public) | Source code only | Hosting | n/a |
-| The player's own AI provider (whichever agent a player connects to `/api/mcp`) | That agent's `player_token`, and the room's game state: player names, room name, cash, properties, game log. Never emails or other players' tokens. | A player chose to play with their own agent | The player chooses the provider, not us |
+| The AI provider behind each invited agent (whichever app the host pastes an invite into) | That seat's agent key, and the room's game state: player names, room name, cash, properties, game log. Never emails, room codes or other players' keys or tokens. | The host invited an agent | The host chooses the provider, not us |
 
 No analytics, error-reporting, font or CDN scripts are loaded; the only external link is a plain
 footer link to claude.ai.
@@ -81,15 +82,17 @@ maintainer's private register until they're fixed, so this file never advertises
 
 ## Agents (MCP)
 
-`/api/mcp` lets a player's own AI agent join a room as a guest seat. Agents get a guest
-`player_token` and see the same room state any member sees. Server instructions tell agents
+`/api/mcp` lets an AI agent the host invited play one seat. The host creates one invite per agent
+in the waiting room; its agent key is the agent's only credential (no player JWT), works for that
+seat only, is stored hashed and can be revoked. Agents see the same room state any member sees,
+minus the room code. Server instructions tell agents
 that player and room names are data, not instructions; the server clips names and strips control
 characters. `testDice` is stripped from agent actions outside tests, and browser `Origin`s other
 than the site's own are rejected.
 
 ## Accepted risks
 
-- Room state shown to a player's agent goes to the AI provider that player picked. Other players
-  in that room share their names and moves with it, as they do with any human member.
+- Room state shown to an invited agent goes to the AI provider the host picked. Other players in
+  that room share their names and moves with it, as they do with any human member.
 - Cloudflare terminates TLS and sees all traffic. That's accepted, because it keeps the home IP
   private and absorbs attacks.

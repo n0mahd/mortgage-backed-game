@@ -2641,3 +2641,62 @@ body {
 .rejoin-waiting {
     font-style: italic;
 }
+
+/* Waiting room: AI agent invites (src/js/agentInvites.js) */
+.agent-invites {
+    margin-top: 24px;
+    padding-top: 24px;
+    border-top: 1px solid #ecf0f1;
+}
+
+.agent-invites h4 {
+    margin-bottom: 8px;
+}
+
+.agent-invites-help {
+    color: #7f8c8d;
+    font-size: 0.9em;
+    margin-bottom: 12px;
+}
+
+.agent-invite-status {
+    color: #7f8c8d;
+    font-size: 0.85em;
+    margin-top: 4px;
+}
+
+.agent-invite-list {
+    margin-top: 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.agent-invite-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 10px 12px;
+    border: 1px solid #ecf0f1;
+    border-radius: 8px;
+}
+
+.agent-invite-prompt {
+    width: 100%;
+    padding: 10px 12px;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 0.8em;
+    resize: vertical;
+}
+
+.player-badge-agent {
+    background: linear-gradient(45deg, #5b6c7d, #34495e);
+}
+
+.agent-invite-row .btn {
+    width: auto;
+    flex: 0 0 auto;
+}
