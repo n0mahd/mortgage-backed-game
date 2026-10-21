@@ -17,8 +17,9 @@ async function sendEmail(to, subject, text, html) {
         })
     });
     if (!res.ok) {
-        const err = await res.text();
-        throw new Error(`UseSend error: ${err}`);
+        // Provider responses can echo the recipient address, so log only the status.
+        await res.text().catch(() => {});
+        throw new Error(`Email provider returned HTTP ${res.status}`);
     }
 }
 

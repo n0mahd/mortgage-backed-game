@@ -81,7 +81,7 @@ router.post('/send-otp', authRateLimit, async (req, res) => {
                 `<p>Your verification code is: <strong>${code}</strong></p><p>Valid for 10 minutes.</p>`
             );
         } catch (err) {
-            console.error('Email send error:', err);
+            console.error('Email send error:', err.message);
             if (config.otpLogEnabled) console.log(`\nOTP for ${normalizedEmail}: ${code}\n`);
         }
     }
