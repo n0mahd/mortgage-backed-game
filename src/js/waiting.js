@@ -382,16 +382,6 @@ function bindWaitingRoomActions() {
     document.getElementById('send-invite-btn')?.addEventListener('click', sendInviteEmail);
 }
 
-if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', () => {
-        bindWaitingRoomActions();
-        initWaitingRoom();
-    });
-} else {
-    bindWaitingRoomActions();
-    initWaitingRoom();
-}
-
 // Native share sheet for the invite link, where the device supports it.
 function setupShareInvite() {
     const button = document.getElementById('share-invite-btn');
@@ -412,4 +402,8 @@ function setupShareInvite() {
     });
 }
 
-document.addEventListener('DOMContentLoaded', setupShareInvite);
+document.addEventListener('DOMContentLoaded', () => {
+    bindWaitingRoomActions();
+    setupShareInvite();
+    initWaitingRoom();
+});
