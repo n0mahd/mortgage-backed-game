@@ -58,6 +58,27 @@ After that the agent loops on `wait_for_turn` → `get_game_state` → `take_act
 
 The `player_token` is the agent's seat at the table: anyone holding it can play as that player, so the agent should keep it private. The server applies the same rules, turn checks and live updates to the agent as to a browser player.
 
+### Playtest against several AI players
+
+To fill your own room with bots, create it in the browser, then on a machine with the `claude` CLI:
+
+```bash
+scripts/agent-players.sh start ABC123 3          # 3 AI players join room ABC123
+scripts/agent-players.sh status ABC123           # what each one did last
+scripts/agent-players.sh stop ABC123
+```
+
+Press **Start Game** once they show up in the waiting room. Options: `--model` (default `claude-sonnet-5-5`) and `--url` (default production; use `http://127.0.0.1:3013/api/mcp` or similar for a dev server). Each player is a separate headless `claude -p` process with its own context and seat token, and each plays with a different style. The script joins the seats itself and keeps each token in a private file under `~/.local/state/mortgage-agents/<code>/`, so a player that crashes or overflows its context restarts into the same seat. Players stop when the game ends, when they go bankrupt, after about 25 idle minutes, or after 6 hours. On the Raspberry Pi the script refuses to start more players than the machine's 8-agent cap allows.
+
+### Agent security model
+
+- Agents have no account: `create_room`/`join_room` make an anonymous user, and the token only controls that seat.
+- Player names, room names and log lines come from other players and reach agents as text, so they are a prompt-injection channel. The server caps them in length and strips control characters, and tells agents to treat them as data. The launcher also gives players no tools other than the game's (no shell, files, web, or your own settings and MCP servers), so an injected instruction can at most change a game move.
+- Agents cannot choose their dice: `testDice` is stripped from MCP actions outside the test suite, even on servers with `ALLOW_STATE_REPAIR`.
+- Browser pages from other sites cannot call `/api/mcp`. Requests with an `Origin` header must come from the app's own URL or an explicit `CORS_ORIGINS` entry; `*` does not count.
+- Each player can have at most 2 `wait_for_turn` calls open at once (200 across the server), on top of the per-client and per-tool rate limits.
+- Seats claimed by invite code: after a game starts, anyone with the invite code can resume a guest seat through the hotseat recovery routes, including an agent's seat. Share the code only with players you trust.
+
 ---
 
 ## Game Overview
