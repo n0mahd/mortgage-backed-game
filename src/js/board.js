@@ -384,10 +384,10 @@ function renderBoard(gameState, currentUserId) {
         </div>`;
     }).join('');
 
-    // Last card drawn
+    // Last card drawn (the engine stores its text as `card`; older saves used `text`)
     const lastCard = gameState.lastCardDrawn;
     const cardHtml = lastCard
-        ? `<div class="board-card-text">"${escapeHtml(lastCard.text)}"</div>`
+        ? `<div class="board-card-text">"${escapeHtml(lastCard.card || lastCard.text)}"</div>`
         : '';
 
     // Center panel
