@@ -317,6 +317,18 @@ Trades let two players exchange any combination of cash, properties, corporation
 
 To send shares (or property) as a gift, propose a one-sided trade where the other player gives nothing; it moves once they accept. Shares of an insolvent corporation cannot be traded. If a founder trades away founder shares, their listing shrinks to the shares they still hold; shares a founder receives back are not relisted automatically.
 
+### Trading a Property for Shares
+
+You can put a property into another player's corporation in exchange for part of its shares, for example "I give you Boardwalk, you give me 3 of your 12 MBS shares".
+
+1. Open **Corporations** from the Game tab and tap **Offer a property for MBS shares** on that corporation's card. The Market tab opens with you on one side and the chairman on the other. You can also set up the same trade in the Market tab directly.
+2. Tick the property you're giving. Under **Where should your properties go?**, choose **Into MBS** rather than **To Sam**.
+3. Enter how many MBS shares you want back. The box shows the percentage, e.g. 4 shares of 12 = 33.3%. Shares are whole numbers, so not every percentage is possible.
+4. The **Your offer** box reads the deal back in one sentence and shows the corporation's value before and after, your stake and your net-worth change. For a straight property-for-shares deal it also shows the even split and a **Use N** button.
+5. Propose the trade. The other player sees the same summary from their side and accepts or declines.
+
+When the trade goes through, the property belongs to the corporation: it collects the rent into the treasury and adds to the corporation's net asset value, so every share is worth more. Only a corporation run by the receiving player (its chairman or a majority holder) can take the property, and it must not be insolvent. This is checked again when the offer is accepted. Chairmanship never changes automatically, but if a trade gives someone more than half the shares, they can then replace the chairman; both players see a warning before that happens.
+
 Pending trade offers expire after the configured trade-offer timeout. Expired offers never move cash or properties; the next game action clears the offer and logs the expiration. The host can also cancel abandoned pending trade offers. Host cancellation does not move cash or properties.
 
 Trades can be proposed and accepted at any time, not only on your turn. The acting player must be one side of the trade. There is no built-in chat yet — arrange the terms in chat or voice first.

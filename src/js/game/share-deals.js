@@ -1,0 +1,227 @@
+// Plain-language summaries of trades that move LLC shares or put a property
+// into an LLC ("property for shares").
+//
+// Classic browser script, no DOM access: everything works from the game state
+// and trade terms (the propose_trade payload or a stored offer), so the Market
+// form preview and the pending-offer cards read the same way. The server stays
+// the authority on whether a trade is legal; these are display numbers only.
+(function (global) {
+    'use strict';
+
+    function corpById(gameState, corpId) {
+        return (gameState.corporations || []).find(corp => corp.id === corpId) || null;
+    }
+
+    function playerById(gameState, userId) {
+        return (gameState.players || []).find(player => player.userId === userId) || null;
+    }
+
+    function sharesHeld(corp, userId) {
+        const holder = (corp.shareholders || []).find(item => item.userId === userId);
+        return Number(holder?.shares || 0);
+    }
+
+    function isInsolvent(corp) {
+        return !!corp.insolvent || corp.status === 'insolvent';
+    }
+
+    // Mirrors the engine's rule: the chairman or a majority holder runs an LLC.
+    function runsCorporation(corp, userId) {
+        if (!corp || !userId || isInsolvent(corp)) return false;
+        return corp.chairmanId === userId || sharesHeld(corp, userId) > Number(corp.totalShares || 0) / 2;
+    }
+
+    function corporationsRunBy(gameState, userId) {
+        return (gameState.corporations || []).filter(corp => runsCorporation(corp, userId));
+    }
+
+    function percent(shares, total) {
+        const t = Number(total || 0);
+        if (!t) return '0%';
+        const value = (Number(shares || 0) / t) * 100;
+        return `${Number.isInteger(value) ? value : value.toFixed(1).replace(/\.0$/, '')}%`;
+    }
+
+    function money(value) {
+        const rounded = Math.round(Number(value || 0));
+        return `$${Math.abs(rounded).toLocaleString('en-US')}`;
+    }
+
+    function signedMoney(value) {
+        const rounded = Math.round(Number(value || 0));
+        if (rounded === 0) return '$0';
+        return `${rounded > 0 ? '+' : '−'}${money(rounded)}`;
+    }
+
+    function list(items) {
+        if (items.length <= 1) return items.join('');
+        return `${items.slice(0, -1).join(', ')} and ${items[items.length - 1]}`;
+    }
+
+    function propertyValue(gameState, propertyId) {
+        for (const player of gameState.players || []) {
+            const owned = (player.properties || []).find(prop => prop.id === propertyId);
+            if (owned) return Number(owned.value || 0);
+        }
+        const prop = (gameState.properties || []).find(item => item.id === propertyId);
+        return Number(prop?.price || 0);
+    }
+
+    function propertyName(gameState, propertyId) {
+        const prop = (gameState.properties || []).find(item => item.id === propertyId);
+        return prop ? prop.name : propertyId;
+    }
+
+    function normalizeSide(terms, side, jailCardId) {
+        const assetIds = terms[`${side}AssetIds`] || [];
+        return {
+            userId: terms[`${side}Id`],
+            cash: Number(terms[`${side}Cash`] || 0),
+            propertyIds: assetIds.filter(id => id !== jailCardId),
+            jailCard: assetIds.includes(jailCardId),
+            shares: (terms[`${side}Shares`] || []).filter(lot => Number(lot.shares || 0) > 0),
+            intoCorpId: terms[`${side}PropertiesToCorpId`] || null,
+        };
+    }
+
+    // terms: propose_trade payload or stored offer. viewerId: who is reading.
+    // options.netAssetValue(corp) -> number; options.jailCardId.
+    function summarize(gameState, terms, viewerId, options) {
+        const navOf = options.netAssetValue;
+        const sides = {
+            player1: normalizeSide(terms, 'player1', options.jailCardId),
+            player2: normalizeSide(terms, 'player2', options.jailCardId),
+        };
+        const other = { player1: 'player2', player2: 'player1' };
+        const name = userId => (userId === viewerId ? 'You' : (playerById(gameState, userId)?.name || 'Someone'));
+        const touchedCorpIds = new Set();
+        Object.values(sides).forEach(side => {
+            side.shares.forEach(lot => touchedCorpIds.add(lot.corpId));
+            if (side.intoCorpId && side.propertyIds.length) touchedCorpIds.add(side.intoCorpId);
+        });
+
+        // Company value and shareholdings before and after the trade.
+        const corps = new Map();
+        touchedCorpIds.forEach(corpId => {
+            const corp = corpById(gameState, corpId);
+            if (!corp) return;
+            const holdings = new Map((corp.shareholders || []).map(item => [item.userId, Number(item.shares || 0)]));
+            corps.set(corpId, {
+                corp,
+                navBefore: navOf(corp),
+                navAfter: navOf(corp),
+                before: new Map(holdings),
+                after: holdings,
+            });
+        });
+        Object.entries(sides).forEach(([key, side]) => {
+            const receiverId = sides[other[key]].userId;
+            if (side.intoCorpId && corps.has(side.intoCorpId)) {
+                const entry = corps.get(side.intoCorpId);
+                side.propertyIds.forEach(id => { entry.navAfter += propertyValue(gameState, id); });
+            }
+            side.shares.forEach(lot => {
+                const entry = corps.get(lot.corpId);
+                if (!entry) return;
+                const n = Number(lot.shares);
+                entry.after.set(side.userId, (entry.after.get(side.userId) || 0) - n);
+                entry.after.set(receiverId, (entry.after.get(receiverId) || 0) + n);
+            });
+        });
+
+        // One sentence per side, e.g. "You put Boardwalk into MBS." or
+        // "Sam gives you 3 of 12 MBS shares (25%)."
+        const sentences = ['player1', 'player2'].map(key => {
+            const side = sides[key];
+            const receiver = sides[other[key]];
+            const giver = name(side.userId);
+            const you = giver === 'You';
+            const to = name(receiver.userId);
+            const parts = [];
+            if (side.cash > 0) parts.push(money(side.cash));
+            const corp = side.intoCorpId ? corpById(gameState, side.intoCorpId) : null;
+            if (side.propertyIds.length && !corp) parts.push(list(side.propertyIds.map(id => propertyName(gameState, id))));
+            side.shares.forEach(lot => {
+                const shareCorp = corpById(gameState, lot.corpId);
+                const total = Number(shareCorp?.totalShares || 0);
+                const n = Number(lot.shares);
+                parts.push(`${n} of ${total} ${shareCorp ? shareCorp.ticker : 'LLC'} share${n === 1 ? '' : 's'} (${percent(n, total)})`);
+            });
+            if (side.jailCard) parts.push('a Get Out of Jail Free card');
+            const clauses = [];
+            if (corp && side.propertyIds.length) {
+                clauses.push(`${you ? 'put' : 'puts'} ${list(side.propertyIds.map(id => propertyName(gameState, id)))} into ${corp.ticker}`);
+            }
+            if (parts.length) clauses.push(`${you ? 'give' : 'gives'} ${to === 'You' ? 'you' : to} ${list(parts)}`);
+            if (!clauses.length) return null;
+            return `${giver} ${clauses.join(' and ')}.`;
+        }).filter(Boolean);
+
+        // What changes for the viewer, if they are part of the trade.
+        const viewerKey = Object.keys(sides).find(key => sides[key].userId === viewerId) || null;
+        const rows = [];
+        const warnings = [];
+        let netChange = null;
+        if (viewerKey) {
+            const mine = sides[viewerKey];
+            const theirs = sides[other[viewerKey]];
+            netChange = theirs.cash - mine.cash;
+            mine.propertyIds.forEach(id => { netChange -= propertyValue(gameState, id); });
+            if (!theirs.intoCorpId) theirs.propertyIds.forEach(id => { netChange += propertyValue(gameState, id); });
+            corps.forEach(entry => {
+                const total = Number(entry.corp.totalShares || 0);
+                if (!total) return;
+                const before = entry.before.get(viewerId) || 0;
+                const after = entry.after.get(viewerId) || 0;
+                const valueBefore = before * Math.max(0, entry.navBefore) / total;
+                const valueAfter = after * Math.max(0, entry.navAfter) / total;
+                netChange += valueAfter - valueBefore;
+                if (entry.navAfter !== entry.navBefore) {
+                    rows.push({ label: `${entry.corp.ticker} value`, value: `${money(entry.navBefore)} → ${money(entry.navAfter)}` });
+                }
+                if (before !== after) {
+                    rows.push({
+                        label: `Your ${entry.corp.ticker} shares`,
+                        value: `${before} → ${after} (${percent(before, total)} → ${percent(after, total)}), worth ${money(valueAfter)}`,
+                    });
+                }
+            });
+            if (corps.size) rows.push({ label: 'Your net worth', value: signedMoney(netChange), tone: Math.round(netChange) > 0 ? 'up' : (Math.round(netChange) < 0 ? 'down' : '') });
+        }
+
+        // Control: anyone who ends up with over half can replace the chairman.
+        corps.forEach(entry => {
+            const total = Number(entry.corp.totalShares || 0);
+            entry.after.forEach((after, userId) => {
+                const before = entry.before.get(userId) || 0;
+                if (after > total / 2 && before <= total / 2 && userId !== entry.corp.chairmanId) {
+                    const who = name(userId);
+                    warnings.push(`${who} will own over half of ${entry.corp.ticker} and ${who === 'You' ? 'can' : 'could'} replace the chairman.`);
+                }
+            });
+            const chairBefore = entry.before.get(entry.corp.chairmanId) || 0;
+            const chairAfter = entry.after.get(entry.corp.chairmanId) || 0;
+            if (entry.corp.chairmanId === viewerId && chairBefore > total / 2 && chairAfter <= total / 2) {
+                warnings.push(`You'll no longer hold over half of ${entry.corp.ticker}. You stay chairman, but other holders can vote you out.`);
+            }
+        });
+
+        // Even split for the classic deal: property into an LLC for its shares.
+        let evenShares = null;
+        ['player1', 'player2'].forEach(key => {
+            const side = sides[key];
+            const back = sides[other[key]];
+            const lot = back.shares.find(item => item.corpId === side.intoCorpId);
+            if (!side.intoCorpId || !lot || !side.propertyIds.length || side.cash || back.cash || back.propertyIds.length) return;
+            const entry = corps.get(side.intoCorpId);
+            const total = Number(entry.corp.totalShares || 0);
+            if (!total || entry.navAfter <= 0) return;
+            const given = side.propertyIds.reduce((sum, id) => sum + propertyValue(gameState, id), 0);
+            evenShares = { ticker: entry.corp.ticker, shares: Math.round((given * total) / entry.navAfter), total };
+        });
+
+        return { sentences, rows, warnings, netChange, evenShares };
+    }
+
+    global.ShareDeals = { summarize, corporationsRunBy, runsCorporation, percent };
+})(window);

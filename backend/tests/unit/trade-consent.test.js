@@ -322,3 +322,95 @@ describe('trading LLC shares', () => {
         })).toThrow(/does not hold/);
     });
 });
+
+describe('trading a property into an LLC for shares', () => {
+    // Alice founds ALC (12 shares) with prop-3; Bob owns prop-1 (makeState).
+    function setup() {
+        const state = makeState();
+        ownProperty(state, 'prop-3', 'alice', 'Alice');
+        const { state: withCorp } = applyAction(state, 'alice', {
+            type: 'create_ipo',
+            payload: { ticker: 'ALC', totalShares: 12, pricePerShare: 50, assetIds: ['prop-3'] },
+        });
+        return { state: withCorp, corp: withCorp.corporations[0] };
+    }
+
+    function propose(state, actorId, payload) {
+        return applyAction(state, actorId, {
+            type: 'propose_trade',
+            payload: { player1Id: 'alice', player2Id: 'bob', player1AssetIds: [], player2AssetIds: [], ...payload },
+        });
+    }
+
+    function holderShares(state, corpId, userId) {
+        const corp = state.corporations.find(c => c.id === corpId);
+        return corp.shareholders.find(holder => holder.userId === userId)?.shares || 0;
+    }
+
+    test('the property goes into the LLC and the giver gets shares', () => {
+        const { state, corp } = setup();
+        const proposed = propose(state, 'bob', {
+            player2AssetIds: ['prop-1'],
+            player2PropertiesToCorpId: corp.id,
+            player1Shares: [{ corpId: corp.id, shares: 3 }],
+        });
+        const offer = proposed.state.marketOffers[0];
+        expect(offer.player2PropertiesToCorpId).toBe(corp.id);
+        expect(offer.player1PropertiesToCorpId).toBeNull();
+
+        const { state: after } = applyAction(proposed.state, 'alice', { type: 'accept_trade', payload: { offerId: offer.id } });
+        const property = after.properties.find(prop => prop.id === 'prop-1');
+        expect(property.ownerId).toBe(corp.id);
+        expect(property.ownerName).toBe('[ALC]');
+        const afterCorp = after.corporations.find(c => c.id === corp.id);
+        expect(afterCorp.assets.map(asset => asset.id)).toEqual(expect.arrayContaining(['prop-1', 'prop-3']));
+        expect(holderShares(after, corp.id, 'bob')).toBe(3);
+        expect(holderShares(after, corp.id, 'alice')).toBe(9);
+        const alice = after.players.find(p => p.userId === 'alice');
+        expect(alice.properties.map(prop => prop.id)).not.toContain('prop-1');
+        expect(after.gameLog.some(entry => /into ALC/.test(entry.message || entry))).toBe(true);
+    });
+
+    test('only an LLC the receiving player runs can take the property', () => {
+        const { state, corp } = setup();
+        // Alice gives prop-5 into ALC, but the receiving side is Bob, who doesn't run ALC.
+        ownProperty(state, 'prop-5', 'alice', 'Alice');
+        expect(() => propose(state, 'alice', {
+            player1AssetIds: ['prop-5'],
+            player1PropertiesToCorpId: corp.id,
+            player2Cash: 10,
+        })).toThrow(/Bob does not run ALC/);
+    });
+
+    test('an LLC destination needs a property on that side and a solvent LLC', () => {
+        const { state, corp } = setup();
+        expect(() => propose(state, 'bob', {
+            player2Cash: 10,
+            player2PropertiesToCorpId: corp.id,
+        })).toThrow(/property/);
+
+        state.corporations[0].insolvent = true;
+        state.corporations[0].status = 'insolvent';
+        expect(() => propose(state, 'bob', {
+            player2AssetIds: ['prop-1'],
+            player2PropertiesToCorpId: corp.id,
+        })).toThrow(/insolvent/);
+    });
+
+    test('the offer fails at accept time if the receiver no longer runs the LLC', () => {
+        const { state, corp } = setup();
+        const proposed = propose(state, 'bob', {
+            player2AssetIds: ['prop-1'],
+            player2PropertiesToCorpId: corp.id,
+            player1Shares: [{ corpId: corp.id, shares: 3 }],
+        });
+        const liveCorp = proposed.state.corporations[0];
+        liveCorp.chairmanId = 'bob';
+        liveCorp.chairmanName = 'Bob';
+        liveCorp.shareholders = [{ userId: 'alice', name: 'Alice', shares: 6 }, { userId: 'bob', name: 'Bob', shares: 6 }];
+        expect(() => applyAction(proposed.state, 'alice', {
+            type: 'accept_trade',
+            payload: { offerId: proposed.state.marketOffers[0].id },
+        })).toThrow(/Alice does not run ALC/);
+    });
+});

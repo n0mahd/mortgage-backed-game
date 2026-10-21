@@ -1857,6 +1857,121 @@ input[type="checkbox"] {
     font-weight: 700;
 }
 
+.trade-share-pct {
+    font-size: var(--text-footnote);
+    font-weight: 650;
+    color: var(--emerald);
+    white-space: nowrap;
+}
+
+/* Property-for-shares: where a side's properties go */
+.trade-destination:empty { display: none; }
+
+.trade-destination {
+    display: grid;
+    gap: var(--s2);
+    margin-top: var(--s3);
+}
+
+.trade-destination-title {
+    font-size: var(--text-sub);
+    font-weight: 650;
+}
+
+.trade-destination-option {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--s3);
+    min-height: var(--tap);
+    padding: var(--s3);
+    border-radius: var(--r-control);
+    border: 1.5px solid var(--rule);
+    background: var(--note);
+    cursor: pointer;
+}
+
+.trade-destination-option:has(input:checked) {
+    border-color: var(--jade);
+    background: var(--mint-wash);
+}
+
+.trade-destination-option input {
+    width: 20px;
+    height: 20px;
+    margin-top: 1px;
+    flex-shrink: 0;
+    accent-color: var(--emerald);
+}
+
+.trade-destination-option span { display: grid; gap: 2px; font-size: var(--text-sub); }
+.trade-destination-option small { font-size: var(--text-caption); color: var(--ink-3); }
+
+.trade-preview {
+    margin-top: var(--s3);
+    padding: var(--s4);
+    border-radius: var(--r-group);
+    background: var(--note);
+    border: 1.5px solid var(--jade);
+}
+
+.trade-preview h4 { margin-bottom: var(--s2); font-size: var(--text-sub); }
+
+.share-deal-summary { display: grid; gap: var(--s2); }
+
+.share-deal-sentence {
+    font-size: var(--text-body);
+    font-weight: 650;
+    color: var(--forest);
+}
+
+.share-deal-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: var(--text-sub);
+}
+
+.share-deal-table td {
+    padding: 6px 0;
+    border-bottom: 1px solid var(--rule);
+    color: var(--ink-2);
+}
+
+.share-deal-table td:last-child {
+    text-align: right;
+    font-family: var(--font-money);
+    font-weight: 700;
+    color: var(--ink);
+    font-variant-numeric: lining-nums proportional-nums;
+}
+
+.share-deal-table td.up { color: var(--emerald); }
+.share-deal-table td.down { color: var(--danger); }
+
+.share-deal-warning {
+    padding: var(--s2) var(--s3);
+    border-radius: var(--r-control);
+    background: var(--gold-wash);
+    color: #6B4D07;
+    font-size: var(--text-footnote);
+}
+
+.share-deal-even {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--s2);
+    font-size: var(--text-footnote);
+    color: var(--ink-2);
+}
+
+.offer-property-for-shares {
+    display: grid;
+    gap: 4px;
+    margin-top: var(--s3);
+}
+
+.offer-property-for-shares small { font-size: var(--text-caption); color: var(--ink-3); }
+
 .trade-offer-actions {
     display: flex;
     gap: var(--s2);
