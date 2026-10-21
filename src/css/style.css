@@ -484,6 +484,139 @@ body {
     border-color: #40916C;
 }
 
+.trade-share-pct {
+    color: #2D6A4F;
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+/* Property-for-shares: where a side's properties go */
+.trade-destination:empty {
+    display: none;
+}
+
+.trade-destination {
+    margin-top: 12px;
+    display: grid;
+    gap: 8px;
+}
+
+.trade-destination-title {
+    margin: 0;
+    font-weight: 700;
+    color: #1B4332;
+}
+
+.trade-destination-option {
+    display: flex;
+    gap: 10px;
+    align-items: flex-start;
+    padding: 10px;
+    border: 1.5px solid #dee2e6;
+    border-radius: 10px;
+    background: white;
+    cursor: pointer;
+    font-weight: normal;
+}
+
+.trade-destination-option:has(input:checked) {
+    border-color: #2D6A4F;
+    background: #D8F3DC;
+}
+
+.trade-destination-option input {
+    width: auto;
+    margin-top: 3px;
+}
+
+.trade-destination-option span {
+    display: grid;
+    gap: 2px;
+}
+
+.trade-destination-option small {
+    color: #5f6f69;
+}
+
+.trade-preview {
+    margin: 16px 0;
+    padding: 14px;
+    border: 1px solid #B7E4C7;
+    border-radius: 12px;
+    background: #F0FBF4;
+}
+
+.trade-preview h4 {
+    margin: 0 0 8px;
+    color: #1B4332;
+}
+
+.share-deal-summary {
+    display: grid;
+    gap: 6px;
+    margin-bottom: 10px;
+}
+
+.share-deal-sentence {
+    margin: 0;
+    font-size: 1.05em;
+    font-weight: 600;
+    color: #1B4332;
+}
+
+.share-deal-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.92em;
+}
+
+.share-deal-table td {
+    padding: 4px 2px;
+    border-bottom: 1px solid #E5E7EB;
+}
+
+.share-deal-table td:last-child {
+    text-align: right;
+    font-weight: 600;
+}
+
+.share-deal-table td.up {
+    color: #2D6A4F;
+}
+
+.share-deal-table td.down {
+    color: #B91C1C;
+}
+
+.share-deal-warning {
+    margin: 0;
+    padding: 8px 10px;
+    border-radius: 8px;
+    background: #FFF8DC;
+    color: #92680A;
+    font-size: 0.92em;
+}
+
+.share-deal-even {
+    margin: 0;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    align-items: center;
+    font-size: 0.92em;
+    color: #374151;
+}
+
+.offer-property-for-shares {
+    margin-top: 12px;
+    display: grid;
+    gap: 4px;
+}
+
+.offer-property-for-shares small {
+    color: #5f6f69;
+}
+
 .debt-choice label {
     display: inline;
     font-weight: 600;

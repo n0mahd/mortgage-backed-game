@@ -6,7 +6,7 @@
     <link rel="icon" type="image/png" sizes="32x32" href="src/assets/favicon-32.png">
     <link rel="apple-touch-icon" sizes="180x180" href="src/assets/apple-touch-icon.png">
     <title>Game - Mortgage Backed Monopoly</title>
-    <link rel="stylesheet" href="src/css/style.css?v=15">
+    <link rel="stylesheet" href="src/css/style.css?v=16">
 </head>
 <body>
     <div class="container">
@@ -58,6 +58,7 @@
                             <input type="number" id="player1Cash" min="0" value="0">
                         </div>
                         <div class="asset-list" id="player1Assets"></div>
+                        <div class="trade-destination" id="player1Destination"></div>
                     </div>
                     <div class="transaction-side">
                         <h3>Player 2 Offers</h3>
@@ -70,8 +71,10 @@
                             <input type="number" id="player2Cash" min="0" value="0">
                         </div>
                         <div class="asset-list" id="player2Assets"></div>
+                        <div class="trade-destination" id="player2Destination"></div>
                     </div>
                 </div>
+                <div id="tradePreview" class="trade-preview" hidden></div>
                 <div style="text-align: center;">
                     <button class="btn btn-success" id="executeTradeBtn">Propose Transaction</button>
                 </div>
@@ -311,8 +314,9 @@
     <script src="/socket.io/socket.io.js"></script>
     <script src="src/js/api.js?v=6"></script>
     <script src="src/js/board.js?v=8"></script>
-    <script src="src/js/game/action-dispatcher.js?v=1"></script>
+    <script src="src/js/game/action-dispatcher.js?v=2"></script>
     <script src="src/js/game/turn-alert.js?v=1"></script>
-    <script src="src/js/game.js?v=24"></script>
+    <script src="src/js/game/share-deals.js?v=1"></script>
+    <script src="src/js/game.js?v=25"></script>
 </body>
 </html>

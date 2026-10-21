@@ -1094,6 +1094,12 @@ function resolveSelectedPlayerDebts(player, payload) {
 }
 
 function canManageCorporationDebt(corp, userId) {
+    return controlsCorporation(corp, userId);
+}
+
+// The chairman or a majority holder runs an LLC: they can manage its debt and
+// accept property into it.
+function controlsCorporation(corp, userId) {
     if (!corp || !userId) return false;
     if (corp.insolvent) return false;
     return corp.chairmanId === userId || hasMajorityShares(corp, userId);
@@ -1370,11 +1376,44 @@ function getTradeTerms(state, payload) {
     const player2AssetIds = uniqueIds(payload.player2AssetIds || []);
     const player1Shares = normalizeTradeShares(payload.player1Shares);
     const player2Shares = normalizeTradeShares(payload.player2Shares);
+    const player1PropertiesToCorpId = optionalTradeCorpId(payload.player1PropertiesToCorpId);
+    const player2PropertiesToCorpId = optionalTradeCorpId(payload.player2PropertiesToCorpId);
     if (player1Cash <= 0 && player2Cash <= 0 && player1AssetIds.length === 0 && player2AssetIds.length === 0
         && player1Shares.length === 0 && player2Shares.length === 0) {
         throw new GameRuleError(400, 'Trade must include cash, property or shares');
     }
-    return { player1, player2, player1Cash, player2Cash, player1AssetIds, player2AssetIds, player1Shares, player2Shares };
+    return {
+        player1, player2, player1Cash, player2Cash, player1AssetIds, player2AssetIds, player1Shares, player2Shares,
+        player1PropertiesToCorpId, player2PropertiesToCorpId,
+    };
+}
+
+// A side's properties can go into an LLC run by the other player instead of to
+// that player personally (a property-for-shares deal). Null means "to the player".
+function optionalTradeCorpId(value) {
+    const corpId = String(value || '').trim();
+    return corpId || null;
+}
+
+function validatePropertyDestination(state, propertyIds, receiver, corpId) {
+    if (!corpId) return;
+    const corp = state.corporations.find(c => c.id === corpId);
+    if (!corp) throw new GameRuleError(404, 'Corporation not found');
+    if (corp.insolvent) throw new GameRuleError(400, `${corp.ticker} is insolvent and cannot take property`);
+    if (propertyIds.length === 0) throw new GameRuleError(400, `Choose a property to put into ${corp.ticker}`);
+    if (!controlsCorporation(corp, receiver.userId)) {
+        throw new GameRuleError(400, `${receiver.name} does not run ${corp.ticker}, so it cannot take the property`);
+    }
+}
+
+function transferPropertiesToCorporation(state, from, corp, ids) {
+    ids.forEach(id => {
+        const prop = state.properties.find(p => p.id === id);
+        if (!prop || prop.ownerId !== from.userId) throw new GameRuleError(400, 'Can only transfer owned property');
+        prop.ownerId = corp.id;
+        prop.ownerName = `[${corp.ticker}]`;
+        addCorporationAsset(corp, prop);
+    });
 }
 
 // Trade share lists are [{ corpId, shares }]; repeated corporations are merged.
@@ -1435,6 +1474,8 @@ function validateTradeTerms(state, terms) {
     validatePropertyTransferList(state, player2, side2.propertyIds);
     validateShareTransferList(state, player1, terms.player1Shares);
     validateShareTransferList(state, player2, terms.player2Shares);
+    validatePropertyDestination(state, side1.propertyIds, player2, terms.player1PropertiesToCorpId);
+    validatePropertyDestination(state, side2.propertyIds, player1, terms.player2PropertiesToCorpId);
     validateJailCardTransfer(player1, player2, side1.jailCard, side2.jailCard);
     validateJailCardTransfer(player2, player1, side2.jailCard, side1.jailCard);
 }
@@ -1455,8 +1496,8 @@ function applyTradeTransfer(state, terms) {
     player2.cash = player2.cash - player2Cash + player1Cash;
     if (player1Cash > 0) recordCashFlow(state, player1.userId, player2.userId, player1Cash);
     if (player2Cash > 0) recordCashFlow(state, player2.userId, player1.userId, player2Cash);
-    transferProperties(state, player1, player2, side1.propertyIds);
-    transferProperties(state, player2, player1, side2.propertyIds);
+    transferTradeProperties(state, player1, player2, side1.propertyIds, terms.player1PropertiesToCorpId);
+    transferTradeProperties(state, player2, player1, side2.propertyIds, terms.player2PropertiesToCorpId);
     transferShares(state, player1, player2, terms.player1Shares);
     transferShares(state, player2, player1, terms.player2Shares);
     if (side1.jailCard !== side2.jailCard) {
@@ -1465,6 +1506,17 @@ function applyTradeTransfer(state, terms) {
         giver.hasGetOutOfJailCard = false;
         receiver.hasGetOutOfJailCard = true;
     }
+}
+
+function transferTradeProperties(state, from, to, propertyIds, corpId) {
+    if (!corpId) {
+        transferProperties(state, from, to, propertyIds);
+        return;
+    }
+    const corp = state.corporations.find(c => c.id === corpId);
+    transferPropertiesToCorporation(state, from, corp, propertyIds);
+    const names = propertyIds.map(id => state.properties.find(p => p.id === id)?.name || id).join(', ');
+    log(state, `${from.name} put ${names} into ${corp.ticker}`);
 }
 
 function trade(state, actor, payload, events) {
@@ -1502,6 +1554,8 @@ function proposeTrade(state, actor, payload, events) {
         player2AssetIds,
         player1Shares,
         player2Shares,
+        player1PropertiesToCorpId: terms.player1PropertiesToCorpId,
+        player2PropertiesToCorpId: terms.player2PropertiesToCorpId,
         createdAt,
         expiresAt: tradeOfferExpiryFrom(state, now),
     };
