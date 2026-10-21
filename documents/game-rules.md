@@ -402,6 +402,15 @@ Property value is recorded at purchase price plus houses/hotels. Corporation sha
 
 ---
 
+## 16. Strategy Tips
+
+- **Leverage early.** Issue debt while interest is manageable to buy more properties before others do.
+- **IPO fast.** Bundle your cheapest color groups to raise capital through share sales without giving up valuable assets.
+- **Watch the interest clock.** Every turn-end drains cash. Over-leveraging compounds quickly and is usually fatal.
+- **Use the market tab.** Negotiate trades and package deals — the secondary market is where fortunes shift.
+
+---
+
 ## Quick Reference
 
 | Thing | Value |
