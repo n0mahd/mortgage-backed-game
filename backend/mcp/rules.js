@@ -36,7 +36,7 @@ create_ipo moves your chosen properties into a corporation; you hold all shares 
 issue_debt borrows at the room rate (default 5% per turn). Interest compounds each time you end your turn and is taken from your cash. pay_debt repays; refinance_debt rolls debts into one larger loan.
 
 ## Trades and payments
-propose_trade any time (you must be player1 or player2); the other side must accept_trade, or cancel_trade declines. Offers expire after 10 minutes. manual_payment sends cash directly.
+propose_trade any time (you must be player1 or player2); a trade can include cash, properties and corporation shares (player1Shares/player2Shares), and a one-sided offer gives them away; the other side must accept_trade, or cancel_trade declines. Offers expire after 10 minutes. manual_payment sends cash directly.
 
 ## Bankruptcy and winning
 If your cash is below $0 (or rent is still unpaid) when you end your turn, you go bankrupt and are out. If you cannot afford rent you pay what you have and owe the rest until end of turn, so raise cash first (debt, trades, IPO). Last solvent player wins; the host may end the game early, ranking by net worth = cash + property value + share value - debt.

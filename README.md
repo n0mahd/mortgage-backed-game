@@ -160,7 +160,7 @@ If corporate debt interest pushes a corporation below $0 treasury cash, the corp
 
 ### Trade (Secondary Market)
 
-Open the **Market** tab. Pick two players and enter what each side offers — any combination of cash and properties. Click **Propose Transaction** to send a pending trade offer. The other involved player must accept before cash or properties move.
+Open the **Market** tab. Pick two players and enter what each side offers — any combination of cash, properties and corporation shares. Click **Propose Transaction** to send a pending trade offer; leave one side empty to send shares or property as a gift. The other involved player must accept before cash or properties move.
 
 Pending trade offers expire after the configured trade-offer timeout. Expired offers never move cash or property; the next game action clears them. The host can also cancel abandoned pending trade offers. Host cancellation does not move cash or properties.
 

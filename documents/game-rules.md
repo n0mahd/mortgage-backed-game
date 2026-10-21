@@ -10,7 +10,7 @@ Mortgage Backed Monopoly is a fully-digital, multiplayer parody of Monopoly laye
 
 - **IPO their properties** — bundle them into corporations, issue shares, and sell equity to other players
 - **Issue debt** — borrow cash at the room's debt rate, with compounding interest
-- **Trade freely** — swap cash and properties through the Market tab
+- **Trade freely** — swap cash, properties and corporation shares through the Market tab
 
 The game runs entirely in the browser; there are no physical components, no banker, and no manual bookkeeping. All state is shared in real time.
 
@@ -306,14 +306,16 @@ Bank, tax, card, jail bail, and interest bankruptcies return your directly owned
 
 ### Player-to-Player Trades
 
-Trades let two players exchange any combination of cash, properties, and Get Out of Jail Free cards after both involved players agree.
+Trades let two players exchange any combination of cash, properties, corporation (LLC) shares, and Get Out of Jail Free cards after both involved players agree.
 
 1. Go to the **Market** tab.
 2. Select **Player 1** and **Player 2** from the dropdowns.
 3. Enter how much cash each player contributes to the swap.
-4. Check the properties each player is transferring. A player holding a Get Out of Jail Free card can check it too, so the card can be sold for cash or swapped as part of a deal.
+4. Check the properties each player is transferring. A player holding a Get Out of Jail Free card can check it too, so the card can be sold for cash or swapped as part of a deal. For each corporation a player holds shares in, enter how many shares they are transferring (up to the number they hold).
 5. Click **Propose Transaction** — the offer appears under **Pending Trade Offers**.
 6. The other involved player accepts to execute the transfer, or declines to reject it.
+
+To send shares (or property) as a gift, propose a one-sided trade where the other player gives nothing; it moves once they accept. Shares of an insolvent corporation cannot be traded. If a founder trades away founder shares, their listing shrinks to the shares they still hold; shares a founder receives back are not relisted automatically.
 
 Pending trade offers expire after the configured trade-offer timeout. Expired offers never move cash or properties; the next game action clears the offer and logs the expiration. The host can also cancel abandoned pending trade offers. Host cancellation does not move cash or properties.
 

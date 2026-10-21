@@ -2125,6 +2125,11 @@ function bindStaticGameControls() {
             updateMarketActionState();
         }
     });
+    document.addEventListener('input', (event) => {
+        if (event.target.closest('#player1Assets .trade-share-input, #player2Assets .trade-share-input')) {
+            updateMarketActionState();
+        }
+    });
 
     document.getElementById('go-to-actions-btn')?.addEventListener('click', switchToGameTab);
     document.getElementById('executeTradeBtn')?.addEventListener('click', executeTransaction);
@@ -2317,7 +2322,26 @@ function updatePlayerAssets(playerNumber) {
         </div>
     ` : '';
 
-    document.getElementById(assetsId).innerHTML = (assetsHtml + jailCardHtml) || '<p>No properties</p>';
+    const sharesHtml = (player.corporations || [])
+        .filter(corp => Number(corp.sharesOwned || 0) > 0 && !corp.insolvent)
+        .map(corp => {
+            const inputId = `${playerNumber}-shares-${escapeAttr(corp.id)}`;
+            return `
+                <div class="asset-checkbox asset-shares">
+                    <input type="number" class="trade-share-input" id="${inputId}" data-corp-id="${escapeAttr(corp.id)}" min="0" max="${Number(corp.sharesOwned)}" step="1" value="0">
+                    <label for="${inputId}">${escapeHtml(corp.ticker)} shares (holds ${Number(corp.sharesOwned)} of ${Number(corp.totalShares)})</label>
+                </div>
+            `;
+        }).join('');
+
+    document.getElementById(assetsId).innerHTML = (assetsHtml + sharesHtml + jailCardHtml) || '<p>No properties or shares</p>';
+}
+
+// Share lots entered in a trade side, as [{ corpId, shares }].
+function selectedTradeShares(assetsId) {
+    return Array.from(document.querySelectorAll(`#${assetsId} .trade-share-input`))
+        .map(input => ({ corpId: input.dataset.corpId, shares: Math.floor(Number(input.value) || 0) }))
+        .filter(lot => lot.shares > 0);
 }
 
 function updateMarketActionState() {
@@ -2330,8 +2354,8 @@ function updateMarketActionState() {
     const player1Cash = parseFloat(document.getElementById('player1Cash')?.value) || 0;
     const player2Cash = parseFloat(document.getElementById('player2Cash')?.value) || 0;
     const paymentAmount = parseFloat(document.getElementById('paymentAmount')?.value) || 0;
-    const player1Assets = document.querySelectorAll('#player1Assets input:checked').length;
-    const player2Assets = document.querySelectorAll('#player2Assets input:checked').length;
+    const player1Assets = document.querySelectorAll('#player1Assets input:checked').length + selectedTradeShares('player1Assets').length;
+    const player2Assets = document.querySelectorAll('#player2Assets input:checked').length + selectedTradeShares('player2Assets').length;
 
     const tradeHasOffer = player1Cash > 0 || player2Cash > 0 || player1Assets > 0 || player2Assets > 0;
     const tradeValid = player1Id && player2Id && player1Id !== player2Id && [player1Id, player2Id].includes(currentUser.id) && tradeHasOffer;
@@ -2381,11 +2405,11 @@ function renderTradeOffers() {
                 <div class="trade-offer-sides">
                     <div>
                         <h4>${escapeHtml(offer.player1Name)} gives</h4>
-                        ${renderTradeOfferSide(offer.player1Cash, offer.player1AssetIds)}
+                        ${renderTradeOfferSide(offer.player1Cash, offer.player1AssetIds, offer.player1Shares)}
                     </div>
                     <div>
                         <h4>${escapeHtml(offer.player2Name)} gives</h4>
-                        ${renderTradeOfferSide(offer.player2Cash, offer.player2AssetIds)}
+                        ${renderTradeOfferSide(offer.player2Cash, offer.player2AssetIds, offer.player2Shares)}
                     </div>
                 </div>
                 ${hasActions ? `
@@ -2400,11 +2424,12 @@ function renderTradeOffers() {
     }).join('');
 }
 
-function renderTradeOfferSide(cash, assetIds) {
+function renderTradeOfferSide(cash, assetIds, shareLots) {
     const assetNames = (assetIds || []).map(id => tradeAssetName(id));
+    const shareNames = (shareLots || []).map(lot => tradeSharesName(lot));
     const lines = [];
     if (Number(cash || 0) > 0) lines.push(`$${Number(cash).toFixed(2)}`);
-    lines.push(...assetNames);
+    lines.push(...assetNames, ...shareNames);
     if (lines.length === 0) return '<p class="empty-state">Nothing</p>';
     return `<ul>${lines.map(line => `<li>${escapeHtml(line)}</li>`).join('')}</ul>`;
 }
@@ -2413,6 +2438,12 @@ function tradeAssetName(assetId) {
     if (assetId === GAME_JAIL_CARD_ASSET_ID) return 'Get Out of Jail Free card';
     const property = currentGame?.game_state?.properties?.find(prop => prop.id === assetId);
     return property ? property.name : assetId;
+}
+
+function tradeSharesName(lot) {
+    const corp = currentGame?.game_state?.corporations?.find(item => item.id === lot.corpId);
+    const shares = Number(lot.shares || 0);
+    return `${shares} ${corp ? corp.ticker : 'LLC'} share${shares === 1 ? '' : 's'}`;
 }
 
 function formatTradeOfferAge(createdAt) {
@@ -2495,6 +2526,8 @@ async function executeTransaction() {
         .map(cb => cb.value);
     const player2Assets = Array.from(document.querySelectorAll('#player2Assets input:checked'))
         .map(cb => cb.value);
+    const player1Shares = selectedTradeShares('player1Assets');
+    const player2Shares = selectedTradeShares('player2Assets');
 
     if (player1Id === player2Id) {
         showMarketStatus('Choose two different players for a trade.', 'error');
@@ -2504,8 +2537,9 @@ async function executeTransaction() {
         showMarketStatus('Your trade must include you.', 'error');
         return;
     }
-    if (player1Cash <= 0 && player2Cash <= 0 && player1Assets.length === 0 && player2Assets.length === 0) {
-        showMarketStatus('Add cash, property, or a Get Out of Jail Free card before proposing a trade.', 'error');
+    if (player1Cash <= 0 && player2Cash <= 0 && player1Assets.length === 0 && player2Assets.length === 0
+        && player1Shares.length === 0 && player2Shares.length === 0) {
+        showMarketStatus('Add cash, property, shares, or a Get Out of Jail Free card before proposing a trade.', 'error');
         return;
     }
 
@@ -2517,6 +2551,8 @@ async function executeTransaction() {
             player2Cash,
             player1AssetIds: player1Assets,
             player2AssetIds: player2Assets,
+            player1Shares,
+            player2Shares,
         });
         showMarketStatus('Trade proposal sent. It will execute when the other player accepts.', 'success');
 

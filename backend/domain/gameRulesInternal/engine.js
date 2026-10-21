@@ -1368,10 +1368,53 @@ function getTradeTerms(state, payload) {
     const player2Cash = nonNegativeNumber(payload.player2Cash || 0, 'player2Cash');
     const player1AssetIds = uniqueIds(payload.player1AssetIds || []);
     const player2AssetIds = uniqueIds(payload.player2AssetIds || []);
-    if (player1Cash <= 0 && player2Cash <= 0 && player1AssetIds.length === 0 && player2AssetIds.length === 0) {
-        throw new GameRuleError(400, 'Trade must include cash or property');
+    const player1Shares = normalizeTradeShares(payload.player1Shares);
+    const player2Shares = normalizeTradeShares(payload.player2Shares);
+    if (player1Cash <= 0 && player2Cash <= 0 && player1AssetIds.length === 0 && player2AssetIds.length === 0
+        && player1Shares.length === 0 && player2Shares.length === 0) {
+        throw new GameRuleError(400, 'Trade must include cash, property or shares');
     }
-    return { player1, player2, player1Cash, player2Cash, player1AssetIds, player2AssetIds };
+    return { player1, player2, player1Cash, player2Cash, player1AssetIds, player2AssetIds, player1Shares, player2Shares };
+}
+
+// Trade share lists are [{ corpId, shares }]; repeated corporations are merged.
+function normalizeTradeShares(list) {
+    if (list == null) return [];
+    if (!Array.isArray(list)) throw new GameRuleError(400, 'Trade shares must be a list');
+    const byCorp = new Map();
+    list.forEach(item => {
+        const corpId = String(item?.corpId || '').trim();
+        if (!corpId) throw new GameRuleError(400, 'Trade shares need a corpId');
+        const shares = positiveInt(item.shares, 'shares');
+        byCorp.set(corpId, (byCorp.get(corpId) || 0) + shares);
+    });
+    return Array.from(byCorp, ([corpId, shares]) => ({ corpId, shares }));
+}
+
+function validateShareTransferList(state, from, shareList) {
+    shareList.forEach(({ corpId, shares }) => {
+        const corp = state.corporations.find(c => c.id === corpId);
+        if (!corp) throw new GameRuleError(404, 'Corporation not found');
+        if (corp.insolvent) throw new GameRuleError(400, `${corp.ticker} is insolvent; its shares cannot be traded`);
+        if (sharesFor(corp, from.userId) < shares) {
+            throw new GameRuleError(400, `${from.name} does not hold ${shares} share(s) of ${corp.ticker}`);
+        }
+    });
+}
+
+function transferShares(state, from, to, shareList) {
+    shareList.forEach(({ corpId, shares }) => {
+        const corp = state.corporations.find(c => c.id === corpId);
+        const holder = corp.shareholders.find(shareholder => shareholder.userId === from.userId);
+        holder.shares = Number(holder.shares || 0) - shares;
+        addShareholderShares(corp, to, shares);
+        removeZeroShareholders(corp);
+        normalizeCorporationShareLedger(state, corp);
+    });
+}
+
+function tradeAssetCount(assetIds, shareList) {
+    return assetIds.length + shareList.length;
 }
 
 // Trade asset lists hold property ids plus, optionally, JAIL_CARD_ASSET_ID for
@@ -1390,6 +1433,8 @@ function validateTradeTerms(state, terms) {
     const side2 = splitTradeAssets(player2AssetIds);
     validatePropertyTransferList(state, player1, side1.propertyIds);
     validatePropertyTransferList(state, player2, side2.propertyIds);
+    validateShareTransferList(state, player1, terms.player1Shares);
+    validateShareTransferList(state, player2, terms.player2Shares);
     validateJailCardTransfer(player1, player2, side1.jailCard, side2.jailCard);
     validateJailCardTransfer(player2, player1, side2.jailCard, side1.jailCard);
 }
@@ -1412,6 +1457,8 @@ function applyTradeTransfer(state, terms) {
     if (player2Cash > 0) recordCashFlow(state, player2.userId, player1.userId, player2Cash);
     transferProperties(state, player1, player2, side1.propertyIds);
     transferProperties(state, player2, player1, side2.propertyIds);
+    transferShares(state, player1, player2, terms.player1Shares);
+    transferShares(state, player2, player1, terms.player2Shares);
     if (side1.jailCard !== side2.jailCard) {
         const giver = side1.jailCard ? player1 : player2;
         const receiver = side1.jailCard ? player2 : player1;
@@ -1432,7 +1479,7 @@ function trade(state, actor, payload, events) {
 
 function proposeTrade(state, actor, payload, events) {
     const terms = getTradeTerms(state, payload);
-    const { player1, player2, player1Cash, player2Cash, player1AssetIds, player2AssetIds } = terms;
+    const { player1, player2, player1Cash, player2Cash, player1AssetIds, player2AssetIds, player1Shares, player2Shares } = terms;
     if (![player1.userId, player2.userId].includes(actor.userId)) throw new GameRuleError(403, 'Trade must involve acting player');
     validateTradeTerms(state, terms);
     const recipient = actor.userId === player1.userId ? player2 : player1;
@@ -1453,6 +1500,8 @@ function proposeTrade(state, actor, payload, events) {
         player2Cash,
         player1AssetIds,
         player2AssetIds,
+        player1Shares,
+        player2Shares,
         createdAt,
         expiresAt: tradeOfferExpiryFrom(state, now),
     };
@@ -1465,8 +1514,8 @@ function proposeTrade(state, actor, payload, events) {
         player2: player2.name,
         player1Cash,
         player2Cash,
-        player1Assets: player1AssetIds.length,
-        player2Assets: player2AssetIds.length,
+        player1Assets: tradeAssetCount(player1AssetIds, player1Shares),
+        player2Assets: tradeAssetCount(player2AssetIds, player2Shares),
         expiresAt: offer.expiresAt,
     }));
     log(state, `${actor.name} proposed a trade with ${recipient.name}`);
@@ -1491,8 +1540,8 @@ function acceptTrade(state, actor, payload, events) {
         player2: offer.player2Name,
         player1Cash: offer.player1Cash,
         player2Cash: offer.player2Cash,
-        player1Assets: offer.player1AssetIds.length,
-        player2Assets: offer.player2AssetIds.length,
+        player1Assets: tradeAssetCount(terms.player1AssetIds, terms.player1Shares),
+        player2Assets: tradeAssetCount(terms.player2AssetIds, terms.player2Shares),
     }));
     log(state, `${actor.name} accepted ${offer.proposedByName}'s trade offer`);
 }

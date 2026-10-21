@@ -216,3 +216,109 @@ describe('trade consent rules', () => {
         )).toBe(true);
     });
 });
+
+describe('trading LLC shares', () => {
+    function stateWithCorporation() {
+        const state = makeState();
+        ownProperty(state, 'prop-3', 'alice', 'Alice');
+        const { state: withCorp } = applyAction(state, 'alice', {
+            type: 'create_ipo',
+            payload: { ticker: 'ALC', totalShares: 10, pricePerShare: 50, assetIds: ['prop-3'] },
+        });
+        return { state: withCorp, corp: withCorp.corporations[0] };
+    }
+
+    function holderShares(state, corpId, userId) {
+        const corp = state.corporations.find(c => c.id === corpId);
+        return corp.shareholders.find(holder => holder.userId === userId)?.shares || 0;
+    }
+
+    function propose(state, actorId, payload) {
+        return applyAction(state, actorId, {
+            type: 'propose_trade',
+            payload: { player1Cash: 0, player2Cash: 0, player1AssetIds: [], player2AssetIds: [], ...payload },
+        });
+    }
+
+    test('shares move from seller to buyer when the offer is accepted', () => {
+        const { state, corp } = stateWithCorporation();
+        const proposed = propose(state, 'alice', {
+            player1Id: 'alice',
+            player2Id: 'bob',
+            player1Shares: [{ corpId: corp.id, shares: 4 }],
+            player2Cash: 150,
+        });
+        const offer = proposed.state.marketOffers[0];
+        expect(offer.player1Shares).toEqual([{ corpId: corp.id, shares: 4 }]);
+        expect(holderShares(proposed.state, corp.id, 'alice')).toBe(10);
+
+        const accepted = applyAction(proposed.state, 'bob', { type: 'accept_trade', payload: { offerId: offer.id } });
+        expect(holderShares(accepted.state, corp.id, 'alice')).toBe(6);
+        expect(holderShares(accepted.state, corp.id, 'bob')).toBe(4);
+        expect(accepted.state.players.find(p => p.userId === 'alice').cash).toBe(1650);
+        expect(accepted.state.players.find(p => p.userId === 'bob').cash).toBe(1350);
+        // The founder's listing shrinks to the shares they still hold.
+        expect(accepted.state.corporations[0].availableShares).toBe(6);
+        expect(accepted.state.players.find(p => p.userId === 'bob').corporations[0]).toMatchObject({ ticker: 'ALC', sharesOwned: 4 });
+    });
+
+    test('shares can be sent as a gift and traded onward by a non-founder', () => {
+        const { state, corp } = stateWithCorporation();
+        const gift = propose(state, 'alice', {
+            player1Id: 'alice',
+            player2Id: 'bob',
+            player1Shares: [{ corpId: corp.id, shares: 3 }],
+        });
+        const afterGift = applyAction(gift.state, 'bob', { type: 'accept_trade', payload: { offerId: gift.state.marketOffers[0].id } }).state;
+        expect(holderShares(afterGift, corp.id, 'bob')).toBe(3);
+
+        const sellBack = propose(afterGift, 'bob', {
+            player1Id: 'alice',
+            player2Id: 'bob',
+            player1Cash: 40,
+            player2Shares: [{ corpId: corp.id, shares: 1 }],
+        });
+        const offerId = sellBack.state.marketOffers.find(o => o.status === 'pending').id;
+        const afterSale = applyAction(sellBack.state, 'alice', { type: 'accept_trade', payload: { offerId } }).state;
+        expect(holderShares(afterSale, corp.id, 'bob')).toBe(2);
+        expect(holderShares(afterSale, corp.id, 'alice')).toBe(8);
+    });
+
+    test('cannot offer more shares than held, or shares of an insolvent LLC', () => {
+        const { state, corp } = stateWithCorporation();
+        expect(() => propose(state, 'alice', {
+            player1Id: 'alice',
+            player2Id: 'bob',
+            player1Shares: [{ corpId: corp.id, shares: 11 }],
+        })).toThrow(GameRuleError);
+        expect(() => propose(state, 'bob', {
+            player1Id: 'alice',
+            player2Id: 'bob',
+            player2Shares: [{ corpId: corp.id, shares: 1 }],
+        })).toThrow(/does not hold/);
+
+        state.corporations[0].insolvent = true;
+        state.corporations[0].status = 'insolvent';
+        expect(() => propose(state, 'alice', {
+            player1Id: 'alice',
+            player2Id: 'bob',
+            player1Shares: [{ corpId: corp.id, shares: 1 }],
+        })).toThrow(/insolvent/);
+    });
+
+    test('an offer is rejected at accept time if the seller no longer holds the shares', () => {
+        const { state, corp } = stateWithCorporation();
+        const proposed = propose(state, 'alice', {
+            player1Id: 'alice',
+            player2Id: 'bob',
+            player1Shares: [{ corpId: corp.id, shares: 10 }],
+        });
+        proposed.state.corporations[0].shareholders[0].shares = 5;
+        proposed.state.corporations[0].treasuryShares = 5;
+        proposed.state.corporations[0].availableShares = 5;
+        expect(() => applyAction(proposed.state, 'bob', {
+            type: 'accept_trade',
+            payload: { offerId: proposed.state.marketOffers[0].id },
+        })).toThrow(/does not hold/);
+    });
+});

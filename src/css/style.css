@@ -464,6 +464,26 @@ body {
     margin-right: 8px;
 }
 
+.asset-shares {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.asset-shares input.trade-share-input {
+    width: 4.5em;
+    margin-right: 0;
+    padding: 6px 8px;
+    border: 2px solid #ecf0f1;
+    border-radius: 8px;
+    font-size: 1em;
+}
+
+.asset-shares input.trade-share-input:focus {
+    outline: none;
+    border-color: #40916C;
+}
+
 .debt-choice label {
     display: inline;
     font-weight: 600;
