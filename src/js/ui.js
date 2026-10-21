@@ -1,5 +1,67 @@
-// Shared presentation helpers for the "Term Sheet" design system.
+// Shared DOM and presentation helpers for the "Term Sheet" design system:
+// escaping, money, dice, toasts, copy to clipboard, page-load errors.
 // Classic script: load after api.js and before page scripts. See documents/design-system.md.
+
+// Safe for HTML text and quoted attribute values alike.
+function escapeHtml(text) {
+    return String(text ?? '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+}
+
+function formatTimeAgo(dateString) {
+    const date = new Date(dateString);
+    const now = new Date();
+    const seconds = Math.floor((now - date) / 1000);
+
+    if (seconds < 60) return 'just now';
+    if (seconds < 3600) return `${Math.floor(seconds / 60)}m ago`;
+    if (seconds < 86400) return `${Math.floor(seconds / 3600)}h ago`;
+    if (seconds < 604800) return `${Math.floor(seconds / 86400)}d ago`;
+    return date.toLocaleDateString();
+}
+
+function showPageLoadError(message) {
+    const container = document.querySelector('.container') || document.body;
+    const notice = document.createElement('div');
+    notice.className = 'turn-warning danger';
+    notice.setAttribute('role', 'alert');
+    const text = document.createElement('p');
+    text.textContent = message;
+    const retry = document.createElement('button');
+    retry.className = 'btn btn-primary btn-sm';
+    retry.textContent = 'Try again';
+    retry.addEventListener('click', () => window.location.reload());
+    notice.append(text, retry);
+    container.prepend(notice);
+}
+
+// Copies text to the clipboard. Resolves true when it worked; older browsers
+// fall back to execCommand('copy') on a hidden textarea.
+async function copyText(text) {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+        try {
+            await navigator.clipboard.writeText(text);
+            return true;
+        } catch {}
+    }
+    const textarea = document.createElement('textarea');
+    textarea.value = text;
+    textarea.style.position = 'fixed';
+    textarea.style.opacity = '0';
+    document.body.appendChild(textarea);
+    textarea.select();
+    try {
+        return document.execCommand('copy');
+    } catch {
+        return false;
+    } finally {
+        textarea.remove();
+    }
+}
 
 // $1,500 for whole amounts, $1,512.50 when cents matter. Negative values keep the sign.
 function formatMoney(value) {
