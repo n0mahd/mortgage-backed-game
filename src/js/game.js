@@ -65,12 +65,10 @@ document.addEventListener('DOMContentLoaded', async () => {
         const gameContent = document.getElementById('gameContent');
         if (gameContent) {
             gameContent.innerHTML = `
-                <div style="text-align:center;padding:40px 20px;">
-                    <p style="color:#e74c3c;font-size:1.1rem;margin-bottom:16px;">
-                        Failed to load game: ${escapeHtml(error.message)}
-                    </p>
+                <div class="loading">
+                    <p class="turn-warning danger">Couldn't load this game: ${escapeHtml(error.message)}</p>
                     <button class="btn btn-primary" data-reload-page>Try again</button>
-                    <a href="lobby.html" class="btn btn-secondary">Back to Lobby</a>
+                    <a href="lobby.html" class="btn btn-secondary">Back to your games</a>
                 </div>`;
             gameContent.querySelector('[data-reload-page]')?.addEventListener('click', () => window.location.reload());
         }
@@ -87,7 +85,9 @@ async function loadGameData(roomId) {
         currentRoom = room;
 
         // Display room info
-        document.getElementById('room-code').textContent = `Room: ${room.invite_code}`;
+        document.getElementById('room-code').textContent = room.invite_code;
+        const roomTitle = document.getElementById('room-title');
+        if (roomTitle && room.name) roomTitle.textContent = room.name;
 
         // Load game data
         const game = await apiFetch(`/games/by-room/${roomId}`);
@@ -196,6 +196,8 @@ async function applyGameUpdate(game, options = {}) {
 }
 
 // Render complete game state
+let previousDiceSignature = null;
+
 function renderGameState(gameState) {
     const gameContent = document.getElementById('gameContent');
 
@@ -213,44 +215,116 @@ function renderGameState(gameState) {
     ];
 
     gameContent.innerHTML = `
-        <div class="game-header">
-            <h2>Current Turn: ${escapeHtml(currentPlayer.name)}</h2>
-            ${paused ? '<p class="waiting-indicator">Game paused by host</p>' : (isMyTurn ? '<p class="turn-indicator">It\'s your turn!</p>' : '<p class="waiting-indicator">Waiting for other players...</p>')}
-            <div class="landing-summary ${landing.canBuy ? 'can-buy' : ''}">
-                <div>
-                    <span class="landing-label">${escapeHtml(landing.label)}</span>
-                    <strong>${escapeHtml(landing.squareName)}</strong>
+        <div class="game-layout">
+            <div class="game-layout-main">
+                ${renderTurnTicket(gameState, currentPlayer, isMyTurn, paused)}
+                <div class="turn-context">
+                    ${renderLandingSummary(landing, currentPlayer, isMyTurn)}
+                    ${renderCashWarning(currentPlayer, isMyTurn)}
+                    ${renderPauseBanner(gameState)}
+                    ${renderLastCardSummary(gameState, currentPlayer)}
                 </div>
-                <p>${escapeHtml(landing.detail)}</p>
+                ${renderAuctionPanel(gameState)}
+                ${paused ? renderPausedActions(gameState) : (isMyTurn ? renderActionButtons() : renderNonTurnActions())}
             </div>
-            ${renderCashWarning(currentPlayer, isMyTurn)}
-            ${renderPauseBanner(gameState)}
-            ${renderLastCardSummary(gameState, currentPlayer)}
-            ${renderTurnChecklist(gameState, currentPlayer, landing, isMyTurn)}
-        </div>
 
-        <div class="players-grid">
-            ${orderedPlayers.map(player => renderPlayerCard(player, player.userId === currentUser.id)).join('')}
-        </div>
+            <div class="game-layout-side">
+                <div class="section-heading">
+                    <h3>Players</h3>
+                    <span>${gameState.players.filter(p => !p.bankrupt).length} still solvent</span>
+                </div>
+                <div class="players-grid">
+                    ${orderedPlayers.map(player => renderPlayerCard(player, player.userId === currentUser.id)).join('')}
+                </div>
 
-        ${renderAuctionPanel(gameState)}
-
-        ${paused ? renderPausedActions(gameState) : (isMyTurn ? renderActionButtons() : renderNonTurnActions())}
-
-        <div class="recent-log">
-            <h3>Recent Actions</h3>
-            <div class="log-entries">
-                ${gameState.gameLog.slice(-5).reverse().map(entry => `
-                    <div class="log-entry">
-                        <span class="log-time">${new Date(entry.timestamp).toLocaleTimeString()}</span>
-                        <span class="log-message">${entry.message}</span>
+                <div class="recent-log">
+                    <div class="section-heading"><h3>Recent actions</h3></div>
+                    <div class="log-entries">
+                        ${gameState.gameLog.slice(-5).reverse().map(entry => `
+                            <div class="log-entry">
+                                <span class="log-time">${new Date(entry.timestamp).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}</span>
+                                <span class="log-message">${entry.message}</span>
+                            </div>
+                        `).join('') || '<div class="log-entry"><span class="log-message empty-state">No moves yet.</span></div>'}
                     </div>
-                `).join('')}
+                </div>
+
+                ${renderHostPanel(gameState)}
             </div>
         </div>
     `;
 
     updateTurnBanner();
+}
+
+function getPlayerColor(player) {
+    const index = currentGame?.game_state?.players?.findIndex(p => p.userId === player?.userId) ?? -1;
+    const palette = typeof PLAYER_COLORS !== 'undefined' ? PLAYER_COLORS : ['#2D6A4F'];
+    return palette[Math.max(index, 0) % palette.length];
+}
+
+function renderTurnTicket(gameState, currentPlayer, isMyTurn, paused) {
+    const hasRolled = !!currentPlayer.diceRolled;
+    const dice = hasRolled ? gameState.lastDiceRoll : null;
+    const diceSignature = `${gameState.currentPlayerIndex}|${hasRolled}|${Array.isArray(dice) ? dice.join(',') : ''}`;
+    const rolling = hasRolled && previousDiceSignature !== null && previousDiceSignature !== diceSignature;
+    previousDiceSignature = diceSignature;
+
+    const me = currentPlayerData || currentPlayer;
+    const myNetWorth = getPlayerNetWorth(me);
+    const visibleTitle = isMyTurn ? 'Your turn' : `${currentPlayer.name}'s turn`;
+    let status;
+    if (paused) status = 'Paused by the host';
+    else if (currentPlayer.inJail && !hasRolled) status = isMyTurn ? 'In Jail. Roll doubles, pay $50, or use a card.' : 'In Jail, deciding how to get out';
+    else if (!hasRolled) status = isMyTurn ? 'Roll to move' : 'About to roll';
+    else status = `Rolled ${dice ? dice[0] + dice[1] : ''}, now on ${BOARD_SQUARES[currentPlayer.position || 0]?.name || 'the board'}`;
+
+    return `
+        <section class="game-header turn-ticket${isMyTurn ? ' is-mine' : ''}${paused ? ' is-paused' : ''}" style="--turn-color:${escapeAttr(getPlayerColor(currentPlayer))}">
+            <div class="ticket-top">
+                <span class="avatar" style="--token-color:${escapeAttr(getPlayerColor(currentPlayer))}" aria-hidden="true">${escapeHtml(playerInitials(currentPlayer.name))}</span>
+                <div class="ticket-heading">
+                    <h2 class="ticket-title"><span class="sr-only">Current Turn: ${escapeHtml(currentPlayer.name)}</span><span aria-hidden="true">${escapeHtml(visibleTitle)}</span></h2>
+                    <span class="ticket-status ${isMyTurn && !paused ? 'turn-indicator' : 'waiting-indicator'}">${escapeHtml(status)}</span>
+                </div>
+                ${renderDicePair(dice, { rolling })}
+            </div>
+            <div class="ticket-money">
+                <div>
+                    <span class="ticket-money-label">Your cash</span>
+                    <strong class="ticket-cash${Number(me.cash) < 0 ? ' is-negative' : ''}">${formatMoney(me.cash)}</strong>
+                </div>
+                <div class="ticket-side">
+                    Net worth
+                    <strong>${formatMoney(Math.round(myNetWorth))}</strong>
+                </div>
+            </div>
+            ${renderTurnChecklist(gameState, currentPlayer, getLandingSummary(gameState, currentPlayer), isMyTurn)}
+        </section>
+    `;
+}
+
+function renderLandingSummary(landing, currentPlayer, isMyTurn) {
+    const square = BOARD_SQUARES[currentPlayer.position || 0] || {};
+    const who = isMyTurn ? 'You are on' : `${currentPlayer.name} is on`;
+    return `
+        <div class="landing-summary ${landing.canBuy ? 'can-buy' : ''}" style="--square-color:${escapeAttr(square.color || 'var(--rule-strong)')}">
+            <span class="landing-deed" aria-hidden="true"></span>
+            <div class="landing-copy">
+                <span class="landing-label">${escapeHtml(who)}</span>
+                <strong>${escapeHtml(landing.squareName)}</strong>
+                <p>${escapeHtml(landing.detail)}</p>
+            </div>
+            ${landing.canBuy && landing.price ? `<span class="landing-price">${formatMoney(landing.price)}</span>` : ''}
+        </div>
+    `;
+}
+
+function getPlayerNetWorth(player) {
+    if (!player) return 0;
+    const ownedProperties = getOwnedPropertyDetails(player);
+    const totalPropertyValue = ownedProperties.reduce((sum, p) => sum + propertyAssetValue(p), 0);
+    return Number(player.cash || 0) + totalPropertyValue + getPlayerCorporationValue(player) - getDebtTotal(player.debts);
 }
 
 function renderPauseBanner(gameState) {
@@ -366,7 +440,7 @@ function renderTurnChecklist(gameState, currentPlayer, landing, isMyTurn) {
         },
         {
             label: 'Resolve',
-            state: !hasRolled ? 'upcoming' : (landing.canBuy ? 'current' : 'complete'),
+            state: !hasRolled ? 'upcoming' : (landing.canBuy || gameState.auction?.status === 'open' ? 'current' : 'complete'),
             detail: landing.canBuy ? 'Property available' : landing.squareName,
         },
         {
@@ -381,10 +455,17 @@ function renderTurnChecklist(gameState, currentPlayer, landing, isMyTurn) {
         },
     ];
 
+    let currentSeen = false;
+    items.forEach(item => {
+        if (item.state !== 'current') return;
+        if (currentSeen) item.state = 'upcoming';
+        currentSeen = true;
+    });
+
     return `
         <div class="turn-checklist" aria-label="Turn progress">
             ${items.map(item => `
-                <div class="turn-step ${item.state}">
+                <div class="turn-step ${item.state}"${item.state === 'current' ? ' aria-current="step"' : ''}>
                     <span>${escapeHtml(item.label)}</span>
                     <strong>${escapeHtml(item.detail)}</strong>
                 </div>
@@ -413,8 +494,9 @@ function getLandingSummary(gameState, player) {
         return {
             label,
             squareName: square.name,
-            detail: `Unowned ${square.type.replace('_', ' ')}. You can buy it for $${property.price}.`,
+            detail: `Unowned ${square.type.replace('_', ' ')}. Buy it or send it to auction.`,
             canBuy,
+            price: property.price,
         };
     }
 
@@ -615,7 +697,7 @@ function renderOwnedProperties(player, ownedProperties) {
         <div class="player-properties">
             <div class="player-section-heading">
                 <h4>Properties</h4>
-                <span>${ownedProperties.length} owned &middot; $${totalValue.toFixed(0)} value</span>
+                <span>${ownedProperties.length} owned, worth ${formatMoney(Math.round(totalValue))}</span>
             </div>
             <div class="owned-property-list">
                 ${ownedProperties.map(property => {
@@ -636,7 +718,7 @@ function renderOwnedProperties(player, ownedProperties) {
                                 </div>
                                 <div class="owned-property-meta">
                                     <span>${escapeHtml(typeLabel)}</span>
-                                    <span>Value $${propertyAssetValue(property).toFixed(0)}</span>
+                                    <span>Value ${formatMoney(propertyAssetValue(property))}</span>
                                 </div>
                                 <div class="owned-property-chips">
                                     <span class="owned-property-chip set-chip ${groupClass}">${escapeHtml(groupStatus.label)}</span>
@@ -658,47 +740,45 @@ function renderOwnedProperties(player, ownedProperties) {
 // Render individual player card
 function renderPlayerCard(player, isCurrentUser) {
     const ownedProperties = getOwnedPropertyDetails(player);
-    const totalPropertyValue = ownedProperties.reduce((sum, p) => sum + propertyAssetValue(p), 0);
-    const corporationValue = getPlayerCorporationValue(player);
-    const debtTotal = getDebtTotal(player.debts);
-    const netWorth = player.cash + totalPropertyValue + corporationValue - debtTotal;
+    const netWorth = getPlayerNetWorth(player);
     const cashFlow = getEntityCashFlow(player.userId);
     const bankruptBadge = player.bankrupt ? '<span class="badge badge-danger">Bankrupt</span>' : '';
-    const jailBadges = [
-        player.inJail ? '<span class="badge badge-warning">In jail</span>' : '',
-        player.hasGetOutOfJailCard ? '<span class="badge">Get Out of Jail Free card</span>' : '',
-    ].join('');
-    const cardClass = player.bankrupt ? 'bankrupt' : '';
+    const jailBadge = player.inJail && !player.bankrupt ? '<span class="badge badge-gold">In Jail</span>' : '';
+    const jailCardBadge = player.hasGetOutOfJailCard ? '<span class="badge badge-gold">Get Out of Jail card</span>' : '';
+    const gameState = currentGame?.game_state;
+    const isTurnPlayer = gameState && gameState.players[gameState.currentPlayerIndex]?.userId === player.userId;
+    const cardClass = [player.bankrupt ? 'bankrupt' : '', isTurnPlayer ? 'is-turn-player' : ''].join(' ').trim();
+    const hasCashFlow = cashFlow.paid || cashFlow.received || cashFlow.receivedBetweenTurns;
 
     const cardDetails = `
         <div class="player-stats">
             <div class="stat">
-                <span class="stat-label">Cash:</span>
-                <span class="stat-value">$${player.cash.toFixed(2)}</span>
+                <span class="stat-label">Cash</span>
+                <span class="stat-value${Number(player.cash) < 0 ? ' is-negative' : ''}">${formatMoney(player.cash)}</span>
             </div>
             <div class="stat">
-                <span class="stat-label">Properties:</span>
+                <span class="stat-label">Properties</span>
                 <span class="stat-value">${ownedProperties.length}</span>
             </div>
             <div class="stat">
-                <span class="stat-label">Net Worth:</span>
-                <span class="stat-value">$${netWorth.toFixed(2)}</span>
+                <span class="stat-label">Net worth</span>
+                <span class="stat-value">${formatMoney(Math.round(netWorth))}</span>
             </div>
         </div>
-        <div class="cash-flow-summary">
-            <div><span>Paid this turn</span><strong>$${cashFlow.paid.toFixed(2)}</strong></div>
-            <div><span>Received this turn</span><strong>$${cashFlow.received.toFixed(2)}</strong></div>
-            <div><span>Received between turns</span><strong>$${cashFlow.receivedBetweenTurns.toFixed(2)}</strong></div>
-        </div>
-        ${ownedProperties.length > 0 ? `
-            ${renderOwnedProperties(player, ownedProperties)}
+        ${hasCashFlow ? `
+            <div class="cash-flow-summary">
+                <div><span>Paid this turn</span><strong>${formatMoney(cashFlow.paid)}</strong></div>
+                <div><span>Received this turn</span><strong>${formatMoney(cashFlow.received)}</strong></div>
+                <div><span>Received between turns</span><strong>${formatMoney(cashFlow.receivedBetweenTurns)}</strong></div>
+            </div>
         ` : ''}
+        ${ownedProperties.length > 0 ? renderOwnedProperties(player, ownedProperties) : ''}
         ${player.corporations.length > 0 ? `
             <div class="player-corporations">
-                <h4>Corporations:</h4>
+                <h4>Corporations</h4>
                 ${player.corporations.map(c => `
                     <div class="corp-badge">
-                        ${escapeHtml(c.ticker)} (${c.sharesOwned}/${c.totalShares} shares, ${ownershipPercent(c.sharesOwned, c.totalShares)}%)
+                        ${escapeHtml(c.ticker)}: ${c.sharesOwned} of ${c.totalShares} shares (${ownershipPercent(c.sharesOwned, c.totalShares)}%)
                         <span class="corp-assets-owned">NAV: $${getPlayerCorporationShareValue(c).toFixed(2)}/share</span>
                         ${c.insolvent ? '<span class="badge badge-danger">Insolvent</span>' : ''}
                         ${renderCorporationAssetSummary(c.id)}
@@ -708,11 +788,11 @@ function renderPlayerCard(player, isCurrentUser) {
         ` : ''}
         ${player.debts.length > 0 ? `
             <div class="player-debts">
-                <h4>Debts:</h4>
+                <h4>Debts</h4>
                 ${player.debts.map(d => `
                     <div class="debt-badge">
-                        $${Number(d.principal || 0).toFixed(2)} @ ${Number(d.interestRate || 0)}%
-                        <span>Interest next turn: $${interestPayment(d).toFixed(2)}</span>
+                        ${formatMoney(d.principal)} @ ${Number(d.interestRate || 0)}%
+                        <span>Interest next turn: ${formatMoney(interestPayment(d))}</span>
                     </div>
                 `).join('')}
             </div>
@@ -723,29 +803,29 @@ function renderPlayerCard(player, isCurrentUser) {
         return `
             <div class="player-card current-user ${cardClass}">
                 <div class="player-header">
+                    <span class="avatar" style="--token-color:${escapeAttr(getPlayerColor(player))}" aria-hidden="true">${escapeHtml(playerInitials(player.name))}</span>
                     <h3>${escapeHtml(player.name)}</h3>
                     <span class="badge">You</span>
-                    ${bankruptBadge}
-                    ${jailBadges}
+                    ${bankruptBadge}${jailBadge}${jailCardBadge}
                 </div>
                 ${cardDetails}
             </div>
         `;
     }
 
+    const square = BOARD_SQUARES[player.position || 0];
     return `
         <div class="player-card player-card-other collapsed ${cardClass}" data-player-id="${player.userId}">
-            <div class="player-card-summary">
-                <span class="player-name-sm">${escapeHtml(player.name)}</span>
-                ${bankruptBadge}
-                ${jailBadges}
-                <span class="player-stat-sm">$${player.cash.toFixed(0)}</span>
-                <span class="player-stat-sm">NW: $${netWorth.toFixed(0)}</span>
-                <span class="player-card-chevron">▼</span>
+            <div class="player-card-summary" role="button" tabindex="0" aria-expanded="false">
+                <span class="avatar" style="--token-color:${escapeAttr(getPlayerColor(player))}" aria-hidden="true">${escapeHtml(playerInitials(player.name))}</span>
+                <span class="player-name-sm">${escapeHtml(player.name)}<small>${player.bankrupt ? 'Bankrupt' : (player.inJail ? 'In Jail' : escapeHtml(square ? square.name : ''))}</small></span>
+                <span class="player-stat-sm">${formatMoney(player.cash)}</span>
+                <svg class="player-card-chevron" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 8l5 5 5-5"/></svg>
             </div>
             <div class="player-card-details" style="display:none;">
                 <div class="player-header">
                     <h3>${escapeHtml(player.name)}</h3>
+                    ${bankruptBadge}${jailBadge}${jailCardBadge}
                 </div>
                 ${cardDetails}
             </div>
@@ -851,10 +931,9 @@ function getBuyableListedShares(corp, userId) {
 
 function togglePlayerCard(summaryEl) {
     const details = summaryEl.nextElementSibling;
-    const chevron = summaryEl.querySelector('.player-card-chevron');
     const isOpen = details.style.display !== 'none';
     details.style.display = isOpen ? 'none' : 'block';
-    chevron.textContent = isOpen ? '▼' : '▲';
+    summaryEl.setAttribute('aria-expanded', String(!isOpen));
     summaryEl.closest('.player-card').classList.toggle('collapsed', isOpen);
 }
 
@@ -864,50 +943,74 @@ function renderImprovePropertiesButton(gameState, player, auctionOpen) {
 
     const hasAvailableImprovement = completeGroupProperties.some(prop => Number(prop.houses || 0) < 5);
     if (!hasAvailableImprovement) {
-        return '<button class="btn btn-secondary btn-sm" disabled title="All complete color groups already have hotels">Hotels Built</button>';
+        return '<button class="btn btn-secondary btn-sm" disabled title="All complete color groups already have hotels">Hotels Built<small>Every set is maxed out</small></button>';
     }
 
     if (auctionOpen) {
-        return '<button class="btn btn-secondary btn-sm" disabled title="Resolve auction before buying houses or hotels">Buy Houses / Hotels</button>';
+        return '<button class="btn btn-secondary btn-sm" disabled title="Resolve auction before buying houses or hotels">Build Houses<small>After the auction</small></button>';
     }
 
-    return '<button class="btn btn-success btn-sm" data-game-action="open-house">Buy Houses / Hotels</button>';
+    return '<button class="btn btn-success btn-sm is-featured" data-game-action="open-house">Build Houses<small>You own a full set</small></button>';
 }
 
-// Render action buttons for current player's turn
+// Your turn: the dock holds the move the game needs next; optional moves sit in the grid.
 function renderActionButtons() {
     const gameState = currentGame.game_state;
     const currentPlayer = gameState.players[gameState.currentPlayerIndex];
     const hasRolled = currentPlayer.diceRolled;
-    const isHost = currentUser.id === currentRoom.host_id;
     const landing = getLandingSummary(gameState, currentPlayer);
-    const endTurnLabel = Number(currentPlayer.cash || 0) < 0 || getBankruptcyClaimForPlayer(currentPlayer.userId) ? 'Declare Bankruptcy' : 'End Turn';
+    const owesMoney = Number(currentPlayer.cash || 0) < 0 || getBankruptcyClaimForPlayer(currentPlayer.userId);
+    const endTurnLabel = owesMoney ? 'Declare Bankruptcy' : 'End Turn';
     const auctionOpen = gameState.auction?.status === 'open';
     const waitingForJailChoice = currentPlayer.inJail && !hasRolled;
-    const rollButtonLabel = waitingForJailChoice ? '🎲 Roll for Doubles' : '🎲 Roll Dice';
+    const rollButtonLabel = waitingForJailChoice ? 'Roll for Doubles' : 'Roll Dice';
+    const buyInDock = landing.canBuy && !auctionOpen;
+
     const jailChoiceButtons = waitingForJailChoice ? `
-        <button class="btn btn-warning btn-sm" data-game-action="pay-jail-fine">Pay $50 Fine</button>
-        ${currentPlayer.hasGetOutOfJailCard ? '<button class="btn btn-success btn-sm" data-game-action="use-jail-card">Use Jail Card</button>' : ''}
+        <div class="dock-row dock-row-choices">
+            <button class="btn btn-warning btn-sm" data-game-action="pay-jail-fine">Pay $50 Fine</button>
+            ${currentPlayer.hasGetOutOfJailCard ? '<button class="btn btn-secondary btn-sm" data-game-action="use-jail-card">Use Jail Card</button>' : ''}
+        </div>
     ` : '';
-    const buyButton = landing.canBuy
-        ? '<button class="btn btn-success btn-sm action-btn-buy" data-game-action="open-buy-property">Buy Property</button>'
-        : `<button class="btn btn-secondary btn-sm action-btn-buy" disabled title="${escapeHtml(landing.detail)}">${escapeHtml(buyUnavailableLabel(landing))}</button>`;
-    const improveButton = renderImprovePropertiesButton(gameState, currentPlayer, auctionOpen);
+    const endTurnClass = owesMoney ? 'btn-danger' : (hasRolled && !buyInDock ? 'btn-success' : 'btn-secondary');
+    const endTurnDisabled = !hasRolled || auctionOpen
+        ? `disabled title="${auctionOpen ? 'Resolve auction before ending your turn' : 'Roll before ending your turn'}"`
+        : '';
+    const endTurnButton = `<button class="btn ${endTurnClass} action-btn-end-turn" data-game-action="end-turn" ${endTurnDisabled}>${escapeHtml(auctionOpen ? 'Resolve Auction' : endTurnLabel)}</button>`;
+    const primaryButton = !hasRolled
+        ? `<button class="btn btn-primary" data-game-action="roll-dice">${rollButtonLabel}</button>`
+        : (buyInDock ? `<button class="btn btn-success action-btn-buy" data-game-action="open-buy-property">Buy for ${formatMoney(landing.price)}</button>` : '');
+
+    const buyTile = buyInDock || !hasRolled ? '' : (auctionOpen
+        ? '<button class="btn btn-secondary btn-sm action-btn-buy" disabled>Auction Open<small>Bid in the panel above</small></button>'
+        : `<button class="btn btn-secondary btn-sm action-btn-buy" disabled title="${escapeHtml(landing.detail)}">${escapeHtml(buyUnavailableLabel(landing))}<small>${escapeHtml(landing.squareName)}</small></button>`);
+
     return `
-        <div class="action-buttons">
-            ${!hasRolled ? `<button class="btn btn-primary" style="margin-bottom:8px;width:100%;" data-game-action="roll-dice">${rollButtonLabel}</button>` : ''}
-            <div class="action-btn-secondary-group">
+        <div class="action-buttons turn-dock">
+            <div class="dock-inner">
                 ${jailChoiceButtons}
-                ${auctionOpen ? '<button class="btn btn-secondary btn-sm action-btn-buy" disabled>Auction Open</button>' : buyButton}
-                ${improveButton}
-                <button class="btn btn-secondary btn-sm" data-game-action="open-ipo" ${auctionOpen ? 'disabled' : ''}>Create IPO</button>
-                <button class="btn btn-secondary btn-sm" data-game-action="open-debt" ${auctionOpen ? 'disabled' : ''}>Manage Debt</button>
-                <button class="btn btn-secondary btn-sm" data-game-action="open-corporation">Corporations</button>
-                <button class="btn btn-success action-btn-end-turn" data-game-action="end-turn" ${!hasRolled || auctionOpen ? `disabled title="${auctionOpen ? 'Resolve auction before ending your turn' : 'Roll before ending your turn'}"` : ''}>${escapeHtml(auctionOpen ? 'Resolve Auction' : endTurnLabel)}</button>
-                ${isHost ? '<button class="btn btn-warning btn-sm" data-game-action="host-pause">Pause Game</button>' : ''}
-                ${isHost ? '<button class="btn btn-danger btn-sm" data-game-action="host-end">End Game</button>' : ''}
+                <div class="dock-row">
+                    ${endTurnButton}
+                    ${primaryButton}
+                </div>
             </div>
         </div>
+        ${renderMovesGrid(`
+            ${renderImprovePropertiesButton(gameState, currentPlayer, auctionOpen)}
+            <button class="btn btn-secondary btn-sm" data-game-action="open-ipo" ${auctionOpen ? 'disabled' : ''}>Create IPO<small>Take properties public</small></button>
+            <button class="btn btn-secondary btn-sm" data-game-action="open-debt" ${auctionOpen ? 'disabled' : ''}>Manage Debt<small>Borrow, repay, refinance</small></button>
+            <button class="btn btn-secondary btn-sm" data-game-action="open-corporation">Corporations<small>Shares and chairmen</small></button>
+            ${buyTile}
+        `)}
+    `;
+}
+
+function renderMovesGrid(buttonsHtml) {
+    return `
+        <section class="moves">
+            <div class="section-heading"><h3>Moves</h3></div>
+            <div class="action-btn-secondary-group moves-grid">${buttonsHtml}</div>
+        </section>
     `;
 }
 
@@ -918,28 +1021,34 @@ function buyUnavailableLabel(landing) {
 }
 
 function renderNonTurnActions() {
-    const isHost = currentUser.id === currentRoom.host_id;
-    return `
-        <div class="action-buttons">
-            <div class="action-btn-secondary-group">
-                <button class="btn btn-secondary btn-sm" data-game-action="open-corporation">Corporations</button>
-                ${isHost ? '<button class="btn btn-warning btn-sm" data-game-action="host-pause">Pause Game</button>' : ''}
-                ${isHost ? '<button class="btn btn-danger btn-sm" data-game-action="host-end">End Game</button>' : ''}
-            </div>
-        </div>
-    `;
+    return renderMovesGrid(`
+        <button class="btn btn-secondary btn-sm" data-game-action="open-corporation">Corporations<small>Shares and chairmen</small></button>
+        <button class="btn btn-secondary btn-sm" data-switch-section="market">Trade or pay<small>Opens the market</small></button>
+    `);
 }
 
 function renderPausedActions() {
-    const isHost = currentUser.id === currentRoom.host_id;
+    return renderMovesGrid(`
+        <button class="btn btn-secondary btn-sm" data-game-action="open-corporation">Corporations<small>Shares and chairmen</small></button>
+    `);
+}
+
+// Host-only controls, kept away from turn actions so End Game is never a slip of the thumb.
+function renderHostPanel(gameState) {
+    const isHost = currentRoom && currentUser.id === currentRoom.host_id;
+    if (!isHost || gameState.ended) return '';
+    const paused = !!gameState.paused;
     return `
-        <div class="action-buttons paused-actions">
-            <div class="action-btn-secondary-group">
-                <button class="btn btn-secondary btn-sm" data-game-action="open-corporation">Corporations</button>
-                ${isHost ? '<button class="btn btn-success btn-sm" data-game-action="host-resume">Resume Game</button>' : ''}
-                ${isHost ? '<button class="btn btn-danger btn-sm" data-game-action="host-end">End Game</button>' : ''}
+        <section class="host-panel" aria-label="Host controls">
+            <h3>Host controls</h3>
+            <p>Only you can see these. They affect every player.</p>
+            <div class="host-actions">
+                ${paused
+                    ? '<button class="btn btn-success btn-sm" data-game-action="host-resume">Resume Game</button>'
+                    : '<button class="btn btn-warning btn-sm" data-game-action="host-pause">Pause Game</button>'}
+                <button class="btn btn-danger btn-sm" data-game-action="host-end">End Game</button>
             </div>
-        </div>
+        </section>
     `;
 }
 
@@ -1053,6 +1162,15 @@ function formatLogEvent(type, data) {
     }
 }
 
+function formatLogTimestamp(value) {
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return '';
+    const sameDay = date.toDateString() === new Date().toDateString();
+    return date.toLocaleString([], sameDay
+        ? { hour: 'numeric', minute: '2-digit' }
+        : { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
+}
+
 // Load game log from events table
 async function loadGameLog() {
     try {
@@ -1061,7 +1179,7 @@ async function loadGameLog() {
         const logContainer = document.getElementById('full-game-log');
         logContainer.innerHTML = events.map(event => `
             <div class="log-entry">
-                <span class="log-time">${escapeHtml(new Date(event.created_at).toLocaleString())}</span>
+                <span class="log-time">${escapeHtml(formatLogTimestamp(event.created_at))}</span>
                 <span class="log-message">${escapeHtml(formatLogEvent(event.event_type, event.event_data))}</span>
             </div>
         `).join('');
@@ -1084,7 +1202,7 @@ async function openBuyPropertyModal() {
     if (!square || square.propertyId === null) {
         selectedPropertyId = null;
         document.getElementById('availableProperties').innerHTML =
-            '<p style="color:#c0392b;padding:12px;">You must land on a property square to buy it.</p>';
+            '<p class="turn-warning danger">Land on a property square to buy it.</p>';
         openModal('buyPropertyModal');
         return;
     }
@@ -1094,16 +1212,16 @@ async function openBuyPropertyModal() {
     if (!property || property.ownerId) {
         selectedPropertyId = null;
         document.getElementById('availableProperties').innerHTML =
-            '<p style="color:#c0392b;padding:12px;">This property is already owned.</p>';
+            '<p class="turn-warning danger">Someone already owns this property.</p>';
         openModal('buyPropertyModal');
         return;
     }
 
     const propertiesHtml = `
         <div class="property-card selected" data-property-id="${escapeAttr(property.id)}">
-            <div class="property-color" style="background-color: ${property.color}"></div>
+            <div class="property-color" style="background-color: ${escapeAttr(getPropertyColorValue(property.color))}"></div>
             <div class="property-name">${escapeHtml(property.name)}</div>
-            <div class="property-price">$${property.price}</div>
+            <div class="property-price">${formatMoney(property.price)}</div>
         </div>
     `;
 
@@ -1214,7 +1332,7 @@ async function openIPOModal() {
     const assetsHtml = currentPlayerData.properties.map(p => `
         <div class="asset-checkbox">
             <input type="checkbox" id="ipo-asset-${escapeAttr(p.id)}" value="${escapeAttr(p.id)}">
-            <label for="ipo-asset-${escapeAttr(p.id)}">${escapeHtml(p.name)} ($${p.value})</label>
+            <label for="ipo-asset-${escapeAttr(p.id)}">${escapeHtml(p.name)} <span class="debt-detail">${formatMoney(p.value)}</span></label>
         </div>
     `).join('');
 
@@ -1312,7 +1430,7 @@ function renderCollateralAssetList(containerId, assets, selectedIds = new Set())
         return `
         <div class="asset-checkbox">
             <input type="checkbox" id="${escapeAttr(checkboxId)}" value="${escapeAttr(p.id)}"${checked}>
-            <label for="${escapeAttr(checkboxId)}">${escapeHtml(p.name)} ($${Number(p.value || p.price || 0).toFixed(2)})</label>
+            <label for="${escapeAttr(checkboxId)}">${escapeHtml(p.name)} <span class="debt-detail">${formatMoney(p.value || p.price || 0)}</span></label>
         </div>
     `;
     }).join('');
@@ -1600,17 +1718,17 @@ async function openCorporationModal() {
             ${governanceHtml}
             ${myShares ? `<p><strong>Your shares:</strong> ${myShares.shares}</p>` : ''}
             ${canBuy ? `
-                <div class="buy-shares-form" style="margin-top: 10px; padding: 10px; background: #f0f4ff; border-radius: 6px;">
-                    <label>${buyLabel} (max ${buyableShares}):</label>
-                    <input type="number" id="buyShares-${escapeAttr(corp.id)}" min="1" max="${buyableShares}" value="1" style="width: 80px; margin: 0 8px;">
-                    <button class="btn btn-primary" style="padding: 4px 12px; font-size: 0.9rem;" data-game-action="buy-shares" data-corp-id="${escapeAttr(corp.id)}">Buy</button>
+                <div class="buy-shares-form">
+                    <label for="buyShares-${escapeAttr(corp.id)}">${buyLabel} (up to ${buyableShares})</label>
+                    <input type="number" inputmode="numeric" id="buyShares-${escapeAttr(corp.id)}" min="1" max="${buyableShares}" value="1">
+                    <button class="btn btn-primary" data-game-action="buy-shares" data-corp-id="${escapeAttr(corp.id)}">Buy</button>
                 </div>
             ` : ''}
         </div>
     `;
     }).join('');
 
-    document.getElementById('corporationList').innerHTML = corporationsHtml || '<p>No corporations created yet</p>';
+    document.getElementById('corporationList').innerHTML = corporationsHtml || '<p class="empty-state">No corporations yet. Create an IPO on your turn to start one.</p>';
     openModal('corporationModal');
 }
 
@@ -1969,7 +2087,7 @@ function showWinnerFromState(gameState, reason) {
         <div class="standings-row ${p.bankrupt ? 'bankrupt' : ''}">
             <span class="rank">#${i + 1}</span>
             <span class="player-name">${escapeHtml(p.name)}${p.bankrupt ? ' (bankrupt)' : ''}</span>
-            <span class="net-worth">$${Number(p.netWorth || 0).toFixed(2)}</span>
+            <span class="net-worth">${formatMoney(Math.round(Number(p.netWorth || 0)))}</span>
         </div>
     `).join('');
     document.getElementById('winnerName').textContent = winner ? winner.name : 'Game Over';
@@ -2060,6 +2178,7 @@ function showSection(tab, sectionName) {
 
     document.getElementById(sectionName).classList.add('active');
     tab.classList.add('active');
+    window.scrollTo({ top: 0 });
 
     if (sectionName === 'board') {
         renderBoardTab();
@@ -2073,11 +2192,22 @@ function updateTurnBanner() {
     if (!banner || !currentGame || !currentUser) return;
     const gameState = currentGame.game_state;
     const currentPlayer = gameState.players[gameState.currentPlayerIndex];
-    const isMyTurn = currentPlayer && currentPlayer.userId === currentUser.id;
-    banner.style.display = isMyTurn ? 'flex' : 'none';
+    const isMyTurn = !!currentPlayer && currentPlayer.userId === currentUser.id && !gameState.paused && !gameState.ended;
     const onGameTab = document.getElementById('game')?.classList.contains('active');
-    const goBtn = banner.querySelector('button');
-    if (goBtn) goBtn.style.display = onGameTab ? 'none' : '';
+    banner.style.display = isMyTurn && !onGameTab ? 'flex' : 'none';
+
+    const gameTab = document.querySelector('.nav-tab[data-section="game"]');
+    if (gameTab) {
+        let dot = gameTab.querySelector('.tab-dot');
+        if (isMyTurn && !dot) {
+            dot = document.createElement('span');
+            dot.className = 'tab-dot';
+            dot.setAttribute('aria-hidden', 'true');
+            gameTab.appendChild(dot);
+        } else if (!isMyTurn && dot) {
+            dot.remove();
+        }
+    }
 }
 
 function switchToGameTab() {
@@ -2118,9 +2248,31 @@ function bindStaticGameControls() {
             return;
         }
 
+        const switchButton = event.target.closest('[data-switch-section]');
+        if (switchButton) {
+            document.querySelector(`.nav-tab[data-section="${switchButton.dataset.switchSection}"]`)?.click();
+            return;
+        }
+
         const actionButton = event.target.closest('[data-game-action]');
         if (actionButton) runGameAction(actionButton);
     });
+
+    document.addEventListener('keydown', (event) => {
+        if (event.key !== 'Enter' && event.key !== ' ') return;
+        const playerSummary = event.target.closest('.player-card-summary');
+        if (!playerSummary) return;
+        event.preventDefault();
+        togglePlayerCard(playerSummary);
+    });
+
+    // A hairline appears under the app bar once content scrolls beneath it.
+    const appBar = document.querySelector('.app-bar');
+    if (appBar) {
+        window.addEventListener('scroll', () => {
+            appBar.classList.toggle('is-scrolled', window.scrollY > 4);
+        }, { passive: true });
+    }
 
     document.addEventListener('change', (event) => {
         if (event.target.closest('#player1Assets, #player2Assets')) {
@@ -2314,7 +2466,7 @@ function updatePlayerAssets(playerNumber) {
     const assetsHtml = player.properties.map(p => `
         <div class="asset-checkbox">
             <input type="checkbox" id="${playerNumber}-asset-${escapeAttr(p.id)}" value="${escapeAttr(p.id)}">
-            <label for="${playerNumber}-asset-${escapeAttr(p.id)}">${tradeAssetDot(p.id)}${escapeHtml(p.name)} ($${p.value})</label>
+            <label for="${playerNumber}-asset-${escapeAttr(p.id)}">${tradeAssetDot(p.id)}${escapeHtml(p.name)} <span class="debt-detail">${formatMoney(p.value)}</span></label>
         </div>
     `).join('');
     const jailCardHtml = player.hasGetOutOfJailCard ? `
@@ -2336,7 +2488,7 @@ function updatePlayerAssets(playerNumber) {
             `;
         }).join('');
 
-    document.getElementById(assetsId).innerHTML = (assetsHtml + sharesHtml + jailCardHtml) || '<p>No properties or shares</p>';
+    document.getElementById(assetsId).innerHTML = (assetsHtml + sharesHtml + jailCardHtml) || '<p class="empty-state">No properties or shares to offer</p>';
 }
 
 // Share lots entered in a trade side, as [{ corpId, shares }].
@@ -2429,7 +2581,7 @@ function renderTradeOffers() {
 function renderTradeOfferSide(cash, assetIds, shareLots) {
     const tags = [];
     if (Number(cash || 0) > 0) {
-        tags.push(renderTradeAssetTag(`$${Number(cash).toFixed(2)}`, 'Cash', 'cash'));
+        tags.push(renderTradeAssetTag(formatMoney(cash), 'Cash', 'cash'));
     }
     sortTradeAssetIds(assetIds).forEach(id => {
         const property = tradeAssetProperty(id);
@@ -2648,22 +2800,6 @@ async function makePayment() {
 let pendingHouseSelections = {};
 let houseModalRender = null;
 
-// Show a brief toast notification
-function showToast(message) {
-    const toast = document.createElement('div');
-    toast.style.cssText = [
-        'position:fixed', 'top:20px', 'right:20px',
-        'background:#2c3e50', 'color:#fff',
-        'padding:12px 20px', 'border-radius:8px',
-        'z-index:9999', 'font-size:0.9rem',
-        'box-shadow:0 4px 12px rgba(0,0,0,0.25)',
-        'max-width:320px', 'word-wrap:break-word'
-    ].join(';');
-    toast.textContent = message;
-    document.body.appendChild(toast);
-    setTimeout(() => toast.remove(), 3500);
-}
-
 // Render / refresh the Board tab content
 function renderBoardTab() {
     const el = document.getElementById('boardContent');
@@ -2742,13 +2878,13 @@ function openHouseModal() {
             return `
                 <div class="house-property-row">
                     <div>
-                        <span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:${PROP_COLORS[prop.color]};margin-right:6px;vertical-align:middle;"></span>
+                        <span class="house-swatch" style="background:${escapeAttr(PROP_COLORS[prop.color])}"></span>
                         <strong>${escapeHtml(prop.name)}</strong>
-                        <span style="color:#888;margin-left:6px;font-size:0.8rem;">($${costPer}/improvement)</span>
+                        <small>${formatMoney(costPer)} per improvement</small>
                     </div>
                     <div class="house-count-control">
                         <button data-game-action="adjust-house" data-property-id="${escapeAttr(prop.id)}" data-delta="-1" ${delta <= 0 ? 'disabled' : ''}>−</button>
-                        <span style="min-width:72px;text-align:center;">${escapeHtml(developmentLabel)}</span>
+                        <span>${escapeHtml(developmentLabel)}</span>
                         <button data-game-action="adjust-house" data-property-id="${escapeAttr(prop.id)}" data-delta="1" ${isAtHotel ? 'disabled' : ''}>+</button>
                     </div>
                 </div>`;
@@ -2756,7 +2892,7 @@ function openHouseModal() {
 
         document.getElementById('houseModalProperties').innerHTML = rowsHtml;
         document.getElementById('houseModalTotal').textContent =
-            `Total cost: $${totalCost}  |  Cash available: $${Math.round(cash)}`;
+            `Total cost ${formatMoney(totalCost)}. You have ${formatMoney(cash)}.`;
     }
 
     houseModalRender = renderHouseModal;

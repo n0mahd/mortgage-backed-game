@@ -1,0 +1,111 @@
+/*
+ * Mortgage Backed Monopoly — design tokens ("Term Sheet").
+ * Load this before style.css or landing.css on every page.
+ * Rules and component guidance: documents/design-system.md
+ */
+
+@font-face {
+    font-family: 'Besley';
+    font-style: normal;
+    font-weight: 500 800;
+    font-display: swap;
+    src: url('../assets/fonts/besley-latin.woff2') format('woff2');
+    unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+2000-206F, U+20AC, U+2122, U+2212;
+}
+
+:root {
+    /* Paper and ink */
+    --paper: #ECF1EC;           /* page background: cool banknote paper */
+    --paper-deep: #DFE7E0;      /* pressed rows, track backgrounds */
+    --note: #FAFCF9;            /* grouped surfaces, sheets */
+    --ink: #12261C;             /* primary text */
+    --ink-2: #3F5247;           /* secondary text */
+    --ink-3: #66776C;           /* tertiary text, placeholders (AA on --note) */
+    --rule: #D3DDD5;            /* hairlines between rows */
+    --rule-strong: #B9C7BD;     /* input borders */
+
+    /* Money greens (brand book) */
+    --forest: #1B4332;          /* chrome: top bar, tab bar, ticket */
+    --forest-deep: #12301F;
+    --emerald: #2D6A4F;         /* primary action */
+    --emerald-press: #245A42;
+    --jade: #40916C;            /* focus rings, active indicators */
+    --mint: #B7E4C7;            /* text on forest, highlights */
+    --mint-wash: #DCEFE2;       /* tinted button and selected-row fill */
+
+    /* Bond gold: premium moments only */
+    --gold: #9A6F0E;            /* gold text/icons on light */
+    --gold-bright: #D4A017;     /* gold fills and rules */
+    --gold-wash: #F6EDD3;
+
+    /* Danger: bankruptcy and money owed only */
+    --danger: #B42318;
+    --danger-press: #921B12;
+    --danger-wash: #FBE7E4;
+
+    /* Info is used sparingly (you badges, links on paper) */
+    --info: #1F5F8B;
+
+    /* Type */
+    --font-ui: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+    --font-money: 'Besley', 'Rockwell', 'Roboto Slab', Georgia, serif;
+
+    /* Scale follows iOS text styles so it reads native on phones */
+    --text-caption: 0.8125rem;  /* 13 */
+    --text-footnote: 0.875rem;  /* 14 */
+    --text-sub: 0.9375rem;      /* 15 */
+    --text-body: 1.0625rem;     /* 17 */
+    --text-title3: 1.25rem;     /* 20 */
+    --text-title2: 1.5rem;      /* 24 */
+    --text-title1: 2rem;        /* 32 */
+    --text-display: 2.75rem;    /* 44 */
+
+    /* Space (4pt grid) */
+    --s1: 4px;
+    --s2: 8px;
+    --s3: 12px;
+    --s4: 16px;
+    --s5: 20px;
+    --s6: 24px;
+    --s8: 32px;
+    --s10: 40px;
+
+    /* Radius encodes hierarchy: sheet > group > control > chip */
+    --r-sheet: 22px;
+    --r-group: 14px;
+    --r-control: 12px;
+    --r-chip: 999px;
+    --r-deed: 6px;
+
+    /* Elevation: only floating things get shadow */
+    --lift-float: 0 -1px 0 rgba(18, 38, 28, 0.06), 0 -8px 24px rgba(18, 38, 28, 0.10);
+    --lift-sheet: 0 -12px 40px rgba(10, 30, 20, 0.28);
+    --lift-toast: 0 10px 30px rgba(10, 30, 20, 0.25);
+
+    /* Touch and chrome */
+    --tap: 44px;                /* minimum touch target */
+    --tap-primary: 54px;        /* dock buttons */
+    --topbar-h: 52px;
+    --tabbar-h: 58px;
+    --safe-top: env(safe-area-inset-top, 0px);
+    --safe-bottom: env(safe-area-inset-bottom, 0px);
+    --page-max: 560px;
+    --page-wide: 1080px;
+
+    /* Motion */
+    --ease-out: cubic-bezier(0.2, 0.8, 0.2, 1);
+    --dur-fast: 120ms;
+    --dur: 220ms;
+
+    /* Banknote guilloché: the one ornamental texture, used on the turn ticket */
+    --guilloche:
+        repeating-radial-gradient(circle at 0 120%, transparent 0 11px, rgba(183, 228, 199, 0.055) 11px 12px),
+        repeating-radial-gradient(circle at 100% -20%, transparent 0 11px, rgba(212, 160, 23, 0.04) 11px 12px);
+}
+
+@media (prefers-reduced-motion: reduce) {
+    :root {
+        --dur-fast: 0ms;
+        --dur: 0ms;
+    }
+}

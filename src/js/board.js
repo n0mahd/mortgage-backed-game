@@ -335,21 +335,15 @@ function renderBoard(gameState, currentUserId) {
 
     // Dice display
     const dice = gameState.lastDiceRoll;
-    const diceHtml = dice
-        ? `<div class="dice-area">
-               <div class="die">${DIE_FACES[dice[0]] || dice[0]}</div>
-               <div class="die">${DIE_FACES[dice[1]] || dice[1]}</div>
-               <span style="font-size:0.85rem;color:#555">= ${dice[0] + dice[1]}</span>
-           </div>`
-        : `<div class="dice-area">
-               <div class="die">?</div>
-               <div class="die">?</div>
+    const diceHtml = `<div class="dice-area">
+               ${typeof renderDicePair === 'function' ? renderDicePair(dice) : ''}
+               ${dice ? `<span>= ${dice[0] + dice[1]}</span>` : ''}
            </div>`;
 
     // Roll button
     let rollBtnHtml = '';
     if (isMyTurn && !myDiceRolled) {
-        rollBtnHtml = `<button class="btn btn-primary" data-game-action="roll-dice" style="margin:4px;">Roll Dice</button>`;
+        rollBtnHtml = `<button class="btn btn-primary" data-game-action="roll-dice">Roll Dice</button>`;
     }
 
     // Buy Houses button
@@ -357,7 +351,7 @@ function renderBoard(gameState, currentUserId) {
     if (isMyTurn && myPlayer) {
         const hasCompleteGroup = hasCompleteColorGroup(myPlayer.userId, gameState);
         if (hasCompleteGroup) {
-            houseBtnHtml = `<button class="btn btn-success" data-game-action="open-house" style="margin:4px;">Buy Houses</button>`;
+            houseBtnHtml = `<button class="btn btn-secondary" data-game-action="open-house">Buy Houses</button>`;
         }
     }
 
@@ -414,7 +408,7 @@ function scaleBoardToFit() {
     const wrapper = document.querySelector('.board-tab-wrapper');
     const grid = document.querySelector('.board-grid');
     if (!wrapper || !grid) return;
-    if (window.matchMedia('(max-width: 768px)').matches) {
+    if (window.matchMedia('(max-width: 899px)').matches) {
         grid.style.transform = '';
         grid.style.transformOrigin = '';
         wrapper.style.height = '';
