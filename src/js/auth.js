@@ -75,17 +75,21 @@ function resetToEmail() {
     btn.textContent = 'Send Code';
 }
 
-// If user is already authenticated, go straight to lobby
+// If user is already authenticated, go straight to lobby. Only a token the
+// server rejects is dropped; network trouble must not sign a guest out.
 async function checkAuth() {
-    const token = localStorage.getItem('auth_token');
-    if (!token) return;
+    let user;
     try {
-        const user = await apiFetch('/auth/me');
-        if (user && !user.is_anonymous) {
-            window.location.href = 'lobby.html';
-        }
+        user = await getCurrentUser();
     } catch {
+        return;
+    }
+    if (!user) {
         localStorage.removeItem('auth_token');
+        return;
+    }
+    if (!user.is_anonymous) {
+        window.location.href = 'lobby.html';
     }
 }
 
