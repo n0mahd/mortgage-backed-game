@@ -3,10 +3,48 @@
 window.API_BASE = window.API_BASE || '/api';
 
 // ----------------------------------------------------------------
+// Session storage: the one place that knows where tokens live.
+// localStorage 'auth_token' is the active player's token; sessionStorage
+// 'hotseat_tokens' lists every player of a same-device (hotseat) game as
+// [{ userId, token, name }]. Tests read these keys directly.
+// ----------------------------------------------------------------
+
+function getToken() {
+    return localStorage.getItem('auth_token');
+}
+
+function setToken(token) {
+    localStorage.setItem('auth_token', token);
+}
+
+function clearToken() {
+    localStorage.removeItem('auth_token');
+}
+
+function getHotseatSession() {
+    try {
+        const records = JSON.parse(sessionStorage.getItem('hotseat_tokens') || 'null');
+        return Array.isArray(records) ? records : null;
+    } catch {
+        return null;
+    }
+}
+
+// Saves the hotseat players and makes the first one active.
+function setHotseatSession(records) {
+    sessionStorage.setItem('hotseat_tokens', JSON.stringify(records));
+    setToken(records[0].token);
+}
+
+function clearHotseatSession() {
+    sessionStorage.removeItem('hotseat_tokens');
+}
+
+// ----------------------------------------------------------------
 // API fetch helper — attaches auth token automatically
 // ----------------------------------------------------------------
 async function apiFetch(path, options = {}) {
-    const token = localStorage.getItem('auth_token');
+    const token = getToken();
     const res = await fetch(window.API_BASE + path, {
         ...options,
         headers: {
@@ -43,7 +81,7 @@ function getSocket() {
         let connectedWith = null;
         _socket = io({
             auth: (cb) => {
-                connectedWith = localStorage.getItem('auth_token');
+                connectedWith = getToken();
                 cb(connectedWith ? { token: connectedWith } : {});
             }
         });
@@ -62,14 +100,12 @@ function getSocket() {
 
 function replaceStoredToken(oldToken, newToken) {
     if (!oldToken || !newToken || oldToken === newToken) return;
-    if (localStorage.getItem('auth_token') === oldToken) localStorage.setItem('auth_token', newToken);
+    if (getToken() === oldToken) setToken(newToken);
 
-    try {
-        const sessionTokens = JSON.parse(sessionStorage.getItem('hotseat_tokens') || 'null');
-        if (Array.isArray(sessionTokens) && swapTokenInRecords(sessionTokens, oldToken, newToken)) {
-            sessionStorage.setItem('hotseat_tokens', JSON.stringify(sessionTokens));
-        }
-    } catch {}
+    const sessionTokens = getHotseatSession();
+    if (sessionTokens && swapTokenInRecords(sessionTokens, oldToken, newToken)) {
+        sessionStorage.setItem('hotseat_tokens', JSON.stringify(sessionTokens));
+    }
 
     const rooms = getHotseatResumeRooms();
     let changed = false;
@@ -123,8 +159,7 @@ async function refreshSavedTokens() {
 // ----------------------------------------------------------------
 
 async function requireAuth() {
-    const token = localStorage.getItem('auth_token');
-    if (!token) {
+    if (!getToken()) {
         window.location.href = 'index.html';
         return null;
     }
@@ -138,7 +173,7 @@ async function requireAuth() {
     }
     if (user) return user;
 
-    localStorage.removeItem('auth_token');
+    clearToken();
     window.location.href = 'index.html';
     return null;
 }
@@ -162,8 +197,7 @@ function showPageLoadError(message) {
 // is retried and then thrown, so a refresh on a flaky connection never signs
 // a player out (guest players cannot sign back in).
 async function getCurrentUser() {
-    const token = localStorage.getItem('auth_token');
-    if (!token) return null;
+    if (!getToken()) return null;
     const retryDelaysMs = [500, 1500, 3000];
     for (let attempt = 0; ; attempt++) {
         try {
@@ -182,7 +216,7 @@ async function handleLogout() {
     try {
         await apiFetch('/auth/signout', { method: 'POST' });
     } catch {}
-    localStorage.removeItem('auth_token');
+    clearToken();
     window.location.href = 'index.html';
 }
 
@@ -230,8 +264,7 @@ function getHotseatResumeByCode(inviteCode) {
 }
 
 function restoreHotseatResume(resume) {
-    sessionStorage.setItem('hotseat_tokens', JSON.stringify(resume.tokens));
-    localStorage.setItem('auth_token', resume.tokens[0].token);
+    setHotseatSession(resume.tokens);
     return true;
 }
 
@@ -239,8 +272,8 @@ function restoreHotseatPlayer(resume, userId) {
     const player = resume.tokens.find(record => record.userId === userId);
     if (!player || !player.token) return false;
 
-    sessionStorage.removeItem('hotseat_tokens');
-    localStorage.setItem('auth_token', player.token);
+    clearHotseatSession();
+    setToken(player.token);
     return true;
 }
 
@@ -445,12 +478,11 @@ function rejoinApproverHint(room, member) {
 function finishRoomRejoin(result) {
     if (Array.isArray(result.tokens)) {
         if (result.tokens.length === 0) throw new Error('No players found for hotseat resume');
-        sessionStorage.setItem('hotseat_tokens', JSON.stringify(result.tokens));
-        localStorage.setItem('auth_token', result.tokens[0].token);
+        setHotseatSession(result.tokens);
         saveHotseatResume(result.room, result.tokens);
     } else {
-        localStorage.setItem('auth_token', result.token);
-        sessionStorage.removeItem('hotseat_tokens');
+        setToken(result.token);
+        clearHotseatSession();
     }
     navigateToRoom(result.room);
 }
@@ -626,8 +658,8 @@ async function redeemDeviceTransferCode(code) {
         method: 'POST',
         body: JSON.stringify({ code })
     });
-    localStorage.setItem('auth_token', data.token);
-    sessionStorage.removeItem('hotseat_tokens');
+    setToken(data.token);
+    clearHotseatSession();
     return data;
 }
 

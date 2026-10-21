@@ -25,10 +25,10 @@ let hotseatTokens = []; // [{userId, token, name}]
 document.addEventListener('DOMContentLoaded', async () => {
     try {
         // Detect hotseat mode from sessionStorage
-        const storedTokens = sessionStorage.getItem('hotseat_tokens');
+        const storedTokens = getHotseatSession();
         if (storedTokens) {
             isHotseatMode = true;
-            hotseatTokens = JSON.parse(storedTokens);
+            hotseatTokens = storedTokens;
         }
 
         // Get current user (player 1's token is already in localStorage for hotseat)
@@ -1935,7 +1935,7 @@ function dismissHotseatInterstitial() {
     }
 
     // Swap active token — apiFetch() reads localStorage on every call
-    localStorage.setItem('auth_token', record.token);
+    setToken(record.token);
 
     // Update in-memory identity without an extra API round-trip
     currentUser = { id: record.userId, email: null, is_anonymous: true };
@@ -2084,7 +2084,7 @@ function showWinnerFromState(gameState, reason) {
         bankrupt: player.bankrupt
     })).sort((a, b) => b.netWorth - a.netWorth);
     if (isHotseatMode) {
-        sessionStorage.removeItem('hotseat_tokens');
+        clearHotseatSession();
         if (currentRoom && currentRoom.invite_code) clearHotseatResume(currentRoom.invite_code);
     }
     const winner = standings[0];

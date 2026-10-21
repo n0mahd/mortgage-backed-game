@@ -54,7 +54,7 @@ async function handleVerifyCode() {
             body: JSON.stringify({ email, token })
         });
 
-        localStorage.setItem('auth_token', data.token);
+        setToken(data.token);
         window.location.href = 'lobby.html';
 
     } catch (error) {
@@ -85,7 +85,7 @@ async function checkAuth() {
         return;
     }
     if (!user) {
-        localStorage.removeItem('auth_token');
+        clearToken();
         return;
     }
     if (!user.is_anonymous) {
