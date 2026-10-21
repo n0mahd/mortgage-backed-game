@@ -10,7 +10,7 @@ const crypto = require('crypto');
 const { v4: uuidv4 } = require('uuid');
 const db = require('../db');
 const { sha256Hex, plainText } = require('../helpers');
-const { notifyRoom } = require('./roomEvents');
+const { emitToRoom, notifyRoom } = require('./roomEvents');
 const { RoomError, getRoomWithMembers, createAnonymousUser, joinRoom, pendingAgentSeatCount } = require('./rooms');
 
 const KEY_PREFIX = 'mbagent_';
@@ -67,7 +67,7 @@ function listAgentSeats({ roomId, hostUserId }) {
 
 // Revoking disables the key at once. Before the game starts it also frees the
 // seat; after that the player stays in the game without anyone controlling it.
-function revokeAgentSeat(io, { roomId, seatId, hostUserId }) {
+function revokeAgentSeat({ roomId, seatId, hostUserId }) {
     const room = requireHostOfWaitingRoom(roomId, hostUserId);
     const seat = db.prepare(`SELECT * FROM agent_seats WHERE id = ? AND room_id = ? AND revoked_at IS NULL`).get(seatId, room.id);
     if (!seat) throw new RoomError(404, 'Agent invite not found');
@@ -75,7 +75,7 @@ function revokeAgentSeat(io, { roomId, seatId, hostUserId }) {
     db.prepare(`UPDATE agent_seats SET revoked_at = datetime('now') WHERE id = ?`).run(seat.id);
     if (seat.user_id && room.status === 'waiting') {
         db.prepare(`DELETE FROM room_members WHERE room_id = ? AND user_id = ?`).run(room.id, seat.user_id);
-        io.to(`room:${room.id}`).emit('room:member_change', getRoomWithMembers(room.id));
+        emitToRoom(room.id, 'room:member_change', getRoomWithMembers(room.id));
     }
     notifyRoom(room.id);
     return publicSeat(db.prepare(`SELECT * FROM agent_seats WHERE id = ?`).get(seat.id));
@@ -88,7 +88,7 @@ function findSeatByKey(key) {
 }
 
 // Takes the seat on first use; later calls return the seat unchanged.
-function claimAgentSeat(io, { key, playerName }) {
+function claimAgentSeat({ key, playerName }) {
     const seat = findSeatByKey(key);
     if (!seat) throw new RoomError(401, 'Invalid or revoked agent key. Ask the host for a new invite.');
     if (seat.user_id) return { seat, alreadyJoined: true };
@@ -98,7 +98,7 @@ function claimAgentSeat(io, { key, playerName }) {
     const user = createAnonymousUser();
     db.prepare(`UPDATE agent_seats SET user_id = ?, joined_at = datetime('now') WHERE id = ?`).run(user.id, seat.id);
     try {
-        joinRoom(io, { roomId: seat.room_id, userId: user.id, playerName, agentSeatId: seat.id });
+        joinRoom({ roomId: seat.room_id, userId: user.id, playerName, agentSeatId: seat.id });
     } catch (err) {
         db.prepare(`UPDATE agent_seats SET user_id = NULL, joined_at = NULL WHERE id = ?`).run(seat.id);
         db.prepare(`DELETE FROM users WHERE id = ?`).run(user.id);

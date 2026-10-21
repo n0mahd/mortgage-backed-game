@@ -20,7 +20,6 @@ const {
     COMMUNITY_CHEST_CARDS,
 } = require('../domain/gameRules');
 
-module.exports = (io) => {
 const router = express.Router();
 const config = getConfig();
 const gameActionRateLimit = createRateLimiter({
@@ -89,7 +88,7 @@ router.get('/config', (_req, res) => {
 router.post('/', requireAuth, (req, res) => {
     const { room_id, game_state } = req.body;
     try {
-        res.json(startGameForRoom(io, { roomId: room_id, actorUserId: req.userId, gameState: game_state }));
+        res.json(startGameForRoom({ roomId: room_id, actorUserId: req.userId, gameState: game_state }));
     } catch (err) {
         if (err instanceof GameRuleError) return res.status(err.status).json({ error: err.message });
         throw err;
@@ -116,7 +115,7 @@ router.get('/:id', requireAuth, (req, res) => {
 router.post('/:id/actions', requireAuth, requireMember, gameActionRateLimit, (req, res) => {
     const { actionId, type, payload, expectedVersion } = req.body;
     try {
-        res.json(applyGameAction(io, {
+        res.json(applyGameAction({
             gameId: req.params.id,
             actorUserId: req.userId,
             actionId,
@@ -165,7 +164,7 @@ router.patch('/:id/state', requireAuth, (req, res) => {
     `).run(JSON.stringify(repairedState), req.params.id);
 
     const updatedGame = db.prepare(`SELECT * FROM games WHERE id = ?`).get(req.params.id);
-    publishGameUpdate(io, updatedGame);
+    publishGameUpdate(updatedGame);
 
     res.json(parseGame(updatedGame));
 });
@@ -180,5 +179,4 @@ router.get('/:id/events', requireAuth, requireMember, (req, res) => {
     res.json(events.map(e => ({ ...e, event_data: JSON.parse(e.event_data) })));
 });
 
-    return router;
-};
+module.exports = router;

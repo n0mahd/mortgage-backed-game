@@ -13,9 +13,9 @@ const {
     collectRejoinRequest,
     cancelRejoinRequest,
 } = require('../services/rejoinRequests');
+const { emitToRoom } = require('../services/roomEvents');
 const { createAgentSeat, listAgentSeats, revokeAgentSeat, agentInvitePrompt } = require('../services/agentSeats');
 
-module.exports = (io) => {
 const router = express.Router();
 const VALID_ROOM_STATUSES = new Set(['waiting', 'in_progress', 'completed']);
 const config = getConfig();
@@ -153,7 +153,7 @@ router.get('/by-code/:code', (req, res) => {
 // services/rejoinRequests.js. The asking browser creates a request and polls
 // it with its secret; a signed-in player in the room approves or denies it.
 function notifyRejoinChange(roomId) {
-    io.to(`room:${roomId}`).emit('room:rejoin_request', { roomId });
+    emitToRoom(roomId, 'room:rejoin_request', { roomId });
 }
 
 function sendRoomError(res, err) {
@@ -244,7 +244,7 @@ router.post('/:id/rejoin-requests/:requestId/:decision(approve|deny)', requireAu
 router.post('/:id/join', requireAuth, (req, res) => {
     const { player_name } = req.body;
     try {
-        res.json(joinRoom(io, { roomId: req.params.id, userId: req.userId, playerName: player_name }));
+        res.json(joinRoom({ roomId: req.params.id, userId: req.userId, playerName: player_name }));
     } catch (err) {
         if (err instanceof RoomError) return res.status(err.status).json({ error: err.message });
         throw err;
@@ -277,7 +277,7 @@ router.get('/:id/agent-seats', requireAuth, (req, res) => {
 // DELETE /api/rooms/:id/agent-seats/:seatId — revoke an agent's key
 router.delete('/:id/agent-seats/:seatId', requireAuth, (req, res) => {
     try {
-        res.json(revokeAgentSeat(io, { roomId: req.params.id, seatId: req.params.seatId, hostUserId: req.userId }));
+        res.json(revokeAgentSeat({ roomId: req.params.id, seatId: req.params.seatId, hostUserId: req.userId }));
     } catch (err) {
         sendRoomError(res, err);
     }
@@ -289,7 +289,7 @@ router.delete('/:id/leave', requireAuth, (req, res) => {
         DELETE FROM room_members WHERE room_id = ? AND user_id = ?
     `).run(req.params.id, req.userId);
     const updatedRoom = getRoomWithMembers(req.params.id);
-    if (updatedRoom) io.to(`room:${req.params.id}`).emit('room:member_change', updatedRoom);
+    if (updatedRoom) emitToRoom(req.params.id, 'room:member_change', updatedRoom);
     res.json({ ok: true });
 });
 
@@ -303,7 +303,7 @@ router.patch('/:id/status', requireAuth, (req, res) => {
 
     db.prepare(`UPDATE rooms SET status = ? WHERE id = ?`).run(status, req.params.id);
     const updatedRoom = { ...room, status };
-    io.to(`room:${req.params.id}`).emit('room:status_change', updatedRoom);
+    emitToRoom(req.params.id, 'room:status_change', updatedRoom);
     res.json({ ok: true });
 });
 
@@ -331,5 +331,4 @@ router.post('/send-code', async (req, res) => {
     });
 });
 
-    return router;
-};
+module.exports = router;

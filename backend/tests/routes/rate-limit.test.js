@@ -102,11 +102,10 @@ describe('production rate limits', () => {
 
     test('limits MCP game actions per seat like the HTTP route', async () => {
         const { createAgentSeat, claimAgentSeat } = agentSeats;
-        const noopIo = { to: () => ({ emit() {} }) };
         const host = createUserFixture(db);
         const room = createRoomFixture(db, host.id, { maxPlayers: 4 });
         const { key } = createAgentSeat({ roomId: room.id, hostUserId: host.id });
-        const { seat } = claimAgentSeat(noopIo, { key, playerName: 'Robo' });
+        const { seat } = claimAgentSeat({ key, playerName: 'Robo' });
 
         const gameState = buildGameState(['Robo', 'Alice']);
         gameState.players[0].userId = seat.user_id;
