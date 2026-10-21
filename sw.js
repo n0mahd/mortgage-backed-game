@@ -17,8 +17,8 @@ self.addEventListener('push', event => {
         body: message.body || "It's your turn.",
         tag: message.tag || 'turn',
         renotify: true,
-        icon: '/src/assets/apple-touch-icon.png',
-        badge: '/src/assets/favicon-32.png',
+        icon: '/src/assets/apple-touch-icon.png?v=2',
+        badge: '/src/assets/favicon-32.png?v=2',
         vibrate: [200, 100, 200],
         data: { url: message.url || '/lobby.html' },
     }));

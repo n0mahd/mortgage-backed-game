@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <!-- Small-size Mortgage Backed mark: same house-on-notes, without fine detail. -->
+  <rect width="64" height="64" rx="14" fill="#1B4332"/>
+  <rect x="9" y="47" width="46" height="8" rx="2" fill="#B7E4C7"/>
+  <rect x="9" y="37" width="46" height="8" rx="2" fill="#B7E4C7"/>
+  <rect x="16" y="22" width="32" height="15" fill="#FAFCF9"/>
+  <path d="M10 24 L32 7 L54 24 Z" fill="#D4A017" stroke="#D4A017" stroke-width="3" stroke-linejoin="round"/>
+  <rect x="28" y="27" width="8" height="10" rx="1" fill="#1B4332"/>
+</svg>

@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <!-- Mortgage Backed app icon: a house backed by a stack of notes. Full-bleed; platforms round the corners. -->
+  <defs>
+    <radialGradient id="bg" cx="50%" cy="36%" r="72%">
+      <stop offset="0" stop-color="#2D6A4F"/>
+      <stop offset="1" stop-color="#12301F"/>
+    </radialGradient>
+    <g id="note">
+      <rect x="-172" y="-28" width="344" height="56" rx="8" fill="#B7E4C7"/>
+      <rect x="-158" y="-16" width="316" height="32" rx="5" fill="none" stroke="#2D6A4F" stroke-width="5"/>
+      <ellipse rx="26" ry="13" fill="#2D6A4F"/>
+    </g>
+  </defs>
+  <rect width="512" height="512" fill="url(#bg)"/>
+  <use href="#note" transform="translate(256 420) rotate(-3)"/>
+  <use href="#note" transform="translate(263 362) rotate(2.5)"/>
+  <use href="#note" transform="translate(252 304) rotate(-1.5)"/>
+  <rect x="324" y="96" width="38" height="80" rx="4" fill="#FAFCF9"/>
+  <rect x="150" y="176" width="212" height="104" fill="#FAFCF9"/>
+  <path d="M112 190 L256 70 L400 190 Z" fill="#D4A017" stroke="#D4A017" stroke-width="16" stroke-linejoin="round"/>
+  <path d="M232 280 V236 a24 24 0 0 1 48 0 V280 Z" fill="#1B4332"/>
+  <rect x="176" y="204" width="36" height="36" rx="4" fill="#1B4332"/>
+  <rect x="300" y="204" width="36" height="36" rx="4" fill="#1B4332"/>
+</svg>

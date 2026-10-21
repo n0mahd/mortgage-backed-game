@@ -131,6 +131,16 @@ The game voice is a financial professional who knows the whole thing is a joke b
 
 ## Icons & Imagery
 
+### App icon
+The project mark is a house "backed" by a stack of banknotes: gold roof, note-white house, mint notes on
+a forest-green field. It is the Home Screen icon, the favicon, the install-manifest icon and the turn-alert
+icon, under the name "Mortgage Backed".
+
+- Masters: `src/assets/icon.svg` (full detail, full-bleed square; platforms round the corners) and
+  `src/assets/favicon.svg` (simplified for 16–32px tabs).
+- The PNGs in `src/assets/` are generated from those SVGs with `node scripts/renderIcons.js`; edit the SVG,
+  re-run it, and bump the `?v=` on the icon links in every page, `manifest.webmanifest` and `sw.js`.
+
 ### Icons
 Interface icons (tab bar, back, device transfer) are inline SVG line icons at a 1.8px stroke. Emoji are
 no longer used in buttons or labels, because they render differently on every phone. The list below
