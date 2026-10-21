@@ -156,7 +156,7 @@ offer, corporation).
 **Deed rows** (`.owned-property-row`). A 6px band in the property's color on the leading edge, then
 name, type and value, then chips: set progress (gold when complete), buildings, current rent.
 
-**Badges** (`.badge`, `.badge-gold`, `.badge-warning`, `.badge-danger`, `.badge-info`). Pills in sentence
+**Badges** (`.badge`, `.badge-gold`, `.badge-danger`, `.badge-info`). Pills in sentence
 case.
 
 **Feedback.** `showToast(message, tone)` for transient confirmations (top of screen, under the status
