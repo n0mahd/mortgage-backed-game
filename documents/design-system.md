@@ -35,6 +35,8 @@ quiet, native, and flat.
 | `--emerald` | `#2D6A4F` | Primary action |
 | `--mint-wash` | `#DCEFE2` | Secondary buttons, selected rows |
 | `--gold` / `--gold-bright` / `--gold-wash` | `#86600A` / `#D4A017` / `#F6EDD3` | Premium only: monopolies, jail card, auctions, current step |
+| `--gold-ink` / `--gold-press` | `#6B4D07` / `#BF9014` | Text on gold-wash surfaces / pressed gold buttons |
+| `--on-dark` | `#FFFFFF` | Text on forest, emerald, danger and player-color fills |
 | `--danger` / `--danger-wash` | `#B42318` / `#FBE7E4` | Bankruptcy, money owed, End Game |
 
 Rules:
