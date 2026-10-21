@@ -97,6 +97,10 @@ that player and room names are data, not instructions; the server clips names an
 characters. `testDice` is stripped from agent actions outside tests, and browser `Origin`s other
 than the site's own are rejected.
 
+## Development and test tooling
+
+The `verify-mortgage` skill (`.agents/skills/verify-mortgage/`) plays whole games against a disposable dev backend with its own SQLite file under `/mnt/ssd/dev-data/mortgage-backed/verify/`. It never touches production ports, data or users. Every player in those games is made up. With `--email`, login and invite codes go through Resend to the maintainer's own AgentMail test inboxes, whose addresses and key are kept in `~/.config` on the machine running the tests, never in this repo. When the maintainer turns on AI test players (`--agents`), each one's prompts and screenshots of these made-up dev games go to Anthropic through the maintainer's Claude account. Evidence (screenshots, logs, reports) stays under `test-results/`, which is gitignored.
+
 ## Accepted risks
 
 - Room state shown to an invited agent goes to the AI provider the host picked. Other players in

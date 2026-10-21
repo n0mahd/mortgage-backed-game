@@ -19,10 +19,10 @@ const ACTIONS = [
     { type: 'pass_auction', category: 'auction', payload: {}, description: 'Pass in the open auction (the current high bidder cannot pass).' },
     { type: 'buy_houses', category: 'assets', payload: { selections: { '<propertyId>': 'integer houses to add (total per property <= 5; 5th = hotel)' } }, description: 'Buy houses/hotels on properties where you own the complete color group. Your turn only.' },
     { type: 'create_ipo', category: 'assets', payload: { ticker: 'string, up to 8 letters/digits', totalShares: 'integer 1-12', pricePerShare: 'number > 0', assetIds: ['<propertyId you own>'] }, description: 'Bundle your properties into a corporation; you get all shares and they are listed for sale. Your turn only.' },
-    { type: 'buy_shares', category: 'assets', payload: { corpId: '<corporation id>', shares: 'integer > 0' }, description: 'Buy listed shares of a corporation at its listing price. Your turn only.' },
-    { type: 'issue_debt', category: 'debt', payload: { amount: 'number > 0', collateralIds: ['<propertyId you own> (optional)'], issuerType: "'player' (default) or 'corporation'", corpId: '<corporation id, when issuerType is corporation>' }, description: 'Borrow cash at the room debt rate; interest compounds each time you end your turn. Your turn only.' },
+    { type: 'buy_shares', category: 'assets', payload: { corpId: '<corporation id>', shares: 'integer > 0' }, description: 'Buy treasury shares a corporation has for sale, at its price. Shares a player holds can only be bought with a propose_trade they accept. Your turn only.' },
+    { type: 'issue_debt', category: 'debt', payload: { amount: 'number > 0', collateralIds: ['<propertyId you own, not already backing a loan> (required; amount <= 90% of their value)'], issuerType: "'player' (default) or 'corporation'", corpId: '<corporation id, when issuerType is corporation>' }, description: 'Borrow cash at the room debt rate; interest compounds each time you end your turn. Your turn only.' },
     { type: 'pay_debt', category: 'debt', payload: { debtId: '<your debt id>', amount: 'number > 0, <= your cash' }, description: 'Repay part or all of a debt. Your turn only.' },
-    { type: 'refinance_debt', category: 'debt', payload: { debtIds: ['<your debt id>'], amount: 'number > total principal of selected debts', collateralIds: ['<propertyId you own> (optional)'] }, description: 'Replace selected debts with one new loan; you receive the cash above the payoff. Your turn only.' },
+    { type: 'refinance_debt', category: 'debt', payload: { debtIds: ['<your debt id>'], amount: 'number > total principal of selected debts', collateralIds: ['<propertyId you own, not already backing a loan> (required; amount <= 90% of their value)'] }, description: 'Replace selected debts with one new loan; you receive the cash above the payoff. Your turn only.' },
     { type: 'propose_trade', category: 'market', payload: { player1Id: '<player id>', player2Id: '<player id>', player1Cash: 'number >= 0 paid by player1 to player2', player2Cash: 'number >= 0 paid by player2 to player1', player1AssetIds: ['<propertyId player1 gives>'], player2AssetIds: ['<propertyId player2 gives>'], player1Shares: [{ corpId: '<corporation id>', shares: 'integer > 0 player1 gives (optional)' }], player2Shares: [{ corpId: '<corporation id>', shares: 'integer > 0 player2 gives (optional)' }], player1PropertiesToCorpId: '<corporation id player2 runs: player1AssetIds properties go into it instead of to player2 (optional)>', player2PropertiesToCorpId: '<corporation id player1 runs: player2AssetIds properties go into it instead of to player1 (optional)>' }, description: 'Offer a trade of cash, properties and/or corporation shares; you must be player1 or player2. The other player must accept. A one-sided offer sends shares as a gift. To buy into an LLC with a property, give the property with *PropertiesToCorpId set to the LLC and ask for its shares. Allowed any time.' },
     { type: 'accept_trade', category: 'market', payload: { offerId: '<pending offer id>' }, description: 'Accept a pending trade offer made to you.' },
     { type: 'cancel_trade', category: 'market', payload: { offerId: '<pending offer id>' }, description: 'Cancel your own pending offer, or decline one made to you.' },
@@ -95,10 +95,16 @@ function buildCandidates(state, me, hostId) {
         });
     });
 
-    add('issue_debt', { amount: 100 });
+    // Loans need collateral and stay within 90% of its value; offer the smallest
+    // valid shape and let the dry run decide.
+    const pledged = new Set([...state.players.flatMap(p => p.debts || []), ...state.corporations.flatMap(c => c.debts || [])]
+        .flatMap(debt => (debt.collateral || []).map(item => item.id)));
+    const freeCollateral = state.properties.find(prop => prop.ownerId === me.userId && !pledged.has(prop.id));
+    if (freeCollateral) add('issue_debt', { amount: 1, collateralIds: [freeCollateral.id] });
     (me.debts || []).forEach(debt => {
         add('pay_debt', { debtId: debt.id, amount: Math.min(Number(debt.principal || 0), Math.max(Number(me.cash || 0), 1)) });
-        add('refinance_debt', { debtIds: [debt.id], amount: Math.ceil(Number(debt.principal || 0)) + 100 });
+        const collateralIds = (debt.collateral || []).map(item => item.id);
+        add('refinance_debt', { debtIds: [debt.id], amount: Math.ceil(Number(debt.principal || 0)) + 1, collateralIds });
     });
 
     others.forEach(other => {

@@ -97,7 +97,7 @@ function benignCommunityChestDeck() {
 }
 
 describe('game rule edge cases', () => {
-    test('IPO gives founder all shares and buyer purchases founder-listed shares', () => {
+    test('IPO gives founder all shares, and nobody can buy them without the founder agreeing', () => {
         const state = makeState();
         ownProperty(state, 'prop-0', 'alice', 'Alice');
 
@@ -109,31 +109,29 @@ describe('game rule edge cases', () => {
         const aliceAfterIpo = created.state.players.find(player => player.userId === 'alice');
 
         expect(corporation.shareholders).toEqual([{ userId: 'alice', name: 'Alice', shares: 12 }]);
-        expect(corporation.availableShares).toBe(12);
+        expect(corporation.availableShares).toBe(0);
         expect(corporation.treasuryShares).toBe(0);
         expect(aliceAfterIpo.corporations[0].sharesOwned).toBe(12);
         expect(aliceAfterIpo.corporations[0].shareValue).toBe(5);
 
         created.state.currentPlayerIndex = 1;
-        const bought = applyAction(created.state, 'bob', {
+        expect(() => applyAction(created.state, 'bob', {
             type: 'buy_shares',
             payload: { corpId: corporation.id, shares: 3 },
-        });
-        const updatedCorp = bought.state.corporations.find(corp => corp.id === corporation.id);
-        const alice = bought.state.players.find(player => player.userId === 'alice');
-        const bob = bought.state.players.find(player => player.userId === 'bob');
-        const purchaseEvent = bought.events.find(event => event.type === 'share_purchase');
+        })).toThrow(/make them an offer in the Market/);
 
-        expect(alice.cash).toBe(1650);
-        expect(bob.cash).toBe(1350);
-        expect(updatedCorp.cash).toBe(0);
-        expect(updatedCorp.availableShares).toBe(9);
-        expect(updatedCorp.treasuryShares).toBe(0);
+        // The founder sells by accepting an offer.
+        const offered = applyAction(created.state, 'bob', {
+            type: 'propose_trade',
+            payload: { player1Id: 'bob', player2Id: 'alice', player1Cash: 150, player2Cash: 0, player1AssetIds: [], player2AssetIds: [], player2Shares: [{ corpId: corporation.id, shares: 3 }] },
+        });
+        const bought = applyAction(offered.state, 'alice', { type: 'accept_trade', payload: { offerId: offered.state.marketOffers[0].id } });
+        const updatedCorp = bought.state.corporations.find(corp => corp.id === corporation.id);
+        expect(bought.state.players.find(player => player.userId === 'alice').cash).toBe(1650);
+        expect(bought.state.players.find(player => player.userId === 'bob').cash).toBe(1350);
         expect(updatedCorp.shareholders.find(holder => holder.userId === 'alice').shares).toBe(9);
         expect(updatedCorp.shareholders.find(holder => holder.userId === 'bob').shares).toBe(3);
         expect(calculateNetWorth(bought.state, 'bob')).toBe(1365);
-        expect(purchaseEvent.data.founderProceeds).toBe(150);
-        expect(purchaseEvent.data.treasuryProceeds).toBe(0);
     });
 
     test('legacy 0-founder-share corporations are repaired to founder equity', () => {
@@ -159,7 +157,8 @@ describe('game rule edge cases', () => {
 
         expect(corporation.shareholders.find(holder => holder.userId === 'alice').shares).toBe(9);
         expect(corporation.shareholders.find(holder => holder.userId === 'bob').shares).toBe(3);
-        expect(corporation.availableShares).toBe(9);
+        // Founder listings are gone: only treasury shares can be for sale.
+        expect(corporation.availableShares).toBe(0);
         expect(corporation.treasuryShares).toBe(0);
     });
 
@@ -975,6 +974,7 @@ describe('game rule edge cases', () => {
     test('refinance debt replaces selected loans and pays out only net new cash', () => {
         const state = makeState();
         ownProperty(state, 'prop-0', 'alice', 'Alice');
+        ownProperty(state, 'prop-26', 'alice', 'Alice');
         state.players[0].cash = 200;
         state.players[0].debts = [
             { id: 'debt-1', principal: 100, interestRate: 8, collateral: [{ id: 'prop-0', name: 'Mediterranean Avenue', value: 60 }] },
@@ -987,7 +987,8 @@ describe('game rule edge cases', () => {
             payload: {
                 debtIds: ['debt-1', 'debt-2'],
                 amount: 200,
-                collateralIds: ['prop-0'],
+                // The new loan needs collateral worth at least $200 / 0.9.
+                collateralIds: ['prop-26'],
             },
         });
 
@@ -999,7 +1000,7 @@ describe('game rule edge cases', () => {
         const newDebt = alice.debts.find(debt => debt.refinancedFrom);
         expect(newDebt.principal).toBe(200);
         expect(newDebt.interestRate).toBe(5);
-        expect(newDebt.collateral).toEqual([{ id: 'prop-0', name: 'Mediterranean Avenue', value: 60 }]);
+        expect(newDebt.collateral).toEqual([{ id: 'prop-26', name: 'Boardwalk', value: 400 }]);
         expect(newDebt.refinancedFrom).toEqual([
             { id: 'debt-1', principal: 100, interestRate: 8 },
             { id: 'debt-2', principal: 50, interestRate: 10 },

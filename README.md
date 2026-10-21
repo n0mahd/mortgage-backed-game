@@ -98,13 +98,13 @@ Tap **Buy Property** after landing on an unowned property. Cash is deducted imme
 
 Requires owning at least one property.
 
-Tap **Create IPO** and select which properties to bundle into a corporation. Set a **ticker symbol**, **number of shares** (1–12), and **listing price per share**. The selected properties move out of your personal holdings into the corporation, you receive all founder shares, and those founder-held shares are listed for other players to buy on their turns.
+Tap **Create IPO** and select which properties to bundle into a corporation. Set a **ticker symbol**, **number of shares** (1–12, default 10), and **price per share**. The selected properties move out of your personal holdings into the corporation and you receive all of its shares. A color group with houses or hotels must go in whole. Nobody can buy your shares without your agreement: shares change hands through trade offers in the Market, and whoever gains a majority becomes chairman.
 
 ---
 
 ### Issue Debt (Mortgage-Backed Securities)
 
-Tap **Manage Debt → Issue New Debt**. Set a **loan amount** (you receive this cash immediately) and optional collateral properties. The current game uses the room's debt rate, shown in the modal.
+Tap **Manage Debt → Issue New Debt**. Pick the property to pledge and set a **loan amount** (you receive this cash immediately). You can borrow up to 90% of the pledged property's value (price plus buildings); every loan needs collateral and a property backs one loan at a time. The current game uses the room's debt rate, shown in the modal.
 
 Interest accrues automatically every time you end your turn:
 
@@ -118,7 +118,7 @@ The difference is deducted from your cash. Default rate: **5% per turn**.
 
 ### Settle Debt
 
-Tap **Manage Debt → Settle Existing Debt**. Select the debt and enter a payment amount, or use **Full Amount** to fill the remaining principal. Cash is deducted and the principal reduced. Debt is removed when fully paid.
+Tap **Manage Debt → Settle Existing Debt**. Select the debt and enter a payment amount, or use **Full Amount** to fill the remaining principal. Cash is deducted and the principal reduced; paying more than is owed only takes what is owed. Debt is removed when fully paid.
 
 ### Refinance Debt
 
@@ -128,9 +128,9 @@ Tap **Manage Debt → Refinance Existing Debt**. Select one or more existing deb
 
 ### Buy Shares
 
-Tap **Corporations** during your turn. Any corporation with listed shares shows a **Buy** button. Enter the number of shares; cost is `shares × listingPrice`. Normal IPO purchases transfer cash to the founder and move those shares from the founder to the buyer. If bankruptcy returned shares to the corporation treasury, those treasury shares can also be bought; that cash goes into the corporation treasury.
+To buy shares a player holds, make them an offer in the **Market** tab; the shares move only if they accept. If bankruptcy returned shares to a corporation's treasury, tap **Corporations** during your turn to buy those at the corporation's price; that cash goes into the corporation treasury.
 
-Player net worth values corporation stakes by net asset value, not listing price: corporation-owned property value plus treasury cash minus corporation debt, divided by total shares. Share value is floored at $0 if the corporation's net asset value is negative.
+Player net worth values corporation stakes by net asset value, not the price per share: corporation-owned property value plus treasury cash minus corporation debt, divided by total shares. Share value is floored at $0 if the corporation's net asset value is negative.
 
 If corporate debt interest pushes a corporation below $0 treasury cash, the corporation becomes insolvent. Its properties return to the bank, houses/hotels are cleared, corporation debts and shareholder positions are wiped, the chairman seat closes, and no further shares/debt/governance actions are available for that corporation.
 

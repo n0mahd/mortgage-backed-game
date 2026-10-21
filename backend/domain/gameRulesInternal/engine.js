@@ -729,6 +729,8 @@ function placeAuctionBid(state, actor, payload, events) {
         expiresAt: auction.expiresAt,
     }));
     log(state, `${actor.name} bid $${amount.toFixed(2)} for ${auction.propertyName}`);
+    // If everyone else already passed, this bid wins now; nobody is left to answer it.
+    settleAuctionIfComplete(state, actor, events);
 }
 
 function passAuction(state, actor, events) {
@@ -876,6 +878,13 @@ function createIPO(state, player, payload, events) {
         if (!prop || prop.ownerId !== player.userId) throw new GameRuleError(400, 'IPO assets must be owned by founder');
         return { id: prop.id, name: prop.name, value: prop.price, color: prop.color };
     });
+    new Set(assets.map(asset => asset.color)).forEach(color => {
+        if (!groupHasBuildings(state, color)) return;
+        const missing = state.properties.filter(p => p.color === color && !assetIds.includes(p.id));
+        if (missing.length) {
+            throw new GameRuleError(400, `The ${color} group has buildings, so the IPO must include the whole group. Also select ${missing.map(p => p.name).join(' and ')}.`);
+        }
+    });
     const corporation = {
         id: `corp-${uuidv4()}`,
         ticker,
@@ -888,7 +897,8 @@ function createIPO(state, player, payload, events) {
         pricePerShare,
         assets,
         shareholders: [{ userId: player.userId, name: player.name, shares: totalShares }],
-        availableShares: totalShares,
+        // Nothing is for sale at a fixed price: the founder sells by trade offers.
+        availableShares: 0,
         treasuryShares: 0,
         cash: 0,
         debts: [],
@@ -908,7 +918,7 @@ function createIPO(state, player, payload, events) {
         listedShares: totalShares,
         pricePerShare,
     }));
-    log(state, `${player.name} created ${ticker} IPO with ${totalShares} founder-owned shares listed at $${pricePerShare} each`);
+    log(state, `${player.name} created ${ticker} IPO: ${totalShares} shares, all held by ${player.name}, priced at $${pricePerShare} each`);
 }
 
 function buyShares(state, player, payload, events) {
@@ -917,13 +927,15 @@ function buyShares(state, player, payload, events) {
     if (corp.insolvent) throw new GameRuleError(400, 'Corporation is insolvent');
     const shares = positiveInt(payload.shares, 'shares');
     const salePool = getShareSalePool(state, corp);
-    const maxShares = player.userId === corp.founderId ? salePool.treasuryListedShares : salePool.totalListedShares;
+    // Only the corporation's own treasury shares sell at its price. Shares a
+    // player holds change hands only by a trade offer that player accepts.
+    const maxShares = salePool.treasuryListedShares;
     if (shares > maxShares) {
-        if (player.userId === corp.founderId && salePool.founderListedShares > 0) {
-            throw new GameRuleError(400, 'Founder cannot buy own listed shares');
-        }
-        throw new GameRuleError(400, 'Not enough shares available');
+        throw new GameRuleError(400, maxShares > 0
+            ? `${corp.ticker} has only ${maxShares} treasury share(s) for sale`
+            : `${corp.ticker} has no treasury shares for sale. To buy shares a player holds, make them an offer in the Market.`);
     }
+    const holdersBefore = snapshotHoldings(corp);
     const totalCost = shares * corp.pricePerShare;
     if (player.cash < totalCost) throw new GameRuleError(400, 'Insufficient funds');
 
@@ -953,6 +965,7 @@ function buyShares(state, player, payload, events) {
     removeZeroShareholders(corp);
     corp.availableShares = Math.max(0, Number(corp.availableShares || 0) - shares);
     normalizeCorporationShareLedger(state, corp);
+    chairMajorityHolder(state, corp, holdersBefore, player, events);
 
     events.push(makeEvent(player, 'share_purchase', {
         buyer: player.name,
@@ -971,6 +984,46 @@ function buyShares(state, player, payload, events) {
     log(state, `${player.name} bought ${shares} share(s) of ${corp.ticker} for $${totalCost.toFixed(2)} (${proceedsParts.join(', ')})`);
 }
 
+// Lenders keep a 10% equity cushion: a new loan is at most 90% of the value of
+// the property pledged for it (list price plus buildings), and a property backs
+// one loan at a time across the whole game. Loans made before this rule stand.
+const MAX_LOAN_TO_VALUE = 0.9;
+
+function collateralValue(prop) {
+    return Number(prop.price || 0) + Number(prop.houses || 0) * (HOUSE_COSTS[prop.color] || 0);
+}
+
+function pledgedPropertyIds(state, exceptDebts = new Set()) {
+    const ids = new Set();
+    const debts = [
+        ...state.players.flatMap(p => p.debts || []),
+        ...(state.corporations || []).flatMap(c => c.debts || []),
+    ];
+    debts.filter(debt => !exceptDebts.has(debt)).forEach(debt => (debt.collateral || []).forEach(item => ids.add(item.id)));
+    return ids;
+}
+
+// Turns pledged property ids into collateral entries, refusing loans the rule doesn't allow.
+function securedCollateral(state, amount, collateralIds, isOwned, exceptDebts) {
+    const ids = uniqueIds(collateralIds);
+    if (!ids.length) {
+        throw new GameRuleError(400, 'A loan needs collateral: pledge at least one property. You can borrow up to 90% of its value.');
+    }
+    const pledged = pledgedPropertyIds(state, exceptDebts);
+    const props = ids.map(id => {
+        const prop = state.properties.find(p => p.id === id);
+        if (!prop || !isOwned(prop)) throw new GameRuleError(400, 'Collateral must be owned by the borrower');
+        if (pledged.has(id)) throw new GameRuleError(400, `${prop.name} already backs another loan`);
+        return prop;
+    });
+    const value = props.reduce((sum, prop) => sum + collateralValue(prop), 0);
+    const limit = roundCents(value * MAX_LOAN_TO_VALUE);
+    if (amount > limit) {
+        throw new GameRuleError(400, `You can borrow up to $${limit.toFixed(2)} against ${props.map(p => p.name).join(' and ')} (90% of its $${value.toFixed(2)} value).`);
+    }
+    return props.map(prop => ({ id: prop.id, name: prop.name, value: collateralValue(prop) }));
+}
+
 function issueDebt(state, player, payload, events) {
     const amount = positiveNumber(payload.amount, 'amount');
     const interestRate = positiveNumber(state.settings.interestRate, 'interestRate');
@@ -984,11 +1037,7 @@ function issueDebt(state, player, payload, events) {
         if (!canManageCorporationDebt(corp, player.userId)) {
             throw new GameRuleError(403, 'Only the chairman or controlling shareholder can issue corporation debt');
         }
-        const collateral = collateralIds.map(id => {
-            const asset = corp.assets.find(item => item.id === id);
-            if (!asset) throw new GameRuleError(400, 'Collateral must be owned by corporation');
-            return { id: asset.id, name: asset.name, value: asset.value };
-        });
+        const collateral = securedCollateral(state, amount, collateralIds, prop => corp.assets.some(item => item.id === prop.id));
         corp.debts.push({ id: `debt-${uuidv4()}`, principal: amount, interestRate, collateral, issueDate: new Date().toISOString(), issuerType: 'corporation' });
         corp.cash = Number(corp.cash || 0) + amount;
         recordCashFlow(state, null, corp.id, amount);
@@ -996,11 +1045,7 @@ function issueDebt(state, player, payload, events) {
         log(state, `${player.name} issued debt under ${corp.ticker}: $${amount.toFixed(2)} @ ${interestRate}%`);
         return;
     }
-    const collateral = collateralIds.map(id => {
-        const prop = state.properties.find(p => p.id === id && p.ownerId === player.userId);
-        if (!prop) throw new GameRuleError(400, 'Collateral must be owned by issuer');
-        return { id: prop.id, name: prop.name, value: prop.price };
-    });
+    const collateral = securedCollateral(state, amount, collateralIds, prop => prop.ownerId === player.userId);
     player.debts.push({ id: `debt-${uuidv4()}`, principal: amount, interestRate, collateral, issueDate: new Date().toISOString(), issuerType: 'player' });
     player.cash += amount;
     recordCashFlow(state, null, player.userId, amount);
@@ -1028,12 +1073,9 @@ function refinanceDebt(state, player, payload, events) {
         throw new GameRuleError(400, 'Refinance amount must exceed selected debt principal');
     }
 
-    const collateralIds = Array.isArray(payload.collateralIds) ? uniqueIds(payload.collateralIds) : [];
-    const collateral = collateralIds.map(id => {
-        const prop = state.properties.find(p => p.id === id && p.ownerId === player.userId);
-        if (!prop) throw new GameRuleError(400, 'Collateral must be owned by issuer');
-        return { id: prop.id, name: prop.name, value: prop.price };
-    });
+    const collateralIds = Array.isArray(payload.collateralIds) ? payload.collateralIds : [];
+    // The loans being replaced free their collateral for the new one.
+    const collateral = securedCollateral(state, amount, collateralIds, prop => prop.ownerId === player.userId, new Set(selectedDebts));
 
     const refinancedFrom = selectedDebts.map(debt => ({
         id: debt.id || null,
@@ -1289,8 +1331,10 @@ function shareholderShareTotal(corp) {
     return (corp.shareholders || []).reduce((sum, shareholder) => sum + Number(shareholder.shares || 0), 0);
 }
 
+// Only treasury shares can be listed for sale; founder listings from before
+// this rule are dropped when the ledger is normalized.
 function getSaleableShares(corp) {
-    return sharesFor(corp, corp.founderId) + Number(corp.treasuryShares || 0);
+    return Number(corp.treasuryShares || 0);
 }
 
 function getShareSalePool(state, corp) {
@@ -1331,13 +1375,15 @@ function majorityThreshold(corp) {
 
 function payDebt(state, player, payload, events) {
     const debt = player.debts.find(d => d.id === payload.debtId) || player.debts[Number(payload.debtIndex)];
-    const amount = positiveNumber(payload.amount, 'amount');
+    let amount = positiveNumber(payload.amount, 'amount');
     if (!debt) throw new GameRuleError(404, 'Debt not found');
+    // Paying more than is owed only settles the debt; the rest stays in cash.
+    amount = Math.min(amount, roundCents(debt.principal));
     if (player.cash < amount) throw new GameRuleError(400, 'Insufficient funds');
     player.cash -= amount;
     debt.principal -= amount;
     recordCashFlow(state, player.userId, null, amount);
-    if (debt.principal <= 0) player.debts = player.debts.filter(d => d !== debt);
+    if (debt.principal < 0.005) player.debts = player.debts.filter(d => d !== debt);
     events.push(makeEvent(player, 'debt_payment', { payer: player.name, amount }));
     log(state, `${player.name} paid $${amount.toFixed(2)} towards debt`);
 }
@@ -1441,15 +1487,38 @@ function validateShareTransferList(state, from, shareList) {
     });
 }
 
-function transferShares(state, from, to, shareList) {
+function transferShares(state, from, to, shareList, events = []) {
     shareList.forEach(({ corpId, shares }) => {
         const corp = state.corporations.find(c => c.id === corpId);
+        const holdersBefore = snapshotHoldings(corp);
         const holder = corp.shareholders.find(shareholder => shareholder.userId === from.userId);
         holder.shares = Number(holder.shares || 0) - shares;
         addShareholderShares(corp, to, shares);
         removeZeroShareholders(corp);
         normalizeCorporationShareLedger(state, corp);
+        chairMajorityHolder(state, corp, holdersBefore, to, events);
     });
+}
+
+function snapshotHoldings(corp) {
+    return new Map((corp.shareholders || []).map(holder => [holder.userId, Number(holder.shares || 0)]));
+}
+
+// Whoever gains a majority of an LLC's shares becomes its chairman at once.
+// Only the moment of gaining it counts, so a majority holder can still appoint
+// someone else afterwards with change_chairman.
+function chairMajorityHolder(state, corp, holdersBefore, actor, events) {
+    if (corp.insolvent) return;
+    const total = Number(corp.totalShares || 0);
+    const holder = (corp.shareholders || []).find(h => Number(h.shares || 0) > total / 2);
+    if (!holder || holder.userId === corp.chairmanId) return;
+    if (Number(holdersBefore.get(holder.userId) || 0) > total / 2) return;
+    const player = state.players.find(p => p.userId === holder.userId);
+    if (!player || player.bankrupt) return;
+    setChairman(corp, player);
+    corp.chairmanVotes = closeChairmanVotesForCandidate(corp, player.userId);
+    events.push(makeEvent(actor, 'chairman_changed', { ticker: corp.ticker, chairman: player.name, method: 'majority-gained' }));
+    log(state, `${player.name} now holds a majority of ${corp.ticker} and became its chairman.`);
 }
 
 function tradeAssetCount(assetIds, shareList) {
@@ -1488,7 +1557,7 @@ function validateJailCardTransfer(from, to, givesCard, receivesCard) {
     }
 }
 
-function applyTradeTransfer(state, terms) {
+function applyTradeTransfer(state, terms, events = []) {
     const { player1, player2, player1Cash, player2Cash, player1AssetIds, player2AssetIds } = terms;
     const side1 = splitTradeAssets(player1AssetIds);
     const side2 = splitTradeAssets(player2AssetIds);
@@ -1498,8 +1567,8 @@ function applyTradeTransfer(state, terms) {
     if (player2Cash > 0) recordCashFlow(state, player2.userId, player1.userId, player2Cash);
     transferTradeProperties(state, player1, player2, side1.propertyIds, terms.player1PropertiesToCorpId);
     transferTradeProperties(state, player2, player1, side2.propertyIds, terms.player2PropertiesToCorpId);
-    transferShares(state, player1, player2, terms.player1Shares);
-    transferShares(state, player2, player1, terms.player2Shares);
+    transferShares(state, player1, player2, terms.player1Shares, events);
+    transferShares(state, player2, player1, terms.player2Shares, events);
     if (side1.jailCard !== side2.jailCard) {
         const giver = side1.jailCard ? player1 : player2;
         const receiver = side1.jailCard ? player2 : player1;
@@ -1524,7 +1593,7 @@ function trade(state, actor, payload, events) {
     const { player1, player2, player1Cash, player2Cash } = terms;
     if (![player1.userId, player2.userId].includes(actor.userId)) throw new GameRuleError(403, 'Trade must involve acting player');
     validateTradeTerms(state, terms);
-    applyTradeTransfer(state, terms);
+    applyTradeTransfer(state, terms, events);
     events.push(makeEvent(actor, 'transaction', { player1: player1.name, player2: player2.name, player1Cash, player2Cash }));
     log(state, `Transaction: ${player1.name} <-> ${player2.name}`);
 }
@@ -1581,7 +1650,7 @@ function acceptTrade(state, actor, payload, events) {
     if (offer.proposedById === actor.userId) throw new GameRuleError(403, 'Trade proposer cannot accept their own offer');
     const terms = getTradeTerms(state, offer);
     validateTradeTerms(state, terms);
-    applyTradeTransfer(state, terms);
+    applyTradeTransfer(state, terms, events);
     offer.status = 'accepted';
     offer.acceptedById = actor.userId;
     offer.acceptedByName = actor.name;
@@ -2337,7 +2406,17 @@ function validatePropertyTransferList(state, from, ids) {
     ids.forEach(id => {
         const prop = state.properties.find(p => p.id === id);
         if (!prop || prop.ownerId !== from.userId) throw new GameRuleError(400, 'Can only transfer owned property');
+        if (groupHasBuildings(state, prop.color)) {
+            throw new GameRuleError(400, `${prop.name} is in the ${prop.color} group, which has buildings. A built group can't be traded; put the whole group into an IPO and sell shares instead.`);
+        }
     });
+}
+
+// A colour group with any houses or hotels stays together: none of its streets
+// can change hands by trade, and an IPO must take the whole group.
+function groupHasBuildings(state, color) {
+    if (!HOUSE_COSTS[color]) return false;
+    return state.properties.some(p => p.color === color && Number(p.houses || 0) > 0);
 }
 
 function uniqueIds(ids) {
@@ -2461,14 +2540,19 @@ function randomDie() {
     return Math.floor(Math.random() * 6) + 1;
 }
 
+// Money players type is kept in whole cents, so the log and the cash always agree.
+function roundCents(value) {
+    return Math.round(Number(value) * 100) / 100;
+}
+
 function positiveNumber(value, name) {
-    const number = Number(value);
+    const number = roundCents(value);
     if (!Number.isFinite(number) || number <= 0) throw new GameRuleError(400, `${name} must be positive`);
     return number;
 }
 
 function nonNegativeNumber(value, name) {
-    const number = Number(value);
+    const number = roundCents(value);
     if (!Number.isFinite(number) || number < 0) throw new GameRuleError(400, `${name} must be non-negative`);
     return number;
 }

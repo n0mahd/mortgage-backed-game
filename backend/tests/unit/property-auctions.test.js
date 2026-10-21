@@ -183,4 +183,18 @@ describe('property auction rules', () => {
             payload: { amount: 2000 },
         })).toThrow('Insufficient funds');
     });
+
+    test('a bid settles the auction at once when every other player already passed', () => {
+        // Found by the verify-mortgage bot: Alice and Carol passed before anyone bid, then Bob bid.
+        // Nobody could bid or pass after that, and End Turn stayed blocked until the timeout.
+        let { state } = startAuction();
+        state = applyAction(state, 'alice', { type: 'pass_auction', payload: {} }).state;
+        state = applyAction(state, 'carol', { type: 'pass_auction', payload: {} }).state;
+        expect(state.auction.status).toBe('open');
+
+        const { state: after } = applyAction(state, 'bob', { type: 'place_bid', payload: { amount: 25 } });
+        expect(after.auction.status).not.toBe('open');
+        expect(after.properties.find(p => p.id === 'prop-0').ownerId).toBe('bob');
+        expect(after.players.find(p => p.userId === 'bob').cash).toBe(1475);
+    });
 });

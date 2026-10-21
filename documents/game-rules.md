@@ -132,6 +132,8 @@ You may buy houses or a hotel on any property where you own the **complete color
 3. Use the **+/−** controls to select how many houses to add to each property in the group.
 4. Click **Confirm** — the total cost is deducted from your cash.
 
+**Built groups stay together.** Once any street in a color group has a house or hotel, none of that group's streets can be traded, whether directly or into an LLC. The only way to sell a built group is to put the **whole group** into an IPO and sell shares in the corporation (see sections 9 and 12).
+
 ### House Costs per Color Group
 
 | Color Group | Cost per House |
@@ -198,23 +200,19 @@ Any player may bundle one or more of their properties into a corporation and sel
 ### Creating an IPO
 
 1. On your turn, go to the **Game** tab and click **Create IPO**.
-2. Select the properties to include as corporate assets.
-3. Set a **ticker symbol** (e.g., `MBS`), the **number of shares** to issue, and the **listing price per share**.
-4. Click **Create** — the selected properties transfer into the corporation, you receive all founder shares, and those founder-held shares are listed for sale.
+2. Select the properties to include as corporate assets. A color group with buildings must go in whole: ticking one of its streets ticks the rest.
+3. Set a **ticker symbol** (e.g., `MBS`), the **number of shares** to issue (default 10, at most 12), and the **price per share**.
+4. Click **Create** — the selected properties transfer into the corporation and you receive all of its shares.
 
 ### Selling Shares
 
-Other players can buy listed shares from the **Corporations** modal (accessible via the **Game** tab during their turn). When a player buys founder-listed shares:
+Nobody can buy your shares without your agreement. Shares change hands only through a **trade offer** in the **Market** tab that the holder accepts: offer cash (or property) for someone's shares, or offer your own shares to someone.
 
-- Their cash is deducted by `shares × listing price`.
-- The payment goes to the founder.
-- The shares move from the founder to the buyer on the corporation ledger.
+The one exception is the corporation's own **treasury shares**. If bankruptcy returns shares to the corporation, it sells them from the **Corporations** modal at its price per share, and the payment goes to the corporation treasury.
 
-If bankruptcy has returned shares to the corporation treasury, those treasury shares may also be listed for sale. Treasury-share purchases pay the corporation treasury instead of the founder.
+### Founder and Chairman
 
-### Founder Mechanics
-
-The founder starts as chairman and begins with 100% of the corporation's shares. Listed founder shares are the founder's shares offered for sale to other players. The founder cannot buy their own listed shares, but can buy treasury shares if bankruptcy later returns shares to the corporation treasury.
+The founder starts as chairman and holds 100% of the shares. Whoever **gains a majority** (more than half the shares) becomes chairman automatically. A majority holder can then appoint someone else as chairman, and shareholders can propose and support chairman votes.
 
 ### Corporation Value in Net Worth
 
@@ -230,7 +228,7 @@ If a corporation's treasury falls below $0 when corporate debt interest is charg
 
 - Corporation-owned properties return to the bank and any houses/hotels are cleared.
 - Corporation debts are wiped.
-- Shareholder positions are wiped, listed and treasury shares become 0, and the listing price becomes $0.
+- Shareholder positions are wiped, treasury shares become 0, and the price per share becomes $0.
 - The chairman seat is cleared and open chairman votes are closed.
 - Insolvent corporations cannot collect rent, sell shares, issue debt, or use chairman governance controls.
 
@@ -245,8 +243,10 @@ Players can issue themselves debt at the room's debt rate — simulating leverag
 ### Issuing Debt
 
 1. Go to the **Game** tab → **Manage Debt** → select **Issue New Debt**.
-2. Enter the loan amount. Optionally select collateral properties (informational only — collateral is not seized automatically).
+2. Select the property to pledge as collateral, then enter the loan amount. You can borrow up to **90% of the pledged property's value** (its price plus any houses or hotels), so you always keep at least 10% equity. Every loan needs collateral, and a property can back only one loan at a time.
 3. Click **Confirm** — cash is added to your balance immediately.
+
+A corporation's chairman can borrow for the corporation the same way, pledging the corporation's properties. Refinancing follows the same limit; the loans being replaced free up their collateral for the new loan.
 
 ### Interest Accrual
 
@@ -315,7 +315,9 @@ Trades let two players exchange any combination of cash, properties, corporation
 5. Click **Propose Transaction** — the offer appears under **Pending Trade Offers**.
 6. The other involved player accepts to execute the transfer, or declines to reject it.
 
-To send shares (or property) as a gift, propose a one-sided trade where the other player gives nothing; it moves once they accept. Shares of an insolvent corporation cannot be traded. If a founder trades away founder shares, their listing shrinks to the shares they still hold; shares a founder receives back are not relisted automatically.
+Streets in a color group with buildings can't be checked: a built group can only change hands by an IPO of the whole group, whose shares can then be traded here.
+
+To send shares (or property) as a gift, propose a one-sided trade where the other player gives nothing; it moves once they accept. Shares of an insolvent corporation cannot be traded. Whoever gains a majority of a corporation's shares through a trade becomes its chairman.
 
 ### Trading a Property for Shares
 

@@ -61,7 +61,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         setupUIListeners();
 
     } catch (error) {
-        console.error('Error initializing game:', error);
+        logActionError('Error initializing game:', error);
         const gameContent = document.getElementById('gameContent');
         if (gameContent) {
             gameContent.innerHTML = `
@@ -118,7 +118,7 @@ async function loadGameData(roomId) {
         await loadGameLog();
 
     } catch (error) {
-        console.error('Error loading game data:', error);
+        logActionError('Error loading game data:', error);
         throw error;
     }
 }
@@ -217,7 +217,8 @@ function renderGameState(gameState) {
     const gameContent = document.getElementById('gameContent');
 
     const currentPlayer = gameState.players[gameState.currentPlayerIndex];
-    const isMyTurn = currentPlayer.userId === currentUser.id;
+    // Once the game is over it is nobody's turn, even behind the Game Over dialog.
+    const isMyTurn = !gameState.ended && currentPlayer.userId === currentUser.id;
     const paused = !!gameState.paused;
     const landing = getLandingSummary(gameState, currentPlayer);
 
@@ -287,9 +288,10 @@ function renderTurnTicket(gameState, currentPlayer, isMyTurn, paused) {
 
     const me = currentPlayerData || currentPlayer;
     const myNetWorth = getPlayerNetWorth(me);
-    const visibleTitle = isMyTurn ? 'Your turn' : `${currentPlayer.name}'s turn`;
+    const visibleTitle = gameState.ended ? 'Game over' : (isMyTurn ? 'Your turn' : `${currentPlayer.name}'s turn`);
     let status;
-    if (paused) status = 'Paused by the host';
+    if (gameState.ended) status = 'Final standings are in the Game Over summary';
+    else if (paused) status = 'Paused by the host';
     else if (currentPlayer.inJail && !hasRolled) status = isMyTurn ? 'In Jail. Roll doubles, pay $50, or use a card.' : 'In Jail, deciding how to get out';
     else if (!hasRolled) status = isMyTurn ? 'Roll to move' : 'About to roll';
     else status = `Rolled ${dice ? dice[0] + dice[1] : ''}, now on ${BOARD_SQUARES[currentPlayer.position || 0]?.name || 'the board'}`;
@@ -532,8 +534,7 @@ function getLandingSummary(gameState, player) {
     }
 
     if (isBuyableSquare && property && property.ownerId) {
-        const owner = gameState.players.find(p => p.userId === property.ownerId);
-        const ownerName = owner ? owner.name : property.ownerName || 'another player';
+        const ownerName = describeOwner(gameState, property.ownerId, property.ownerName).label;
         return {
             label,
             squareName: square.name,
@@ -951,13 +952,10 @@ function getTreasuryListedShares(corp) {
     return Math.min(Math.max(0, Number(corp.treasuryShares || 0)), getListedShares(corp));
 }
 
-function getFounderListedShares(corp) {
-    return Math.max(0, getListedShares(corp) - getTreasuryListedShares(corp));
-}
-
-function getBuyableListedShares(corp, userId) {
-    if (corp.founderId === userId) return getTreasuryListedShares(corp);
-    return getListedShares(corp);
+// Only an LLC's own treasury shares sell at its price; shares a player holds
+// change hands only through a trade offer they accept.
+function getBuyableListedShares(corp) {
+    return getTreasuryListedShares(corp);
 }
 
 function togglePlayerCard(summaryEl) {
@@ -1092,7 +1090,7 @@ function formatLogEvent(type, data) {
         case 'property_purchase':
             return `${data.buyer} purchased ${data.property} for $${Number(data.price).toFixed(2)}`;
         case 'ipo_created':
-            return `${data.founder} created IPO ${data.ticker} — ${data.founderShares || data.shares} founder-owned shares listed at $${Number(data.pricePerShare).toFixed(2)}/share`;
+            return `${data.founder} created IPO ${data.ticker}: ${data.founderShares || data.shares} shares held by ${data.founder}, priced at $${Number(data.pricePerShare).toFixed(2)}/share`;
         case 'share_purchase': {
             const founderShares = Number(data.founderShares || 0);
             const treasuryShares = Number(data.treasuryShares || 0);
@@ -1222,7 +1220,7 @@ async function loadGameLog() {
         if (error instanceof TypeError && error.message === 'Failed to fetch') {
             console.warn('Unable to refresh game log:', error.message);
         } else {
-            console.error('Error loading game log:', error);
+            logActionError('Error loading game log:', error);
         }
     }
 }
@@ -1310,8 +1308,8 @@ async function confirmPurchase() {
         selectedPropertyId = null;
 
     } catch (error) {
-        console.error('Error purchasing property:', error);
-        alert('Failed to purchase property');
+        logActionError('Error purchasing property:', error);
+        alert(error.message || 'Failed to purchase property');
     }
 }
 
@@ -1321,7 +1319,7 @@ async function startAuctionFromPurchase() {
         closeModal('buyPropertyModal');
         selectedPropertyId = null;
     } catch (error) {
-        console.error('Error starting auction:', error);
+        logActionError('Error starting auction:', error);
         alert(error.message || 'Failed to start auction');
     }
 }
@@ -1337,7 +1335,7 @@ async function placeAuctionBid() {
     try {
         await performGameAction('place_bid', { amount });
     } catch (error) {
-        console.error('Error placing auction bid:', error);
+        logActionError('Error placing auction bid:', error);
         alert(error.message || 'Failed to place bid');
     }
 }
@@ -1346,7 +1344,7 @@ async function passAuction() {
     try {
         await performGameAction('pass_auction', {});
     } catch (error) {
-        console.error('Error passing auction:', error);
+        logActionError('Error passing auction:', error);
         alert(error.message || 'Failed to pass auction');
     }
 }
@@ -1356,21 +1354,38 @@ async function hostCancelAuction() {
     try {
         await performGameAction('host_cancel_auction', {});
     } catch (error) {
-        console.error('Error canceling auction:', error);
+        logActionError('Error canceling auction:', error);
         alert(error.message || 'Failed to cancel auction');
     }
 }
 
+// The server refuses trades of streets in a colour group with buildings and
+// IPOs of part of one; these show that rule before the player hits it.
+function groupHasBuildingsUi(color) {
+    if (!HOUSE_COSTS[color] || !currentGame) return false;
+    return currentGame.game_state.properties.some(p => p.color === color && Number(p.houses || 0) > 0);
+}
+
 // Open IPO Modal
 async function openIPOModal() {
-    const assetsHtml = currentPlayerData.properties.map(p => `
+    const assetsHtml = currentPlayerData.properties.map(p => {
+        const built = groupHasBuildingsUi(p.color);
+        return `
         <div class="asset-checkbox">
-            <input type="checkbox" id="ipo-asset-${escapeAttr(p.id)}" value="${escapeAttr(p.id)}">
-            <label for="ipo-asset-${escapeAttr(p.id)}">${escapeHtml(p.name)} <span class="debt-detail">${formatMoney(p.value)}</span></label>
+            <input type="checkbox" id="ipo-asset-${escapeAttr(p.id)}" value="${escapeAttr(p.id)}"${built ? ` data-built-group="${escapeAttr(p.color)}"` : ''}>
+            <label for="ipo-asset-${escapeAttr(p.id)}">${escapeHtml(p.name)} <span class="debt-detail">${formatMoney(p.value)}</span>${built ? ` <span class="debt-detail">Has buildings: goes in with the whole ${escapeHtml(p.color)} group</span>` : ''}</label>
         </div>
-    `).join('');
+    `;
+    }).join('');
 
-    document.getElementById('ipoAssets').innerHTML = assetsHtml;
+    const container = document.getElementById('ipoAssets');
+    container.innerHTML = assetsHtml;
+    // A built group goes into an IPO whole, so ticking one street ticks the group.
+    container.querySelectorAll('input[data-built-group]').forEach(input => {
+        input.addEventListener('change', () => {
+            container.querySelectorAll(`input[data-built-group="${CSS.escape(input.dataset.builtGroup)}"]`).forEach(other => { other.checked = input.checked; });
+        });
+    });
     openModal('ipoModal');
 }
 
@@ -1402,8 +1417,8 @@ async function createIPO() {
         closeModal('ipoModal');
 
     } catch (error) {
-        console.error('Error creating IPO:', error);
-        alert('Failed to create IPO');
+        logActionError('Error creating IPO:', error);
+        alert(error.message || 'Failed to create IPO');
     }
 }
 
@@ -1457,19 +1472,48 @@ function renderDebtCollateralOptions() {
     renderCollateralAssetList('collateralAssets', assets);
 }
 
-function renderCollateralAssetList(containerId, assets, selectedIds = new Set()) {
+// The server allows a loan of up to 90% of the pledged property's value (price
+// plus buildings), each property backing one loan; this shows that limit as you pick.
+const MAX_LOAN_TO_VALUE_UI = 0.9;
+
+function collateralValueUi(propertyId) {
+    const prop = currentGame.game_state.properties.find(p => p.id === propertyId);
+    if (!prop) return 0;
+    return Number(prop.price || 0) + Number(prop.houses || 0) * (HOUSE_COSTS[prop.color] || 0);
+}
+
+function pledgedPropertyIdsUi(exceptDebtIds = new Set()) {
+    const state = currentGame.game_state;
+    const debts = [...state.players.flatMap(p => p.debts || []), ...(state.corporations || []).flatMap(c => c.debts || [])];
+    return new Set(debts.filter(debt => !exceptDebtIds.has(debt.id)).flatMap(debt => (debt.collateral || []).map(item => item.id)));
+}
+
+function renderCollateralAssetList(containerId, assets, selectedIds = new Set(), exceptDebtIds = new Set()) {
+    const pledged = pledgedPropertyIdsUi(exceptDebtIds);
     const assetsHtml = assets.map(p => {
         const checkboxId = `${containerId}-${p.id}`;
-        const checked = selectedIds.has(p.id) ? ' checked' : '';
+        const isPledged = pledged.has(p.id);
+        const checked = selectedIds.has(p.id) && !isPledged ? ' checked' : '';
         return `
-        <div class="asset-checkbox">
-            <input type="checkbox" id="${escapeAttr(checkboxId)}" value="${escapeAttr(p.id)}"${checked}>
-            <label for="${escapeAttr(checkboxId)}">${escapeHtml(p.name)} <span class="debt-detail">${formatMoney(p.value || p.price || 0)}</span></label>
+        <div class="asset-checkbox${isPledged ? ' asset-locked' : ''}">
+            <input type="checkbox" id="${escapeAttr(checkboxId)}" value="${escapeAttr(p.id)}"${checked}${isPledged ? ' disabled' : ''}>
+            <label for="${escapeAttr(checkboxId)}">${escapeHtml(p.name)} <span class="debt-detail">${formatMoney(collateralValueUi(p.id) || p.value || p.price || 0)}</span>${isPledged ? ' <span class="debt-detail">Already backs a loan</span>' : ''}</label>
         </div>
     `;
     }).join('');
 
-    document.getElementById(containerId).innerHTML = assetsHtml || '<p class="empty-state">No collateral assets available</p>';
+    const container = document.getElementById(containerId);
+    container.innerHTML = (assetsHtml || '<p class="empty-state">No property to pledge. Loans need collateral.</p>')
+        + `<p class="debt-detail loan-limit" id="${escapeAttr(containerId)}-limit" aria-live="polite"></p>`;
+    const showLimit = () => {
+        const ids = Array.from(container.querySelectorAll('input:checked')).map(input => input.value);
+        const value = ids.reduce((sum, id) => sum + collateralValueUi(id), 0);
+        document.getElementById(`${containerId}-limit`).textContent = ids.length
+            ? `You can borrow up to ${formatMoney(Math.round(value * MAX_LOAN_TO_VALUE_UI * 100) / 100)} (90% of ${formatMoney(value)}).`
+            : 'Pick the property to pledge. You can borrow up to 90% of its value.';
+    };
+    container.addEventListener('change', showLimit);
+    showLimit();
 }
 
 function renderSettleDebtOptions() {
@@ -1532,12 +1576,15 @@ function getRefinancePayoffAmount() {
 
 function renderRefinanceCollateralOptions() {
     const selectedCollateralIds = new Set();
+    const replacedDebtIds = new Set();
     getSelectedRefinanceDebtItems().forEach(item => {
+        if (item.debt.id) replacedDebtIds.add(item.debt.id);
         (Array.isArray(item.debt.collateral) ? item.debt.collateral : []).forEach(asset => {
             if (asset?.id) selectedCollateralIds.add(asset.id);
         });
     });
-    renderCollateralAssetList('refinanceCollateralAssets', currentPlayerData.properties || [], selectedCollateralIds);
+    // The loans being refinanced free their collateral for the new loan.
+    renderCollateralAssetList('refinanceCollateralAssets', currentPlayerData.properties || [], selectedCollateralIds, replacedDebtIds);
 }
 
 function updateSettlementFullAmountState() {
@@ -1622,8 +1669,8 @@ async function issueDebt() {
         closeModal('debtModal');
 
     } catch (error) {
-        console.error('Error issuing debt:', error);
-        alert('Failed to issue debt');
+        logActionError('Error issuing debt:', error);
+        alert(error.message || 'Failed to issue debt');
     }
 }
 
@@ -1651,8 +1698,8 @@ async function settleDebt() {
         closeModal('debtModal');
 
     } catch (error) {
-        console.error('Error settling debt:', error);
-        alert('Failed to settle debt');
+        logActionError('Error settling debt:', error);
+        alert(error.message || 'Failed to settle debt');
     }
 }
 
@@ -1689,8 +1736,8 @@ async function refinanceDebt() {
         closeModal('debtModal');
 
     } catch (error) {
-        console.error('Error refinancing debt:', error);
-        alert('Failed to refinance debt');
+        logActionError('Error refinancing debt:', error);
+        alert(error.message || 'Failed to refinance debt');
     }
 }
 
@@ -1704,12 +1751,9 @@ async function openCorporationModal() {
         const assets = Array.isArray(corp.assets) ? corp.assets : [];
         const debts = Array.isArray(corp.debts) ? corp.debts : [];
         const myShares = shareholders.find(s => s.userId === currentUser.id);
-        const listedShares = getListedShares(corp);
         const treasuryListedShares = getTreasuryListedShares(corp);
-        const founderListedShares = getFounderListedShares(corp);
-        const isFounder = corp.founderId === currentUser.id;
         const isInsolvent = !!corp.insolvent || corp.status === 'insolvent';
-        const buyableShares = getBuyableListedShares(corp, currentUser.id);
+        const buyableShares = getBuyableListedShares(corp);
         const canBuy = isMyTurn && buyableShares > 0 && !isInsolvent;
         const governanceHtml = renderChairmanGovernance(corp);
         const canOfferProperty = !isInsolvent && !!corp.chairmanId && corp.chairmanId !== currentUser.id
@@ -1723,10 +1767,10 @@ async function openCorporationModal() {
         const debtRows = debts.length
             ? debts.map(d => `<li>$${Number(d.principal || 0).toFixed(2)} @ ${Number(d.interestRate || 0)}% (interest next turn: $${interestPayment(d).toFixed(2)})</li>`).join('')
             : '<li>No corporation debt</li>';
-        const listingDetails = listedShares > 0
-            ? `<p>Listed Shares: ${listedShares} (${founderListedShares} founder, ${treasuryListedShares} treasury)</p>`
-            : '<p>Listed Shares: 0</p>';
-        const buyLabel = isFounder ? 'Buy treasury shares' : 'Buy listed shares';
+        const listingDetails = treasuryListedShares > 0
+            ? `<p>Treasury shares for sale: ${treasuryListedShares} at ${formatMoney(pricePerShare)}</p>`
+            : '<p>No treasury shares for sale. To buy shares a player holds, make them an offer in the Market.</p>';
+        const buyLabel = 'Buy treasury shares';
 
         return `
         <div class="corporation-card">
@@ -1735,7 +1779,7 @@ async function openCorporationModal() {
             <p>Chairman: ${escapeHtml(isInsolvent ? 'Closed' : (corp.chairmanName || corp.founderName || 'Unassigned'))}</p>
             <p>Majority holder: ${escapeHtml(majorityHolderName(corp) || 'None')}</p>
             <p>Treasury Cash: $${Number(corp.cash || 0).toFixed(2)}</p>
-            <p>Total Shares: ${corp.totalShares} | Asking: $${pricePerShare.toFixed(2)}/share | NAV: $${shareValue.toFixed(2)}/share</p>
+            <p>Total Shares: ${corp.totalShares} | Price: $${pricePerShare.toFixed(2)}/share | NAV: $${shareValue.toFixed(2)}/share</p>
             <p>Net Asset Value: $${netAssetValue.toFixed(2)}</p>
             ${listingDetails}
             ${isInsolvent ? '<p class="corp-status-warning">This corporation is closed after treasury insolvency. Properties returned to the Bank; shares, debt, and governance were wiped.</p>' : ''}
@@ -1869,8 +1913,8 @@ async function changeChairmanByMajority(corpId) {
         await performGameAction('change_chairman', { corpId, candidateUserId });
         await openCorporationModal();
     } catch (error) {
-        console.error('Error changing chairman:', error);
-        alert('Failed to change chairman');
+        logActionError('Error changing chairman:', error);
+        alert(error.message || 'Failed to change chairman');
     }
 }
 
@@ -1880,8 +1924,8 @@ async function proposeChairmanVote(corpId) {
         await performGameAction('propose_chairman_vote', { corpId, candidateUserId });
         await openCorporationModal();
     } catch (error) {
-        console.error('Error proposing chairman vote:', error);
-        alert('Failed to propose chairman vote');
+        logActionError('Error proposing chairman vote:', error);
+        alert(error.message || 'Failed to propose chairman vote');
     }
 }
 
@@ -1890,8 +1934,8 @@ async function supportChairmanVote(corpId, voteId) {
         await performGameAction('support_chairman_vote', { corpId, voteId });
         await openCorporationModal();
     } catch (error) {
-        console.error('Error supporting chairman vote:', error);
-        alert('Failed to support chairman vote');
+        logActionError('Error supporting chairman vote:', error);
+        alert(error.message || 'Failed to support chairman vote');
     }
 }
 
@@ -1906,7 +1950,7 @@ async function buyShares(corpId) {
 
     const numShares = parseInt(document.getElementById(`buyShares-${corpId}`).value);
     const totalCost = numShares * Number(corp.pricePerShare || 0);
-    const buyableShares = getBuyableListedShares(corp, currentUser.id);
+    const buyableShares = getBuyableListedShares(corp);
 
     if (!numShares || numShares < 1 || numShares > buyableShares) {
         alert(`Enter a valid number of shares (1-${buyableShares})`);
@@ -1923,7 +1967,7 @@ async function buyShares(corpId) {
         closeModal('corporationModal');
 
     } catch (error) {
-        console.error('Error buying shares:', error);
+        logActionError('Error buying shares:', error);
         alert(error.message || 'Failed to buy shares');
     }
 }
@@ -1943,7 +1987,7 @@ async function endTurn() {
         }
 
     } catch (error) {
-        console.error('Error ending turn:', error);
+        logActionError('Error ending turn:', error);
         alert(error.message || 'Failed to end turn');
     }
 }
@@ -1983,8 +2027,8 @@ async function triggerEndGame(gameState, reason) {
         showWinnerFromState(currentGame.game_state, reason);
 
     } catch (error) {
-        console.error('Error ending game:', error);
-        alert('Failed to end game: ' + error.message);
+        logActionError('Error ending game:', error);
+        alert(error.message || 'Failed to end game: ' + error.message);
     }
 }
 
@@ -2001,7 +2045,7 @@ async function hostPauseGame() {
         await performGameAction('host_pause_game', { reason: 'Host paused the game' });
         showToast('Game paused.');
     } catch (error) {
-        console.error('Error pausing game:', error);
+        logActionError('Error pausing game:', error);
         showToast(error.message || 'Failed to pause game.');
     }
 }
@@ -2012,7 +2056,7 @@ async function hostResumeGame() {
         await performGameAction('host_resume_game', {});
         showToast('Game resumed.');
     } catch (error) {
-        console.error('Error resuming game:', error);
+        logActionError('Error resuming game:', error);
         showToast(error.message || 'Failed to resume game.');
     }
 }
@@ -2045,7 +2089,7 @@ async function performGameAction(type, payload = {}) {
             }
         } catch (renderError) {
             // The action was saved; a display problem must not be reported as a failed move.
-            console.error('Error showing game update:', renderError);
+            logActionError('Error showing game update:', renderError);
         }
         return result;
     } catch (error) {
@@ -2064,6 +2108,13 @@ async function performGameAction(type, payload = {}) {
         gameActionInFlight = false;
         setGameActionUiBusy(false);
     }
+}
+
+// The server refusing an action (4xx) is part of play and was already shown to
+// the player; only unexpected failures are console errors.
+function logActionError(label, error) {
+    const refused = error && error.status >= 400 && error.status < 500;
+    (refused ? console.warn : console.error)(label, error);
 }
 
 function isRetryableActionError(error) {
@@ -2271,10 +2322,24 @@ function bindStaticGameControls() {
         if (tab) showSection(tab, tab.dataset.section);
     });
 
+    // Escape or a tap on the dimmed backdrop closes a dialog, like its Cancel button.
+    // The Game Over dialog stays until the player chooses Back to Lobby.
+    const dismissableModal = () => Array.from(document.querySelectorAll('.modal.active')).filter(modal => modal.id !== 'winnerModal').pop();
+    document.addEventListener('keydown', (event) => {
+        if (event.key !== 'Escape') return;
+        const modal = dismissableModal();
+        if (modal) closeModal(modal.id);
+    });
+
     document.addEventListener('click', (event) => {
         const closeButton = event.target.closest('[data-close-modal]');
         if (closeButton) {
             closeModal(closeButton.dataset.closeModal);
+            return;
+        }
+
+        if (event.target.classList?.contains('modal') && event.target === dismissableModal()) {
+            closeModal(event.target.id);
             return;
         }
 
@@ -2624,12 +2689,15 @@ function updatePlayerAssets(playerNumber) {
         shares: new Map(Array.from(container.querySelectorAll('.trade-share-input')).map(input => [input.dataset.corpId, input.value])),
     } : null;
 
-    const assetsHtml = player.properties.map(p => `
-        <div class="asset-checkbox">
-            <input type="checkbox" id="${playerNumber}-asset-${escapeAttr(p.id)}" value="${escapeAttr(p.id)}">
-            <label for="${playerNumber}-asset-${escapeAttr(p.id)}">${tradeAssetDot(p.id)}${escapeHtml(p.name)} <span class="debt-detail">${formatMoney(p.value)}</span></label>
+    const assetsHtml = player.properties.map(p => {
+        const built = groupHasBuildingsUi(p.color);
+        return `
+        <div class="asset-checkbox${built ? ' asset-locked' : ''}">
+            <input type="checkbox" id="${playerNumber}-asset-${escapeAttr(p.id)}" value="${escapeAttr(p.id)}"${built ? ' disabled' : ''}>
+            <label for="${playerNumber}-asset-${escapeAttr(p.id)}">${tradeAssetDot(p.id)}${escapeHtml(p.name)} <span class="debt-detail">${formatMoney(p.value)}</span>${built ? ` <span class="debt-detail">Can't be traded: the ${escapeHtml(p.color)} group has buildings. IPO the whole group and sell shares instead.</span>` : ''}</label>
         </div>
-    `).join('');
+    `;
+    }).join('');
     const jailCardHtml = player.hasGetOutOfJailCard ? `
         <div class="asset-checkbox">
             <input type="checkbox" id="${playerNumber}-asset-${GAME_JAIL_CARD_ASSET_ID}" value="${GAME_JAIL_CARD_ASSET_ID}">
@@ -2653,7 +2721,7 @@ function updatePlayerAssets(playerNumber) {
     container.innerHTML = (assetsHtml + sharesHtml + jailCardHtml) || '<p class="empty-state">No properties or shares to offer</p>';
     container.dataset.playerId = userId;
     if (kept) {
-        container.querySelectorAll('input[type="checkbox"]').forEach(input => { input.checked = kept.checked.has(input.value); });
+        container.querySelectorAll('input[type="checkbox"]').forEach(input => { input.checked = !input.disabled && kept.checked.has(input.value); });
         container.querySelectorAll('.trade-share-input').forEach(input => {
             if (kept.shares.has(input.dataset.corpId)) input.value = kept.shares.get(input.dataset.corpId);
         });
@@ -3001,7 +3069,7 @@ async function acceptTradeOffer(offerId) {
             showMarketStatus('Trade accepted and executed.', 'success');
         }
     } catch (error) {
-        console.error('Error accepting trade offer:', error);
+        logActionError('Error accepting trade offer:', error);
         showMarketStatus(error.message || 'Failed to accept trade offer.', 'error');
     }
 }
@@ -3015,7 +3083,7 @@ async function cancelTradeOffer(offerId) {
             showMarketStatus('Trade offer updated.', 'success');
         }
     } catch (error) {
-        console.error('Error canceling trade offer:', error);
+        logActionError('Error canceling trade offer:', error);
         showMarketStatus(error.message || 'Failed to update trade offer.', 'error');
     }
 }
@@ -3030,7 +3098,7 @@ async function hostCancelTradeOffer(offerId) {
             showMarketStatus('Trade offer canceled by host.', 'success');
         }
     } catch (error) {
-        console.error('Error host-canceling trade offer:', error);
+        logActionError('Error host-canceling trade offer:', error);
         showMarketStatus(error.message || 'Failed to cancel trade offer.', 'error');
     }
 }
@@ -3073,7 +3141,7 @@ async function executeTransaction() {
         updateMarketActionState();
 
     } catch (error) {
-        console.error('Error executing transaction:', error);
+        logActionError('Error executing transaction:', error);
         showMarketStatus(error.message || 'Failed to execute transaction.', 'error');
     }
 }
@@ -3103,7 +3171,7 @@ async function makePayment() {
         updateMarketActionState();
 
     } catch (error) {
-        console.error('Error making payment:', error);
+        logActionError('Error making payment:', error);
         showMarketStatus(error.message || 'Failed to make payment.', 'error');
     }
 }
@@ -3135,7 +3203,7 @@ async function rollDiceAndMove() {
             : {};
         await performGameAction('roll_dice', payload);
     } catch (error) {
-        console.error('Error rolling dice:', error);
+        logActionError('Error rolling dice:', error);
         alert(error.message || 'Failed to roll dice');
     }
 }
@@ -3145,7 +3213,7 @@ async function payJailFine() {
     try {
         await performGameAction('pay_jail_fine', {});
     } catch (error) {
-        console.error('Error paying Jail fine:', error);
+        logActionError('Error paying Jail fine:', error);
         alert(error.message || 'Failed to pay Jail fine');
     }
 }
@@ -3155,7 +3223,7 @@ async function useJailCard() {
     try {
         await performGameAction('use_get_out_of_jail_card', {});
     } catch (error) {
-        console.error('Error using Get Out of Jail Free card:', error);
+        logActionError('Error using Get Out of Jail Free card:', error);
         alert(error.message || 'Failed to use Jail card');
     }
 }
@@ -3244,7 +3312,7 @@ async function confirmHousePurchase() {
         closeModal('houseModal');
 
     } catch (error) {
-        console.error('Error buying houses:', error);
-        alert('Failed to purchase houses');
+        logActionError('Error buying houses:', error);
+        alert(error.message || 'Failed to purchase houses');
     }
 }

@@ -257,8 +257,8 @@ describe('trading LLC shares', () => {
         expect(holderShares(accepted.state, corp.id, 'bob')).toBe(4);
         expect(accepted.state.players.find(p => p.userId === 'alice').cash).toBe(1650);
         expect(accepted.state.players.find(p => p.userId === 'bob').cash).toBe(1350);
-        // The founder's listing shrinks to the shares they still hold.
-        expect(accepted.state.corporations[0].availableShares).toBe(6);
+        // Nothing is listed for sale; shares a player holds move only by accepted offers.
+        expect(accepted.state.corporations[0].availableShares).toBe(0);
         expect(accepted.state.players.find(p => p.userId === 'bob').corporations[0]).toMatchObject({ ticker: 'ALC', sharesOwned: 4 });
     });
 
@@ -412,5 +412,49 @@ describe('trading a property into an LLC for shares', () => {
             type: 'accept_trade',
             payload: { offerId: proposed.state.marketOffers[0].id },
         })).toThrow(/Alice does not run ALC/);
+    });
+});
+
+describe('majority holders chair their LLC', () => {
+    function stateWithLlc() {
+        const state = makeState();
+        ownProperty(state, 'prop-3', 'alice', 'Alice');
+        const { state: withCorp } = applyAction(state, 'alice', {
+            type: 'create_ipo',
+            payload: { ticker: 'ALC', totalShares: 10, pricePerShare: 50, assetIds: ['prop-3'] },
+        });
+        return withCorp;
+    }
+
+    function sellShares(state, shares) {
+        const corp = state.corporations[0];
+        const { state: proposed } = applyAction(state, 'bob', {
+            type: 'propose_trade',
+            payload: { player1Id: 'bob', player2Id: 'alice', player1Cash: 10 * shares, player2Cash: 0, player1AssetIds: [], player2AssetIds: [], player2Shares: [{ corpId: corp.id, shares }] },
+        });
+        const offer = proposed.marketOffers.find(o => o.status === 'pending');
+        return applyAction(proposed, 'alice', { type: 'accept_trade', payload: { offerId: offer.id } });
+    }
+
+    test('buying a majority by trade makes the buyer chairman, with a log line', () => {
+        const { state, events } = sellShares(stateWithLlc(), 6);
+        expect(state.corporations[0].chairmanId).toBe('bob');
+        expect(events.some(e => e.type === 'chairman_changed' && e.data.method === 'majority-gained')).toBe(true);
+        expect(state.gameLog.some(entry => /Bob now holds a majority of ALC/.test(entry.message))).toBe(true);
+    });
+
+    test('half the shares is not a majority', () => {
+        const { state } = sellShares(stateWithLlc(), 5);
+        expect(state.corporations[0].chairmanId).toBe('alice');
+    });
+
+    test('a majority holder who appoints someone else keeps that choice', () => {
+        let { state } = sellShares(stateWithLlc(), 6);
+        const corp = state.corporations[0];
+        ({ state } = applyAction(state, 'bob', { type: 'change_chairman', payload: { corpId: corp.id, candidateUserId: 'alice' } }));
+        expect(state.corporations[0].chairmanId).toBe('alice');
+        // Bob buying one more share does not take the chair back: he already had a majority.
+        ({ state } = sellShares(state, 1));
+        expect(state.corporations[0].chairmanId).toBe('alice');
     });
 });

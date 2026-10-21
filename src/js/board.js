@@ -130,9 +130,9 @@ function renderSquare(square, gameState, currentUserId, playerIndex) {
     if (square.propertyId) {
         const prop = gameState.properties && gameState.properties.find(p => p.id === square.propertyId);
         if (prop && prop.ownerId) {
-            const ownerIdx = gameState.players.findIndex(p => p.userId === prop.ownerId);
-            const ownerColor = PLAYER_COLORS[ownerIdx % PLAYER_COLORS.length];
-            ownerDot = `<div class="owner-dot" style="background:${ownerColor}" title="Owned by ${escapeAttr(prop.ownerName || '')}"></div>`;
+            const owner = describeOwner(gameState, prop.ownerId, prop.ownerName);
+            const ownerColor = owner.playerIndex >= 0 ? PLAYER_COLORS[owner.playerIndex % PLAYER_COLORS.length] : '#888';
+            ownerDot = `<div class="owner-dot${owner.corporation ? ' owner-dot-corp' : ''}" style="background:${ownerColor}" title="Owned by ${escapeAttr(owner.label)}"></div>`;
         }
     }
 
@@ -197,9 +197,24 @@ function renderMobileTokens(players, gameState, currentUserId) {
     </div>`;
 }
 
-function renderMobileSquareMeta(square, property) {
+// Who owns a property, for display. Corporations own property under their own id;
+// they show as "TICKER (Chair's corporation)" in their chairman's color.
+function describeOwner(gameState, ownerId, fallbackName) {
+    const players = gameState.players || [];
+    const playerIndex = players.findIndex(p => p.userId === ownerId);
+    if (playerIndex >= 0) return { label: players[playerIndex].name, playerIndex, corporation: null };
+    const corp = (gameState.corporations || []).find(c => c.id === ownerId);
+    if (corp) {
+        const chairIndex = players.findIndex(p => p.userId === corp.chairmanId);
+        const chair = corp.chairmanName || players[chairIndex]?.name;
+        return { label: chair ? `${corp.ticker} (${chair}'s corporation)` : `${corp.ticker} corporation`, playerIndex: chairIndex, corporation: corp };
+    }
+    return { label: fallbackName || 'another player', playerIndex: -1, corporation: null };
+}
+
+function renderMobileSquareMeta(square, property, gameState) {
     if (property) {
-        const owner = property.ownerName ? escapeHtml(property.ownerName) : 'Unowned';
+        const owner = property.ownerId ? escapeHtml(gameState ? describeOwner(gameState, property.ownerId, property.ownerName).label : (property.ownerName || '')) : 'Unowned';
         const price = property.price != null ? `$${property.price}` : '';
         const houses = property.houses > 0
             ? `<span>${property.houses === 5 ? 'Hotel' : `${property.houses} house${property.houses === 1 ? '' : 's'}`}</span>`
@@ -238,7 +253,7 @@ function renderMobileBoardSquare(square, gameState, currentUserId, options = {})
             <span class="mobile-square-position">${square.position}</span>
             <div class="mobile-square-copy">
                 <div class="mobile-square-name">${escapeHtml(square.name)}</div>
-                ${renderMobileSquareMeta(square, property)}
+                ${renderMobileSquareMeta(square, property, gameState)}
             </div>
             ${renderMobileTokens(playersHere, gameState, currentUserId)}
         </div>
@@ -283,7 +298,7 @@ function renderMobileBoard(gameState, currentUserId, controlsHtml, diceHtml, car
             <div>
                 <p class="mobile-board-label">${focusPlayer && focusPlayer.userId === currentUserId ? 'Your position' : 'Current position'}</p>
                 <h2>${escapeHtml(focusSquare.name)}</h2>
-                ${renderMobileSquareMeta(focusSquare, getSquareProperty(focusSquare, gameState))}
+                ${renderMobileSquareMeta(focusSquare, getSquareProperty(focusSquare, gameState), gameState)}
             </div>
             ${renderMobileTokens(getPlayersOnSquare(gameState, focusSquare.position), gameState, currentUserId)}
         </section>
@@ -460,7 +475,7 @@ function getCompleteGroupProperties(userId, gameState) {
 
 if (typeof module !== 'undefined' && module.exports) {
     module.exports = {
-        hasCompleteColorGroup, getCompleteGroupProperties,
+        hasCompleteColorGroup, getCompleteGroupProperties, describeOwner,
         BOARD_SQUARES, HOUSE_COSTS, PLAYER_COLORS,
     };
 }

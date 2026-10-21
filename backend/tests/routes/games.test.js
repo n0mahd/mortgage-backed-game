@@ -5,6 +5,7 @@ process.env.JWT_SECRET = 'test-secret';
 
 const request = require('supertest');
 const { addRoomMemberFixture, createRoomFixture, createUserFixture, resetTestDb } = require('../helpers/fixtures');
+const { MONOPOLY_PROPERTIES } = require('../../domain/gameRules');
 
 let app, db;
 let user1, user2, room;
@@ -440,10 +441,15 @@ describe('POST /api/games/:id/actions', () => {
     });
 
     test('issue_debt uses fixed game interest rate instead of client payload', async () => {
+        // Loans need collateral (up to 90% of its value): Alice pledges Boardwalk.
+        const state = minimalGameState();
+        state.properties = MONOPOLY_PROPERTIES.map((prop, i) => ({ ...prop, id: `prop-${i}`, ownerId: null, ownerName: null, houses: 0 }));
+        Object.assign(state.properties.find(p => p.id === 'prop-26'), { ownerId: user1.id, ownerName: 'Alice' });
+        db.prepare(`UPDATE games SET game_state = ?, state_version = 0 WHERE id = ?`).run(JSON.stringify(state), gameId);
         const res = await request(app)
             .post(`/api/games/${gameId}/actions`)
             .set('Authorization', `Bearer ${user1.token}`)
-            .send(actionPayload('issue_debt', { amount: 100, interestRate: 99, collateralIds: [] }));
+            .send(actionPayload('issue_debt', { amount: 100, interestRate: 99, collateralIds: ['prop-26'] }));
 
         expect(res.status).toBe(200);
         expect(res.body.game.game_state.players[0].debts[0].interestRate).toBe(5);
@@ -473,7 +479,7 @@ describe('POST /api/games/:id/actions', () => {
             .post(`/api/games/${gameId}/actions`)
             .set('Authorization', `Bearer ${user1.token}`)
             .send(actionPayload('issue_debt', {
-                amount: 250,
+                amount: 50, // within 90% of Mediterranean Avenue's $60
                 interestRate: 99,
                 issuerType: 'corporation',
                 corpId: 'corp-1',
@@ -482,9 +488,9 @@ describe('POST /api/games/:id/actions', () => {
 
         expect(res.status).toBe(200);
         const corp = res.body.game.game_state.corporations.find(item => item.id === 'corp-1');
-        expect(corp.debts[0].principal).toBe(250);
+        expect(corp.debts[0].principal).toBe(50);
         expect(corp.debts[0].interestRate).toBe(5);
-        expect(corp.cash).toBe(250);
+        expect(corp.cash).toBe(50);
     });
 
     test('majority shareholder can change corporation chairman directly', async () => {
