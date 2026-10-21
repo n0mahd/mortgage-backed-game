@@ -2726,15 +2726,14 @@ async function handleTurnAlertsAction(event) {
 async function shareMoveDeviceLink() {
     const link = document.getElementById('moveDeviceLink').value;
     if (!link) return;
-    try {
-        await navigator.clipboard.writeText(link);
+    if (await copyText(link)) {
         showToast('Link copied');
-    } catch {
-        const linkEl = document.getElementById('moveDeviceLink');
-        linkEl.focus();
-        linkEl.select();
-        showToast('Select the link and copy it');
+        return;
     }
+    const linkEl = document.getElementById('moveDeviceLink');
+    linkEl.focus();
+    linkEl.select();
+    showToast('Select the link and copy it');
 }
 
 function populatePlayerDropdowns() {

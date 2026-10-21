@@ -122,21 +122,16 @@ const AgentInvites = (() => {
         document.getElementById('agent-invite-prompt').value = '';
     }
 
-    function copyPrompt() {
+    async function copyPrompt() {
         const textarea = document.getElementById('agent-invite-prompt');
         const button = document.getElementById('agent-invite-copy-btn');
-        const done = () => { button.textContent = 'Copied'; };
-        if (navigator.clipboard && navigator.clipboard.writeText) {
-            navigator.clipboard.writeText(textarea.value).then(done).catch(() => selectForManualCopy(textarea));
-        } else {
-            selectForManualCopy(textarea);
+        if (await copyText(textarea.value)) {
+            button.textContent = 'Copied';
+            return;
         }
-    }
-
-    function selectForManualCopy(textarea) {
         textarea.focus();
         textarea.select();
-        document.getElementById('agent-invite-copy-btn').textContent = 'Selected: copy it';
+        button.textContent = 'Selected: copy it';
     }
 
     function setStatus(message) {

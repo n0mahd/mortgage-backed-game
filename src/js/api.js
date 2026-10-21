@@ -1,4 +1,5 @@
-// API + real-time helpers
+// Network and session helpers shared by every page: apiFetch, tokens, rooms,
+// Socket.IO. DOM helpers live in ui.js.
 
 window.API_BASE = window.API_BASE || '/api';
 
@@ -176,21 +177,6 @@ async function requireAuth() {
     clearToken();
     window.location.href = 'index.html';
     return null;
-}
-
-function showPageLoadError(message) {
-    const container = document.querySelector('.container') || document.body;
-    const notice = document.createElement('div');
-    notice.className = 'turn-warning danger';
-    notice.setAttribute('role', 'alert');
-    const text = document.createElement('p');
-    text.textContent = message;
-    const retry = document.createElement('button');
-    retry.className = 'btn btn-primary btn-sm';
-    retry.textContent = 'Try again';
-    retry.addEventListener('click', () => window.location.reload());
-    notice.append(text, retry);
-    container.prepend(notice);
 }
 
 // Returns null only when the server rejects the saved token. Network trouble
@@ -677,32 +663,6 @@ async function redeemDeviceTransferCode(code) {
     setToken(data.token);
     clearHotseatSession();
     return data;
-}
-
-// ----------------------------------------------------------------
-// Shared utilities
-// ----------------------------------------------------------------
-
-// Safe for HTML text and quoted attribute values alike.
-function escapeHtml(text) {
-    return String(text ?? '')
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;')
-        .replace(/"/g, '&quot;')
-        .replace(/'/g, '&#39;');
-}
-
-function formatTimeAgo(dateString) {
-    const date = new Date(dateString);
-    const now = new Date();
-    const seconds = Math.floor((now - date) / 1000);
-
-    if (seconds < 60) return 'just now';
-    if (seconds < 3600) return `${Math.floor(seconds / 60)}m ago`;
-    if (seconds < 86400) return `${Math.floor(seconds / 3600)}h ago`;
-    if (seconds < 604800) return `${Math.floor(seconds / 86400)}d ago`;
-    return date.toLocaleDateString();
 }
 
 refreshSavedTokens();

@@ -252,48 +252,19 @@ function updateStartButtonState(playerCount) {
     }
 }
 
-function copyInviteCode(btn) {
+async function copyInviteCode(btn) {
     const code = document.getElementById('invite-code').textContent;
     const originalText = btn.textContent;
-
-    if (navigator.clipboard && navigator.clipboard.writeText) {
-        navigator.clipboard.writeText(code).then(() => {
-            showCopySuccess(btn, originalText);
-        }).catch(() => fallbackCopyToClipboard(code, btn, originalText));
-    } else {
-        fallbackCopyToClipboard(code, btn, originalText);
+    if (!await copyText(code)) {
+        alert('Code: ' + code + '\n\nPlease copy manually.');
+        return;
     }
-}
-
-function showCopySuccess(btn, originalText) {
     btn.textContent = 'Copied';
     btn.classList.add('is-done');
     setTimeout(() => {
         btn.textContent = originalText;
         btn.classList.remove('is-done');
     }, 2000);
-}
-
-function fallbackCopyToClipboard(text, btn, originalText) {
-    const textarea = document.createElement('textarea');
-    textarea.value = text;
-    textarea.style.position = 'fixed';
-    textarea.style.opacity = '0';
-    document.body.appendChild(textarea);
-    textarea.select();
-
-    try {
-        const successful = document.execCommand('copy');
-        if (successful) {
-            showCopySuccess(btn, originalText);
-        } else {
-            alert('Code: ' + text + '\n\nPlease copy manually.');
-        }
-    } catch (err) {
-        alert('Code: ' + text + '\n\nPlease copy manually.');
-    } finally {
-        document.body.removeChild(textarea);
-    }
 }
 
 async function sendInviteEmail() {
