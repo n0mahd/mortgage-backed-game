@@ -1,6 +1,6 @@
 # Mortgage Backed Monopoly - Setup
 
-The current live architecture is a static frontend plus an Express, Socket.IO, and SQLite backend. There is no build step for the frontend.
+A static frontend (no build step) plus an Express, Socket.IO and SQLite backend. Where production runs and how it is deployed is in `AGENTS.md`; every backend setting is in `backend/config.js` and `backend/.env.example`.
 
 ## Development
 
@@ -18,7 +18,7 @@ npm --prefix backend run start
 Serve the static frontend on the phone-facing dev port with dev API and Socket.IO proxying to `3111`:
 
 ```bash
-PORT=3011 DEV_BACKEND_ORIGIN=http://127.0.0.1:3111 node scripts/dev-static-server.js
+PORT=3011 DEV_BACKEND_ORIGIN=http://127.0.0.1:3111 npm run dev:web
 ```
 
 Phone test URLs:
@@ -28,16 +28,14 @@ Phone test URLs:
 
 ## Production
 
-Production is served by nginx on public port `80` for `mortgage.abdlh.com`. nginx proxies `/api/` and `/socket.io/` to the backend on `127.0.0.1:3010`.
-
-Backend production configuration must include:
+Production runs on the M60e behind nginx (see `AGENTS.md`). Its `backend/.env` must include:
 
 ```bash
 APP_ENV=production
 PORT=3010
 DB_PATH=/mnt/ssd/projects/mortgage-backed/backend/game.db
 JWT_SECRET=<long-random-secret>
-CORS_ORIGINS=https://mortgage.abdlh.com,http://mortgage.abdlh.com
+CORS_ORIGINS=https://mortgage.abdlh.com
 ALLOW_STATE_REPAIR=false
 LOG_OTPS=false
 ```
@@ -49,14 +47,6 @@ The backend refuses to start in production without an explicit `DB_PATH`, explic
 1. Set `JWT_SECRET_PREVIOUS` to the current secret and `JWT_SECRET` to a new one (`openssl rand -base64 48`), then restart. Tokens signed with the old secret keep working, and the server answers each one with a new-secret token that the browser swaps in.
 2. Leave it for a week or two, so players who open the game in that time move over. The old secret still works during the window, so keep it short after a leak.
 3. Remove `JWT_SECRET_PREVIOUS` and restart. Tokens signed with the old secret stop working; tokens swapped during the window last until they expire (30 days in today's production config). Email players sign back in with a code; guests rejoin through the room code with another player's approval.
-
-## Architecture
-
-- Clients render state and submit actions.
-- The backend owns dice, rules, money movement, turn order, event logging, and state persistence.
-- Normal game mutation uses `POST /api/games/:id/actions`.
-- Direct whole-state patching is disabled unless `ALLOW_STATE_REPAIR=true`, and then only the host may use `host_state_repair`.
-- SQLite stores rooms, members, users, current game snapshots, append-only events, and idempotent action records.
 
 ## Backups
 
@@ -89,22 +79,12 @@ The restore script checks the backup before copying, preserves the current datab
 
 ## Verification
 
-Backend:
-
 ```bash
-npm --prefix backend test -- --runInBand
+npm run test:static && npm run test:architecture   # assets, cache keys, import boundaries, AGENTS.md paths
+npm --prefix backend test -- --runInBand            # backend (Jest)
+npm run test:e2e                                    # browser (Playwright)
+npm run test:e2e:real-game                          # the long two-browser game
+npm test                                            # all of the above except real-game
 ```
 
-E2E against dev ports:
-
-```bash
-BASE_URL=http://100.110.102.49:3011 \
-API_BASE_URL=http://100.110.102.49:3111/api \
-npm run test:e2e
-```
-
-Release real-player E2E against dev-only ports and a dev-only SQLite database:
-
-```bash
-npm run test:e2e:real-game
-```
+Both E2E runners start their own backend and web server on dev-only ports (3011/3111 by default) with a fresh dev database, so stop any dev server on those ports first, or pick others: `npm run test:e2e -- --web-port 3711 --api-port 3811 --db-path /mnt/ssd/dev-data/mortgage-backed/other.db`. The flags are documented at the top of `scripts/e2e-harness.js`; anything else is passed to Playwright.

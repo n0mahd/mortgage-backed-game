@@ -1,102 +1,167 @@
-# Project Instructions
+# Mortgage Backed: agent guide
 
-## Agent Orientation
+A multiplayer Monopoly parody with Wall Street mechanics (IPOs, debt, share trading), played in the
+browser and by AI agents over MCP. A no-build static frontend (classic `<script>` tags) talks to an
+Express + Socket.IO + SQLite backend. The server owns every rule; browsers only render state and send
+actions.
 
-This is a no-build static frontend plus an Express, Socket.IO, and SQLite backend for Mortgage Backed Monopoly.
+Other docs: player rules in `documents/game-rules.md`, open decisions in `documents/roadmap.md`,
+UI rules in `documents/design-system.md`, personal data and third parties in `documents/privacy.md`,
+setup and backups in `SETUP.md`.
 
-Start here:
+## Code map
 
-- Product/player rules: `README.md` and `documents/game-rules.md`.
-- Production and operational context: `SETUP.md`, `documents/production-roadmap.md`, and this file.
-- Personal data, logs, client storage, third parties and open privacy/security findings: `documents/privacy.md`.
-- Backend entry point: `backend/server.js`.
-- Backend routes: `backend/routes/`.
-- Authoritative game rules and all game-state mutation: `backend/domain/gameRules.js`.
-- Game persistence shared by HTTP routes and MCP (transaction, `state_version`, idempotency row, events, audit, Socket.IO broadcast): `backend/services/gameActions.js`. Room create/join and anonymous users: `backend/services/rooms.js`. Host-issued agent invites (one hashed key per seat, reservation, revocation): `backend/services/agentSeats.js`. In-process room change signal: `backend/services/roomEvents.js`.
-- MCP server for AI-agent players (`/api/mcp`, tools, agent state summary, rules text): `backend/mcp/`. Agents authenticate only with their seat's agent key and can act only as that seat; keep it that way (no room creation, room-code joins or host actions over MCP). Waiting-room invite UI: `src/js/agentInvites.js`. Player-facing action catalog and dry-run legal-action list: `backend/domain/actionCatalog.js`.
-- Frontend API and Socket.IO helpers: `src/js/api.js`.
-- Game screen entry point: `src/js/game.js`, with focused helpers under `src/js/game/`.
-- Realtime sync: `subscribeToGame` in `src/js/api.js` emits on every room (re)join; `resyncGame` in `src/js/game.js` fetches missed updates on rejoin, `visibilitychange`, `online`, and a fallback poll. Game actions keep one `actionId` across network retries, relying on server idempotency in `game_actions`.
-- Turn alerts (Web Push): `backend/services/push.js` (subscriptions, VAPID sending, push-service host allowlist), `backend/services/turnAlerts.js` (who to alert when the turn changes, called from `services/gameActions.js`), `backend/services/presence.js` (players with the game on screen get no push), `backend/routes/push.js`. Client: `src/js/turn-notifications.js`, `/sw.js`, `/manifest.webmanifest`, and `home-screen.html` + `src/js/home-screen.js` for the iPhone Add to Home Screen handoff. Production needs `VAPID_PUBLIC_KEY`/`VAPID_PRIVATE_KEY` in `backend/.env`, and nginx must serve `/sw.js` and `/manifest.webmanifest` from the root.
-- Device transfer: `POST /api/auth/transfer-code` and `/api/auth/redeem-transfer` in `backend/routes/auth.js` (one-time, hashed, 10-minute codes). Rejoining a started room without a token goes through approval: `backend/services/rejoinRequests.js` (rules for who may approve), routes under `/api/rooms/.../rejoin-requests`, the asking side in `src/js/api.js` (`requestRoomRejoin`) and the approver prompt in `src/js/rejoin-prompts.js`. Only guest seats; email players sign in with email.
-- Secret rotation: with `JWT_SECRET_PREVIOUS` set, `readToken` in `backend/routes/auth.js` accepts old-secret tokens and answers them with a new one (`X-Refreshed-Token` header, `auth:token_refreshed` socket event, `POST /api/auth/refresh-tokens` for saved hotseat tokens); `replaceStoredToken` in `src/js/api.js` swaps it in everywhere the browser keeps tokens.
-- Board rendering helpers: `src/js/board.js`.
-- Design system ("Term Sheet"): `documents/design-system.md` for the rules, `src/css/tokens.css` for tokens, `src/css/style.css` for all page styles (one stylesheet, mobile first), `src/js/ui.js` for `formatMoney`, dice, and toasts, and `design-system.html` for a live specimen.
-- Browser E2E tests: `tests/e2e/`.
-- Backend Jest tests: `backend/tests/`.
+### Backend (`backend/`)
 
-Fast verification commands:
+- `server.js`: Express app, route mounting, the error handler, Socket.IO auth and `join_room`.
+- `config.js`: every environment variable, its default, and the production guards.
+  `db.js`: the SQLite database and `db.withTransaction`. `migrations.js`: schema.
+- `auth.js`: player tokens (`readToken`, `makeToken`, `requireAuth`). With `JWT_SECRET_PREVIOUS` set,
+  old-secret tokens still work and get a replacement (`X-Refreshed-Token` header,
+  `auth:token_refreshed` socket event, `POST /api/auth/refresh-tokens`).
+- `helpers.js`: email/code normalizing, `plainText`, `sha256Hex`, `toSqliteDate`.
+  `rateLimit.js`: in-memory limiters.
+- `domain/`: the game rules. Pure functions over a state object, no I/O.
+  - `gameRules.js`: the public API; everything else imports from here.
+  - `gameRulesInternal/`: one module per topic, layered so each imports only earlier ones:
+    `board`, `util` → `ledger` (cash flow, rent, net worth) → `corporations` → `bankruptcy`,
+    `movement` (dice, jail, landing, cards, buying), `auctions`, `debt`, `trades` → `turns`
+    (end turn, end game, pause) → `state` (initial state, normalizing, invariants) → `applyAction`.
+  - `gameRulesInternal/applyAction.js`: the `ACTIONS` table lists every action type, who may take it
+    (`turn`, `host`) and its handler. The only entry point that changes game state.
+  - `actionCatalog.js`: player-facing action list and payload shapes; "legal right now" is decided by
+    dry-running `applyAction`.
+- `services/`: everything that touches the database or the outside world.
+  - `services/gameActions.js`: the only writer of the `games` table: `startGameForRoom`,
+    `applyGameAction` (transaction, `state_version` check, idempotent `actionId`, events, audit,
+    broadcast, turn alerts), and the dev-only `repairGameState`.
+  - `services/rooms.js`: room and member lookups, anonymous users, create and join.
+  - `services/roomEvents.js`: `emitToRoom` (Socket.IO to a room's browsers) and `notifyRoom` (wakes
+    MCP waits).
+  - `services/agentSeats.js`: host-issued AI agent invites (one hashed key per seat).
+  - `services/rejoinRequests.js`: taking back a guest seat after losing the token, with another
+    player's approval.
+  - `services/roomEmails.js`, `services/mailer.js`: room-code emails through a Resend-compatible API.
+  - `services/push.js`, `services/turnAlerts.js`, `services/presence.js`: Web Push turn alerts, sent
+    only to players without the game on screen.
+  - `services/audit.js`: one log line per game action.
+- `routes/`: HTTP only (authenticate, call a service, answer): `routes/auth.js` (email codes, guests,
+  device transfer codes), `routes/rooms.js`, `routes/games.js`, `routes/push.js`. Errors with a 4xx
+  `status` (`RoomError`, `GameRuleError`) are answered by the error handler in `server.js`.
+- `mcp/`: the MCP server for AI players at `/api/mcp` (`mcp/server.js` tools, `mcp/gameSummary.js`
+  the agent's view of the game, `mcp/rules.js` rules text).
 
-- Static asset and architecture checks: `npm run test:static && npm run test:architecture`.
-- Backend tests only: `npm --prefix backend test -- --runInBand`.
-- Browser E2E with dev-only ports/data: `npm run test:e2e`.
-- Full gate before sharing results: `npm test`.
+### Frontend (root `*.html`, `src/`)
 
-## Architecture Rules For Agents
+- One HTML page per screen: `index.html` (home), `auth.html`, `lobby.html`, `waiting.html`,
+  `game.html`, `hotseat.html` (same-device game), `home-screen.html` (iPhone Add to Home Screen
+  handoff), `design-system.html` (live UI specimen). `landing.html` only redirects to `/`.
+- `src/js/api.js`: `apiFetch`, session storage (`getToken`/`setToken`/`clearToken`, hotseat session),
+  room wrappers and Socket.IO (`subscribeToGame`). `src/js/ui.js`: DOM helpers (`escapeHtml`,
+  `formatMoney`, dice, `showToast`, `copyText`, `showPageLoadError`).
+- One script per page: `src/js/index.js`, `src/js/auth.js`, `src/js/lobby.js`, `src/js/waiting.js`
+  (with `src/js/agent-invites.js`), `src/js/hotseat.js`, `src/js/home-screen.js`.
+  `src/js/room-resume.js`: getting back into a room (resume options and rejoin requests).
+  `src/js/rejoin-prompts.js`: the approve/decline prompt shown to other players.
+  `src/js/turn-notifications.js` with `sw.js` and `manifest.webmanifest`: Web Push in the browser.
+- Game page: `src/js/game.js` is the entry point and holds the page state (`currentGame`,
+  `currentUser`, ...), startup, resync, `performGameAction`/`submitGameAction` and sheets. Feature
+  code is in `src/js/game/`, loaded before it: `turn-panel.js` (turn ticket, `renderActionButtons`,
+  moves grid, `renderHostPanel`), `purchase.js`, `houses.js`, `debt.js`, `corporations.js`,
+  `market.js`, `device-alerts.js`, `property-display.js`, `valuation.js`, `log-format.js`,
+  `share-deals.js`, `turn-end-outlook.js`, `turn-alert.js`, and `action-dispatcher.js` (routes
+  `data-game-action` clicks to top-level handler functions). `src/js/board.js`: board data and drawing.
+- Styles: `src/css/tokens.css` (all colours, sizes, layers) and `src/css/style.css` (one stylesheet,
+  mobile first, numbered sections).
 
-- Keep backend game mutations authoritative through `applyGameAction` in `backend/services/gameActions.js` (used by `POST /api/games/:id/actions` and the MCP `take_action` tool) and `applyAction` in `backend/domain/gameRules.js`. Do not write game state anywhere else.
-- The MCP layer (`backend/mcp/`) only adapts inputs/outputs: no game-rule decisions there. Legal actions come from `backend/domain/actionCatalog.js`, which dry-runs `applyAction`; when adding an engine action, add it to that catalog and to `backend/mcp/rules.js` if agents should use it.
-- Do not put game-rule decisions in route handlers or frontend code; routes should authenticate, load/persist state, call the domain layer, record events, and broadcast.
-- Keep `backend/domain/gameRules.js` as the public game-rules import path. Internal game-rules modules are private implementation details.
-- Preserve the frontend's no-build model: classic scripts loaded from HTML, no bundler, no TypeScript migration, and no framework migration unless explicitly requested.
-- When changing game rules, update or add backend unit tests and update `documents/game-rules.md` or `README.md` when player-facing behavior changes.
-- When changing frontend behavior, prefer focused helpers under `src/js/game/` while keeping `src/js/game.js` as the page entry point.
-- New UI uses the design system's existing classes and tokens: no inline styles or raw hex values. Turn actions go in `renderActionButtons()`, optional moves in the moves grid, and host-only controls in `renderHostPanel()`. Check 320, 375, and 390px widths; `tests/e2e/mobile-layout.spec.js` guards the phone layout.
-- Do not bypass `apiFetch` for app API calls unless there is a specific reason.
-- Keep tests and dev data pointed at dev-only ports and paths.
+### Tests and scripts
 
-## Definition Of Done
+- `backend/tests/`: Jest (unit, routes, sockets, MCP, push). `tests/e2e/`: Playwright, real browser
+  against real dev servers.
+- `scripts/e2e-harness.js`: starts a dev backend and web server on dev-only ports with a fresh dev
+  database, runs Playwright, stops both (flags documented at its top). Used by `scripts/run-e2e.js`
+  and `scripts/run-real-game-e2e.js`. `scripts/dev-static-server.js` (with `scripts/dev-server.js`):
+  static files plus an `/api` proxy.
+- `scripts/check-static-assets.js` (every referenced asset exists; a script or stylesheet has the same
+  `?v=` on every page) and `scripts/check-architecture.js` (import boundaries, classic scripts only,
+  and every path named in this file exists).
 
-Stop and share results only when all applicable items are true:
+## Rules
 
-- The code works locally against dev-only ports/data, not production.
-- `npm test` has passed as the final verification command.
-- Before any merge to `main` or deploy, the `privacy-check` skill has run in gate mode (`--base origin/main --url https://mortgage.abdlh.com --own-domain abdlh.com`). A scanner FAIL or a High finding blocks the merge, and `documents/privacy.md` describes the code being merged.
-- If narrower checks were used while iterating, the final check still includes the full root test command.
-- Public imports and user-facing APIs are unchanged unless an intentional API change was requested.
-- `AGENTS.md` remains accurate for future agents.
-- No production ports, production services, or production SQLite paths were used or modified.
-- Existing unrelated user changes in the worktree were preserved.
-- The final response reports what changed, verification command/results, whether production was untouched, and any remaining risk.
+- **Game state changes only through `applyAction`**, called from `applyGameAction` (HTTP actions and the
+  MCP `take_action` tool). Nothing else writes the `games` table except `startGameForRoom` and the
+  dev-only `repairGameState`, all in `services/gameActions.js`.
+- **Rules live in `backend/domain/`.** Not in routes, services, MCP or the frontend; the frontend may
+  mirror a rule for display (say so in a comment, like `turn-end-outlook.js`). A new action goes in
+  the `ACTIONS` table in `applyAction.js`, in `actionCatalog.js`, and in `mcp/rules.js` if agents
+  should use it.
+- **Import rules from `backend/domain/gameRules.js`**, never from `gameRulesInternal/`
+  (`npm run test:architecture` enforces it). Inside `gameRulesInternal/`, keep the layer order above:
+  a module never imports a later one, so there are no cycles.
+- **MCP agents act only as their own seat**, authenticated by the seat's agent key. No room creation,
+  room-code joins or host actions over MCP.
+- **No build step.** Classic scripts loaded from HTML; no modules, bundler, TypeScript or framework
+  unless the user asks. Game-page files share one global scope: keep shared state as top-level `let`
+  in `game.js`, give helpers unique names, and keep action handlers as top-level functions (the
+  dispatcher looks them up on `window`). Use `apiFetch` for API calls.
+- **Cache keys.** Cloudflare caches `/src/` for 4 hours. When a file under `src/` changes, raise its
+  `?v=` on every page that loads it, higher than any value `origin/main` has used.
+- **Design system.** New UI uses the existing classes and tokens: no inline styles, no raw hex. Turn
+  actions go in `renderActionButtons()`, optional moves in the moves grid, host-only controls in
+  `renderHostPanel()`. Check 320, 375 and 390px widths; `tests/e2e/mobile-layout.spec.js` guards the
+  phone layout.
+- **Rule changes** need backend tests and an update to `documents/game-rules.md` (and `mcp/rules.js`
+  when agents are affected).
+- **Keep this map true.** When a file moves or a rule changes, update this file in the same commit.
 
-## Dev/Prod Testing Rules
+## Verification
 
-Production and development must always stay separate.
+- Quick: `npm run test:static && npm run test:architecture`.
+- Backend: `npm --prefix backend test -- --runInBand`.
+- Browser: `npm run test:e2e` (dev ports 3011/3111 by default; pass `--web-port`/`--api-port`/`--db-path`
+  to run beside another server). Long two-browser game: `npm run test:e2e:real-game`.
+- Everything: `npm test`.
 
-- Do not run development servers on the same ports as production.
-- Do not write dev-generated files, uploads, stories, images, game state, or test data into production data directories.
-- Do not restart or modify production services unless the user explicitly asks.
+## Definition of done
 
-Production runs on the ThinkCentre M60e (`ssh m60e`), not on the Raspberry Pi, since 2026-09-23. Development happens on the Pi.
+- Works locally against dev-only ports and data; `npm test` passes as the last check (small, low-risk
+  fixes may run only the checks covering the files touched; say so).
+- Before any merge to `main` or deploy, run the `privacy-check` skill in gate mode
+  (`--base origin/main --url https://mortgage.abdlh.com --own-domain abdlh.com`). A scanner FAIL or a
+  High finding blocks, and `documents/privacy.md` must describe the code being merged.
+- Public APIs unchanged unless the change was asked for; this file still accurate.
+- No production port, service or database used or modified; other people's uncommitted changes kept.
+- The report says what changed, which checks ran with their results, whether production was touched,
+  and what risk remains.
 
-- Public site: `https://mortgage.abdlh.com` through a Cloudflare tunnel to nginx on the M60e (port `80`). nginx serves only `/`, `*.html` (with `Cache-Control: no-cache`) and `/src/`; every other path, including `backend/` and dotfiles, returns 404. It forwards Cloudflare's `CF-Connecting-IP` as `X-Forwarded-For`.
-- Backend: systemd unit `mortgage-backend` on `127.0.0.1:3010` (`HOST=127.0.0.1`, `TRUST_PROXY=loopback` in `backend/.env`), proxied by nginx for `/api/` and `/socket.io/`.
-- Code and data: `/mnt/ssd/projects/mortgage-backed` on the M60e. It is not a git checkout: deploys copy a `git archive` of `main` over it, keeping `backend/.env` and `backend/game.db*`, and run `npm ci --omit=dev` in `backend/`.
-- Game state lives only in SQLite, and a backend restart takes about a second; browsers resync on reconnect. So deploy between turns, after a `sqlite3 game.db ".backup …"`, and live games continue.
-- Cloudflare caches `/src/` assets for 4 hours (HTML is not cached). When a release changes a file under `src/`, bump its `?v=` query in every HTML page that loads it, or players keep the old copy.
-- The agent MCP endpoint `/api/mcp` goes through the same `/api/` proxy; nginx must pass the browser `Origin` header through unchanged (it does by default) so the endpoint can reject foreign browser origins.
-- Never point dev servers, tests or scripts at these resources.
-- Treat these as stable production resources; do not reuse them for development.
+## Development and production
 
-When testing from the user's phone while they are on the go:
+Production and development never share ports, data or services.
 
-- Assume the phone reaches the Raspberry Pi through Tailscale.
-- Use the dedicated mortgage-backed phone-facing dev port: `3011`.
-- Bind the phone-facing dev server to `0.0.0.0` when needed so it is reachable over Tailscale.
-- Provide the phone-test URL as `http://100.110.102.49:3011` or `http://pi.taildb6607.ts.net:3011`.
-- Tailscale Serve currently has no HTTPS config on this Pi; use raw Tailscale HTTP unless a future `tailscale serve status` shows HTTPS is configured.
+**Production** is on the ThinkCentre M60e (`ssh m60e`) since 2026-09-23; development happens on the Pi.
 
-Dev server commands:
+- `https://mortgage.abdlh.com` reaches nginx on the M60e through a Cloudflare tunnel. nginx serves only
+  `/`, `*.html` (no-cache), `/src/`, `/sw.js` and `/manifest.webmanifest`; everything else, including
+  `backend/` and dotfiles, is a 404. It proxies `/api/` and `/socket.io/` to the backend, forwards
+  `CF-Connecting-IP` as `X-Forwarded-For`, and passes the browser `Origin` through (MCP checks it).
+- Backend: systemd unit `mortgage-backend` on `127.0.0.1:3010` (`HOST=127.0.0.1`, `TRUST_PROXY=loopback`,
+  `VAPID_*` and the mail key in `backend/.env`).
+- Code and data: `/mnt/ssd/projects/mortgage-backed`, not a git checkout. A deploy copies a `git archive`
+  of `main` over it, keeping `backend/.env` and `backend/game.db*`, and runs `npm ci --omit=dev` in
+  `backend/`. Game state is only in SQLite and a restart takes about a second (browsers resync), so
+  deploy between turns after `sqlite3 game.db ".backup …"`.
+- Never point dev servers, tests or scripts at any of this, and don't restart or change production
+  unless the user asks.
 
-- Inspect `package.json` before choosing commands. The root package currently only defines Playwright test scripts; the backend package in `backend/package.json` defines `npm run start`.
-- Production is on another machine, but still keep dev off ports `80` and `3010` so the Pi and the M60e layouts never get confused.
-- If backend testing is needed, run it on a separate dev-only port, for example: `PORT=3111 npm --prefix backend run start`.
-- Serve the web UI on the dedicated phone-facing dev port `3011`. If no project script has been added for static serving, use a simple dev-only static server bound to `0.0.0.0` and keep backend/API proxying pointed at the dev backend port, not `3010`.
-- Keep dev game state and test data out of production paths; use a dev-only location such as `/mnt/ssd/dev-data/mortgage-backed`.
+**Development** on the Pi:
 
-When finishing any web change, tell the user:
-
-- Which dev server command is running.
-- Which port it is using.
-- The exact phone-test URL.
-- Whether production was untouched.
+- Ports: backend `3111`, web `3011` (the phone-facing port). Never `80` or `3010`. Ports 3000–3002,
+  8080 and 8081 belong to other services on the Pi.
+- Data: `/mnt/ssd/dev-data/mortgage-backed`.
+- Commands (see `SETUP.md` for the full environment):
+  `PORT=3111 DB_PATH=/mnt/ssd/dev-data/mortgage-backed/game.db npm --prefix backend run start`, then
+  `PORT=3011 DEV_BACKEND_ORIGIN=http://127.0.0.1:3111 npm run dev:web`.
+- The user tests from their phone over Tailscale: `http://100.110.102.49:3011` or
+  `http://pi.taildb6607.ts.net:3011` (plain HTTP; no Tailscale HTTPS on this Pi). Bind to `0.0.0.0`.
+- After a web change, tell the user the running dev command, its port, the phone-test URL, and whether
+  production was touched.
