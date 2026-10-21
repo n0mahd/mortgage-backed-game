@@ -3,6 +3,7 @@
 // Room membership writes shared by the HTTP routes and the MCP server:
 // anonymous player accounts, room creation, and joining before a game starts.
 
+const crypto = require('crypto');
 const { v4: uuidv4 } = require('uuid');
 const db = require('../db');
 const { normalizeInviteCode } = require('../normalizers');
@@ -89,7 +90,7 @@ function generateInviteCode() {
     const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
     let code = '';
     for (let i = 0; i < 6; i++) {
-        code += chars.charAt(Math.floor(Math.random() * chars.length));
+        code += chars.charAt(crypto.randomInt(chars.length));
     }
     return code;
 }

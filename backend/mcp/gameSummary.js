@@ -7,7 +7,13 @@
 const { BOARD_SQUARES, calculateNetWorth } = require('../domain/gameRules');
 const { listLegalActions } = require('../domain/actionCatalog');
 
-const RECENT_LOG_LIMIT = 12;
+// Agents read this after every action, so it stays compact: static board data
+// (prices, rent tables) lives in get_rules, not here.
+const RECENT_LOG_LIMIT = 8;
+const EXAMPLE_LIMIT = 3;
+// Names and log lines are typed by players and end up in agent context; cap them.
+const NAME_MAX = 40;
+const LOG_LINE_MAX = 200;
 
 function joinUrlFor(room, publicAppUrl) {
     return `${publicAppUrl}/waiting.html?code=${encodeURIComponent(room.invite_code)}`;
@@ -21,7 +27,7 @@ function squareSummary(position) {
 function ownerName(state, ownerId) {
     if (!ownerId) return null;
     const player = state.players.find(p => p.userId === ownerId);
-    if (player) return player.name;
+    if (player) return clip(player.name);
     const corp = state.corporations.find(c => c.id === ownerId);
     return corp ? `[${corp.ticker}]` : ownerId;
 }
@@ -31,15 +37,15 @@ function summarizeRoom(room, members, userId, publicAppUrl) {
     const host = members.find(member => member.user_id === room.host_id);
     return {
         id: room.id,
-        name: room.name,
+        name: clip(room.name, 80),
         invite_code: room.invite_code,
         join_url: joinUrlFor(room, publicAppUrl),
         status: room.status,
         max_players: room.max_players,
-        host: host ? host.player_name : null,
+        host: host ? clip(host.player_name) : null,
         you_are_host: room.host_id === userId,
-        your_name: me ? me.player_name : null,
-        members: members.map(member => member.player_name),
+        your_name: me ? clip(me.player_name) : null,
+        members: members.map(member => clip(member.player_name)),
     };
 }
 
@@ -73,7 +79,7 @@ function statusLine(state, userId, attention) {
         default:
             if (state.paused) return 'The game is paused by the host.';
             if (state.auction?.status === 'open') return `Waiting for other players to finish the auction for ${state.auction.propertyName}.`;
-            return `Waiting for ${current ? current.name : 'another player'} to play.`;
+            return `Waiting for ${current ? clip(current.name) : 'another player'} to play.`;
     }
 }
 
@@ -109,10 +115,10 @@ function summarizeGame({ room, members, game, userId, publicAppUrl }) {
         status_line: statusLine(state, userId, attention),
         state_version: game.state_version,
         room: roomSummary,
-        current_turn: current ? { player: current.name, player_id: current.userId, is_you: current.userId === userId } : null,
+        current_turn: current ? { player: clip(current.name), player_id: current.userId, is_you: current.userId === userId } : null,
         you: me ? {
             player_id: me.userId,
-            name: me.name,
+            name: clip(me.name),
             cash: round(me.cash),
             net_worth: round(calculateNetWorth(state, me.userId)),
             standing_on: standingOn,
@@ -130,14 +136,14 @@ function summarizeGame({ room, members, game, userId, publicAppUrl }) {
         } : null,
         last_dice: state.lastDiceRoll || null,
         last_card: state.lastCardDrawn ? {
-            player: state.lastCardDrawn.playerName,
+            player: clip(state.lastCardDrawn.playerName),
             deck: state.lastCardDrawn.deckType,
             card: state.lastCardDrawn.card,
             effect: state.lastCardDrawn.effect,
         } : null,
         players: state.players.map(player => ({
             player_id: player.userId,
-            name: player.name,
+            name: clip(player.name),
             is_you: player.userId === userId,
             is_current: current ? current.userId === player.userId : false,
             cash: round(player.cash),
@@ -146,32 +152,31 @@ function summarizeGame({ room, members, game, userId, publicAppUrl }) {
             bankrupt: player.bankrupt,
             property_count: state.properties.filter(p => p.ownerId === player.userId).length,
         })),
-        properties: state.properties.map(prop => ({
+        owned_properties: state.properties.filter(prop => prop.ownerId).map(prop => ({
             id: prop.id,
             name: prop.name,
             color: prop.color,
-            price: prop.price,
-            rent: prop.rent,
             owner: ownerName(state, prop.ownerId),
             houses: prop.houses || 0,
         })),
+        unowned_property_ids: state.properties.filter(prop => !prop.ownerId).map(prop => prop.id),
         corporations: state.corporations.map(corp => ({
             id: corp.id,
             ticker: corp.ticker,
-            chairman: corp.chairmanName,
+            chairman: clip(corp.chairmanName),
             insolvent: !!corp.insolvent,
             price_per_share: corp.pricePerShare,
             total_shares: corp.totalShares,
             cash: round(corp.cash),
             assets: (corp.assets || []).map(asset => asset.id),
-            shareholders: (corp.shareholders || []).map(holder => ({ name: holder.name, shares: holder.shares })),
-            open_chairman_votes: (corp.chairmanVotes || []).filter(vote => vote.status === 'open').map(vote => ({ id: vote.id, candidate: vote.candidateName })),
+            shareholders: (corp.shareholders || []).map(holder => ({ name: clip(holder.name), shares: holder.shares })),
+            open_chairman_votes: (corp.chairmanVotes || []).filter(vote => vote.status === 'open').map(vote => ({ id: vote.id, candidate: clip(vote.candidateName) })),
         })),
         auction: state.auction?.status === 'open' ? {
             property_id: state.auction.propertyId,
             property: state.auction.propertyName,
             current_bid: state.auction.currentBid,
-            high_bidder: state.auction.highBidderName,
+            high_bidder: clip(state.auction.highBidderName),
             passed: (state.auction.passedPlayerIds || []).map(id => ownerName(state, id)),
             expires_at: state.auction.expiresAt,
         } : null,
@@ -179,24 +184,22 @@ function summarizeGame({ room, members, game, userId, publicAppUrl }) {
             .filter(offer => offer.status === 'pending' && [offer.player1Id, offer.player2Id].includes(userId))
             .map(offer => ({
                 offer_id: offer.id,
-                proposed_by: offer.proposedByName,
+                proposed_by: clip(offer.proposedByName),
                 needs_your_answer: offer.recipientId === userId,
-                player1: offer.player1Name,
+                player1: clip(offer.player1Name),
                 player1_gives_cash: offer.player1Cash,
                 player1_gives_properties: offer.player1AssetIds,
-                player2: offer.player2Name,
+                player2: clip(offer.player2Name),
                 player2_gives_cash: offer.player2Cash,
                 player2_gives_properties: offer.player2AssetIds,
                 expires_at: offer.expiresAt,
             })),
-        paused: state.paused ? { reason: state.pause?.reason || null } : null,
-        ended: state.ended ? { standings: (state.standings || []).map(s => ({ name: s.name, net_worth: round(s.netWorth), bankrupt: s.bankrupt })) } : null,
-        recent_log: (state.gameLog || []).slice(-RECENT_LOG_LIMIT).map(entry => entry.message),
+        paused: state.paused ? { reason: clip(state.pause?.reason, LOG_LINE_MAX) } : null,
+        ended: state.ended ? { standings: (state.standings || []).map(s => ({ name: clip(s.name), net_worth: round(s.netWorth), bankrupt: s.bankrupt })) } : null,
+        recent_log: (state.gameLog || []).slice(-RECENT_LOG_LIMIT).map(entry => clip(entry.message, LOG_LINE_MAX)),
         legal_actions: listLegalActions(state, userId, { hostId: room.host_id }).map(action => ({
             type: action.type,
-            description: action.description,
-            payload: action.payload,
-            examples: action.examples.slice(0, 6),
+            examples: action.examples.slice(0, EXAMPLE_LIMIT),
         })),
     };
 }
@@ -207,8 +210,20 @@ function sharesHeld(corp, userId) {
         .reduce((sum, holder) => sum + Number(holder.shares || 0), 0);
 }
 
+function clip(value, max = NAME_MAX) {
+    if (value === null || value === undefined) return value ?? null;
+    const text = String(value).replace(/\p{C}+/gu, ' ');
+    return text.length > max ? `${text.slice(0, max - 1)}…` : text;
+}
+
 function round(value) {
     return Math.round(Number(value || 0) * 100) / 100;
 }
 
-module.exports = { summarizeGame, attentionFor, joinUrlFor };
+// Short form for wake-ups that need no decision (timeouts, someone joined).
+function briefSummary(summary) {
+    const { status, status_line, state_version, room, current_turn, recent_log } = summary;
+    return { status, status_line, state_version, members: room.members, current_turn, recent_log: (recent_log || []).slice(-3) };
+}
+
+module.exports = { summarizeGame, briefSummary, attentionFor, joinUrlFor };

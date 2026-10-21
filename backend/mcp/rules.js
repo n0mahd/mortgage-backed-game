@@ -5,6 +5,7 @@
 // domain action catalog so payload shapes cannot drift from what MCP accepts.
 
 const { ACTIONS } = require('../domain/actionCatalog');
+const { MONOPOLY_PROPERTIES } = require('../domain/gameRules');
 
 const RULES_TEXT = `# Mortgage Backed Monopoly: rules for agents
 
@@ -45,11 +46,19 @@ function renderActions() {
     return ACTIONS.map(action => `- ${action.type} [${action.category}] payload ${JSON.stringify(action.payload)}: ${action.description}`).join('\n');
 }
 
+function renderBoard() {
+    return MONOPOLY_PROPERTIES.map((prop, i) => `- prop-${i} ${prop.name} (${prop.color}) $${prop.price}, rent ${Array.isArray(prop.rent) ? prop.rent.join('/') : prop.rent}`).join('\n');
+}
+
 function getRulesText() {
     return `${RULES_TEXT}
 ## Actions accepted by take_action
 Pass the type and a payload object. Ids (property, player, corporation, debt, offer, vote) come from get_game_state. get_game_state.legal_actions lists what is valid for you right now, with example payloads.
 ${renderActions()}
+
+## Properties
+Id, name, group, price, and rent: streets by houses (0, 1-4, hotel), railroads by how many you own, utilities as the dice multiplier. Game state lists only owned properties; the rest are unowned.
+${renderBoard()}
 `;
 }
 
