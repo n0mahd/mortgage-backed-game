@@ -49,6 +49,15 @@ for (const htmlFile of fs.readdirSync(ROOT).filter(name => name.endsWith('.html'
     }
 }
 
+// Cloudflare caches /src/ for hours, keyed by the ?v= query. A file loaded with
+// different ?v= values on different pages means one page was missed in a bump.
+for (const [asset, versions] of collectAssetVersions()) {
+    if (versions.size > 1) {
+        const list = Array.from(versions, ([version, pages]) => `${version || 'no ?v='} on ${pages.join(', ')}`);
+        failures.push(`${asset}: loaded with different cache keys (${list.join('; ')})`);
+    }
+}
+
 // iOS opens pages outside the installed app's scope (such as auth.html) in an
 // in-app browser with a URL bar, so pin the scope to the whole site.
 const manifest = JSON.parse(fs.readFileSync(path.join(ROOT, 'manifest.webmanifest'), 'utf8'));
@@ -84,6 +93,24 @@ function collectAssets() {
     }
 
     return Array.from(assets).sort();
+}
+
+// Map of asset path -> Map of ?v= value ('' when absent) -> pages that use it.
+function collectAssetVersions() {
+    const versions = new Map();
+    for (const htmlFile of fs.readdirSync(ROOT).filter(name => name.endsWith('.html')).sort()) {
+        const html = fs.readFileSync(path.join(ROOT, htmlFile), 'utf8');
+        for (const url of extractLocalUrls(html)) {
+            const relativePath = normalizeAssetPath(url);
+            if (!relativePath || relativePath.endsWith('.html')) continue;
+            const version = (/[?&]v=([^&#]*)/.exec(url) || [])[1] || '';
+            if (!versions.has(relativePath)) versions.set(relativePath, new Map());
+            const pages = versions.get(relativePath);
+            if (!pages.has(version)) pages.set(version, []);
+            if (!pages.get(version).includes(htmlFile)) pages.get(version).push(htmlFile);
+        }
+    }
+    return versions;
 }
 
 function extractLocalUrls(html) {

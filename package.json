@@ -2,6 +2,7 @@
   "name": "mortgage-backed-game",
   "private": true,
   "scripts": {
+    "dev:web": "node scripts/dev-static-server.js",
     "test": "npm run test:static && npm run test:architecture && npm --prefix backend test -- --runInBand && npm run test:e2e",
     "test:static": "node scripts/check-static-assets.js",
     "test:architecture": "node scripts/check-architecture.js",
