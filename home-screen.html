@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <meta name="theme-color" content="#ECF1EC">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-title" content="Mortgage">
+    <link rel="icon" type="image/png" sizes="32x32" href="src/assets/favicon-32.png">
+    <link rel="apple-touch-icon" sizes="180x180" href="src/assets/apple-touch-icon.png">
+    <link rel="manifest" href="/manifest.webmanifest">
+    <title>Add to Home Screen — Mortgage Backed Monopoly</title>
+    <link rel="preload" href="src/assets/fonts/besley-latin.woff2" as="font" type="font/woff2" crossorigin>
+    <link rel="stylesheet" href="src/css/tokens.css?v=2">
+    <link rel="stylesheet" href="src/css/style.css?v=20">
+</head>
+<body>
+    <div class="container">
+        <header class="app-bar">
+            <a class="app-bar-back" href="lobby.html" id="home-screen-back" aria-label="Back to your game">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg>
+            </a>
+            <div class="app-bar-title"><strong>Mortgage Backed Monopoly</strong></div>
+        </header>
+
+        <main class="content home-screen-page">
+            <!-- In Safari: how to add the game to the Home Screen. -->
+            <section id="home-screen-steps" hidden>
+                <img class="home-screen-icon" src="src/assets/apple-touch-icon.png" width="72" height="72" alt="">
+                <div class="page-title">
+                    <h1>Add to Home Screen</h1>
+                    <p>A Mortgage icon next to your apps that opens the game full screen and buzzes you on your turn. It's a shortcut to this site, not an App Store app.</p>
+                </div>
+
+                <ol class="group home-screen-steps">
+                    <li>
+                        <span class="home-screen-glyph" aria-hidden="true">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12M8 7l4-4 4 4"/><path d="M8.5 10.5H6.5v10h11v-10h-2"/></svg>
+                        </span>
+                        <div>
+                            <strong>Tap Share</strong>
+                            <small>The square with an arrow in Safari's toolbar.</small>
+                        </div>
+                    </li>
+                    <li>
+                        <span class="home-screen-glyph" aria-hidden="true">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="16" height="16" rx="4"/><path d="M12 8.5v7M8.5 12h7"/></svg>
+                        </span>
+                        <div>
+                            <strong>Tap Add to Home Screen</strong>
+                            <small>Scroll down the list if you don't see it, then tap Add.</small>
+                        </div>
+                    </li>
+                    <li>
+                        <img class="home-screen-glyph home-screen-glyph-app" src="src/assets/apple-touch-icon.png" width="40" height="40" alt="">
+                        <div>
+                            <strong>Open Mortgage from your Home Screen</strong>
+                            <small>Within 10 minutes. It opens your game, already signed in.</small>
+                        </div>
+                    </li>
+                    <li>
+                        <span class="home-screen-glyph" aria-hidden="true">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 16.5V11a6 6 0 0 1 12 0v5.5l1.5 2h-15z"/><path d="M10 20.5a2.2 2.2 0 0 0 4 0"/></svg>
+                        </span>
+                        <div>
+                            <strong>Turn on alerts</strong>
+                            <small>Tap the bell at the top of the game, then Turn on alerts.</small>
+                        </div>
+                    </li>
+                </ol>
+
+                <p class="home-screen-footnote">This page's address signs the new icon in as you. It works once and expires in 10 minutes, so add it from this phone only.</p>
+            </section>
+
+            <!-- In the Home Screen icon: signing in and opening the game. -->
+            <section id="home-screen-launch" class="home-screen-launch" hidden>
+                <img class="home-screen-icon" src="src/assets/apple-touch-icon.png" width="72" height="72" alt="">
+                <div class="page-title" role="status">
+                    <h1 id="home-screen-launch-title">Opening your game</h1>
+                    <p id="home-screen-launch-text">Signing you in…</p>
+                </div>
+                <a id="home-screen-fallback" class="btn btn-primary" href="index.html#resume" hidden>Go to the home page</a>
+            </section>
+        </main>
+    </div>
+
+    <script src="src/js/api.js?v=6"></script>
+    <script src="src/js/home-screen.js?v=1"></script>
+</body>
+</html>

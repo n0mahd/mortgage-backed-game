@@ -29,6 +29,8 @@ Production database: SQLite on the M60e at `/mnt/ssd/projects/mortgage-backed/ba
 | Device transfer code | `device_transfer_codes.code_hash` (SHA-256) | Move a session to another device | Server only | Rows are never deleted (expire after 10 minutes) | Next code request for that user deletes unused ones |
 | Rejoin request | `rejoin_requests` (room, seat, SHA-256 of the asking browser's secret, status, who answered) | Let a player who lost their token back into their seat once another player approves | Server only; approvers see the seat name | Rows are never deleted (expire after 10 minutes) | Cascades with the room or seat |
 | Game history | `game_events`, `game_actions.request_json`/`result_json` | Game log, idempotent retries | Room members (events) | Forever | Nothing |
+| Push subscription (turn alerts) | `push_subscriptions`: the browser's push endpoint URL and its encryption keys, per user ID | Send "your turn" alerts to devices the player turned them on for | Server only | Until the player turns alerts off, the push service reports the device gone, or the player adds a sixth device (oldest dropped) | Turn off alerts; 404/410 from the push service |
+| Game-on-screen presence | In memory only: user ID to visible socket IDs | Skip turn alerts for players already looking at the game | Server only | While the page is open and visible | Page hidden, socket disconnect, process restart |
 | Rate-limit keys (IP, user ID, email sender and recipient) | In memory only | Abuse protection, including per-recipient email limits | Server only | Window length (15 to 60 minutes) | Process restart or window expiry |
 
 ## Logs
@@ -49,6 +51,9 @@ Production database: SQLite on the M60e at `/mnt/ssd/projects/mortgage-backed/ba
 | `localStorage.mortgage_hotseat_resume_rooms` | Hotseat rooms and their players' tokens, so a shared device can resume | Until the hotseat game is cleared | No |
 | `sessionStorage.saved_tokens_refreshed` | Flag (`1`) so saved hotseat tokens are swapped for new-secret ones once per tab | Browser tab | Yes |
 | `sessionStorage.hotseat_tokens` | Tokens for each hotseat seat | Browser tab | Yes |
+| Service worker (`/sw.js`) and its push subscription | No data; it only shows alerts and opens the game when one is tapped. Caches nothing. | Until the site's data is cleared | Turning alerts off unsubscribes |
+
+The Home Screen icon on iPhone has its own storage. It is signed in once with a one-time device transfer code carried in the `home-screen.html?code=` address, which works once and expires after 10 minutes.
 
 ## Third parties
 
@@ -56,6 +61,7 @@ Production database: SQLite on the M60e at `/mnt/ssd/projects/mortgage-backed/ba
 | --- | --- | --- | --- |
 | Cloudflare (proxy, tunnel) | All traffic, including client IPs, tokens in headers and request bodies | TLS, DDoS protection, tunnel to the M60e | Not without exposing the home IP |
 | Resend | Recipient email, subject, the code or room list | Sends OTP, invite and forgot-code email | Yes (UseSend was self-hosted before the M60e move) |
+| Browser push services (Apple, Google, Mozilla, Microsoft) | An encrypted alert ("Your turn", the room name and a game link) sent to the device's push endpoint, signed with our VAPID key. The service can't read the content; it sees the endpoint, timing and size. | Deliver turn alerts while the game isn't open | No: they are the only way to reach a locked phone |
 | GitHub (`abdullahak/mortgage-backed-game`, public) | Source code only | Hosting | n/a |
 | The AI provider behind each invited agent (whichever app the host pastes an invite into) | That seat's agent key, and the room's game state: player names, room name, cash, properties, game log. Never emails, room codes or other players' keys or tokens. | The host invited an agent | The host chooses the provider, not us |
 
@@ -74,6 +80,7 @@ user IDs, IPs or free text, and scrubbed error fingerprints.
 | --- | --- | --- |
 | `JWT_SECRET` | Production `backend/.env` only | On any leak. Move the old value to `JWT_SECRET_PREVIOUS` so players are swapped onto the new secret without signing out, then remove it after a week or two (see `SETUP.md`) |
 | Email API key (`USESEND_API_KEY`) | Production `backend/.env` only | On any leak |
+| Push signing key (`VAPID_PRIVATE_KEY`) | Production `backend/.env` only | On any leak (rotating it drops every subscription; players turn alerts on again) |
 
 ## Open findings
 

@@ -97,6 +97,7 @@ async function loadGameData(roomId) {
         lastGameSyncAt = Date.now();
         document.getElementById('move-device-btn')?.toggleAttribute('hidden', isHotseatMode);
         document.getElementById('turn-alerts-btn')?.toggleAttribute('hidden', isHotseatMode);
+        refreshTurnAlertsButton();
 
         // Find current player data
         const gameState = game.game_state;
@@ -2383,44 +2384,67 @@ async function openMoveDeviceModal() {
 // ---------------------------------------------------------------
 // Turn alerts (push notifications). See src/js/turn-notifications.js.
 // ---------------------------------------------------------------
-const TURN_ALERT_COPY = {
-    'needs-install': {
-        text: 'On iPhone, alerts work once the game is on your Home Screen. Tap "Get ready to install", then tap Share and "Add to Home Screen". Open the new icon; you will already be signed in. Then tap Alerts again to turn them on.',
-        actions: [['prepare-install', 'Get ready to install', 'btn-primary']],
-    },
-    off: {
-        text: "Get a notification, with a buzz, when it's your turn, even when your phone is locked.",
-        actions: [['enable', 'Turn on alerts', 'btn-primary']],
-    },
-    on: {
-        text: "Alerts are on for this device. You'll get a notification when it's your turn.",
-        actions: [['test', 'Send a test', 'btn-secondary'], ['disable', 'Turn off', 'btn-secondary']],
-    },
-    denied: {
-        text: 'Notifications are blocked for this site. Allow them in your browser or phone settings, then come back here.',
-        actions: [],
-    },
-    unsupported: {
-        text: "This browser can't show notifications. Try Chrome or Firefox, or on iPhone add the game to your Home Screen.",
-        actions: [],
-    },
-    unavailable: {
-        text: 'Alerts are not available right now.',
-        actions: [],
-    },
-};
+const TURN_ALERT_HINT = "Get a buzz when it's your turn and the game isn't open.";
 
-async function renderTurnAlerts(message) {
-    const body = document.getElementById('turnAlertsBody');
+function turnAlertCopy(state) {
+    const standalone = window.TurnNotifications.isStandalone();
+    switch (state) {
+        case 'needs-home-screen':
+            return {
+                hint: `${TURN_ALERT_HINT} On iPhone, that needs the game on your Home Screen.`,
+                note: "Adding it puts a Mortgage icon next to your apps that opens this game full screen. It's a shortcut to the site, not an App Store app, so there's nothing to download.",
+                actions: [['add-to-home-screen', 'Add to Home Screen', 'btn-primary'], ['close', 'Not now', 'btn-secondary']],
+            };
+        case 'off':
+            return {
+                hint: TURN_ALERT_HINT,
+                actions: [['enable', 'Turn on alerts', 'btn-primary'], ['close', 'Not now', 'btn-secondary']],
+            };
+        case 'on':
+            return {
+                hint: "Alerts are on for this device. You'll get one when it's your turn and the game isn't open.",
+                actions: [['test', 'Send a test alert', 'btn-secondary'], ['disable', 'Turn off alerts', 'btn-secondary'], ['close', 'Done', 'btn-secondary']],
+            };
+        case 'denied':
+            return {
+                hint: standalone
+                    ? 'Notifications are off for Mortgage. Turn them on in Settings, Notifications, Mortgage, then come back here.'
+                    : "Notifications are blocked for this site. Allow them in your browser's site settings, then come back here.",
+                actions: [['close', 'Done', 'btn-secondary']],
+            };
+        case 'unsupported':
+            return {
+                hint: "This browser can't show alerts. On iPhone, open the game in Safari and add it to your Home Screen. On Android, use Chrome.",
+                actions: [['close', 'Done', 'btn-secondary']],
+            };
+        default:
+            return {
+                hint: "Alerts aren't available right now. Try again later.",
+                actions: [['close', 'Done', 'btn-secondary']],
+            };
+    }
+}
+
+function setText(id, text) {
+    const element = document.getElementById(id);
+    element.textContent = text || '';
+    element.hidden = !text;
+}
+
+async function renderTurnAlerts(statusMessage) {
     const actions = document.getElementById('turnAlertsActions');
-    body.textContent = 'Checking…';
     actions.innerHTML = '';
+    setText('turnAlertsHint', 'Checking this device…');
+    setText('turnAlertsNote', '');
     const state = await window.TurnNotifications.status().catch(() => 'unavailable');
-    const copy = TURN_ALERT_COPY[state] || TURN_ALERT_COPY.unavailable;
-    body.innerHTML = `<p>${escapeHtml(copy.text)}</p>${message ? `<p class="empty-state">${escapeHtml(message)}</p>` : ''}`;
+    const copy = turnAlertCopy(state);
+    setText('turnAlertsHint', copy.hint);
+    setText('turnAlertsNote', copy.note);
+    setText('turnAlertsStatus', statusMessage);
     actions.innerHTML = copy.actions.map(([action, label, style]) =>
         `<button class="btn ${style}" data-turn-alerts="${action}">${escapeHtml(label)}</button>`
-    ).concat('<button class="btn btn-secondary" data-close-modal="turnAlertsModal">Done</button>').join('');
+    ).join('');
+    document.getElementById('turn-alerts-btn')?.classList.toggle('is-on', state === 'on');
 }
 
 async function openTurnAlertsModal() {
@@ -2428,31 +2452,42 @@ async function openTurnAlertsModal() {
     await renderTurnAlerts();
 }
 
+async function refreshTurnAlertsButton() {
+    if (!window.TurnNotifications || isHotseatMode) return;
+    const state = await window.TurnNotifications.status().catch(() => 'unavailable');
+    document.getElementById('turn-alerts-btn')?.classList.toggle('is-on', state === 'on');
+}
+
 async function handleTurnAlertsAction(event) {
     const button = event.target.closest('[data-turn-alerts]');
     if (!button) return;
+    const action = button.dataset.turnAlerts;
+    if (action === 'close') {
+        closeModal('turnAlertsModal');
+        return;
+    }
     button.disabled = true;
     try {
-        switch (button.dataset.turnAlerts) {
-            case 'prepare-install':
-                await window.TurnNotifications.prepareHomeScreenInstall();
+        switch (action) {
+            case 'add-to-home-screen':
+                await window.TurnNotifications.openAddToHomeScreen();
                 return;
             case 'enable':
                 await window.TurnNotifications.enable();
-                await renderTurnAlerts('Alerts are on. Try "Send a test".');
+                await renderTurnAlerts('Alerts turned on.');
                 return;
             case 'test': {
                 const { sent } = await window.TurnNotifications.sendTest();
-                await renderTurnAlerts(sent ? 'Test sent. It should arrive in a few seconds.' : 'No device received it. Turn alerts off and on again.');
+                await renderTurnAlerts(sent ? 'Test alert sent. It should arrive in a few seconds.' : "The test alert didn't reach this device. Turn alerts off and on again.");
                 return;
             }
             case 'disable':
                 await window.TurnNotifications.disable();
-                await renderTurnAlerts('Alerts are off for this device.');
+                await renderTurnAlerts('Alerts turned off for this device.');
                 return;
         }
     } catch (error) {
-        await renderTurnAlerts(error.message || 'Something went wrong. Try again.');
+        await renderTurnAlerts(error.message || "That didn't work. Try again.");
     }
 }
 

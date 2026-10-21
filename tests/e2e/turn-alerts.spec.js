@@ -62,44 +62,46 @@ test.describe('Turn alerts', () => {
         expect(await sw.text()).toContain("addEventListener('push'");
     });
 
-    test('iPhone Safari explains Home Screen install and hands the session to the app', async ({ browser }) => {
+    test('iPhone Safari explains Add to Home Screen and hands the session to the icon', async ({ browser }) => {
         const { room, alice } = await (async () => setupGame(await (await browser.newContext()).request))();
         const safari = await iphone(browser);
         const page = await signedInGame(safari, room, alice.token);
 
         await page.click('#turn-alerts-btn');
-        await expect(page.locator('#turnAlertsBody')).toContainText('Home Screen');
-        await page.getByRole('button', { name: 'Get ready to install' }).click();
-        await expect(page).toHaveURL(/install\.html\?code=[A-Z2-9]{8}$/);
-        await expect(page.locator('#install-steps')).toBeVisible();
-        await expect(page.locator('#install-steps')).toContainText('Add to Home Screen');
+        await expect(page.locator('#turnAlertsHint')).toContainText('Home Screen');
+        await expect(page.locator('#turnAlertsNote')).toContainText('not an App Store app');
+        await page.getByRole('button', { name: 'Add to Home Screen' }).click();
+        await expect(page).toHaveURL(/home-screen\.html\?code=[A-Z2-9]{8}$/);
+        await expect(page.locator('#home-screen-steps')).toBeVisible();
+        await expect(page.locator('#home-screen-steps h1')).toHaveText('Add to Home Screen');
         const code = new URL(page.url()).searchParams.get('code');
 
         // First launch of the Home Screen app: separate storage, signed out.
         const app = await iphone(browser, { standalone: true });
         const launched = await app.newPage();
-        await launched.goto(`${BASE}/install.html?code=${code}`);
+        await launched.goto(`${BASE}/home-screen.html?code=${code}`);
         await expect(launched).toHaveURL(new RegExp(`game\\.html\\?room=${room.id}`), { timeout: 10000 });
         await expect(launched.locator('.player-card.current-user')).toContainText('Alice');
 
         // Later launches reuse the same start address; the spent code is skipped.
-        await launched.goto(`${BASE}/install.html?code=${code}`);
+        await launched.goto(`${BASE}/home-screen.html?code=${code}`);
         await expect(launched).toHaveURL(new RegExp(`game\\.html\\?room=${room.id}`), { timeout: 10000 });
 
         // Inside the app, alerts can be turned on (not "install first" again).
         await launched.click('#turn-alerts-btn');
-        await expect(launched.locator('#turnAlertsBody')).not.toContainText('Home Screen');
+        await expect(launched.locator('#turnAlertsHint')).not.toContainText('Home Screen');
+        await expect(launched.locator('#turnAlertsHint')).not.toHaveText('Checking this device…');
         await safari.close();
         await app.close();
     });
 
-    test('Safari itself never spends the install code', async ({ browser, request }) => {
+    test('Safari itself never spends the sign-in code', async ({ browser, request }) => {
         const { room, alice } = await setupGame(request);
         const safari = await iphone(browser);
         const page = await signedInGame(safari, room, alice.token);
         await page.click('#turn-alerts-btn');
-        await page.getByRole('button', { name: 'Get ready to install' }).click();
-        await expect(page.locator('#install-steps')).toBeVisible();
+        await page.getByRole('button', { name: 'Add to Home Screen' }).click();
+        await expect(page.locator('#home-screen-steps')).toBeVisible();
         const code = new URL(page.url()).searchParams.get('code');
 
         const redeemed = await request.post(`${BASE_API}/auth/redeem-transfer`, { data: { code } });
@@ -107,12 +109,13 @@ test.describe('Turn alerts', () => {
         await safari.close();
     });
 
-    test('an expired install link in the app explains what to do', async ({ browser }) => {
+    test('an expired sign-in link in the Home Screen icon explains what to do', async ({ browser }) => {
         const app = await iphone(browser, { standalone: true });
         const page = await app.newPage();
-        await page.goto(`${BASE}/install.html?code=ZZZZ2222`);
-        await expect(page.locator('#install-error')).toContainText('expired');
-        await expect(page.locator('#install-fallback')).toBeVisible();
+        await page.goto(`${BASE}/home-screen.html?code=ZZZZ2222`);
+        await expect(page.locator('#home-screen-launch-title')).toHaveText('Sign in again');
+        await expect(page.locator('#home-screen-launch-text')).toContainText('expired');
+        await expect(page.locator('#home-screen-fallback')).toBeVisible();
         await app.close();
     });
 
@@ -122,7 +125,7 @@ test.describe('Turn alerts', () => {
         const page = await signedInGame(context, room, alice.token);
         // Headless Chromium reports notifications as blocked.
         await page.click('#turn-alerts-btn');
-        await expect(page.locator('#turnAlertsBody')).toContainText('blocked');
+        await expect(page.locator('#turnAlertsHint')).toContainText('blocked');
         await context.close();
     });
 
@@ -136,7 +139,7 @@ test.describe('Turn alerts', () => {
         const page = await signedInGame(context, room, alice.token);
         await page.click('#turn-alerts-btn');
         await expect(page.getByRole('button', { name: 'Turn on alerts' })).toBeVisible();
-        await page.getByRole('button', { name: 'Done' }).click();
+        await page.getByRole('button', { name: 'Not now' }).click();
         await expect(page.locator('#turnAlertsModal')).not.toHaveClass(/active/);
         await context.close();
     });

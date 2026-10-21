@@ -1,11 +1,11 @@
-// Turn notifications ("Alerts"): Web Push so a phone buzzes when it becomes the
-// player's turn, even with the screen locked. Classic browser script, no build.
+// Turn alerts: Web Push so a phone buzzes when it becomes the player's turn
+// and the game isn't open. Classic browser script, no build.
 //
 // iPhone and iPad only allow push for sites added to the Home Screen, and the
-// Home Screen app has its own storage. So on iOS Safari we first hand the
-// signed-in session to the future app: a one-time transfer code goes into the
-// page address (install.html?code=CODE) before the player taps "Add to Home
-// Screen", and the installed app redeems it on first launch.
+// Home Screen icon has its own storage. So on iOS Safari we first hand the
+// signed-in session to it: a one-time transfer code goes into the page address
+// (home-screen.html?code=CODE) before the player taps "Add to Home Screen",
+// and the icon redeems it the first time it opens.
 (function (global) {
     'use strict';
 
@@ -32,9 +32,9 @@
         return reg ? reg.pushManager.getSubscription() : null;
     }
 
-    // One of: needs-install, unsupported, unavailable, denied, off, on.
+    // One of: needs-home-screen, unsupported, unavailable, denied, off, on.
     async function status() {
-        if (isIos() && !isStandalone()) return 'needs-install';
+        if (isIos() && !isStandalone()) return 'needs-home-screen';
         if (!pushSupported()) return 'unsupported';
         const config = await apiFetch('/push/config').catch(() => ({ enabled: false }));
         if (!config.enabled) return 'unavailable';
@@ -50,9 +50,9 @@
     // Must run from a tap: browsers only show the permission prompt then.
     async function enable() {
         const config = await apiFetch('/push/config');
-        if (!config.enabled) throw new Error('Alerts are not available right now.');
+        if (!config.enabled) throw new Error("Alerts aren't available right now. Try again later.");
         const permission = await global.Notification.requestPermission();
-        if (permission !== 'granted') throw new Error('Notifications are blocked for this site.');
+        if (permission !== 'granted') throw new Error("Notifications weren't allowed, so alerts are still off.");
         const reg = await registration();
         await global.navigator.serviceWorker.ready;
         const subscription = await reg.pushManager.getSubscription()
@@ -71,11 +71,12 @@
         return apiFetch('/push/test', { method: 'POST' });
     }
 
-    // iOS Safari: move to the install page carrying a one-time code for the app.
-    async function prepareHomeScreenInstall() {
+    // iOS Safari: open the Add to Home Screen page, carrying a one-time code
+    // that signs the new Home Screen icon in.
+    async function openAddToHomeScreen() {
         const { code } = await requestDeviceTransferCode();
-        global.location.href = `/install.html?code=${encodeURIComponent(code)}`;
+        global.location.href = `/home-screen.html?code=${encodeURIComponent(code)}`;
     }
 
-    global.TurnNotifications = { status, enable, disable, sendTest, prepareHomeScreenInstall, isIos, isStandalone };
+    global.TurnNotifications = { status, enable, disable, sendTest, openAddToHomeScreen, isIos, isStandalone };
 })(window);

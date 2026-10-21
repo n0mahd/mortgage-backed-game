@@ -3367,3 +3367,112 @@ input[type="checkbox"] {
 }
 
 .rejoin-waiting { color: var(--ink-3); }
+
+/* ==========================================================================
+   Turn alerts: the bell in the game app bar, its sheet, and the
+   Add to Home Screen page (home-screen.html)
+   ========================================================================== */
+
+/* The bell fills in when alerts are on for this device. */
+.turn-alerts-btn.is-on svg path:first-child { fill: currentColor; }
+
+.turn-alerts-note {
+    margin: 0 0 var(--s3);
+    padding: var(--s3) var(--s4);
+    border-radius: var(--r-control);
+    background: var(--note);
+    border: 1px solid var(--rule);
+    font-size: var(--text-footnote);
+    color: var(--ink-2);
+    line-height: 1.45;
+}
+
+.turn-alerts-status {
+    margin: 0;
+    font-size: var(--text-footnote);
+    font-weight: 600;
+    color: var(--emerald);
+}
+
+.home-screen-page {
+    padding-bottom: calc(var(--s8) + var(--safe-bottom));
+}
+
+.home-screen-icon {
+    display: block;
+    width: 72px;
+    height: 72px;
+    margin-top: var(--s5);
+    border-radius: 16px; /* iOS icon corner at this size */
+    box-shadow: 0 0 0 1px var(--rule);
+}
+
+.home-screen-steps {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    /* Safari's own blue, only on the Safari glyphs, so people recognise them. */
+    --safari-blue: #007AFF;
+}
+
+.home-screen-steps li {
+    display: flex;
+    align-items: center;
+    gap: var(--s4);
+    padding: var(--s3) var(--s4);
+    min-height: 64px;
+}
+
+.home-screen-steps li + li { border-top: 1px solid var(--rule); }
+
+.home-screen-steps strong {
+    display: block;
+    font-size: var(--text-body);
+    font-weight: 600;
+    color: var(--ink);
+}
+
+.home-screen-steps small {
+    display: block;
+    margin-top: 2px;
+    font-size: var(--text-footnote);
+    color: var(--ink-2);
+    line-height: 1.4;
+}
+
+.home-screen-glyph {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    width: 40px;
+    height: 40px;
+    border-radius: var(--r-control);
+    background: var(--paper);
+    color: var(--safari-blue);
+}
+
+.home-screen-glyph svg { width: 24px; height: 24px; }
+
+.home-screen-steps li:last-child .home-screen-glyph { color: var(--emerald); }
+
+.home-screen-glyph-app {
+    border-radius: 9px; /* iOS icon corner at 40px */
+    box-shadow: 0 0 0 1px var(--rule);
+}
+
+.home-screen-footnote {
+    margin-top: var(--s4);
+    font-size: var(--text-footnote);
+    color: var(--ink-3);
+    line-height: 1.45;
+    max-width: 46ch;
+}
+
+.home-screen-launch .btn { margin-top: var(--s4); width: 100%; }
+
+/* Very narrow phones: three app-bar icons leave the room name too little room. */
+@media (max-width: 359px) {
+    .app-bar-icon { width: 36px; }
+    .room-code-chip { padding: 5px 7px; letter-spacing: 0.08em; }
+}
