@@ -231,7 +231,7 @@ When you report, give the run id, the git rev (`doctor`), the scenarios played (
 | --- | --- |
 | `scripts/verify-mortgage` | Entry point (bash → `cli.js`). |
 | `scripts/cli.js` | `up`/`down`/`list`/`doctor`/`logs`/`env`/`play`; forwards the rest to the daemon. |
-| `scripts/daemon.js` | One per run: backend child, static+API proxy (`scripts/devServer.js`), Chromium, control API on `127.0.0.1:<ctl>`, findings and report. |
+| `scripts/daemon.js` | One per run: backend child, static+API proxy (`scripts/dev-server.js`), Chromium, control API on `127.0.0.1:<ctl>`, findings and report. |
 | `scripts/lib/table.js` | Seats, page watchers, sign-in, room creation, invites, joining. |
 | `scripts/lib/bot.js` | Autoplay policy, sync/invariant/stuck checks, resilience tests. |
 | `scripts/lib/view.js` | The `look` snapshot and ref/label resolution. |

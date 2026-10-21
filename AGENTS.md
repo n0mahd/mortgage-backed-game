@@ -90,10 +90,10 @@ When testing from the user's phone while they are on the go:
 
 Dev server commands:
 
-- Inspect `package.json` before choosing commands. The root package currently only defines Playwright test scripts; the backend package in `backend/package.json` defines `npm run start`.
+- Inspect `package.json` before choosing commands. The root package defines the static/architecture checks, the Playwright test scripts and `npm run dev:web`; the backend package in `backend/package.json` defines `npm run start`.
 - Production is on another machine, but still keep dev off ports `80` and `3010` so the Pi and the M60e layouts never get confused.
 - If backend testing is needed, run it on a separate dev-only port, for example: `PORT=3111 npm --prefix backend run start`.
-- Serve the web UI on the dedicated phone-facing dev port `3011`. If no project script has been added for static serving, use a simple dev-only static server bound to `0.0.0.0` and keep backend/API proxying pointed at the dev backend port, not `3010`.
+- Serve the web UI on the dedicated phone-facing dev port `3011` with `PORT=3011 DEV_BACKEND_ORIGIN=http://127.0.0.1:3111 npm run dev:web` (`scripts/dev-static-server.js`, built on `scripts/dev-server.js`; binds `0.0.0.0`). Keep backend/API proxying pointed at the dev backend port, not `3010`.
 - Keep dev game state and test data out of production paths; use a dev-only location such as `/mnt/ssd/dev-data/mortgage-backed`.
 
 When finishing any web change, tell the user:

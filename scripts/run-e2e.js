@@ -6,7 +6,7 @@ const http = require('http');
 const net = require('net');
 const path = require('path');
 const { spawn } = require('child_process');
-const { createStaticProxyServer } = require('./devServer');
+const { createStaticProxyServer } = require('./dev-server');
 
 const ROOT = path.resolve(__dirname, '..');
 const DEV_DATA_DIR = '/mnt/ssd/dev-data/mortgage-backed';

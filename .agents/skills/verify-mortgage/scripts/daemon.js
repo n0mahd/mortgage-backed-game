@@ -210,7 +210,7 @@ async function startBackend() {
 }
 
 async function startWeb() {
-    const { createStaticProxyServer } = require(path.join(runs.APP_ROOT, 'scripts', 'devServer.js'));
+    const { createStaticProxyServer } = require(path.join(runs.APP_ROOT, 'scripts', 'dev-server.js'));
     webServer = createStaticProxyServer({ root: runs.APP_ROOT, backendOrigin: `http://127.0.0.1:${run.ports.api}`, noStore: true });
     await new Promise((resolve, reject) => {
         webServer.on('error', reject);
