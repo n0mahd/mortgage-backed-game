@@ -6,14 +6,13 @@ async function handleSendCode() {
 
     if (!email) {
         errorEl.textContent = 'Please enter your email address';
-        errorEl.classList.add('active');
         return;
     }
 
     const btn = document.getElementById('send-code-btn');
     btn.disabled = true;
     btn.textContent = 'Sending...';
-    errorEl.classList.remove('active');
+    errorEl.textContent = '';
 
     try {
         await apiFetch('/auth/send-otp', {
@@ -28,7 +27,6 @@ async function handleSendCode() {
 
     } catch (error) {
         errorEl.textContent = error.message || 'Failed to send code. Please try again.';
-        errorEl.classList.add('active');
         btn.disabled = false;
         btn.textContent = 'Send Code';
         console.error('Send code error:', error);
@@ -42,14 +40,13 @@ async function handleVerifyCode() {
 
     if (!token) {
         errorEl.textContent = 'Please enter the 6-digit code';
-        errorEl.classList.add('active');
         return;
     }
 
     const btn = document.getElementById('verify-code-btn');
     btn.disabled = true;
     btn.textContent = 'Verifying...';
-    errorEl.classList.remove('active');
+    errorEl.textContent = '';
 
     try {
         const data = await apiFetch('/auth/verify-otp', {
@@ -62,7 +59,6 @@ async function handleVerifyCode() {
 
     } catch (error) {
         errorEl.textContent = error.message || 'Invalid or expired code. Please try again.';
-        errorEl.classList.add('active');
         btn.disabled = false;
         btn.textContent = 'Verify Code';
         console.error('Verify code error:', error);
@@ -73,7 +69,7 @@ function resetToEmail() {
     document.getElementById('step-code').style.display = 'none';
     document.getElementById('step-email').style.display = 'block';
     document.getElementById('code-input').value = '';
-    document.getElementById('code-error').classList.remove('active');
+    document.getElementById('code-error').textContent = '';
     const btn = document.getElementById('send-code-btn');
     btn.disabled = false;
     btn.textContent = 'Send Code';

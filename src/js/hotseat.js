@@ -23,7 +23,6 @@ async function startHotseatGame() {
     const errorEl = document.getElementById('hotseat-error');
     const btn = document.getElementById('start-hotseat-btn');
     errorEl.textContent = '';
-    errorEl.classList.remove('active');
 
     const inputs = document.querySelectorAll('.player-name-input');
     const names = Array.from(inputs)
@@ -32,14 +31,12 @@ async function startHotseatGame() {
 
     if (names.length < 2) {
         errorEl.textContent = 'Enter at least 2 player names.';
-        errorEl.classList.add('active');
         return;
     }
 
     const uniqueNames = new Set(names.map(n => n.toLowerCase()));
     if (uniqueNames.size !== names.length) {
         errorEl.textContent = 'Each player must have a unique name.';
-        errorEl.classList.add('active');
         return;
     }
 
@@ -85,7 +82,6 @@ async function startHotseatGame() {
     } catch (err) {
         console.error('Hotseat setup error:', err);
         errorEl.textContent = 'Setup failed: ' + err.message;
-        errorEl.classList.add('active');
         btn.disabled = false;
         btn.textContent = 'Start Local Game';
     }

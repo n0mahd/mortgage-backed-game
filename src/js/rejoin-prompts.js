@@ -53,7 +53,7 @@
             ? 'More than one device asked for this in the last 10 minutes. Decline unless you are sure this one is theirs.'
             : '';
         warning.hidden = !request.otherRecentRequests;
-        el.querySelector('.rejoin-prompt-error').classList.remove('active');
+        el.querySelector('.rejoin-prompt-error').textContent = '';
         el.classList.add('active');
     }
 
@@ -83,7 +83,6 @@
         } catch (error) {
             const errorEl = modal.querySelector('.rejoin-prompt-error');
             errorEl.textContent = error.message || 'Could not answer the request.';
-            errorEl.classList.add('active');
         } finally {
             busy = false;
             modal.querySelectorAll('[data-decision]').forEach(button => { button.disabled = false; });

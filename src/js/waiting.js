@@ -86,11 +86,10 @@ async function joinAsGuest() {
 
     if (!playerName) {
         errorEl.textContent = 'Please enter your player name';
-        errorEl.classList.add('active');
         return;
     }
 
-    errorEl.classList.remove('active');
+    errorEl.textContent = '';
     btn.disabled = true;
     btn.textContent = 'Joining...';
 
@@ -135,7 +134,6 @@ async function joinAsGuest() {
             console.error('Error joining room:', error);
         }
         errorEl.textContent = error.message || 'Could not join room. Check your code and try again.';
-        errorEl.classList.add('active');
         btn.disabled = false;
         btn.textContent = 'Join Game';
     }
