@@ -8,6 +8,7 @@ const db = require('../db');
 const { getConfig } = require('../config');
 const { createRateLimiter, getRequestActorKey } = require('../rateLimit');
 const { normalizeEmail, isValidEmail } = require('../normalizers');
+const { createAnonymousUser } = require('../services/rooms');
 
 const config = getConfig();
 const JWT_SECRET = config.jwtSecret;
@@ -29,12 +30,18 @@ function requireAuth(req, res, next) {
     if (!header || !header.startsWith('Bearer ')) {
         return res.status(401).json({ error: 'Unauthorized' });
     }
+    const userId = verifyToken(header.slice(7));
+    if (!userId) return res.status(401).json({ error: 'Invalid token' });
+    req.userId = userId;
+    next();
+}
+
+// Returns the user id for a valid player token, or null.
+function verifyToken(token) {
     try {
-        const payload = jwt.verify(header.slice(7), JWT_SECRET);
-        req.userId = payload.sub;
-        next();
+        return jwt.verify(token, JWT_SECRET).sub || null;
     } catch {
-        return res.status(401).json({ error: 'Invalid token' });
+        return null;
     }
 }
 
@@ -119,9 +126,8 @@ router.post('/verify-otp', authRateLimit, (req, res) => {
 
 // POST /api/auth/anonymous
 router.post('/anonymous', authRateLimit, (req, res) => {
-    const userId = uuidv4();
-    db.prepare(`INSERT INTO users (id, email, is_anonymous) VALUES (?, NULL, 1)`).run(userId);
-    res.json({ token: makeToken(userId), user: { id: userId, email: null, is_anonymous: true } });
+    const user = createAnonymousUser();
+    res.json({ token: makeToken(user.id), user });
 });
 
 // GET /api/auth/me
@@ -136,7 +142,7 @@ router.post('/signout', requireAuth, (req, res) => {
     res.json({ ok: true });
 });
 
-module.exports = { router, requireAuth, makeToken };
+module.exports = { router, requireAuth, makeToken, verifyToken };
 
 function toSqliteDate(date) {
     return date.toISOString().replace('T', ' ').slice(0, 19);

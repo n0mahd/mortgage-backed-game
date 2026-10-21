@@ -1,11 +1,11 @@
 const express = require('express');
-const { v4: uuidv4 } = require('uuid');
 const db = require('../db');
 const { requireAuth, makeToken } = require('./auth');
 const { sendEmail } = require('../mailer');
 const { getConfig } = require('../config');
 const { createRateLimiter, getRequestActorKey } = require('../rateLimit');
 const { normalizeEmail, isValidEmail, normalizeInviteCode } = require('../normalizers');
+const { RoomError, createRoom, joinRoom } = require('../services/rooms');
 
 module.exports = (io) => {
 const router = express.Router();
@@ -98,29 +98,12 @@ async function sendForgotRoomCodes(email) {
 // POST /api/rooms — create room
 router.post('/', requireAuth, roomCreateRateLimit, (req, res) => {
     const { name, max_players, player_name } = req.body;
-    if (!name || !player_name) {
-        return res.status(400).json({ error: 'name and player_name required' });
+    try {
+        res.json(createRoom({ hostUserId: req.userId, name, maxPlayers: max_players, playerName: player_name }));
+    } catch (err) {
+        if (err instanceof RoomError) return res.status(err.status).json({ error: err.message });
+        throw err;
     }
-
-    const roomId = uuidv4();
-    const memberId = uuidv4();
-    const inviteCode = generateUniqueInviteCode();
-    const maxPlayers = Number(max_players || 4);
-    if (!Number.isInteger(maxPlayers) || maxPlayers < 2 || maxPlayers > 8) {
-        return res.status(400).json({ error: 'max_players must be between 2 and 8' });
-    }
-
-    db.prepare(`
-        INSERT INTO rooms (id, invite_code, host_id, name, max_players)
-        VALUES (?, ?, ?, ?, ?)
-    `).run(roomId, inviteCode, req.userId, name, maxPlayers);
-
-    db.prepare(`
-        INSERT INTO room_members (id, room_id, user_id, player_name)
-        VALUES (?, ?, ?, ?)
-    `).run(memberId, roomId, req.userId, player_name);
-
-    res.json(getRoomWithMembers(roomId));
 });
 
 // GET /api/rooms/by-code/:code — find room by invite code
@@ -205,28 +188,12 @@ router.get('/:id', requireAuth, (req, res) => {
 // POST /api/rooms/:id/join — join by room ID (already authenticated)
 router.post('/:id/join', requireAuth, (req, res) => {
     const { player_name } = req.body;
-    const room = getRoomWithMembers(req.params.id);
-    if (!room) return res.status(404).json({ error: 'Room not found' });
-
-    const alreadyJoined = room.room_members.some(m => m.user_id === req.userId);
-    if (alreadyJoined) return res.json(room);
-
-    if (room.room_members.length >= room.max_players) {
-        return res.status(400).json({ error: 'Room is full' });
+    try {
+        res.json(joinRoom(io, { roomId: req.params.id, userId: req.userId, playerName: player_name }));
+    } catch (err) {
+        if (err instanceof RoomError) return res.status(err.status).json({ error: err.message });
+        throw err;
     }
-    if (room.status !== 'waiting') {
-        return res.status(400).json({ error: 'Game has already started' });
-    }
-
-    const memberId = uuidv4();
-    db.prepare(`
-        INSERT INTO room_members (id, room_id, user_id, player_name)
-        VALUES (?, ?, ?, ?)
-    `).run(memberId, room.id, req.userId, player_name || 'Guest');
-
-    const updatedRoom = getRoomWithMembers(room.id);
-    io.to(`room:${room.id}`).emit('room:member_change', updatedRoom);
-    res.json(updatedRoom);
 });
 
 // DELETE /api/rooms/:id/leave — leave room
@@ -274,24 +241,6 @@ router.post('/send-code', async (req, res) => {
         res.json({ ok: true });
     });
 });
-
-function generateInviteCode() {
-    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-    let code = '';
-    for (let i = 0; i < 6; i++) {
-        code += chars.charAt(Math.floor(Math.random() * chars.length));
-    }
-    return code;
-}
-
-function generateUniqueInviteCode() {
-    for (let i = 0; i < 20; i++) {
-        const code = generateInviteCode();
-        const exists = db.prepare(`SELECT 1 FROM rooms WHERE invite_code = ?`).get(code);
-        if (!exists) return code;
-    }
-    throw new Error('Unable to generate unique invite code');
-}
 
     return router;
 };

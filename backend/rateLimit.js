@@ -9,16 +9,18 @@ function createRateLimiter(options = {}) {
     const store = new Map();
     let lastPruneAt = 0;
 
-    return function rateLimit(req, res, next) {
-        if (!enabled) return next();
-
+    // check(key) counts one hit against key and reports whether it is allowed.
+    // Non-HTTP callers (MCP tools) use it directly; the middleware wraps it.
+    function check(rawKey) {
         const now = Date.now();
+        if (!enabled) return { allowed: true, limit: max, remaining: max, resetAt: now + windowMs, retryAfterSeconds: 0 };
+
         if (now - lastPruneAt > windowMs) {
             pruneExpired(store, now);
             lastPruneAt = now;
         }
 
-        const key = `${name}:${keyGenerator(req)}`;
+        const key = `${name}:${rawKey}`;
         let record = store.get(key);
         if (!record || now >= record.resetAt) {
             record = { count: 0, resetAt: now + windowMs };
@@ -26,22 +28,36 @@ function createRateLimiter(options = {}) {
         record.count += 1;
         store.set(key, record);
 
-        const retryAfterSeconds = Math.max(1, Math.ceil((record.resetAt - now) / 1000));
-        const remaining = Math.max(0, max - record.count);
-        res.set('X-RateLimit-Limit', String(max));
-        res.set('X-RateLimit-Remaining', String(remaining));
-        res.set('X-RateLimit-Reset', String(Math.ceil(record.resetAt / 1000)));
+        return {
+            allowed: record.count <= max,
+            limit: max,
+            remaining: Math.max(0, max - record.count),
+            resetAt: record.resetAt,
+            retryAfterSeconds: Math.max(1, Math.ceil((record.resetAt - now) / 1000)),
+        };
+    }
 
-        if (record.count > max) {
-            res.set('Retry-After', String(retryAfterSeconds));
+    function rateLimit(req, res, next) {
+        if (!enabled) return next();
+
+        const result = check(keyGenerator(req));
+        res.set('X-RateLimit-Limit', String(result.limit));
+        res.set('X-RateLimit-Remaining', String(result.remaining));
+        res.set('X-RateLimit-Reset', String(Math.ceil(result.resetAt / 1000)));
+
+        if (!result.allowed) {
+            res.set('Retry-After', String(result.retryAfterSeconds));
             return res.status(429).json({
                 error: 'Too many requests',
-                retryAfterSeconds,
+                retryAfterSeconds: result.retryAfterSeconds,
             });
         }
 
         next();
-    };
+    }
+
+    rateLimit.check = check;
+    return rateLimit;
 }
 
 function defaultKeyGenerator(req) {

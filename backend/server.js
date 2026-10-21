@@ -24,6 +24,7 @@ if (config.trustProxy !== false) {
 
 const roomsRouter = require('./routes/rooms')(io);
 const gamesRouter = require('./routes/games')(io);
+const { createMcpRouter } = require('./mcp/server');
 
 app.use(cors(getCorsOptions(config)));
 app.use(express.json({ limit: config.requestBodyLimit }));
@@ -32,6 +33,7 @@ app.use(express.json({ limit: config.requestBodyLimit }));
 app.use('/api/auth', authRouter);
 app.use('/api/rooms', roomsRouter);
 app.use('/api/games', gamesRouter);
+app.use('/api/mcp', createMcpRouter(io));
 
 // Health check
 app.get('/api/health', (_req, res) => {
