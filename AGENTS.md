@@ -70,6 +70,7 @@ Production runs on the ThinkCentre M60e (`ssh m60e`), not on the Raspberry Pi, s
 - Backend: systemd unit `mortgage-backend` on `127.0.0.1:3010` (`HOST=127.0.0.1`, `TRUST_PROXY=loopback` in `backend/.env`), proxied by nginx for `/api/` and `/socket.io/`.
 - Code and data: `/mnt/ssd/projects/mortgage-backed` on the M60e. It is not a git checkout: deploys copy a `git archive` of `main` over it, keeping `backend/.env` and `backend/game.db*`, and run `npm ci --omit=dev` in `backend/`.
 - Game state lives only in SQLite, and a backend restart takes about a second; browsers resync on reconnect. So deploy between turns, after a `sqlite3 game.db ".backup …"`, and live games continue.
+- Cloudflare caches `/src/` assets for 4 hours (HTML is not cached). When a release changes a file under `src/`, bump its `?v=` query in every HTML page that loads it, or players keep the old copy.
 - The agent MCP endpoint `/api/mcp` goes through the same `/api/` proxy; nginx must pass the browser `Origin` header through unchanged (it does by default) so the endpoint can reject foreign browser origins.
 - Never point dev servers, tests or scripts at these resources.
 - Treat these as stable production resources; do not reuse them for development.
