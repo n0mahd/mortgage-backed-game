@@ -261,6 +261,26 @@ test.describe('Player feedback 2026-10-20', () => {
         await alice.context.close();
     });
 
+    test('opening the game address in a signed-out browser offers the device code, not just email', async ({ browser, request }) => {
+        const { room, users } = await setupGame(request);
+        const alice = await openGame(browser, room, users.Alice);
+        await alice.page.click('#move-device-btn');
+        await expect(alice.page.locator('#moveDeviceLink')).toHaveValue(/transfer=/);
+        const code = new URL(await alice.page.locator('#moveDeviceLink').inputValue()).searchParams.get('transfer');
+
+        const otherContext = await browser.newContext({ viewport: { width: 390, height: 844 } });
+        const other = await otherContext.newPage();
+        await other.goto(`${BASE}/game.html?room=${room.id}`);
+        await expect(other).toHaveURL(/index\.html\?signin=game/);
+        await expect(other.locator('#signed-out-notice')).toBeVisible();
+        await other.fill('#transfer-code', `${code.slice(0, 4)} ${code.slice(4)}`);
+        await other.click('#transfer-code-btn');
+        await expect(other).toHaveURL(new RegExp(`game\\.html\\?room=${room.id}`), { timeout: 10000 });
+        await expect(other.locator('.player-card.current-user')).toContainText('Alice');
+        await alice.context.close();
+        await otherContext.close();
+    });
+
     test('a player can move their game to another browser with a one-time link', async ({ browser, request }) => {
         const { room, users } = await setupGame(request);
         const alice = await openGame(browser, room, users.Alice);

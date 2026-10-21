@@ -34,7 +34,9 @@ document.addEventListener('DOMContentLoaded', async () => {
         // Get current user (player 1's token is already in localStorage for hotseat)
         const user = await getCurrentUser();
         if (!user) {
-            window.location.href = 'auth.html';
+            // A game link opened in a browser that isn't signed in: offer every
+            // way back in (code from another device, room code, email).
+            window.location.href = 'index.html?signin=game#resume';
             return;
         }
         currentUser = user;
