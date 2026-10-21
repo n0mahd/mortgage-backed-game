@@ -1,11 +1,15 @@
 'use strict';
 
+// Fixed-window rate limits, in memory. Each limiter is Express middleware
+// (keyed per user, or per IP when signed out) and also offers check(key) for
+// callers outside HTTP routes.
+
 function createRateLimiter(options = {}) {
     const name = options.name || 'request';
     const enabled = options.enabled !== false;
     const max = positiveInteger(options.max, 60);
     const windowMs = positiveInteger(options.windowMs, 60 * 1000);
-    const keyGenerator = options.keyGenerator || defaultKeyGenerator;
+    const keyGenerator = options.keyGenerator || getRequestActorKey;
     const store = new Map();
     let lastPruneAt = 0;
 
@@ -58,10 +62,6 @@ function createRateLimiter(options = {}) {
 
     rateLimit.check = check;
     return rateLimit;
-}
-
-function defaultKeyGenerator(req) {
-    return getRequestActorKey(req);
 }
 
 function getRequestActorKey(req) {

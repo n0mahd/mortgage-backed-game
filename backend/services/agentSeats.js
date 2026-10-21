@@ -121,7 +121,6 @@ function agentInvitePrompt({ roomName, key, mcpUrl }) {
 }
 
 module.exports = {
-    KEY_PREFIX,
     createAgentSeat,
     listAgentSeats,
     revokeAgentSeat,

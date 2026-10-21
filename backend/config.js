@@ -1,3 +1,8 @@
+'use strict';
+
+// Every setting the backend reads from the environment (and backend/.env),
+// with its default and the production guards.
+
 const path = require('path');
 
 const DEFAULT_DEV_SECRET = 'dev-secret-change-me';
@@ -81,6 +86,19 @@ function getConfig() {
         actionAuditLogEnabled: process.env.ACTION_AUDIT_LOG
             ? process.env.ACTION_AUDIT_LOG !== 'false'
             : process.env.NODE_ENV !== 'test',
+        // Mail goes to a Resend-compatible HTTP API. The USESEND_ names are
+        // historical; production points USESEND_URL at Resend. No key: no mail.
+        email: {
+            apiKey: process.env.USESEND_API_KEY || null,
+            url: process.env.USESEND_URL || 'https://api.resend.com/emails',
+            from: process.env.SMTP_FROM || 'noreply@abdlh.com',
+        },
+        // Web Push (turn alerts). Without both keys, alerts are off.
+        vapid: {
+            publicKey: process.env.VAPID_PUBLIC_KEY || null,
+            privateKey: process.env.VAPID_PRIVATE_KEY || null,
+            subject: process.env.VAPID_SUBJECT || 'mailto:noreply@abdlh.com',
+        },
         rateLimitEnabled,
         rateLimits: {
             auth: buildRateLimitConfig('AUTH', rateLimitEnabled, { max: 120, windowMs: 15 * 60 * 1000 }),
@@ -136,4 +154,4 @@ function parseTrustProxy(raw, production) {
     return raw;
 }
 
-module.exports = { getConfig, getCorsOptions, DEFAULT_DEV_SECRET, REFRESHED_TOKEN_HEADER };
+module.exports = { getConfig, getCorsOptions, REFRESHED_TOKEN_HEADER };

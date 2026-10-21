@@ -25,7 +25,6 @@ const { applyCardEffect } = require('./gameRulesInternal/movement');
 const {
     createInitialGame,
     normalizeState,
-    validateStateInvariants,
     validateRepairedState,
 } = require('./gameRulesInternal/state');
 const { applyAction } = require('./gameRulesInternal/applyAction');
@@ -41,7 +40,6 @@ module.exports = {
     applyAction,
     calculateRent,
     calculateNetWorth,
-    validateStateInvariants,
     validateRepairedState,
     applyCardEffect,
     shuffleDeck,
