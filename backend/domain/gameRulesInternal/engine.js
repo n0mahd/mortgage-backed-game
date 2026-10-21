@@ -2545,15 +2545,25 @@ function roundCents(value) {
     return Math.round(Number(value) * 100) / 100;
 }
 
+// Field names as players see them, for refusal messages shown in the game.
+const AMOUNT_LABELS = {
+    amount: 'The amount',
+    bid: 'Your bid',
+    pricePerShare: 'The price per share',
+    player1Cash: 'The cash offered',
+    player2Cash: 'The cash asked for',
+    interestRate: 'The interest rate',
+};
+
 function positiveNumber(value, name) {
     const number = roundCents(value);
-    if (!Number.isFinite(number) || number <= 0) throw new GameRuleError(400, `${name} must be positive`);
+    if (!Number.isFinite(number) || number <= 0) throw new GameRuleError(400, `${AMOUNT_LABELS[name] || name} must be more than $0.`);
     return number;
 }
 
 function nonNegativeNumber(value, name) {
     const number = roundCents(value);
-    if (!Number.isFinite(number) || number < 0) throw new GameRuleError(400, `${name} must be non-negative`);
+    if (!Number.isFinite(number) || number < 0) throw new GameRuleError(400, `${AMOUNT_LABELS[name] || name} can't be negative.`);
     return number;
 }
 

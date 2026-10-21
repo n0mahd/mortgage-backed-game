@@ -27,7 +27,7 @@ function mulberry32(seed) {
 const { Chaos } = require('./chaos');
 const { Explore } = require('./explore');
 const { rules } = require('./pathways');
-const { transferDevice, rejoinAsGuest } = require('./table');
+const { transferDevice, rejoinAsGuest, declineStrayRejoin } = require('./table');
 
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
 
@@ -141,6 +141,7 @@ class Autoplay {
     }
 
     async closeModals(seat) {
+        if (!seat.human) await declineStrayRejoin(this.ctx, seat);
         const open = seat.page.locator('.modal.active [data-close-modal]');
         try {
             const n = await open.count();
@@ -584,7 +585,7 @@ class Autoplay {
         const guest = idle.find(s => s.kind === 'guest' && s !== mover);
         if (guest) {
             try {
-                await rejoinAsGuest(this.ctx, guest, this.table.inviteCode);
+                await rejoinAsGuest(this.ctx, guest, this.table.inviteCode, this.seats.filter(s => s !== guest && !s.human));
                 this.ctx.log(`    resilience: ${guest.name} rejoined from a new browser as an existing guest`);
                 this.ctx.markUi('ui.rejoin-guest');
             } catch (err) {

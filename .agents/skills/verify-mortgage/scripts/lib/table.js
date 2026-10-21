@@ -272,12 +272,37 @@ async function transferDevice(ctx, seat) {
     await moveToNewBrowser(ctx, seat, page => page.goto(url));
 }
 
-// A guest on a new browser picks themselves under "Continue as an existing player".
-async function rejoinAsGuest(ctx, seat, inviteCode) {
+// A guest on a new browser picks themselves under "Continue as an existing player";
+// since the game requires it, another player approves the Rejoin request.
+async function rejoinAsGuest(ctx, seat, inviteCode, approvers) {
     await moveToNewBrowser(ctx, seat, async page => {
         await page.goto(`${ctx.webUrl}/waiting.html?code=${inviteCode}`);
         await page.locator('#hotseat-resume-options button', { hasText: seat.name }).first().click();
+        const deadline = Date.now() + 20000;
+        let approved = false;
+        while (!approved && Date.now() < deadline) {
+            for (const other of approvers) {
+                const prompt = other.page.locator('#rejoinPromptModal');
+                if (await prompt.isVisible().catch(() => false) && (await prompt.innerText()).includes(seat.name)) {
+                    await prompt.locator('[data-decision="approve"]').click();
+                    ctx.log(`    ${other.name} approved ${seat.name}'s rejoin request`);
+                    approved = true;
+                    break;
+                }
+            }
+            if (!approved) await new Promise(resolve => setTimeout(resolve, 500));
+        }
+        if (!approved) throw new Error('No player was shown a Rejoin request to approve within 20s');
     });
 }
 
-module.exports = { buildTable, transferDevice, rejoinAsGuest, NAMES };
+// Declines a Rejoin request nobody asked for (it would block that screen).
+async function declineStrayRejoin(ctx, seat) {
+    const prompt = seat.page.locator('#rejoinPromptModal');
+    if (!(await prompt.isVisible().catch(() => false))) return false;
+    await prompt.locator('[data-decision="deny"]').click().catch(() => {});
+    ctx.log(`    ${seat.name} declined an unexpected Rejoin request`);
+    return true;
+}
+
+module.exports = { buildTable, transferDevice, rejoinAsGuest, declineStrayRejoin, NAMES };

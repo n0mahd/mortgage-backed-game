@@ -77,6 +77,8 @@ class Explore {
 
     auctionInstead(prop) {
         if (!prop) return false;
+        // Coverage moves within a turn too; re-read it so a reached pathway isn't chased again.
+        this.refresh();
         const kind = prop.color === 'Railroad' ? 'buy.railroad' : prop.color === 'Utility' ? 'buy.utility' : 'buy.street';
         if (this.wants(kind)) return false;
         return this.wantsAny('auction.start', 'auction.no-sale', 'auction.host-cancel', 'auction.won', 'auction.timeout') && this.bot.chance(0.6);
@@ -84,6 +86,7 @@ class Explore {
 
     // How the bots should treat this auction: 'no-sale', 'host-cancel' or null (normal).
     auctionMode(auction) {
+        this.refresh();
         if (this.active?.auctionWait) return 'timeout';
         if (!auction.highBidderId && this.wants('auction.no-sale')) return 'no-sale';
         if (this.wants('auction.host-cancel') && !this.bot.seats[0].human) return 'host-cancel';
