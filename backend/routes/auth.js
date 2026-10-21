@@ -1,22 +1,20 @@
-const express = require('express');
-const router = express.Router();
-const { v4: uuidv4 } = require('uuid');
-const crypto = require('crypto');
-const jwt = require('jsonwebtoken');
-const { sendEmail } = require('../mailer');
-const db = require('../db');
-const { getConfig, REFRESHED_TOKEN_HEADER } = require('../config');
-const { createRateLimiter, getRequestActorKey } = require('../rateLimit');
-const { normalizeEmail, isValidEmail } = require('../normalizers');
-const { createAnonymousUser } = require('../services/rooms');
+'use strict';
 
+// Sign-in: email codes, anonymous guests, device transfer codes, and token refresh.
+
+const express = require('express');
+const crypto = require('crypto');
+const { v4: uuidv4 } = require('uuid');
+const db = require('../db');
+const { getConfig } = require('../config');
+const { sendEmail } = require('../services/mailer');
+const { createRateLimiter, getRequestActorKey } = require('../rateLimit');
+const { normalizeEmail, isValidEmail, sha256Hex, toSqliteDate } = require('../helpers');
+const { createAnonymousUser } = require('../services/rooms');
+const { readToken, makeToken, requireAuth } = require('../auth');
+
+const router = express.Router();
 const config = getConfig();
-const JWT_SECRET = config.jwtSecret;
-const JWT_PREVIOUS_SECRET = config.jwtPreviousSecret;
-const JWT_EXPIRY = config.jwtExpiry;
-const otpSendLimits = new Map();
-const otpVerifyLimits = new Map();
-const transferRedeemLimits = new Map();
 const authRateLimit = createRateLimiter({
     name: 'auth',
     ...config.rateLimits.auth,
@@ -26,40 +24,12 @@ const authRateLimit = createRateLimiter({
         return `${getRequestActorKey(req)}:${req.method}:${req.path}${emailKey}`;
     },
 });
-
-function requireAuth(req, res, next) {
-    const header = req.headers.authorization;
-    if (!header || !header.startsWith('Bearer ')) {
-        return res.status(401).json({ error: 'Unauthorized' });
-    }
-    const result = readToken(header.slice(7));
-    if (!result) return res.status(401).json({ error: 'Invalid token' });
-    if (result.stale) res.set(REFRESHED_TOKEN_HEADER, makeToken(result.userId));
-    req.userId = result.userId;
-    next();
-}
-
-// Returns { userId, stale } for a valid player token, or null. A stale token
-// was signed with JWT_SECRET_PREVIOUS and should be swapped for a new one.
-function readToken(token) {
-    const secrets = JWT_PREVIOUS_SECRET ? [JWT_SECRET, JWT_PREVIOUS_SECRET] : [JWT_SECRET];
-    for (const [index, secret] of secrets.entries()) {
-        try {
-            const userId = jwt.verify(token, secret).sub;
-            return userId ? { userId, stale: index > 0 } : null;
-        } catch {}
-    }
-    return null;
-}
-
-// Returns the user id for a valid player token, or null.
-function verifyToken(token) {
-    return readToken(token)?.userId || null;
-}
-
-function makeToken(userId) {
-    return jwt.sign({ sub: userId }, JWT_SECRET, { expiresIn: JWT_EXPIRY });
-}
+// Per-address limits on guessing codes. Always on, even where the general
+// limits are switched off (tests, dev).
+const FIFTEEN_MINUTES = 15 * 60 * 1000;
+const otpSendLimit = createRateLimiter({ name: 'otp_send', enabled: true, max: 5, windowMs: FIFTEEN_MINUTES });
+const otpVerifyLimit = createRateLimiter({ name: 'otp_verify', enabled: true, max: 10, windowMs: FIFTEEN_MINUTES });
+const transferRedeemLimit = createRateLimiter({ name: 'transfer_redeem', enabled: true, max: 10, windowMs: FIFTEEN_MINUTES });
 
 // POST /api/auth/send-otp
 router.post('/send-otp', authRateLimit, async (req, res) => {
@@ -67,7 +37,7 @@ router.post('/send-otp', authRateLimit, async (req, res) => {
     if (!normalizedEmail || !isValidEmail(normalizedEmail)) {
         return res.status(400).json({ error: 'Valid email required' });
     }
-    if (isRateLimited(otpSendLimits, `${req.ip}:${normalizedEmail}`, 5, 15 * 60 * 1000)) {
+    if (!otpSendLimit.check(`${req.ip}:${normalizedEmail}`).allowed) {
         return res.status(429).json({ error: 'Too many code requests' });
     }
 
@@ -108,7 +78,7 @@ router.post('/verify-otp', authRateLimit, (req, res) => {
         return res.status(400).json({ error: 'email and token required' });
     }
 
-    if (isRateLimited(otpVerifyLimits, `${req.ip}:${normalizedEmail}`, 10, 15 * 60 * 1000)) {
+    if (!otpVerifyLimit.check(`${req.ip}:${normalizedEmail}`).allowed) {
         return res.status(429).json({ error: 'Too many verification attempts' });
     }
 
@@ -155,10 +125,6 @@ const TRANSFER_CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 const TRANSFER_CODE_LENGTH = 8;
 const TRANSFER_CODE_TTL_MS = 10 * 60 * 1000;
 
-function hashTransferCode(code) {
-    return crypto.createHash('sha256').update(code).digest('hex');
-}
-
 function normalizeTransferCode(code) {
     return String(code || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
 }
@@ -177,7 +143,7 @@ router.post('/transfer-code', requireAuth, authRateLimit, (req, res) => {
     db.prepare(`
         INSERT INTO device_transfer_codes (code_hash, user_id, expires_at)
         VALUES (?, ?, ?)
-    `).run(hashTransferCode(code), req.userId, toSqliteDate(expiresAt));
+    `).run(sha256Hex(code), req.userId, toSqliteDate(expiresAt));
 
     res.json({ code, expiresAt: expiresAt.toISOString() });
 });
@@ -186,11 +152,11 @@ router.post('/transfer-code', requireAuth, authRateLimit, (req, res) => {
 router.post('/redeem-transfer', authRateLimit, (req, res) => {
     const code = normalizeTransferCode(req.body?.code);
     if (code.length !== TRANSFER_CODE_LENGTH) return res.status(400).json({ error: 'Enter the 8-character code' });
-    if (isRateLimited(transferRedeemLimits, req.ip, 10, 15 * 60 * 1000)) {
+    if (!transferRedeemLimit.check(req.ip).allowed) {
         return res.status(429).json({ error: 'Too many attempts. Try again later.' });
     }
 
-    const codeHash = hashTransferCode(code);
+    const codeHash = sha256Hex(code);
     const record = db.prepare(`
         SELECT user_id FROM device_transfer_codes
         WHERE code_hash = ? AND used_at IS NULL AND expires_at > datetime('now')
@@ -222,20 +188,4 @@ router.post('/signout', requireAuth, (req, res) => {
     res.json({ ok: true });
 });
 
-module.exports = { router, requireAuth, makeToken, verifyToken, readToken };
-
-function toSqliteDate(date) {
-    return date.toISOString().replace('T', ' ').slice(0, 19);
-}
-
-function isRateLimited(map, key, max, windowMs) {
-    const now = Date.now();
-    const record = map.get(key) || { count: 0, resetAt: now + windowMs };
-    if (now > record.resetAt) {
-        record.count = 0;
-        record.resetAt = now + windowMs;
-    }
-    record.count += 1;
-    map.set(key, record);
-    return record.count > max;
-}
+module.exports = router;

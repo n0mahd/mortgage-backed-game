@@ -1,10 +1,10 @@
 const express = require('express');
 const db = require('../db');
-const { requireAuth } = require('./auth');
-const { sendEmail } = require('../mailer');
+const { requireAuth } = require('../auth');
+const { sendEmail } = require('../services/mailer');
 const { getConfig } = require('../config');
 const { createRateLimiter, getRequestActorKey } = require('../rateLimit');
-const { normalizeEmail, isValidEmail, normalizeInviteCode } = require('../normalizers');
+const { normalizeEmail, isValidEmail, normalizeInviteCode, plainText } = require('../helpers');
 const { RoomError, createRoom, joinRoom, getRoomMembers } = require('../services/rooms');
 const {
     createRejoinRequest,
@@ -72,10 +72,6 @@ function emailAllowed(senderKey, recipient) {
     return emailSenderLimit.check(senderKey).allowed && emailRecipientLimit.check(recipient).allowed;
 }
 
-function plainSubjectText(value, maxLength) {
-    return String(value ?? '').replace(/[\p{C}]/gu, ' ').trim().slice(0, maxLength);
-}
-
 // Invite email: only an email-verified member of the room can send it, and the
 // code and room name come from the database, never from the request.
 async function sendInviteCodeEmail({ senderUserId, email, inviteCode }) {
@@ -92,7 +88,7 @@ async function sendInviteCodeEmail({ senderUserId, email, inviteCode }) {
     }
     if (!emailAllowed(`user:${senderUserId}`, recipient)) throw new RoomError(429, 'Too many emails. Try again later.');
 
-    const roomName = plainSubjectText(room.name, 60) || 'Mortgage Backed Monopoly';
+    const roomName = plainText(room.name, 60) || 'Mortgage Backed Monopoly';
     await sendEmail(
         recipient,
         `Your room code for ${roomName}`,

@@ -5,7 +5,7 @@ const cors = require('cors');
 const { getConfig, getCorsOptions } = require('./config');
 const db = require('./db');
 const presence = require('./services/presence');
-const { router: authRouter, readToken, makeToken } = require('./routes/auth');
+const { readToken, makeToken } = require('./auth');
 
 const config = getConfig();
 const PORT = config.port;
@@ -29,7 +29,7 @@ app.use(cors(getCorsOptions(config)));
 app.use(express.json({ limit: config.requestBodyLimit }));
 
 // Routes
-app.use('/api/auth', authRouter);
+app.use('/api/auth', require('./routes/auth'));
 app.use('/api/rooms', roomsRouter);
 app.use('/api/games', gamesRouter);
 app.use('/api/mcp', createMcpRouter(io));

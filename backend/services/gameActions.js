@@ -9,7 +9,7 @@
 const { v4: uuidv4 } = require('uuid');
 const db = require('../db');
 const { getConfig } = require('../config');
-const { buildGameActionAuditRecord, logGameActionAudit } = require('../audit');
+const { buildGameActionAuditRecord, logGameActionAudit } = require('./audit');
 const { notifyRoom } = require('./roomEvents');
 const { notifyTurnChange } = require('./turnAlerts');
 const {

@@ -9,23 +9,15 @@
 const crypto = require('crypto');
 const { v4: uuidv4 } = require('uuid');
 const db = require('../db');
+const { sha256Hex, plainText } = require('../helpers');
 const { notifyRoom } = require('./roomEvents');
 const { RoomError, getRoomWithMembers, createAnonymousUser, joinRoom, pendingAgentSeatCount } = require('./rooms');
 
 const KEY_PREFIX = 'mbagent_';
 const LABEL_MAX = 40;
 
-function hashKey(key) {
-    return crypto.createHash('sha256').update(String(key)).digest('hex');
-}
-
 function generateKey() {
     return KEY_PREFIX + crypto.randomBytes(32).toString('base64url');
-}
-
-function cleanLabel(label) {
-    const text = String(label ?? '').replace(/\p{C}+/gu, ' ').trim().slice(0, LABEL_MAX);
-    return text || null;
 }
 
 function requireHostOfWaitingRoom(roomId, hostUserId) {
@@ -62,7 +54,7 @@ function createAgentSeat({ roomId, hostUserId, label }) {
     db.prepare(`
         INSERT INTO agent_seats (id, room_id, key_hash, label, created_by)
         VALUES (?, ?, ?, ?, ?)
-    `).run(id, room.id, hashKey(key), cleanLabel(label), hostUserId);
+    `).run(id, room.id, sha256Hex(key), plainText(label, LABEL_MAX) || null, hostUserId);
     return { seat: publicSeat(db.prepare(`SELECT * FROM agent_seats WHERE id = ?`).get(id)), key };
 }
 
@@ -92,7 +84,7 @@ function revokeAgentSeat(io, { roomId, seatId, hostUserId }) {
 // The live seat for a key, or null for unknown or revoked keys.
 function findSeatByKey(key) {
     if (typeof key !== 'string' || !key.startsWith(KEY_PREFIX) || key.length > 128) return null;
-    return db.prepare(`SELECT * FROM agent_seats WHERE key_hash = ? AND revoked_at IS NULL`).get(hashKey(key)) || null;
+    return db.prepare(`SELECT * FROM agent_seats WHERE key_hash = ? AND revoked_at IS NULL`).get(sha256Hex(key)) || null;
 }
 
 // Takes the seat on first use; later calls return the seat unchanged.
