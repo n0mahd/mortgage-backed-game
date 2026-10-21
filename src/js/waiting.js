@@ -95,10 +95,17 @@ async function joinAsGuest() {
     btn.textContent = 'Joining...';
 
     try {
-        const anonData = await apiFetch('/auth/anonymous', { method: 'POST' });
-        localStorage.setItem('auth_token', anonData.token);
-        currentUser = anonData.user;
-        createdAnonymousSession = true;
+        // Someone signed in with email joins as themselves, so the game stays tied to
+        // their account. Everyone else gets a fresh guest session, as before.
+        const existingUser = localStorage.getItem('auth_token') ? await getCurrentUser().catch(() => null) : null;
+        if (existingUser && !existingUser.is_anonymous) {
+            currentUser = existingUser;
+        } else {
+            const anonData = await apiFetch('/auth/anonymous', { method: 'POST' });
+            localStorage.setItem('auth_token', anonData.token);
+            currentUser = anonData.user;
+            createdAnonymousSession = true;
+        }
 
         const room = await joinRoomByCode(normalizedRoomCode, playerName);
         currentRoom = room;
