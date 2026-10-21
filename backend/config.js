@@ -65,6 +65,8 @@ function getConfig() {
         trustProxy: parseTrustProxy(process.env.TRUST_PROXY, isProduction()),
         allowStateRepair: process.env.ALLOW_STATE_REPAIR === 'true',
         requestBodyLimit: process.env.REQUEST_BODY_LIMIT || '256kb',
+        // Public browser URL used in links handed to MCP agents (room join links).
+        publicAppUrl: (process.env.PUBLIC_APP_URL || 'https://mortgage.abdlh.com').replace(/\/+$/, ''),
         otpLogEnabled: process.env.LOG_OTPS === 'true' && !isProduction(),
         actionAuditLogEnabled: process.env.ACTION_AUDIT_LOG
             ? process.env.ACTION_AUDIT_LOG !== 'false'
@@ -74,6 +76,7 @@ function getConfig() {
             auth: buildRateLimitConfig('AUTH', rateLimitEnabled, { max: 120, windowMs: 15 * 60 * 1000 }),
             roomCreate: buildRateLimitConfig('ROOM_CREATE', rateLimitEnabled, { max: 12, windowMs: 60 * 60 * 1000 }),
             gameAction: buildRateLimitConfig('GAME_ACTION', rateLimitEnabled, { max: 120, windowMs: 60 * 1000 }),
+            mcp: buildRateLimitConfig('MCP', rateLimitEnabled, { max: 300, windowMs: 60 * 1000 }),
         },
     };
 }

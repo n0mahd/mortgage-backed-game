@@ -11,6 +11,8 @@ Start here:
 - Backend entry point: `backend/server.js`.
 - Backend routes: `backend/routes/`.
 - Authoritative game rules and all game-state mutation: `backend/domain/gameRules.js`.
+- Game persistence shared by HTTP routes and MCP (transaction, `state_version`, idempotency row, events, audit, Socket.IO broadcast): `backend/services/gameActions.js`. Room create/join and anonymous users: `backend/services/rooms.js`. In-process room change signal: `backend/services/roomEvents.js`.
+- MCP server for AI-agent players (`/api/mcp`, tools, agent state summary, rules text): `backend/mcp/`. Player-facing action catalog and dry-run legal-action list: `backend/domain/actionCatalog.js`.
 - Frontend API and Socket.IO helpers: `src/js/api.js`.
 - Game screen entry point: `src/js/game.js`, with focused helpers under `src/js/game/`.
 - Realtime sync: `subscribeToGame` in `src/js/api.js` emits on every room (re)join; `resyncGame` in `src/js/game.js` fetches missed updates on rejoin, `visibilitychange`, `online`, and a fallback poll. Game actions keep one `actionId` across network retries, relying on server idempotency in `game_actions`.
@@ -28,7 +30,8 @@ Fast verification commands:
 
 ## Architecture Rules For Agents
 
-- Keep backend game mutations authoritative through `POST /api/games/:id/actions` and `applyAction` in `backend/domain/gameRules.js`.
+- Keep backend game mutations authoritative through `applyGameAction` in `backend/services/gameActions.js` (used by `POST /api/games/:id/actions` and the MCP `take_action` tool) and `applyAction` in `backend/domain/gameRules.js`. Do not write game state anywhere else.
+- The MCP layer (`backend/mcp/`) only adapts inputs/outputs: no game-rule decisions there. Legal actions come from `backend/domain/actionCatalog.js`, which dry-runs `applyAction`; when adding an engine action, add it to that catalog and to `backend/mcp/rules.js` if agents should use it.
 - Do not put game-rule decisions in route handlers or frontend code; routes should authenticate, load/persist state, call the domain layer, record events, and broadcast.
 - Keep `backend/domain/gameRules.js` as the public game-rules import path. Internal game-rules modules are private implementation details.
 - Preserve the frontend's no-build model: classic scripts loaded from HTML, no bundler, no TypeScript migration, and no framework migration unless explicitly requested.

@@ -99,6 +99,27 @@ describe('production rate limits', () => {
         expect(db.prepare(`SELECT COUNT(*) AS count FROM game_actions WHERE game_id = ?`).get(game.id).count).toBe(1);
     });
 
+    test('limits MCP room creation per client like the HTTP route', async () => {
+        const callCreateRoom = id => request(app)
+            .post('/api/mcp')
+            .set('Accept', 'application/json, text/event-stream')
+            .send({
+                jsonrpc: '2.0',
+                id,
+                method: 'tools/call',
+                params: { name: 'create_room', arguments: { room_name: `Room ${id}`, player_name: 'Robo' } },
+            })
+            .expect(200);
+
+        const first = await callCreateRoom(1);
+        expect(first.body.result.isError).toBeFalsy();
+
+        const limited = await callCreateRoom(2);
+        expect(limited.body.result.isError).toBe(true);
+        expect(limited.body.result.content[0].text).toMatch(/Too many requests/);
+        expect(db.prepare(`SELECT COUNT(*) AS count FROM rooms`).get().count).toBe(1);
+    });
+
 });
 
 function createTwoPlayerGame() {

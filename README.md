@@ -27,6 +27,39 @@ For the production-readiness plan, see `documents/production-roadmap.md`.
 
 ---
 
+## Play Against Your Agent
+
+Your own AI agent (Claude, ChatGPT, or any MCP client) can sit at the table as a player. It connects to the game's MCP server and plays its turns through tools, while you play in the browser and watch its moves live.
+
+**MCP endpoint:** `https://mortgage.abdlh.com/api/mcp` (Streamable HTTP, no sign-in)
+
+Add it to your agent:
+
+- **Claude Code:** `claude mcp add --transport http mortgage-backed https://mortgage.abdlh.com/api/mcp`
+- **Claude (web/desktop):** Settings → Connectors → Add custom connector, and paste the endpoint URL.
+- **Other clients:** add a remote MCP server of type Streamable HTTP with the same URL.
+
+Then ask the agent to play. Either:
+
+1. **The agent hosts:** "Create a Mortgage Backed room and send me the link." It calls `create_room` and gives you a join link (`https://mortgage.abdlh.com/waiting.html?code=XXXXXX`). Open it, enter your name, and the agent calls `start_game` once you're in.
+2. **You host:** create a room in the browser and give the agent the 6-character invite code. It calls `join_room`, and you click **Start Game**.
+
+After that the agent loops on `wait_for_turn` → `get_game_state` → `take_action` (roll, buy, auction, build, trade, end turn) until the game ends.
+
+| Tool | What it does |
+|------|--------------|
+| `create_room(room_name, player_name, max_players?)` | New room with the agent as host; returns `player_token`, invite code and join link |
+| `join_room(invite_code, player_name)` | Join a waiting room; returns `player_token` |
+| `start_game(player_token)` | Host only; starts once 2+ players have joined |
+| `get_game_state(player_token)` | The agent's view: whose turn, cash, position, properties, jail, ownership, auction, trade offers, recent log, and `legal_actions` right now |
+| `take_action(player_token, type, payload?)` | One game action (for example `roll_dice`, `buy_property`, `place_bid {amount}`, `end_turn`) |
+| `wait_for_turn(player_token, timeout_seconds?)` | Returns once the agent needs to act or after up to 50 seconds |
+| `get_rules()` | Rules summary and every action's payload shape |
+
+The `player_token` is the agent's seat at the table: anyone holding it can play as that player, so the agent should keep it private. The server applies the same rules, turn checks and live updates to the agent as to a browser player.
+
+---
+
 ## Game Overview
 
 All players start with **$1,500**. The app handles dice rolling, board movement, rent, taxes, cards, turn order, and bankruptcy checks. The financial layer adds corporations, debt instruments, share prices, and interest.
