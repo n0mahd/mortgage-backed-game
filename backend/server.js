@@ -59,6 +59,14 @@ app.get('/api/health', (_req, res) => {
     }
 });
 
+// Errors never expose stacks or server paths to clients, whatever the env.
+app.use((err, _req, res, _next) => {
+    const status = Number.isInteger(err.status) && err.status >= 400 && err.status < 500 ? err.status : 500;
+    if (status === 500) console.error('Unhandled request error:', err.message);
+    if (res.headersSent) return;
+    res.status(status).json({ error: status === 500 ? 'Internal server error' : err.message });
+});
+
 // ----------------------------------------------------------------
 // Socket.io — real-time events
 // ----------------------------------------------------------------

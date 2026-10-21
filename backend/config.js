@@ -88,7 +88,9 @@ function getCorsOptions(config) {
     return {
         origin(origin, callback) {
             if (!origin || config.corsOrigins.includes(origin)) return callback(null, true);
-            return callback(new Error('Origin not allowed'));
+            const err = new Error('Origin not allowed');
+            err.status = 403;
+            return callback(err);
         },
         methods: ['GET', 'POST', 'PATCH', 'DELETE'],
     };
