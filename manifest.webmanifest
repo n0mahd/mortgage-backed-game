@@ -1,6 +1,9 @@
 {
   "name": "Mortgage Backed Monopoly",
   "short_name": "Mortgage Backed",
+  "id": "/",
+  "start_url": "/index.html",
+  "scope": "/",
   "description": "Monopoly with IPOs, debt and trades.",
   "display": "standalone",
   "background_color": "#ECF1EC",
