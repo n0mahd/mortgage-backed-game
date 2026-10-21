@@ -46,29 +46,19 @@ async function startHotseatGame() {
     try {
         const tokenRecords = [];
         for (const name of names) {
-            const data = await apiFetch('/auth/anonymous', { method: 'POST' });
+            const data = await createGuestUser();
             tokenRecords.push({ userId: data.user.id, token: data.token, name });
         }
 
         setToken(tokenRecords[0].token);
 
-        const room = await apiFetch('/rooms', {
-            method: 'POST',
-            body: JSON.stringify({
-                name: `${names[0]}'s Local Game`,
-                player_name: names[0],
-                max_players: names.length
-            })
-        });
+        const room = await createNewRoom(`${names[0]}'s Local Game`, names.length, names[0]);
         const roomId = room.id;
 
         // Server-authoritative actions need every local player joined with their own token.
         for (let i = 1; i < tokenRecords.length; i++) {
             setToken(tokenRecords[i].token);
-            await apiFetch(`/rooms/${roomId}/join`, {
-                method: 'POST',
-                body: JSON.stringify({ player_name: tokenRecords[i].name })
-            });
+            await joinRoom(roomId, tokenRecords[i].name);
         }
         setToken(tokenRecords[0].token);
 
@@ -77,7 +67,7 @@ async function startHotseatGame() {
         setHotseatSession(tokenRecords);
         saveHotseatResume(room, tokenRecords);
 
-        window.location.href = `game.html?room=${roomId}`;
+        navigateToGameRoom(roomId);
 
     } catch (err) {
         console.error('Hotseat setup error:', err);

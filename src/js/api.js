@@ -212,6 +212,11 @@ async function getCurrentUser() {
     }
 }
 
+// A new guest (anonymous) user: returns { token, user }.
+async function createGuestUser() {
+    return apiFetch('/auth/anonymous', { method: 'POST' });
+}
+
 async function handleLogout() {
     try {
         await apiFetch('/auth/signout', { method: 'POST' });
@@ -382,14 +387,20 @@ async function createNewRoom(roomName, maxPlayers, playerName) {
     });
 }
 
-async function joinRoomByCode(inviteCode, playerName) {
-    const code = normalizeInviteCode(inviteCode);
-    const room = await apiFetch(`/rooms/by-code/${code}`);
+async function getRoomByCode(inviteCode) {
+    return apiFetch(`/rooms/by-code/${normalizeInviteCode(inviteCode)}`);
+}
 
-    return apiFetch(`/rooms/${room.id}/join`, {
+async function joinRoom(roomId, playerName) {
+    return apiFetch(`/rooms/${roomId}/join`, {
         method: 'POST',
         body: JSON.stringify({ player_name: playerName })
     });
+}
+
+async function joinRoomByCode(inviteCode, playerName) {
+    const room = await getRoomByCode(inviteCode);
+    return joinRoom(room.id, playerName);
 }
 
 // Getting back into a started room without a saved token: ask, then wait for
@@ -522,12 +533,22 @@ function navigateToGameRoom(roomId) {
     window.location.href = `game.html?room=${encodeURIComponent(roomId)}`;
 }
 
+function navigateToWaitingRoom(roomId) {
+    window.location.href = `waiting.html?room=${encodeURIComponent(roomId)}`;
+}
+
 function navigateToRoom(room) {
-    if (room.status === 'in_progress') {
-        navigateToGameRoom(room.id);
-        return;
-    }
-    window.location.href = `waiting.html?room=${encodeURIComponent(room.id)}`;
+    if (room.status === 'in_progress') navigateToGameRoom(room.id);
+    else navigateToWaitingRoom(room.id);
+}
+
+// After signing in on this device: open the game in progress, else one
+// still waiting for players, else the lobby.
+async function openActiveGame() {
+    const rooms = await getUserRooms();
+    const activeRoom = rooms.find(room => room.status === 'in_progress') || rooms.find(room => room.status === 'waiting');
+    if (activeRoom) navigateToRoom(activeRoom);
+    else window.location.href = 'lobby.html';
 }
 
 async function getUserRooms() {
@@ -573,22 +594,12 @@ async function getGameByRoomId(roomId) {
     }
 }
 
-// Send room-code email via backend (best-effort)
-async function callSendRoomCode(payload) {
-    try {
-        await apiFetch('/rooms/send-code', {
-            method: 'POST',
-            body: JSON.stringify(payload)
-        });
-    } catch (err) {
-        console.warn('Room code email error:', err);
-    }
-}
-
-async function sendForgotRoomCodes(email) {
+// Emails a room code: { email, inviteCode, roomName } for one room, or
+// { action: 'forgot_code', email } for every room that email created.
+async function sendRoomCode(payload) {
     return apiFetch('/rooms/send-code', {
         method: 'POST',
-        body: JSON.stringify({ action: 'forgot_code', email })
+        body: JSON.stringify(payload)
     });
 }
 

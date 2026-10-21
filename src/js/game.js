@@ -79,8 +79,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 async function loadGameData(roomId) {
     try {
         // Load room data
-        const room = await apiFetch(`/rooms/${roomId}`);
-        if (!room) throw new Error('Room not found');
+        const room = await getRoomById(roomId);
 
         currentRoom = room;
 
@@ -90,7 +89,7 @@ async function loadGameData(roomId) {
         if (roomTitle && room.name) roomTitle.textContent = room.name;
 
         // Load game data
-        const game = await apiFetch(`/games/by-room/${roomId}`);
+        const game = await getGameByRoomId(roomId);
         if (!game) throw new Error('Game not found for this room');
 
         currentGame = game;
@@ -164,9 +163,9 @@ function resyncGame() {
     if (gameResyncInFlight) return gameResyncInFlight;
     gameResyncInFlight = (async () => {
         try {
-            const game = await apiFetch(`/games/by-room/${currentRoom.id}`);
+            const game = await getGameByRoomId(currentRoom.id);
             lastGameSyncAt = Date.now();
-            if (Number(game.state_version ?? 0) > Number(currentGame?.state_version ?? -1)) {
+            if (game && Number(game.state_version ?? 0) > Number(currentGame?.state_version ?? -1)) {
                 await applyGameUpdate(game);
             }
         } catch (error) {
