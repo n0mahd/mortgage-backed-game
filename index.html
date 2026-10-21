@@ -130,6 +130,7 @@
     </footer>
 
     <script src="src/js/api.js?v=18"></script>
+    <script src="src/js/room-resume.js?v=1"></script>
     <script>
         document.addEventListener('DOMContentLoaded', () => {
             /* Enter key on resume code input */
@@ -198,7 +199,7 @@
             errorEl.style.display = 'none';
 
             const optionsEl = document.getElementById('hotseat-resume-options');
-            if (renderHotseatResumeOptions(optionsEl, code)) {
+            if (RoomResume.showSavedHotseat(optionsEl, code)) {
                 return;
             }
 
