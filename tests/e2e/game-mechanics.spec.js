@@ -485,6 +485,96 @@ test.describe('Game mechanics — UI', () => {
         expect(fetched.game_state.properties[0].houses).toBe(0);
     });
 
+    async function seedCoveredClaimGame(request, { cash, debtPrincipal }) {
+        const h = await (await request.post(`${BASE_API}/auth/anonymous`)).json();
+        const g = await (await request.post(`${BASE_API}/auth/anonymous`)).json();
+        const room = await (await request.post(`${BASE_API}/rooms`, {
+            headers: { Authorization: `Bearer ${h.token}` },
+            data: { name: 'Covered Claim Room', player_name: 'Alice', max_players: 4 },
+        })).json();
+        await request.post(`${BASE_API}/rooms/${room.id}/join`, {
+            headers: { Authorization: `Bearer ${g.token}` },
+            data: { player_name: 'Bob' },
+        });
+        const debt = { id: 'debt-test', principal: debtPrincipal, interestRate: 10, collateral: [], issueDate: new Date().toISOString(), issuerType: 'player' };
+        const game = await (await request.post(`${BASE_API}/games`, {
+            headers: { Authorization: `Bearer ${h.token}` },
+            data: { room_id: room.id, game_state: {
+                currentPlayerIndex: 0,
+                players: [
+                    playerState(h.user.id, 'Alice', { cash, position: 5, diceRolled: true, debts: [debt] }),
+                    playerState(g.user.id, 'Bob', { cash: 1500 }),
+                ],
+                properties: [
+                    { id: 'prop-rr-1', name: 'Reading RR', price: 200, ownerId: g.user.id, ownerName: 'Bob', houses: 0 },
+                ],
+                corporations: [],
+                debts: [],
+                bankruptcyClaims: {
+                    [h.user.id]: {
+                        debtorId: h.user.id,
+                        debtorName: 'Alice',
+                        creditorId: g.user.id,
+                        creditorName: 'Bob',
+                        creditorType: 'player',
+                        reason: 'Rent for Reading RR',
+                        amountOwed: 200,
+                        paidAmount: 27,
+                        unpaidAmount: 173,
+                        createdAt: new Date().toISOString(),
+                    },
+                },
+                lastDiceRoll: [4, 1],
+                lastCardDrawn: null,
+                settings: { passGoAmount: 200, startingCash: 1500 },
+            }},
+        })).json();
+        return { h, g, room, game };
+    }
+
+    test('an unpaid claim that cash now covers is paid by End Turn without bankruptcy', async ({ page, request }) => {
+        const { h, g, room, game } = await seedCoveredClaimGame(request, { cash: 1000, debtPrincipal: 500 });
+
+        await loginPage(page, h.token);
+        await page.goto(`${BASE}/game.html?room=${room.id}`);
+        await page.waitForLoadState('domcontentloaded');
+
+        const warning = page.locator('.turn-warning');
+        await expect(warning).toContainText('You owe $173 to Bob', { timeout: 5000 });
+        await expect(warning).toContainText('after $50 loan interest, leaving you $777');
+        await expect(warning).not.toHaveClass(/danger/);
+        const endTurn = page.locator('.action-btn-end-turn');
+        await expect(endTurn).toHaveText('Pay $173 & End Turn');
+        await expect(endTurn).not.toHaveClass(/btn-danger/);
+
+        await Promise.all([
+            page.waitForResponse(response => response.url().includes(`/games/${game.id}/actions`) && response.status() === 200),
+            endTurn.click(),
+        ]);
+
+        const fetched = await (await request.get(`${BASE_API}/games/${game.id}`, {
+            headers: { Authorization: `Bearer ${h.token}` },
+        })).json();
+        const alice = fetched.game_state.players.find(player => player.userId === h.user.id);
+        const bob = fetched.game_state.players.find(player => player.userId === g.user.id);
+        expect(alice.bankrupt).toBe(false);
+        expect(alice.cash).toBe(777);
+        expect(bob.cash).toBe(1673);
+        expect(fetched.game_state.bankruptcyClaims[h.user.id]).toBeUndefined();
+        expect(fetched.game_state.currentPlayerIndex).toBe(1);
+    });
+
+    test('loan interest that leaves too little for the claim still warns of bankruptcy', async ({ page, request }) => {
+        const { h, room } = await seedCoveredClaimGame(request, { cash: 1000, debtPrincipal: 9000 });
+
+        await loginPage(page, h.token);
+        await page.goto(`${BASE}/game.html?room=${room.id}`);
+        await page.waitForLoadState('domcontentloaded');
+
+        await expect(page.locator('.turn-warning.danger')).toContainText('$173 unpaid to Bob. Raise $73 more', { timeout: 5000 });
+        await expect(page.locator('.action-btn-end-turn')).toHaveText('Declare Bankruptcy');
+    });
+
     test('unpaid rent claim shows creditor warning and transfers assets to the creditor on bankruptcy', async ({ page, request }) => {
         const h = await (await request.post(`${BASE_API}/auth/anonymous`)).json();
         const g = await (await request.post(`${BASE_API}/auth/anonymous`)).json();

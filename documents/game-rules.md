@@ -292,7 +292,7 @@ Bankruptcy is triggered automatically when your **cash drops below $0 at the end
 - Open chairman votes involving you are closed.
 - A liquidation summary appears after bankruptcy so players can see the cause, destination of assets, share movement, and debt cleanup.
 
-If you cannot afford rent owed to another player or corporation, you pay only the cash you actually have and the unpaid remainder is tracked as a claim. If you raise enough cash before ending the turn, that claim is paid and bankruptcy is avoided. If the claim is still unpaid when you end the turn:
+If you cannot afford rent owed to another player or corporation, you pay only the cash you actually have and the unpaid remainder is tracked as a claim. If you raise enough cash before ending the turn, End Turn pays the claim from your cash (after loan interest) and bankruptcy is avoided; there is no separate pay button, and the End Turn button shows the amount it will pay. If the claim is still unpaid when you end the turn:
 
 - Rent owed to a player transfers your directly owned properties and player-held corporation shares to that player.
 - Rent owed to a corporation transfers your directly owned properties to that corporation. Player-held shares return to their issuing corporation's treasury share pool.

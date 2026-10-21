@@ -124,7 +124,7 @@ name, type and value, then chips: set progress (gold when complete), buildings, 
 case.
 
 **Feedback.** `showToast(message, tone)` for transient confirmations (top of screen, under the status
-bar). `.turn-warning.danger` for blocking problems inline. `.error-message` under form fields.
+bar). `.turn-warning.danger` for blocking problems inline; plain `.turn-warning` (gold) when money is owed but End Turn will cover it. `.error-message` under form fields.
 `.empty-state` text tells people what to do next.
 
 **Dice** (`renderDicePair`). CSS pips, not Unicode die glyphs, which render inconsistently on Android.

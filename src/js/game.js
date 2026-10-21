@@ -345,27 +345,43 @@ function renderPauseBanner(gameState) {
 }
 
 function renderCashWarning(currentPlayer, isMyTurn) {
-    const claim = getBankruptcyClaimForPlayer(currentPlayer?.userId);
-    if (!currentPlayer || currentPlayer.bankrupt || (Number(currentPlayer.cash || 0) >= 0 && !claim)) return '';
-    if (claim) {
-        const unpaid = Number(claim.unpaidAmount || 0).toFixed(2);
-        const creditor = claim.creditorName || 'the creditor';
-        const message = isMyTurn
-            ? `You have $${unpaid} unpaid to ${creditor}. Raise cash before ending your turn or End Turn will declare bankruptcy.`
-            : `${currentPlayer.name} has $${unpaid} unpaid to ${creditor} and must resolve it before ending the turn.`;
-        return `<div class="turn-warning danger">${escapeHtml(message)}</div>`;
-    }
-    const amount = Math.abs(Number(currentPlayer.cash || 0)).toFixed(2);
-    const message = isMyTurn
-        ? `You are $${amount} below zero. Recover before ending your turn or End Turn will declare bankruptcy.`
-        : `${currentPlayer.name} is $${amount} below zero and must recover before ending the turn.`;
-    return `<div class="turn-warning danger">${escapeHtml(message)}</div>`;
-}
+    if (!currentPlayer || currentPlayer.bankrupt) return '';
+    const outlook = getTurnEndOutlook(currentGame.game_state, currentPlayer);
+    const { claim, unpaid, interest, cash, cashAfter } = outlook;
+    const shortfall = formatMoney(Math.abs(cashAfter));
+    const interestNote = interest > 0 ? ` after ${formatMoney(interest)} loan interest` : '';
+    let message;
+    let tone = 'danger';
 
-function getBankruptcyClaimForPlayer(playerId) {
-    if (!playerId || !currentGame?.game_state?.bankruptcyClaims) return null;
-    const claim = currentGame.game_state.bankruptcyClaims[playerId];
-    return claim && Number(claim.unpaidAmount || 0) > 0 ? claim : null;
+    if (claim) {
+        const owed = formatMoney(unpaid);
+        const creditor = claim.creditorName || 'the creditor';
+        if (outlook.settlesClaim) {
+            tone = '';
+            message = isMyTurn
+                ? `You owe ${owed} to ${creditor}. End Turn pays it from your cash${interestNote}, leaving you ${formatMoney(cashAfter)}.`
+                : `${currentPlayer.name} owes ${owed} to ${creditor}. It will be paid from their cash when they end the turn.`;
+        } else if (!outlook.creditorActive) {
+            message = isMyTurn
+                ? `You have ${owed} unpaid to ${creditor}, who is out of the game, so End Turn will declare bankruptcy.`
+                : `${currentPlayer.name} has ${owed} unpaid to ${creditor}, who is out of the game.`;
+        } else {
+            message = isMyTurn
+                ? `You have ${owed} unpaid to ${creditor}. Raise ${shortfall} more before ending your turn or End Turn will declare bankruptcy.`
+                : `${currentPlayer.name} has ${owed} unpaid to ${creditor} and must raise ${shortfall} more before ending the turn.`;
+        }
+    } else if (cash < 0) {
+        message = isMyTurn
+            ? `You are ${formatMoney(-cash)} below zero. Raise ${shortfall}${interestNote} before ending your turn or End Turn will declare bankruptcy.`
+            : `${currentPlayer.name} is ${formatMoney(-cash)} below zero and must recover before ending the turn.`;
+    } else if (cashAfter < 0) {
+        message = isMyTurn
+            ? `${formatMoney(interest)} loan interest is due when you end your turn. Raise ${shortfall} more or End Turn will declare bankruptcy.`
+            : `${currentPlayer.name} can't cover their loan interest and must raise ${shortfall} before ending the turn.`;
+    } else {
+        return '';
+    }
+    return `<div class="turn-warning${tone ? ` ${tone}` : ''}">${escapeHtml(message)}</div>`;
 }
 
 function renderAuctionPanel(gameState) {
@@ -959,8 +975,11 @@ function renderActionButtons() {
     const currentPlayer = gameState.players[gameState.currentPlayerIndex];
     const hasRolled = currentPlayer.diceRolled;
     const landing = getLandingSummary(gameState, currentPlayer);
-    const owesMoney = Number(currentPlayer.cash || 0) < 0 || getBankruptcyClaimForPlayer(currentPlayer.userId);
-    const endTurnLabel = owesMoney ? 'Declare Bankruptcy' : 'End Turn';
+    const turnEnd = getTurnEndOutlook(gameState, currentPlayer);
+    const owesMoney = turnEnd.goesBankrupt;
+    const endTurnLabel = owesMoney
+        ? 'Declare Bankruptcy'
+        : (turnEnd.settlesClaim ? `Pay ${formatMoney(turnEnd.unpaid)} & End Turn` : 'End Turn');
     const auctionOpen = gameState.auction?.status === 'open';
     const waitingForJailChoice = currentPlayer.inJail && !hasRolled;
     const rollButtonLabel = waitingForJailChoice ? 'Roll for Doubles' : 'Roll Dice';
