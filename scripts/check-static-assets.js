@@ -40,6 +40,15 @@ for (const relativePath of assets) {
     }
 }
 
+// Pages that can be added to a Home Screen must link the manifest, or Android and
+// desktop browsers install them as a plain shortcut without the app icon and name.
+for (const htmlFile of fs.readdirSync(ROOT).filter(name => name.endsWith('.html')).sort()) {
+    const html = fs.readFileSync(path.join(ROOT, htmlFile), 'utf8');
+    if (/name="apple-mobile-web-app-capable"/.test(html) && !/rel="manifest"/.test(html)) {
+        failures.push(`${htmlFile}: installable page does not link /manifest.webmanifest`);
+    }
+}
+
 if (failures.length > 0) {
     console.error('Static asset checks failed:');
     for (const failure of failures) {
