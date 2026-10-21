@@ -1654,20 +1654,84 @@ body {
 }
 
 .trade-offer-sides > div {
-    background: white;
-    border: 1px solid #e1e8e5;
-    border-radius: 8px;
-    padding: 12px;
+    min-width: 0;
 }
 
 .trade-offer-sides h4 {
-    color: #2c3e50;
+    color: #5b6b75;
+    font-size: 0.78rem;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
     margin-bottom: 8px;
 }
 
 .trade-offer-sides ul {
     margin-left: 18px;
     color: #34495e;
+}
+
+.trade-offer-sides ul.trade-asset-list {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.trade-asset-tag {
+    --property-color: #94a3b8;
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+    padding: 7px 10px 7px 15px;
+    border: 1px solid color-mix(in srgb, var(--property-color) 28%, #ffffff);
+    border-radius: 9px;
+    background: color-mix(in srgb, var(--property-color) 10%, #ffffff);
+    overflow: hidden;
+}
+
+.trade-asset-tag::before {
+    content: "";
+    position: absolute;
+    inset: 0 auto 0 0;
+    width: 5px;
+    background: var(--property-color);
+}
+
+.trade-asset-tag.cash,
+.trade-asset-tag.card,
+.trade-asset-tag.shares {
+    --property-color: #7b8a94;
+    background: #ffffff;
+    border-color: #dde4e8;
+}
+
+.trade-asset-name {
+    color: #22313b;
+    font-weight: 600;
+    font-size: 0.9rem;
+    line-height: 1.25;
+}
+
+.trade-asset-group {
+    color: color-mix(in srgb, var(--property-color) 70%, #1f2933);
+    font-size: 0.68rem;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+}
+
+.trade-asset-dot {
+    display: inline-block;
+    width: 10px;
+    height: 10px;
+    margin-right: 7px;
+    border-radius: 50%;
+    background: var(--property-color);
+    vertical-align: 0;
 }
 
 .trade-offer-actions {

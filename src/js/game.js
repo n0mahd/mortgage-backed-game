@@ -2312,7 +2312,7 @@ function updatePlayerAssets(playerNumber) {
     const assetsHtml = player.properties.map(p => `
         <div class="asset-checkbox">
             <input type="checkbox" id="${playerNumber}-asset-${escapeAttr(p.id)}" value="${escapeAttr(p.id)}">
-            <label for="${playerNumber}-asset-${escapeAttr(p.id)}">${escapeHtml(p.name)} ($${p.value})</label>
+            <label for="${playerNumber}-asset-${escapeAttr(p.id)}">${tradeAssetDot(p.id)}${escapeHtml(p.name)} ($${p.value})</label>
         </div>
     `).join('');
     const jailCardHtml = player.hasGetOutOfJailCard ? `
@@ -2425,18 +2425,51 @@ function renderTradeOffers() {
 }
 
 function renderTradeOfferSide(cash, assetIds, shareLots) {
-    const assetNames = (assetIds || []).map(id => tradeAssetName(id));
-    const shareNames = (shareLots || []).map(lot => tradeSharesName(lot));
-    const lines = [];
-    if (Number(cash || 0) > 0) lines.push(`$${Number(cash).toFixed(2)}`);
-    lines.push(...assetNames, ...shareNames);
-    if (lines.length === 0) return '<p class="empty-state">Nothing</p>';
-    return `<ul>${lines.map(line => `<li>${escapeHtml(line)}</li>`).join('')}</ul>`;
+    const tags = [];
+    if (Number(cash || 0) > 0) {
+        tags.push(renderTradeAssetTag(`$${Number(cash).toFixed(2)}`, 'Cash', 'cash'));
+    }
+    sortTradeAssetIds(assetIds).forEach(id => {
+        const property = tradeAssetProperty(id);
+        if (!property) {
+            tags.push(renderTradeAssetTag(tradeAssetName(id), id === GAME_JAIL_CARD_ASSET_ID ? 'Card' : '', 'card'));
+            return;
+        }
+        tags.push(renderTradeAssetTag(property.name, property.color || 'Property', 'property', getPropertyColorValue(property.color)));
+    });
+    (shareLots || []).forEach(lot => {
+        tags.push(renderTradeAssetTag(tradeSharesName(lot), 'LLC shares', 'shares'));
+    });
+    if (tags.length === 0) return '<p class="empty-state">Nothing</p>';
+    return `<ul class="trade-asset-list">${tags.join('')}</ul>`;
+}
+
+function renderTradeAssetTag(name, groupLabel, kind, color) {
+    const style = color ? ` style="--property-color:${escapeAttr(color)};"` : '';
+    return `
+        <li class="trade-asset-tag ${kind}"${style}>
+            <span class="trade-asset-name">${escapeHtml(name)}</span>
+            ${groupLabel ? `<span class="trade-asset-group">${escapeHtml(groupLabel)}</span>` : ''}
+        </li>
+    `;
+}
+
+// Board order keeps each color group together in an offer.
+function sortTradeAssetIds(assetIds) {
+    const boardPosition = id => {
+        const square = typeof BOARD_SQUARES !== 'undefined' ? BOARD_SQUARES.find(sq => sq.propertyId === id) : null;
+        return square ? square.position : Number.MAX_SAFE_INTEGER;
+    };
+    return [...(assetIds || [])].sort((a, b) => boardPosition(a) - boardPosition(b));
+}
+
+function tradeAssetProperty(assetId) {
+    return currentGame?.game_state?.properties?.find(prop => prop.id === assetId) || null;
 }
 
 function tradeAssetName(assetId) {
     if (assetId === GAME_JAIL_CARD_ASSET_ID) return 'Get Out of Jail Free card';
-    const property = currentGame?.game_state?.properties?.find(prop => prop.id === assetId);
+    const property = tradeAssetProperty(assetId);
     return property ? property.name : assetId;
 }
 
@@ -2444,6 +2477,12 @@ function tradeSharesName(lot) {
     const corp = currentGame?.game_state?.corporations?.find(item => item.id === lot.corpId);
     const shares = Number(lot.shares || 0);
     return `${shares} ${corp ? corp.ticker : 'LLC'} share${shares === 1 ? '' : 's'}`;
+}
+
+function tradeAssetDot(assetId) {
+    const property = tradeAssetProperty(assetId);
+    if (!property) return '';
+    return `<span class="trade-asset-dot" style="--property-color:${escapeAttr(getPropertyColorValue(property.color))};" aria-hidden="true"></span>`;
 }
 
 function formatTradeOfferAge(createdAt) {
