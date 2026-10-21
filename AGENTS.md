@@ -62,11 +62,14 @@ Production and development must always stay separate.
 - Do not write dev-generated files, uploads, stories, images, game state, or test data into production data directories.
 - Do not restart or modify production services unless the user explicitly asks.
 
-Production ports and paths observed on this Raspberry Pi:
+Production runs on the ThinkCentre M60e (`ssh m60e`), not on the Raspberry Pi, since 2026-09-23. Development happens on the Pi.
 
-- Production public web port: `80` through nginx for `mortgage.abdlh.com`.
-- Production backend/API port: `3010` on `127.0.0.1`, proxied by nginx for `/api/` and `/socket.io/`.
-- Production nginx root: `/mnt/ssd/projects/mortgage-backed`.
+- Public site: `https://mortgage.abdlh.com` through a Cloudflare tunnel to nginx on the M60e (port `80`). nginx serves only `/`, `*.html` (with `Cache-Control: no-cache`) and `/src/`; every other path, including `backend/` and dotfiles, returns 404. It forwards Cloudflare's `CF-Connecting-IP` as `X-Forwarded-For`.
+- Backend: systemd unit `mortgage-backend` on `127.0.0.1:3010` (`HOST=127.0.0.1`, `TRUST_PROXY=loopback` in `backend/.env`), proxied by nginx for `/api/` and `/socket.io/`.
+- Code and data: `/mnt/ssd/projects/mortgage-backed` on the M60e. It is not a git checkout: deploys copy a `git archive` of `main` over it, keeping `backend/.env` and `backend/game.db*`, and run `npm ci --omit=dev` in `backend/`.
+- Game state lives only in SQLite, and a backend restart takes about a second; browsers resync on reconnect. So deploy between turns, after a `sqlite3 game.db ".backup …"`, and live games continue.
+- The agent MCP endpoint `/api/mcp` goes through the same `/api/` proxy; nginx must pass the browser `Origin` header through unchanged (it does by default) so the endpoint can reject foreign browser origins.
+- Never point dev servers, tests or scripts at these resources.
 - Treat these as stable production resources; do not reuse them for development.
 
 When testing from the user's phone while they are on the go:
@@ -80,7 +83,7 @@ When testing from the user's phone while they are on the go:
 Dev server commands:
 
 - Inspect `package.json` before choosing commands. The root package currently only defines Playwright test scripts; the backend package in `backend/package.json` defines `npm run start`.
-- Do not use production port `80` or backend port `3010` for development.
+- Production is on another machine, but still keep dev off ports `80` and `3010` so the Pi and the M60e layouts never get confused.
 - If backend testing is needed, run it on a separate dev-only port, for example: `PORT=3111 npm --prefix backend run start`.
 - Serve the web UI on the dedicated phone-facing dev port `3011`. If no project script has been added for static serving, use a simple dev-only static server bound to `0.0.0.0` and keep backend/API proxying pointed at the dev backend port, not `3010`.
 - Keep dev game state and test data out of production paths; use a dev-only location such as `/mnt/ssd/dev-data/mortgage-backed`.
