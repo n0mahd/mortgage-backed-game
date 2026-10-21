@@ -3299,3 +3299,30 @@ input[type="checkbox"] {
         padding: var(--s4) 0;
     }
 }
+
+/* Rejoin prompt: shown to players who may let someone back into their seat. */
+.rejoin-prompt { z-index: 1200; }
+
+.rejoin-prompt-text {
+    margin-bottom: var(--s2);
+    font-size: var(--text-body);
+    color: var(--ink);
+}
+
+.rejoin-prompt-hint {
+    margin-bottom: var(--s4);
+    font-size: var(--text-sub);
+    color: var(--ink-2);
+}
+
+.rejoin-prompt-warning {
+    margin-bottom: var(--s4);
+    padding: var(--s3) var(--s4);
+    border-radius: var(--r-control);
+    background: var(--danger-wash);
+    color: var(--danger);
+    font-size: var(--text-sub);
+    font-weight: 600;
+}
+
+.rejoin-waiting { color: var(--ink-3); }

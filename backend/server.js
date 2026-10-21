@@ -2,15 +2,13 @@ const express = require('express');
 const http = require('http');
 const { Server } = require('socket.io');
 const cors = require('cors');
-const jwt = require('jsonwebtoken');
 const { getConfig, getCorsOptions } = require('./config');
 const db = require('./db');
-const { router: authRouter } = require('./routes/auth');
+const { router: authRouter, readToken, makeToken } = require('./routes/auth');
 
 const config = getConfig();
 const PORT = config.port;
 const HOST = config.host;
-const JWT_SECRET = config.jwtSecret;
 
 const app = express();
 const server = http.createServer(app);
@@ -75,16 +73,17 @@ app.use((err, _req, res, _next) => {
 io.use((socket, next) => {
     const token = socket.handshake.auth?.token || socket.handshake.query?.token;
     if (!token) return next(); // allow unauthenticated (read-only observer)
-    try {
-        const payload = jwt.verify(token, JWT_SECRET);
-        socket.userId = payload.sub;
-    } catch {
-        return next(new Error('Invalid token'));
-    }
+    const result = readToken(token);
+    if (!result) return next(new Error('Invalid token'));
+    socket.userId = result.userId;
+    socket.staleToken = result.stale;
     next();
 });
 
 io.on('connection', (socket) => {
+    // Hand a replacement to clients still holding a previous-secret token.
+    if (socket.staleToken) socket.emit('auth:token_refreshed', makeToken(socket.userId));
+
     // Join a room's Socket.io channel
     socket.on('join_room', (roomId, ack) => {
         const reply = typeof ack === 'function' ? ack : () => {};

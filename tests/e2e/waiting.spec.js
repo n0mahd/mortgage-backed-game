@@ -91,36 +91,14 @@ test.describe('Waiting Room', () => {
         expect(consoleErrors).toEqual([]);
     });
 
-    test('room code resumes an in-progress game as an existing player', async ({ page, request }) => {
-        const host = await (await request.post(`${BASE_API}/auth/anonymous`)).json();
-        const guest = await (await request.post(`${BASE_API}/auth/anonymous`)).json();
-        const resumeRoom = await (await request.post(`${BASE_API}/rooms`, {
-            headers: { Authorization: `Bearer ${host.token}` },
-            data: { name: 'Resume Existing Room', player_name: 'Resume Host', max_players: 4 },
-        })).json();
-        await request.post(`${BASE_API}/rooms/${resumeRoom.id}/join`, {
-            headers: { Authorization: `Bearer ${guest.token}` },
-            data: { player_name: 'Resume Guest' },
-        });
-        const joinedRoom = await (await request.get(`${BASE_API}/rooms/${resumeRoom.id}`, {
-            headers: { Authorization: `Bearer ${host.token}` },
-        })).json();
-        const gameState = {
-            currentPlayerIndex: 0,
-            players: joinedRoom.room_members.map(member => playerState(member.user_id, member.player_name)),
-            properties: [],
-            corporations: [],
-            debts: [],
-            marketOffers: [],
-            gameLog: [],
-            lastDiceRoll: null,
-            lastCardDrawn: null,
-            settings: { passGoAmount: 200, startingCash: 1500, interestRate: 5 },
-        };
-        await request.post(`${BASE_API}/games`, {
-            headers: { Authorization: `Bearer ${host.token}` },
-            data: { room_id: resumeRoom.id, game_state: gameState },
-        });
+    test('room code rejoins an in-progress game as an existing player once the host approves', async ({ page, browser, request }) => {
+        const { host, resumeRoom } = await startTwoPlayerGame(request, 'Resume Existing Room');
+
+        const hostContext = await browser.newContext();
+        const hostPage = await hostContext.newPage();
+        await loginPage(hostPage, host.token);
+        await hostPage.goto(`${BASE}/game.html?room=${resumeRoom.id}`);
+        await expect(hostPage.locator('#gameContent')).toContainText('Current Turn', { timeout: 10000 });
 
         await page.goto(BASE);
         await page.locator('#resume-code').fill(resumeRoom.invite_code);
@@ -128,10 +106,47 @@ test.describe('Waiting Room', () => {
         await page.waitForURL(/waiting\.html\?code=/, { timeout: 10000 });
         await expect(page.locator('#hotseat-resume-options')).toContainText('Continue as an existing player', { timeout: 10000 });
 
-        await page.getByRole('button', { name: 'Resume Host' }).click();
-        await page.waitForURL(/game\.html\?room=/, { timeout: 10000 });
+        await page.getByRole('button', { name: 'Resume Guest' }).click();
+        await expect(page.locator('#hotseat-resume-options')).toContainText('Waiting for approval');
+        await expect(page.locator('#hotseat-resume-options')).toContainText('Ask Resume Host (the host)');
+        expect(await page.evaluate(() => localStorage.getItem('auth_token'))).toBeNull();
+
+        const prompt = hostPage.locator('#rejoinPromptModal');
+        await expect(prompt).toBeVisible({ timeout: 10000 });
+        await expect(prompt).toContainText('wants to continue as Resume Guest');
+        await prompt.getByRole('button', { name: 'Approve' }).click();
+        await expect(prompt).toBeHidden();
+
+        await page.waitForURL(/game\.html\?room=/, { timeout: 15000 });
         await expect(page.locator('#gameContent')).toContainText('Current Turn: Resume Host', { timeout: 10000 });
-        await expect.poll(() => page.evaluate(() => localStorage.getItem('auth_token'))).not.toBeNull();
+        const me = await page.evaluate(async () => (await apiFetch('/auth/me')).id);
+        const guestId = resumeRoom.members.find(member => member.player_name === 'Resume Guest').user_id;
+        expect(me).toBe(guestId);
+        await hostContext.close();
+    });
+
+    test('a declined rejoin request hands out nothing', async ({ page, browser, request }) => {
+        const { host, resumeRoom } = await startTwoPlayerGame(request, 'Declined Rejoin Room');
+
+        const hostContext = await browser.newContext();
+        const hostPage = await hostContext.newPage();
+        await loginPage(hostPage, host.token);
+        await hostPage.goto(`${BASE}/game.html?room=${resumeRoom.id}`);
+        await expect(hostPage.locator('#gameContent')).toContainText('Current Turn', { timeout: 10000 });
+
+        await page.goto(`${BASE}/waiting.html?code=${resumeRoom.invite_code}`);
+        await page.getByRole('button', { name: 'Resume Guest' }).click();
+        await expect(page.locator('#hotseat-resume-options')).toContainText('Waiting for approval');
+
+        const prompt = hostPage.locator('#rejoinPromptModal');
+        await expect(prompt).toBeVisible({ timeout: 10000 });
+        await prompt.getByRole('button', { name: 'Decline' }).click();
+
+        await expect(page.locator('#hotseat-resume-options')).toContainText('Request declined', { timeout: 10000 });
+        expect(await page.evaluate(() => localStorage.getItem('auth_token'))).toBeNull();
+        await page.getByRole('button', { name: 'Back' }).click();
+        await expect(page.getByRole('button', { name: 'Resume Guest' })).toBeVisible();
+        await hostContext.close();
     });
 
     test('both host and guest appear in player list', async ({ page, request }) => {
@@ -176,3 +191,36 @@ test.describe('Waiting Room', () => {
         }
     });
 });
+
+async function startTwoPlayerGame(request, roomName) {
+    const host = await (await request.post(`${BASE_API}/auth/anonymous`)).json();
+    const guest = await (await request.post(`${BASE_API}/auth/anonymous`)).json();
+    const created = await (await request.post(`${BASE_API}/rooms`, {
+        headers: { Authorization: `Bearer ${host.token}` },
+        data: { name: roomName, player_name: 'Resume Host', max_players: 4 },
+    })).json();
+    await request.post(`${BASE_API}/rooms/${created.id}/join`, {
+        headers: { Authorization: `Bearer ${guest.token}` },
+        data: { player_name: 'Resume Guest' },
+    });
+    const joinedRoom = await (await request.get(`${BASE_API}/rooms/${created.id}`, {
+        headers: { Authorization: `Bearer ${host.token}` },
+    })).json();
+    const gameState = {
+        currentPlayerIndex: 0,
+        players: joinedRoom.room_members.map(member => playerState(member.user_id, member.player_name)),
+        properties: [],
+        corporations: [],
+        debts: [],
+        marketOffers: [],
+        gameLog: [],
+        lastDiceRoll: null,
+        lastCardDrawn: null,
+        settings: { passGoAmount: 200, startingCash: 1500, interestRate: 5 },
+    };
+    await request.post(`${BASE_API}/games`, {
+        headers: { Authorization: `Bearer ${host.token}` },
+        data: { room_id: created.id, game_state: gameState },
+    });
+    return { host, guest, resumeRoom: { ...joinedRoom, members: joinedRoom.room_members } };
+}

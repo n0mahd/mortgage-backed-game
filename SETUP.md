@@ -44,6 +44,12 @@ LOG_OTPS=false
 
 The backend refuses to start in production without an explicit `DB_PATH`, explicit CORS origins, and a non-default `JWT_SECRET`.
 
+### Rotating `JWT_SECRET` without signing anyone out
+
+1. Set `JWT_SECRET_PREVIOUS` to the current secret and `JWT_SECRET` to a new one (`openssl rand -base64 48`), then restart. Tokens signed with the old secret keep working, and the server answers each one with a new-secret token that the browser swaps in.
+2. Leave it for a week or two, so players who open the game in that time move over. The old secret still works during the window, so keep it short after a leak.
+3. Remove `JWT_SECRET_PREVIOUS` and restart. Tokens signed with the old secret stop working; tokens swapped during the window last until they expire (30 days in today's production config). Email players sign back in with a code; guests rejoin through the room code with another player's approval.
+
 ## Architecture
 
 - Clients render state and submit actions.

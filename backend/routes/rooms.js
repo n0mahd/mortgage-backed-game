@@ -1,11 +1,18 @@
 const express = require('express');
 const db = require('../db');
-const { requireAuth, makeToken } = require('./auth');
+const { requireAuth } = require('./auth');
 const { sendEmail } = require('../mailer');
 const { getConfig } = require('../config');
 const { createRateLimiter, getRequestActorKey } = require('../rateLimit');
 const { normalizeEmail, isValidEmail, normalizeInviteCode } = require('../normalizers');
 const { RoomError, createRoom, joinRoom } = require('../services/rooms');
+const {
+    createRejoinRequest,
+    listApprovableRequests,
+    decideRejoinRequest,
+    collectRejoinRequest,
+    cancelRejoinRequest,
+} = require('../services/rejoinRequests');
 
 module.exports = (io) => {
 const router = express.Router();
@@ -14,6 +21,17 @@ const config = getConfig();
 const roomCreateRateLimit = createRateLimiter({
     name: 'room_create',
     ...config.rateLimits.roomCreate,
+    keyGenerator: getRequestActorKey,
+});
+
+const rejoinRequestRateLimit = createRateLimiter({
+    name: 'rejoin_request',
+    ...config.rateLimits.rejoinRequest,
+    keyGenerator: getRequestActorKey,
+});
+const rejoinCollectRateLimit = createRateLimiter({
+    name: 'rejoin_collect',
+    ...config.rateLimits.rejoinCollect,
     keyGenerator: getRequestActorKey,
 });
 
@@ -37,10 +55,6 @@ function isRoomMember(roomId, userId) {
 
 function getRoomByInviteCode(code) {
     return db.prepare(`SELECT * FROM rooms WHERE invite_code = ?`).get(normalizeInviteCode(code));
-}
-
-function isClosedToNewMembers(room, members) {
-    return room.status !== 'waiting' || members.length >= room.max_players;
 }
 
 function escapeHtml(value) {
@@ -142,68 +156,49 @@ router.get('/by-code/:code', (req, res) => {
     res.json(attachRoomMembers(room));
 });
 
-// POST /api/rooms/by-code/:code/claim-member — resume as an existing room member.
-// This supports hotseat rooms filled with local anonymous players before the
-// browser had persistent token recovery.
-router.post('/by-code/:code/claim-member', (req, res) => {
-    const { member_id } = req.body;
-    const room = getRoomByInviteCode(req.params.code);
-    if (!room) return res.status(404).json({ error: 'Room not found' });
-    if (!member_id) return res.status(400).json({ error: 'member_id required' });
+// Rejoining a started room after losing your token: see
+// services/rejoinRequests.js. The asking browser creates a request and polls
+// it with its secret; a signed-in player in the room approves or denies it.
+function notifyRejoinChange(roomId) {
+    io.to(`room:${roomId}`).emit('room:rejoin_request', { roomId });
+}
 
-    const members = getRoomMembers(room.id);
-    if (!isClosedToNewMembers(room, members)) {
-        return res.status(400).json({ error: 'Room is still open for new players' });
+function sendRoomError(res, err) {
+    if (err instanceof RoomError) return res.status(err.status).json({ error: err.message });
+    throw err;
+}
+
+// POST /api/rooms/by-code/:code/rejoin-requests — ask to take over one guest
+// seat ({ member_id }) or, with no member_id, every seat of a same-device game.
+router.post('/by-code/:code/rejoin-requests', rejoinRequestRateLimit, (req, res) => {
+    try {
+        const memberId = req.body?.member_id ? String(req.body.member_id) : null;
+        const result = createRejoinRequest({ inviteCode: req.params.code, memberId });
+        notifyRejoinChange(result.room.id);
+        res.json({ request_id: result.requestId, secret: result.secret, expires_at: result.expiresAt });
+    } catch (err) {
+        sendRoomError(res, err);
     }
-
-    const member = members.find(item => item.id === member_id);
-    if (!member) return res.status(404).json({ error: 'Player not found in this room' });
-
-    const user = db.prepare(`SELECT id, email, is_anonymous FROM users WHERE id = ?`).get(member.user_id);
-    if (!user) return res.status(404).json({ error: 'Player account not found' });
-    // Anyone with the invite code can call this, so never hand out tokens for
-    // email accounts; those players sign in with their email instead.
-    if (!user.is_anonymous) {
-        return res.status(403).json({ error: 'This player signed in with email. Sign in with that email to continue.' });
-    }
-
-    res.json({
-        token: makeToken(user.id),
-        user,
-        member,
-        room: attachRoomMembers(room, members)
-    });
 });
 
-// POST /api/rooms/by-code/:code/claim-hotseat — resume all existing room
-// members in local hotseat mode.
-router.post('/by-code/:code/claim-hotseat', (req, res) => {
-    const room = getRoomByInviteCode(req.params.code);
-    if (!room) return res.status(404).json({ error: 'Room not found' });
-
-    const members = getRoomMembers(room.id);
-    if (!isClosedToNewMembers(room, members)) {
-        return res.status(400).json({ error: 'Room is still open for new players' });
+// POST /api/rooms/rejoin-requests/:requestId/collect — the asking browser polls.
+router.post('/rejoin-requests/:requestId/collect', rejoinCollectRateLimit, (req, res) => {
+    try {
+        res.json(collectRejoinRequest({ requestId: req.params.requestId, secret: req.body?.secret }));
+    } catch (err) {
+        sendRoomError(res, err);
     }
+});
 
-    const anonymousCount = db.prepare(`
-        SELECT COUNT(*) AS count FROM users
-        WHERE is_anonymous = 1 AND id IN (SELECT user_id FROM room_members WHERE room_id = ?)
-    `).get(room.id).count;
-    if (anonymousCount !== members.length) {
-        return res.status(403).json({ error: 'Only same-device games can be resumed this way. Sign in to continue.' });
+// POST /api/rooms/rejoin-requests/:requestId/cancel
+router.post('/rejoin-requests/:requestId/cancel', rejoinCollectRateLimit, (req, res) => {
+    try {
+        const { roomId } = cancelRejoinRequest({ requestId: req.params.requestId, secret: req.body?.secret });
+        notifyRejoinChange(roomId);
+        res.json({ ok: true });
+    } catch (err) {
+        sendRoomError(res, err);
     }
-
-    const tokens = members.map(member => ({
-        userId: member.user_id,
-        token: makeToken(member.user_id),
-        name: member.player_name
-    }));
-
-    res.json({
-        room: attachRoomMembers(room, members),
-        tokens
-    });
 });
 
 // GET /api/rooms/mine — rooms the current user is in
@@ -225,6 +220,31 @@ router.get('/:id', requireAuth, (req, res) => {
     if (!room) return res.status(404).json({ error: 'Room not found' });
     if (!isRoomMember(room.id, req.userId)) return res.status(403).json({ error: 'Not a room member' });
     res.json(room);
+});
+
+// GET /api/rooms/:id/rejoin-requests — pending requests the caller can answer.
+router.get('/:id/rejoin-requests', requireAuth, (req, res) => {
+    try {
+        res.json(listApprovableRequests(req.params.id, req.userId));
+    } catch (err) {
+        sendRoomError(res, err);
+    }
+});
+
+// POST /api/rooms/:id/rejoin-requests/:requestId/(approve|deny)
+router.post('/:id/rejoin-requests/:requestId/:decision(approve|deny)', requireAuth, (req, res) => {
+    try {
+        decideRejoinRequest({
+            roomId: req.params.id,
+            requestId: req.params.requestId,
+            userId: req.userId,
+            approve: req.params.decision === 'approve',
+        });
+        notifyRejoinChange(req.params.id);
+        res.json({ ok: true });
+    } catch (err) {
+        sendRoomError(res, err);
+    }
 });
 
 // POST /api/rooms/:id/join — join by room ID (already authenticated)

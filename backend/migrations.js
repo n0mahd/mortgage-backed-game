@@ -125,6 +125,23 @@ function migrate(db) {
                 ON device_transfer_codes (user_id);
         `);
     });
+
+    apply(db, '005_rejoin_requests', () => {
+        db.exec(`
+            CREATE TABLE IF NOT EXISTS rejoin_requests (
+                id TEXT PRIMARY KEY,
+                room_id TEXT NOT NULL REFERENCES rooms(id) ON DELETE CASCADE,
+                member_id TEXT REFERENCES room_members(id) ON DELETE CASCADE,
+                secret_hash TEXT NOT NULL,
+                status TEXT NOT NULL DEFAULT 'pending',
+                decided_by TEXT REFERENCES users(id) ON DELETE SET NULL,
+                expires_at TEXT NOT NULL,
+                created_at TEXT NOT NULL DEFAULT (datetime('now'))
+            );
+            CREATE INDEX IF NOT EXISTS idx_rejoin_requests_room_status
+                ON rejoin_requests (room_id, status);
+        `);
+    });
 }
 
 function apply(db, id, fn) {
