@@ -1087,3 +1087,12 @@ body {
   padding-top: 14px;
   border-top: 1px solid rgba(255,255,255,0.12);
 }
+
+.resume-card .signed-out-notice {
+  color: rgba(255,255,255,0.85);
+}
+
+.resume-card .signed-out-notice a {
+  color: inherit;
+  text-decoration: underline;
+}

@@ -6,7 +6,7 @@
     <link rel="icon" type="image/png" sizes="32x32" href="src/assets/favicon-32.png">
     <link rel="apple-touch-icon" sizes="180x180" href="src/assets/apple-touch-icon.png">
     <title>Mortgage Backed Monopoly — Play Monopoly Like Wall Street</title>
-    <link rel="stylesheet" href="src/css/landing.css?v=7">
+    <link rel="stylesheet" href="src/css/landing.css?v=8">
 </head>
 <body>
 
@@ -67,6 +67,11 @@
                 <!-- Resume form -->
                 <div id="resume" class="resume-card">
                     <h3>Resume Existing Game</h3>
+                    <p id="signed-out-notice" class="hint signed-out-notice" hidden>
+                        This browser isn't signed in to that game yet. On the device you've been playing on,
+                        tap "Play on another device" and enter its code below. You can also enter your room
+                        code, or <a href="auth.html">sign in with email</a> if you used one.
+                    </p>
                     <p class="hint">Have a room code? Enter it to jump back in — no login needed.</p>
                     <div class="input-row">
                         <input type="text" id="resume-code" class="code-input"
@@ -334,6 +339,12 @@
             document.getElementById('transfer-code')?.addEventListener('keypress', (e) => {
                 if (e.key === 'Enter') continueWithTransferCode();
             });
+            if (new URLSearchParams(window.location.search).get('signin') === 'game') {
+                document.getElementById('signed-out-notice').hidden = false;
+                document.getElementById('resume')?.scrollIntoView();
+                document.getElementById('transfer-code')?.focus();
+            }
+
             const transferFromLink = new URLSearchParams(window.location.search).get('transfer');
             if (transferFromLink) {
                 document.getElementById('transfer-code').value = transferFromLink;
