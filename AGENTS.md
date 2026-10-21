@@ -27,6 +27,7 @@ Fast verification commands:
 - Backend tests only: `npm --prefix backend test -- --runInBand`.
 - Browser E2E with dev-only ports/data: `npm run test:e2e`.
 - Full gate before sharing results: `npm test`.
+- Whole-game verification through the real UI (2/5/8 players, 20 rounds, sync and state invariants, screenshots, agent end-user seats): the `verify-mortgage` skill, `.agents/skills/verify-mortgage/SKILL.md`. Its bot relies on the `data-game-action` buttons and modal/Market ids listed there; update `lib/bot.js` when renaming them.
 
 ## Architecture Rules For Agents
 
