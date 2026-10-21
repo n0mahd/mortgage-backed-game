@@ -49,14 +49,6 @@ function insertEvents(gameId, actorUserId, events) {
     });
 }
 
-function safeRollback() {
-    try {
-        db.exec('ROLLBACK');
-    } catch (err) {
-        if (!/no transaction is active/i.test(err.message || '')) throw err;
-    }
-}
-
 function publishGameUpdate(updatedGame) {
     emitToRoom(updatedGame.room_id, 'game:state_update', parseGame(updatedGame));
     notifyRoom(updatedGame.room_id);
@@ -77,8 +69,7 @@ function startGameForRoom({ roomId, actorUserId, gameState, settings }) {
     const gameId = uuidv4();
     const roomMembers = db.prepare(`SELECT * FROM room_members WHERE room_id = ? ORDER BY joined_at ASC`).all(roomId);
     const initialState = normalizeState(gameState || createInitialGame(roomMembers, { loanRates: settings?.loanRates }));
-    try {
-        db.exec('BEGIN');
+    db.withTransaction(() => {
         db.prepare(`
             INSERT INTO games (id, room_id, game_state, current_player_index)
             VALUES (?, ?, ?, 0)
@@ -91,11 +82,7 @@ function startGameForRoom({ roomId, actorUserId, gameState, settings }) {
             player_count: initialState.players.length,
             players: initialState.players.map(player => player.name),
         }));
-        db.exec('COMMIT');
-    } catch (err) {
-        safeRollback();
-        throw err;
-    }
+    });
 
     const game = getGame(gameId);
     emitToRoom(roomId, 'room:status_change', { ...room, status: 'in_progress' });
@@ -114,26 +101,20 @@ function applyGameAction({ gameId, actorUserId, actionId, type, payload, expecte
     const existing = db.prepare(`SELECT result_json FROM game_actions WHERE game_id = ? AND action_id = ?`).get(gameId, actionId);
     if (existing) return JSON.parse(existing.result_json);
 
-    let result;
-    let updatedGame;
-    let previousGame;
-    let events;
-    try {
-        db.exec('BEGIN');
+    const { game, updatedGame, result } = db.withTransaction(() => {
         const game = getGame(gameId);
         if (!game) throw new GameRuleError(404, 'Game not found');
-        previousGame = game;
         if (game.state_version !== expectedVersion) {
-            throw new GameRuleError(409, 'Stale game state');
+            const err = new GameRuleError(409, 'Stale game state');
+            err.stateVersion = game.state_version;
+            throw err;
         }
         const room = getRoom(game.room_id);
         const beforeState = normalizeState(JSON.parse(game.game_state));
         const testDice = config.allowStateRepair && Array.isArray((payload || {}).testDice)
             ? (payload || {}).testDice
             : undefined;
-        const applied = applyAction(beforeState, actorUserId, { type, payload: payload || {} }, { hostId: room.host_id, dice: testDice });
-        const afterState = applied.state;
-        events = applied.events;
+        const { state: afterState, events } = applyAction(beforeState, actorUserId, { type, payload: payload || {} }, { hostId: room.host_id, dice: testDice });
         db.prepare(`
             UPDATE games
             SET game_state = ?, current_player_index = ?, state_version = state_version + 1, updated_at = datetime('now')
@@ -143,31 +124,25 @@ function applyGameAction({ gameId, actorUserId, actionId, type, payload, expecte
             db.prepare(`UPDATE rooms SET status = 'completed' WHERE id = ?`).run(game.room_id);
         }
         insertEvents(gameId, actorUserId, events);
-        updatedGame = getGame(gameId);
-        result = { game: parseGame(updatedGame), events };
+        const updatedGame = getGame(gameId);
+        const result = { game: parseGame(updatedGame), events };
         db.prepare(`
             INSERT INTO game_actions (id, game_id, actor_user_id, action_id, action_type, request_json, result_json, state_version)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?)
         `).run(uuidv4(), gameId, actorUserId, actionId, type, JSON.stringify(requestBody), JSON.stringify(result), updatedGame.state_version);
-        db.exec('COMMIT');
-        logGameActionAudit(buildGameActionAuditRecord({
-            game,
-            updatedGame,
-            actorUserId,
-            actionId,
-            actionType: type,
-            events,
-        }), config);
-    } catch (err) {
-        safeRollback();
-        if (err instanceof GameRuleError && err.status === 409) {
-            err.stateVersion = getGame(gameId)?.state_version;
-        }
-        throw err;
-    }
+        return { game, updatedGame, result };
+    });
 
+    logGameActionAudit(buildGameActionAuditRecord({
+        game,
+        updatedGame,
+        actorUserId,
+        actionId,
+        actionType: type,
+        events: result.events,
+    }), config);
     publishGameUpdate(updatedGame);
-    notifyTurnChange(previousGame, updatedGame, actorUserId);
+    notifyTurnChange(game, updatedGame, actorUserId);
     return result;
 }
 
