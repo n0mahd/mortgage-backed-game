@@ -1,7 +1,7 @@
 'use strict';
 
 const express = require('express');
-const { requireAuth } = require('./auth');
+const { requireAuth } = require('../auth');
 const { getConfig } = require('../config');
 const { createRateLimiter } = require('../rateLimit');
 const push = require('../services/push');

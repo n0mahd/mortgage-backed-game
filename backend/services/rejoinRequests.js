@@ -15,17 +15,10 @@ const crypto = require('crypto');
 const { v4: uuidv4 } = require('uuid');
 const db = require('../db');
 const { RoomError, getRoomMembers, getRoomByInviteCode } = require('./rooms');
-const { makeToken } = require('../routes/auth');
+const { makeToken } = require('../auth');
+const { sha256Hex, toSqliteDate } = require('../helpers');
 
 const REQUEST_TTL_MS = 10 * 60 * 1000;
-
-function hashSecret(secret) {
-    return crypto.createHash('sha256').update(String(secret || '')).digest('hex');
-}
-
-function toSqliteDate(date) {
-    return date.toISOString().replace('T', ' ').slice(0, 19);
-}
 
 function isClosedToNewMembers(room, members) {
     return room.status !== 'waiting' || members.length >= room.max_players;
@@ -45,7 +38,7 @@ function getSecretRequest(requestId, secret) {
     const request = db.prepare(`SELECT * FROM rejoin_requests WHERE id = ?`).get(requestId);
     if (!request) return null;
     const expected = Buffer.from(request.secret_hash, 'hex');
-    const actual = Buffer.from(hashSecret(secret), 'hex');
+    const actual = Buffer.from(sha256Hex(secret), 'hex');
     return crypto.timingSafeEqual(expected, actual) ? request : null;
 }
 
@@ -88,7 +81,7 @@ function createRejoinRequest({ inviteCode, memberId }) {
     db.prepare(`
         INSERT INTO rejoin_requests (id, room_id, member_id, secret_hash, expires_at)
         VALUES (?, ?, ?, ?, ?)
-    `).run(id, room.id, memberId || null, hashSecret(secret), toSqliteDate(expiresAt));
+    `).run(id, room.id, memberId || null, sha256Hex(secret), toSqliteDate(expiresAt));
 
     return { room, requestId: id, secret, expiresAt: expiresAt.toISOString() };
 }

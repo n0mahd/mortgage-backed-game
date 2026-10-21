@@ -6,7 +6,7 @@
 const crypto = require('crypto');
 const { v4: uuidv4 } = require('uuid');
 const db = require('../db');
-const { normalizeInviteCode } = require('../normalizers');
+const { normalizeInviteCode } = require('../helpers');
 const { notifyRoom } = require('./roomEvents');
 
 class RoomError extends Error {
