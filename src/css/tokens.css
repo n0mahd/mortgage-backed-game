@@ -1,6 +1,6 @@
 /*
  * Mortgage Backed Monopoly — design tokens ("Term Sheet").
- * Load this before style.css or landing.css on every page.
+ * Load this before style.css on every page.
  * Rules and component guidance: documents/design-system.md
  */
 
@@ -31,12 +31,15 @@
     --emerald-press: #245A42;
     --jade: #40916C;            /* focus rings, active indicators */
     --mint: #B7E4C7;            /* text on forest, highlights */
-    --mint-wash: #DCEFE2;       /* tinted button and selected-row fill */
+    --mint-wash: #DCEFE2;       /* tinted button and selected-row fill; faded with color-mix for text on forest */
+    --on-dark: #FFFFFF;         /* text on forest, emerald, danger and color fills */
 
     /* Bond gold: premium moments only */
     --gold: #86600A;            /* gold text/icons on light (AA on --gold-wash) */
     --gold-bright: #D4A017;     /* gold fills and rules */
     --gold-wash: #F6EDD3;
+    --gold-ink: #6B4D07;        /* text on --gold-wash surfaces */
+    --gold-press: #BF9014;      /* pressed --gold-bright buttons */
 
     /* Danger: bankruptcy and money owed only */
     --danger: #B42318;
@@ -45,6 +48,7 @@
 
     /* Info is used sparingly (you badges, links on paper) */
     --info: #1F5F8B;
+    --info-wash: #E3EEF6;
 
     /* Type */
     --font-ui: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
@@ -91,6 +95,16 @@
     --safe-bottom: env(safe-area-inset-bottom, 0px);
     --page-max: 560px;
     --page-wide: 1080px;
+
+    /* Stacking order, lowest first (in-component layering uses -1 and 1) */
+    --z-app-bar: 50;            /* sticky app bar; desktop tabs sit one below it */
+    --z-turn-banner: 55;
+    --z-dock: 58;
+    --z-tab-bar: 60;
+    --z-sheet: 1000;
+    --z-rejoin: 1200;
+    --z-toast: 2000;
+    --z-handoff: 3000;          /* hotseat hand-off screen covers everything */
 
     /* Motion */
     --ease-out: cubic-bezier(0.2, 0.8, 0.2, 1);
