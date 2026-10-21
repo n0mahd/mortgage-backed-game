@@ -99,7 +99,7 @@ than the site's own are rejected.
 
 ## Development and test tooling
 
-The `verify-mortgage` skill (`.agents/skills/verify-mortgage/`) plays whole games against a disposable dev backend with its own SQLite file under `/mnt/ssd/dev-data/mortgage-backed/verify/`. It never touches production ports, data or users. Every player in those games is made up. With `--email`, login and invite codes go through Resend to the maintainer's own AgentMail test inboxes, whose addresses and key are kept in `~/.config` on the machine running the tests, never in this repo. When the maintainer turns on AI test players (`--agents`), each one's prompts and screenshots of these made-up dev games go to Anthropic through the maintainer's Claude account. Evidence (screenshots, logs, reports) stays under `test-results/`, which is gitignored.
+The `verify-mortgage` skill (`.agents/skills/verify-mortgage/`) plays whole games against a disposable dev backend with its own SQLite file under `/mnt/ssd/dev-data/mortgage-backed/verify/`. It never touches production ports, data or users. Every player in those games is made up. With `--email`, login and invite codes go through Resend to the maintainer's own AgentMail test inboxes, whose addresses and key are kept in `~/.config` on the machine running the tests, never in this repo. When the maintainer turns on AI test players (`--agents`), each one's prompts and screenshots of these made-up dev games go to Anthropic through the maintainer's Claude account. Evidence (screenshots, logs, reports) stays under `test-output/`, which is gitignored.
 
 ## Accepted risks
 

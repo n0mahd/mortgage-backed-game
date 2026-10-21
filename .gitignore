@@ -35,3 +35,4 @@ backend/game.db-wal
 
 # Test artifacts
 test-results/
+test-output/

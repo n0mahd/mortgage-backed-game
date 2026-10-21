@@ -203,7 +203,7 @@ $S note --seat 2 --severity medium --category ux --title "Bid input hidden under
 
 ## Evidence
 
-Everything is in `test-results/verify-mortgage/<run>/` (gitignored):
+Everything is in `test-output/verify-mortgage/<run>/` (gitignored; not `test-results/`, which Playwright empties on every run):
 
 - `report.md`: setup, final table, action timing, findings by severity, API 4xx tally. Also `findings.json` and `summary.json`.
 - `steps.log`: every command, action, dialog and finding with timestamps.

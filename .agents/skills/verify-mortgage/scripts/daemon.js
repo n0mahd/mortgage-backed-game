@@ -42,9 +42,15 @@ let uiMarks = new Set();
 let refusedActions = [];
 let stagesApplied = [];
 
+// Evidence writes recreate their folder, so a deleted folder can't crash a run.
+function appendEvidence(file, text) {
+    fs.mkdirSync(path.dirname(file), { recursive: true });
+    fs.appendFileSync(file, text);
+}
+
 function log(line) {
     const stamped = `${new Date().toISOString().slice(11, 19)} ${line}`;
-    fs.appendFileSync(stepsLog, stamped + '\n');
+    appendEvidence(stepsLog, stamped + '\n');
 }
 
 function sql(query, params = []) {
@@ -79,7 +85,7 @@ function finding({ severity, category, seat, title, detail }) {
     };
     findings.push(entry);
     findingIndex.set(key, entry);
-    fs.appendFileSync(path.join(evidence, 'findings.jsonl'), JSON.stringify(entry) + '\n');
+    appendEvidence(path.join(evidence, 'findings.jsonl'), JSON.stringify(entry) + '\n');
     log(`  FINDING ${entry.id} [${severity}/${category}] ${seat ? `seat ${seat.index} ${seat.name}: ` : ''}${title}${detail ? ` — ${detail}` : ''}`);
     return entry;
 }
@@ -177,6 +183,11 @@ async function startBackend() {
         ROOM_CREATE_RATE_LIMIT_MAX: '200',
         // Dev-only hooks used by staged setups: host state repair and per-roll test dice.
         ALLOW_STATE_REPAIR: 'true',
+        // A throwaway push key pair, so the turn-alerts screen behaves as in production.
+        ...(() => {
+            const keys = require(path.join(runs.APP_ROOT, 'backend', 'node_modules', 'web-push')).generateVAPIDKeys();
+            return { VAPID_PUBLIC_KEY: keys.publicKey, VAPID_PRIVATE_KEY: keys.privateKey, VAPID_SUBJECT: 'mailto:verify@example.test' };
+        })(),
         PUBLIC_APP_URL: `http://127.0.0.1:${run.ports.web}`,
         // Mail: a dead local URL unless --email, so a repo backend/.env can never
         // send real mail (an empty value would let .env fill it in).

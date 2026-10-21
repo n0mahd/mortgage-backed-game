@@ -13,7 +13,8 @@ const REPO_ROOT = path.resolve(SKILL_DIR, '..', '..', '..');
 // points a run at another worktree (a fix branch, the redesign) with this harness.
 const APP_ROOT = path.resolve(process.env.VERIFY_APP_ROOT || REPO_ROOT);
 const DATA_ROOT = process.env.VERIFY_DATA_ROOT || '/mnt/ssd/dev-data/mortgage-backed/verify';
-const EVIDENCE_ROOT = path.join(REPO_ROOT, 'test-results', 'verify-mortgage');
+// Not under test-results/: Playwright empties that folder at the start of every run.
+const EVIDENCE_ROOT = path.join(REPO_ROOT, 'test-output', 'verify-mortgage');
 
 // Production and shared ports on this Pi that a run must never bind.
 const FORBIDDEN_PORTS = new Set([80, 443, 3000, 3001, 3002, 3010, 3011, 3111, 8080, 8081]);

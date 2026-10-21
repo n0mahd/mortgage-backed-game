@@ -52,6 +52,15 @@ async function main() {
     process.exitCode = await runPlaywright();
 }
 
+// Turn alerts need a VAPID key pair. Tests get a throwaway pair unless the
+// caller set one, so they don't depend on a backend/.env being present.
+function testVapidKeys() {
+    if (process.env.VAPID_PUBLIC_KEY && process.env.VAPID_PRIVATE_KEY) return {};
+    const webpush = require(path.join(ROOT, 'backend', 'node_modules', 'web-push'));
+    const keys = webpush.generateVAPIDKeys();
+    return { VAPID_PUBLIC_KEY: keys.publicKey, VAPID_PRIVATE_KEY: keys.privateKey, VAPID_SUBJECT: 'mailto:e2e@example.test' };
+}
+
 function startBackend() {
     backend = spawn('node', ['server.js'], {
         cwd: path.join(ROOT, 'backend'),
@@ -64,6 +73,7 @@ function startBackend() {
             RATE_LIMIT_ENABLED: 'false',
             USESEND_URL: process.env.USESEND_URL || 'http://127.0.0.1:3001/api/v1/emails',
             ALLOW_STATE_REPAIR: 'true',
+            ...testVapidKeys(),
         },
         stdio: ['ignore', 'pipe', 'pipe'],
     });
