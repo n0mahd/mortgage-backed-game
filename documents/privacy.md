@@ -46,6 +46,7 @@ Production database: SQLite on the M60e at `/mnt/ssd/projects/mortgage-backed/ba
 | --- | --- | --- | --- |
 | `localStorage.auth_token` | JWT for the current player (30 days in today's production config) | Until sign-out or expiry | Yes |
 | `localStorage.mortgage_hotseat_resume_rooms` | Hotseat rooms and their players' tokens, so a shared device can resume | Until the hotseat game is cleared | No |
+| `sessionStorage.saved_tokens_refreshed` | Flag (`1`) so saved hotseat tokens are swapped for new-secret ones once per tab | Browser tab | Yes |
 | `sessionStorage.hotseat_tokens` | Tokens for each hotseat seat | Browser tab | Yes |
 
 ## Third parties

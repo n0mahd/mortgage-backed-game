@@ -207,7 +207,7 @@ describe('rejoin requests', () => {
         expect(pending.body).toEqual({ status: 'pending' });
 
         const list = await listFor(room.id, user1.token);
-        expect(list.body).toEqual([expect.objectContaining({ id: asked.body.request_id, playerName: 'Bob' })]);
+        expect(list.body).toEqual([expect.objectContaining({ id: asked.body.request_id, playerName: 'Bob', otherRecentRequests: 0 })]);
 
         const wrongSecret = await request(app)
             .post(`/api/rooms/rejoin-requests/${asked.body.request_id}/collect`)
@@ -282,7 +282,9 @@ describe('rejoin requests', () => {
         const second = await askToRejoin('CLAIM6', member.id);
         expect((await collect(first)).body).toEqual({ status: 'superseded' });
         expect((await decide(room.id, first.body.request_id, user1.token, 'approve')).status).toBe(404);
-        expect((await listFor(room.id, user1.token)).body.map(item => item.id)).toEqual([second.body.request_id]);
+        const listed = (await listFor(room.id, user1.token)).body;
+        expect(listed.map(item => item.id)).toEqual([second.body.request_id]);
+        expect(listed[0].otherRecentRequests).toBe(1);
     });
 
     test('expired requests cannot be approved or collected', async () => {

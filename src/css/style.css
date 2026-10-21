@@ -2630,6 +2630,14 @@ body {
     margin-bottom: 16px;
 }
 
+.rejoin-prompt-warning {
+    color: #b91c1c;
+    font-size: 0.9em;
+    font-weight: 600;
+    line-height: 1.45;
+    margin-bottom: 16px;
+}
+
 .rejoin-waiting {
     font-style: italic;
 }

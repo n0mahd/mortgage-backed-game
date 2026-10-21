@@ -90,6 +90,14 @@ function createRejoinRequest({ inviteCode, memberId }) {
     return { room, requestId: id, secret, expiresAt: expiresAt.toISOString() };
 }
 
+function countOtherRecentRequests(request) {
+    return db.prepare(`
+        SELECT COUNT(*) AS count FROM rejoin_requests
+        WHERE room_id = ? AND member_id IS ? AND id != ?
+          AND created_at > datetime('now', '-10 minutes')
+    `).get(request.room_id, request.member_id, request.id).count;
+}
+
 // Pending requests in a room that this user may approve.
 function listApprovableRequests(roomId, userId) {
     const room = db.prepare(`SELECT * FROM rooms WHERE id = ?`).get(roomId);
@@ -105,6 +113,9 @@ function listApprovableRequests(roomId, userId) {
         .filter(request => canApprove(room, members, request, userId))
         .map(request => ({
             id: request.id,
+            // Other devices that asked for the same seat recently: the approver
+            // is warned, since one of them may not be the real player.
+            otherRecentRequests: countOtherRecentRequests(request),
             memberId: request.member_id,
             playerName: request.member_id
                 ? members.find(member => member.id === request.member_id)?.player_name || 'Player'

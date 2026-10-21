@@ -24,6 +24,7 @@
                 <div class="modal-header" id="rejoinPromptTitle">Rejoin request</div>
                 <p class="rejoin-prompt-text"></p>
                 <p class="rejoin-prompt-hint"></p>
+                <p class="rejoin-prompt-warning" role="alert" hidden></p>
                 <p class="error-message rejoin-prompt-error"></p>
                 <div class="modal-actions">
                     <button type="button" class="btn btn-secondary" data-decision="deny">Decline</button>
@@ -47,6 +48,11 @@
         el.querySelector('.rejoin-prompt-hint').textContent = name
             ? `Approve only if ${name} just asked you. Approving signs that device in as ${name}.`
             : 'Approve only if you just asked for this. Approving signs that device in as every player.';
+        const warning = el.querySelector('.rejoin-prompt-warning');
+        warning.textContent = request.otherRecentRequests > 0
+            ? 'More than one device asked for this in the last 10 minutes. Decline unless you are sure this one is theirs.'
+            : '';
+        warning.hidden = !request.otherRecentRequests;
         el.querySelector('.rejoin-prompt-error').classList.remove('active');
         el.classList.add('active');
     }
