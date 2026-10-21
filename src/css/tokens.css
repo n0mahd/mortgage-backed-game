@@ -115,6 +115,8 @@
     --guilloche:
         repeating-radial-gradient(circle at 0 120%, transparent 0 11px, rgba(183, 228, 199, 0.055) 11px 12px),
         repeating-radial-gradient(circle at 100% -20%, transparent 0 11px, rgba(212, 160, 23, 0.04) 11px 12px);
+    /* Forest note: the guilloché over the forest gradient (turn ticket, invite code, hotseat hand-off, landing hero) */
+    --banknote: var(--guilloche), linear-gradient(160deg, var(--forest) 0%, var(--forest-deep) 100%);
 }
 
 @media (prefers-reduced-motion: reduce) {

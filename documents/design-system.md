@@ -143,9 +143,9 @@ Screen, the same page shows "Opening your game" while it signs in; if the code h
 "Sign in again" in ordinary text with a primary button to the home page. That's a next step, not money at
 risk, so it isn't red.
 
-**Turn ticket** (`.turn-ticket`). The signature element. Don't reuse the guilloché (`--guilloche`)
-elsewhere except the invite code, the hotseat hand-off, and the landing hero, which share its meaning:
-this is the money moment.
+**Turn ticket** (`.turn-ticket`). The signature element: `--banknote`, the guilloché (`--guilloche`)
+over the forest gradient. Don't reuse it elsewhere except the invite code, the hotseat hand-off, and the
+landing hero, which share its meaning: this is the money moment.
 
 **Sheets** (`.modal > .modal-content`). Bottom sheets on phones with a grabber, centered dialogs at 720px
 and up. Title in `.modal-header` (Besley), optional `.modal-hint`, actions in `.sheet-actions`, stacked
