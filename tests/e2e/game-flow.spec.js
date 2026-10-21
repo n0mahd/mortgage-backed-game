@@ -216,6 +216,10 @@ test.describe('Game flow — multiplayer real-time', () => {
         await secondTab.goto(`${BASE}/game.html?room=${setup.room.id}`);
         await secondTab.waitForLoadState('domcontentloaded');
         await expect(secondTab.getByRole('button', { name: /Roll Dice/i })).toBeVisible({ timeout: 5000 });
+        await expect.poll(() => socketJoinAck(secondTab, setup.room.id), {
+            message: 'second tab joined the game room socket channel',
+            timeout: 5000,
+        }).toBe(true);
 
         await page.evaluate(() => {
             window.__E2E_NEXT_DICE = [1, 2];
@@ -224,3 +228,27 @@ test.describe('Game flow — multiplayer real-time', () => {
         await expect(secondTab.locator('#gameContent')).toContainText(/rolled/i, { timeout: 10000 });
     });
 });
+
+async function socketJoinAck(page, roomId) {
+    return page.evaluate(targetRoomId => new Promise(resolve => {
+        if (typeof getSocket !== 'function') {
+            resolve(false);
+            return;
+        }
+
+        const socket = getSocket();
+        const timer = setTimeout(() => resolve(false), 1500);
+        const join = () => {
+            socket.emit('join_room', targetRoomId, ack => {
+                clearTimeout(timer);
+                resolve(!!ack && ack.ok === true);
+            });
+        };
+
+        if (socket.connected) {
+            join();
+        } else {
+            socket.once('connect', join);
+        }
+    }), roomId);
+}

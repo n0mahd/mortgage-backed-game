@@ -2,9 +2,12 @@
   "name": "mortgage-backed-game",
   "private": true,
   "scripts": {
-    "test:e2e": "npx playwright test",
-    "test:e2e:ui": "npx playwright test --ui",
-    "test:e2e:headed": "npx playwright test --headed",
+    "test": "npm run test:static && npm run test:architecture && npm --prefix backend test -- --runInBand && npm run test:e2e",
+    "test:static": "node scripts/check-static-assets.js",
+    "test:architecture": "node scripts/check-architecture.js",
+    "test:e2e": "node scripts/run-e2e.js",
+    "test:e2e:ui": "node scripts/run-e2e.js --ui",
+    "test:e2e:headed": "node scripts/run-e2e.js --headed",
     "test:e2e:real-game": "node scripts/run-real-game-e2e.js"
   },
   "devDependencies": {

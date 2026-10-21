@@ -1,5 +1,53 @@
 # Project Instructions
 
+## Agent Orientation
+
+This is a no-build static frontend plus an Express, Socket.IO, and SQLite backend for Mortgage Backed Monopoly.
+
+Start here:
+
+- Product/player rules: `README.md` and `documents/game-rules.md`.
+- Production and operational context: `SETUP.md`, `documents/production-roadmap.md`, and this file.
+- Backend entry point: `backend/server.js`.
+- Backend routes: `backend/routes/`.
+- Authoritative game rules and all game-state mutation: `backend/domain/gameRules.js`.
+- Frontend API and Socket.IO helpers: `src/js/api.js`.
+- Game screen entry point: `src/js/game.js`, with focused helpers under `src/js/game/`.
+- Board rendering helpers: `src/js/board.js`.
+- Browser E2E tests: `tests/e2e/`.
+- Backend Jest tests: `backend/tests/`.
+
+Fast verification commands:
+
+- Static asset and architecture checks: `npm run test:static && npm run test:architecture`.
+- Backend tests only: `npm --prefix backend test -- --runInBand`.
+- Browser E2E with dev-only ports/data: `npm run test:e2e`.
+- Full gate before sharing results: `npm test`.
+
+## Architecture Rules For Agents
+
+- Keep backend game mutations authoritative through `POST /api/games/:id/actions` and `applyAction` in `backend/domain/gameRules.js`.
+- Do not put game-rule decisions in route handlers or frontend code; routes should authenticate, load/persist state, call the domain layer, record events, and broadcast.
+- Keep `backend/domain/gameRules.js` as the public game-rules import path. Internal game-rules modules are private implementation details.
+- Preserve the frontend's no-build model: classic scripts loaded from HTML, no bundler, no TypeScript migration, and no framework migration unless explicitly requested.
+- When changing game rules, update or add backend unit tests and update `documents/game-rules.md` or `README.md` when player-facing behavior changes.
+- When changing frontend behavior, prefer focused helpers under `src/js/game/` while keeping `src/js/game.js` as the page entry point.
+- Do not bypass `apiFetch` for app API calls unless there is a specific reason.
+- Keep tests and dev data pointed at dev-only ports and paths.
+
+## Definition Of Done
+
+Stop and share results only when all applicable items are true:
+
+- The code works locally against dev-only ports/data, not production.
+- `npm test` has passed as the final verification command.
+- If narrower checks were used while iterating, the final check still includes the full root test command.
+- Public imports and user-facing APIs are unchanged unless an intentional API change was requested.
+- `AGENTS.md` remains accurate for future agents.
+- No production ports, production services, or production SQLite paths were used or modified.
+- Existing unrelated user changes in the worktree were preserved.
+- The final response reports what changed, verification command/results, whether production was untouched, and any remaining risk.
+
 ## Dev/Prod Testing Rules
 
 Production and development must always stay separate.

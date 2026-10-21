@@ -86,6 +86,16 @@ function makePlayer(userId, name, overrides = {}) {
     };
 }
 
+function benignCommunityChestDeck() {
+    return [
+        {
+            id: 'cc-test-collect',
+            text: 'Testing dividend - collect $20.',
+            action: { type: 'collect', amount: 20 },
+        },
+    ];
+}
+
 describe('game rule edge cases', () => {
     test('IPO gives founder all shares and buyer purchases founder-listed shares', () => {
         const state = makeState();
@@ -630,6 +640,7 @@ describe('game rule edge cases', () => {
                 makePlayer('alice', 'Alice', { cash: 40, position: 10, inJail: true, jailTurns: 2 }),
                 makePlayer('bob', 'Bob'),
             ],
+            communityChestCards: benignCommunityChestDeck(),
         });
 
         const paid = applyAction(state, 'alice', { type: 'pay_jail_fine', payload: {} });

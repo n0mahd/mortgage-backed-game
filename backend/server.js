@@ -76,13 +76,21 @@ io.use((socket, next) => {
 
 io.on('connection', (socket) => {
     // Join a room's Socket.io channel
-    socket.on('join_room', (roomId) => {
-        if (!socket.userId) return;
+    socket.on('join_room', (roomId, ack) => {
+        const reply = typeof ack === 'function' ? ack : () => {};
+        if (!socket.userId) {
+            reply({ ok: false, error: 'Not authenticated' });
+            return;
+        }
         const membership = db.prepare(`
             SELECT 1 FROM room_members WHERE room_id = ? AND user_id = ?
         `).get(roomId, socket.userId);
-        if (!membership) return;
+        if (!membership) {
+            reply({ ok: false, error: 'Not a room member' });
+            return;
+        }
         socket.join(`room:${roomId}`);
+        reply({ ok: true });
     });
 
     // Leave a room's channel

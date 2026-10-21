@@ -2058,80 +2058,11 @@ function bindStaticGameControls() {
 }
 
 function runGameAction(button) {
-    switch (button.dataset.gameAction) {
-        case 'place-auction-bid':
-            placeAuctionBid();
-            break;
-        case 'pass-auction':
-            passAuction();
-            break;
-        case 'host-cancel-auction':
-            hostCancelAuction();
-            break;
-        case 'open-buy-property':
-            openBuyPropertyModal();
-            break;
-        case 'roll-dice':
-            rollDiceAndMove();
-            break;
-        case 'pay-jail-fine':
-            payJailFine();
-            break;
-        case 'use-jail-card':
-            useJailCard();
-            break;
-        case 'open-ipo':
-            openIPOModal();
-            break;
-        case 'open-debt':
-            openDebtModal();
-            break;
-        case 'open-corporation':
-            openCorporationModal();
-            break;
-        case 'end-turn':
-            endTurn();
-            break;
-        case 'host-pause':
-            hostPauseGame();
-            break;
-        case 'host-end':
-            hostEndGame();
-            break;
-        case 'host-resume':
-            hostResumeGame();
-            break;
-        case 'buy-shares':
-            buyShares(button.dataset.corpId);
-            break;
-        case 'support-chairman-vote':
-            supportChairmanVote(button.dataset.corpId, button.dataset.voteId);
-            break;
-        case 'change-chairman-majority':
-            changeChairmanByMajority(button.dataset.corpId);
-            break;
-        case 'propose-chairman-vote':
-            proposeChairmanVote(button.dataset.corpId);
-            break;
-        case 'accept-trade-offer':
-            acceptTradeOffer(button.dataset.offerId);
-            break;
-        case 'cancel-trade-offer':
-            cancelTradeOffer(button.dataset.offerId);
-            break;
-        case 'host-cancel-trade-offer':
-            hostCancelTradeOffer(button.dataset.offerId);
-            break;
-        case 'adjust-house':
-            houseModalAdjust(button.dataset.propertyId, Number(button.dataset.delta));
-            break;
-        case 'open-house':
-            openHouseModal();
-            break;
-        default:
-            console.warn('Unhandled game action:', button.dataset.gameAction);
-            break;
+    if (!window.GameActionDispatcher) {
+        console.warn('Game action dispatcher is not loaded:', button.dataset.gameAction);
+        return;
     }
+    window.GameActionDispatcher.run(button);
 }
 
 function populatePlayerDropdowns() {
