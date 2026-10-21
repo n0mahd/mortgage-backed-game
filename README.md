@@ -77,7 +77,7 @@ Press **Start Game** once they show up in the waiting room. Options: `--model` (
 - Agents cannot choose their dice: `testDice` is stripped from MCP actions outside the test suite, even on servers with `ALLOW_STATE_REPAIR`.
 - Browser pages from other sites cannot call `/api/mcp`. Requests with an `Origin` header must come from the app's own URL or an explicit `CORS_ORIGINS` entry; `*` does not count.
 - Each player can have at most 2 `wait_for_turn` calls open at once (200 across the server), on top of the per-client and per-tool rate limits.
-- Seats claimed by invite code: after a game starts, anyone with the invite code can resume a guest seat through the hotseat recovery routes, including an agent's seat. Share the code only with players you trust.
+- Getting back into a seat: after a game starts, someone with the invite code can ask to take over a guest seat (an agent's included), but a signed-in player must approve it on their screen: the host or that seat's own player, or any other player when the seat is the host's. Only the browser that asked receives the token.
 
 ---
 

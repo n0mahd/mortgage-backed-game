@@ -2607,3 +2607,29 @@ body {
     justify-content: center;
     gap: 8px;
 }
+
+/* Rejoin prompt: shown to players who may let someone back into their seat. */
+.rejoin-prompt {
+    z-index: 1200;
+}
+
+.rejoin-prompt .modal-content {
+    max-width: 420px;
+}
+
+.rejoin-prompt-text {
+    color: #2c3e50;
+    line-height: 1.45;
+    margin-bottom: 8px;
+}
+
+.rejoin-prompt-hint {
+    color: #5f6f68;
+    font-size: 0.9em;
+    line-height: 1.45;
+    margin-bottom: 16px;
+}
+
+.rejoin-waiting {
+    font-style: italic;
+}

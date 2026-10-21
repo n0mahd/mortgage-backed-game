@@ -18,7 +18,8 @@ Start here:
 - Frontend API and Socket.IO helpers: `src/js/api.js`.
 - Game screen entry point: `src/js/game.js`, with focused helpers under `src/js/game/`.
 - Realtime sync: `subscribeToGame` in `src/js/api.js` emits on every room (re)join; `resyncGame` in `src/js/game.js` fetches missed updates on rejoin, `visibilitychange`, `online`, and a fallback poll. Game actions keep one `actionId` across network retries, relying on server idempotency in `game_actions`.
-- Device transfer: `POST /api/auth/transfer-code` and `/api/auth/redeem-transfer` in `backend/routes/auth.js` (one-time, hashed, 10-minute codes). The unauthenticated `claim-member` / `claim-hotseat` room routes only issue tokens for guest (anonymous) accounts.
+- Device transfer: `POST /api/auth/transfer-code` and `/api/auth/redeem-transfer` in `backend/routes/auth.js` (one-time, hashed, 10-minute codes). Rejoining a started room without a token goes through approval: `backend/services/rejoinRequests.js` (rules for who may approve), routes under `/api/rooms/.../rejoin-requests`, the asking side in `src/js/api.js` (`requestRoomRejoin`) and the approver prompt in `src/js/rejoin-prompts.js`. Only guest seats; email players sign in with email.
+- Secret rotation: with `JWT_SECRET_PREVIOUS` set, `readToken` in `backend/routes/auth.js` accepts old-secret tokens and answers them with a new one (`X-Refreshed-Token` header, `auth:token_refreshed` socket event, `POST /api/auth/refresh-tokens` for saved hotseat tokens); `replaceStoredToken` in `src/js/api.js` swaps it in everywhere the browser keeps tokens.
 - Board rendering helpers: `src/js/board.js`.
 - Browser E2E tests: `tests/e2e/`.
 - Backend Jest tests: `backend/tests/`.

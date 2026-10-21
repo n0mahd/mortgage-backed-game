@@ -167,140 +167,206 @@ describe('GET /api/rooms/by-code/:code', () => {
 });
 
 // ---------------------------------------------------------------------------
-// POST /api/rooms/by-code/:code/claim-member
+// Rejoin requests: taking back a seat in a started room needs approval
 // ---------------------------------------------------------------------------
-describe('POST /api/rooms/by-code/:code/claim-member', () => {
-    test('200 returns a token for an existing guest member when room is full', async () => {
+describe('rejoin requests', () => {
+    function askToRejoin(code, memberId) {
+        return request(app)
+            .post(`/api/rooms/by-code/${code}/rejoin-requests`)
+            .send(memberId ? { member_id: memberId } : {});
+    }
+
+    function collect(asked) {
+        return request(app)
+            .post(`/api/rooms/rejoin-requests/${asked.body.request_id}/collect`)
+            .send({ secret: asked.body.secret });
+    }
+
+    function decide(roomId, requestId, token, decision) {
+        return request(app)
+            .post(`/api/rooms/${roomId}/rejoin-requests/${requestId}/${decision}`)
+            .set('Authorization', `Bearer ${token}`);
+    }
+
+    function listFor(roomId, token) {
+        return request(app)
+            .get(`/api/rooms/${roomId}/rejoin-requests`)
+            .set('Authorization', `Bearer ${token}`);
+    }
+
+    test('a guest seat comes back only after the host approves, and only to the asking browser', async () => {
         const guest = createUserFixture(db, { anonymous: true });
-        const room = createRoomFixture(db, user1.id, { inviteCode: 'CLAIM1', maxPlayers: 2 });
+        const room = createRoomFixture(db, user1.id, { inviteCode: 'CLAIM1', status: 'in_progress', maxPlayers: 4 });
         const member = addRoomMemberFixture(db, room.id, guest.id, 'Bob');
 
-        const res = await request(app)
-            .post('/api/rooms/by-code/CLAIM1/claim-member')
-            .send({ member_id: member.id });
+        const asked = await askToRejoin('claim1', member.id);
+        expect(asked.status).toBe(200);
+        expect(asked.body.token).toBeUndefined();
 
-        expect(res.status).toBe(200);
-        expect(res.body.user.id).toBe(guest.id);
-        expect(res.body.member.player_name).toBe('Bob');
-        expect(res.body.token).toBeTruthy();
+        const pending = await collect(asked);
+        expect(pending.body).toEqual({ status: 'pending' });
 
-        const me = await request(app)
-            .get('/api/auth/me')
-            .set('Authorization', `Bearer ${res.body.token}`);
-        expect(me.status).toBe(200);
+        const list = await listFor(room.id, user1.token);
+        expect(list.body).toEqual([expect.objectContaining({ id: asked.body.request_id, playerName: 'Bob' })]);
+
+        const wrongSecret = await request(app)
+            .post(`/api/rooms/rejoin-requests/${asked.body.request_id}/collect`)
+            .send({ secret: 'guess' });
+        expect(wrongSecret.status).toBe(404);
+
+        expect((await decide(room.id, asked.body.request_id, user1.token, 'approve')).status).toBe(200);
+
+        const approved = await collect(asked);
+        expect(approved.body.status).toBe('approved');
+        expect(approved.body.user.id).toBe(guest.id);
+        const me = await request(app).get('/api/auth/me').set('Authorization', `Bearer ${approved.body.token}`);
         expect(me.body.id).toBe(guest.id);
+
+        const again = await collect(asked);
+        expect(again.body).toEqual({ status: 'collected' });
     });
 
-    test('403 refuses to hand out a token for an email account', async () => {
+    test('another player cannot approve a request for someone else\'s seat', async () => {
+        const guest = createUserFixture(db, { anonymous: true });
+        const other = createUserFixture(db, { anonymous: true });
+        const room = createRoomFixture(db, user1.id, { inviteCode: 'CLAIM2', status: 'in_progress' });
+        const member = addRoomMemberFixture(db, room.id, guest.id, 'Bob');
+        addRoomMemberFixture(db, room.id, other.id, 'Eve');
+
+        const asked = await askToRejoin('CLAIM2', member.id);
+        expect((await listFor(room.id, other.token)).body).toEqual([]);
+        expect((await decide(room.id, asked.body.request_id, other.token, 'approve')).status).toBe(403);
+        expect((await collect(asked)).body.status).toBe('pending');
+    });
+
+    test('the seat\'s own player can approve, for moving devices', async () => {
+        const guest = createUserFixture(db, { anonymous: true });
+        const room = createRoomFixture(db, user1.id, { inviteCode: 'CLAIM3', status: 'in_progress' });
+        const member = addRoomMemberFixture(db, room.id, guest.id, 'Bob');
+
+        const asked = await askToRejoin('CLAIM3', member.id);
+        expect((await decide(room.id, asked.body.request_id, guest.token, 'approve')).status).toBe(200);
+        expect((await collect(asked)).body.status).toBe('approved');
+    });
+
+    test('when the host lost their seat, any other player can let them back in', async () => {
+        const host = createUserFixture(db, { anonymous: true });
+        const other = createUserFixture(db, { anonymous: true });
+        const room = createRoomFixture(db, host.id, { inviteCode: 'CLAIM4', status: 'in_progress' });
+        addRoomMemberFixture(db, room.id, other.id, 'Eve');
+
+        const asked = await askToRejoin('CLAIM4', room.room_members[0].id);
+        expect((await listFor(room.id, other.token)).body).toHaveLength(1);
+        expect((await decide(room.id, asked.body.request_id, other.token, 'approve')).status).toBe(200);
+        expect((await collect(asked)).body.user.id).toBe(host.id);
+    });
+
+    test('a denied request hands out nothing', async () => {
+        const guest = createUserFixture(db, { anonymous: true });
+        const room = createRoomFixture(db, user1.id, { inviteCode: 'CLAIM5', status: 'in_progress' });
+        const member = addRoomMemberFixture(db, room.id, guest.id, 'Bob');
+
+        const asked = await askToRejoin('CLAIM5', member.id);
+        await decide(room.id, asked.body.request_id, user1.token, 'deny');
+        const result = await collect(asked);
+        expect(result.body).toEqual({ status: 'denied' });
+        expect(result.body.token).toBeUndefined();
+    });
+
+    test('a newer request for the same seat replaces the older one', async () => {
+        const guest = createUserFixture(db, { anonymous: true });
+        const room = createRoomFixture(db, user1.id, { inviteCode: 'CLAIM6', status: 'in_progress' });
+        const member = addRoomMemberFixture(db, room.id, guest.id, 'Bob');
+
+        const first = await askToRejoin('CLAIM6', member.id);
+        const second = await askToRejoin('CLAIM6', member.id);
+        expect((await collect(first)).body).toEqual({ status: 'superseded' });
+        expect((await decide(room.id, first.body.request_id, user1.token, 'approve')).status).toBe(404);
+        expect((await listFor(room.id, user1.token)).body.map(item => item.id)).toEqual([second.body.request_id]);
+    });
+
+    test('expired requests cannot be approved or collected', async () => {
+        const guest = createUserFixture(db, { anonymous: true });
+        const room = createRoomFixture(db, user1.id, { inviteCode: 'CLAIM7', status: 'in_progress' });
+        const member = addRoomMemberFixture(db, room.id, guest.id, 'Bob');
+
+        const asked = await askToRejoin('CLAIM7', member.id);
+        db.prepare(`UPDATE rejoin_requests SET expires_at = datetime('now', '-1 minute')`).run();
+        expect((await decide(room.id, asked.body.request_id, user1.token, 'approve')).status).toBe(404);
+        expect((await collect(asked)).body).toEqual({ status: 'expired' });
+    });
+
+    test('the asking browser can cancel its request', async () => {
+        const guest = createUserFixture(db, { anonymous: true });
+        const room = createRoomFixture(db, user1.id, { inviteCode: 'CLAIM8', status: 'in_progress' });
+        const member = addRoomMemberFixture(db, room.id, guest.id, 'Bob');
+
+        const asked = await askToRejoin('CLAIM8', member.id);
+        const cancelled = await request(app)
+            .post(`/api/rooms/rejoin-requests/${asked.body.request_id}/cancel`)
+            .send({ secret: asked.body.secret });
+        expect(cancelled.status).toBe(200);
+        expect((await listFor(room.id, user1.token)).body).toEqual([]);
+        expect((await collect(asked)).body).toEqual({ status: 'cancelled' });
+    });
+
+    test('403 for an email seat: those players sign in with email', async () => {
         const room = createRoomFixture(db, user1.id, { inviteCode: 'CLAIM9', maxPlayers: 2 });
         addRoomMemberFixture(db, room.id, user2.id, 'Bob');
 
-        const res = await request(app)
-            .post('/api/rooms/by-code/CLAIM9/claim-member')
-            .send({ member_id: room.room_members[0].id });
-
+        const res = await askToRejoin('CLAIM9', room.room_members[0].id);
         expect(res.status).toBe(403);
-        expect(res.body.token).toBeUndefined();
         expect(res.body.error).toMatch(/email/);
     });
 
-    test('200 returns a token for an existing guest member when room is in progress', async () => {
-        const guest = createUserFixture(db, { anonymous: true });
-        const room = createRoomFixture(db, guest.id, { inviteCode: 'CLAIM2', status: 'in_progress', maxPlayers: 4 });
-
-        const res = await request(app)
-            .post('/api/rooms/by-code/claim2/claim-member')
-            .send({ member_id: room.room_members[0].id });
-
-        expect(res.status).toBe(200);
-        expect(res.body.user.id).toBe(guest.id);
-        expect(res.body.room.status).toBe('in_progress');
-    });
-
-    test('400 rejects member claims while room is still open for new players', async () => {
+    test('400 while the room is still open for new players', async () => {
         const room = createRoomFixture(db, user1.id, { inviteCode: 'OPEN01', maxPlayers: 4 });
-
-        const res = await request(app)
-            .post('/api/rooms/by-code/OPEN01/claim-member')
-            .send({ member_id: room.room_members[0].id });
-
+        const res = await askToRejoin('OPEN01', room.room_members[0].id);
         expect(res.status).toBe(400);
         expect(res.body.error).toMatch(/still open/);
     });
 
-    test('404 rejects member id from another room', async () => {
-        createRoomFixture(db, user1.id, { inviteCode: 'CLAIM3', maxPlayers: 1 });
-
-        const res = await request(app)
-            .post('/api/rooms/by-code/CLAIM3/claim-member')
-            .send({ member_id: 'not-in-room' });
-
-        expect(res.status).toBe(404);
+    test('404 for a member id from another room', async () => {
+        createRoomFixture(db, user1.id, { inviteCode: 'CLAIMX', maxPlayers: 1 });
+        expect((await askToRejoin('CLAIMX', 'not-in-room')).status).toBe(404);
     });
-});
 
-// ---------------------------------------------------------------------------
-// POST /api/rooms/by-code/:code/claim-hotseat
-// ---------------------------------------------------------------------------
-describe('POST /api/rooms/by-code/:code/claim-hotseat', () => {
-    test('200 returns tokens for all existing members when room is full', async () => {
+    test('a whole same-device game comes back after the host approves', async () => {
         const host = createUserFixture(db, { anonymous: true });
         const guest = createUserFixture(db, { anonymous: true });
         const room = createRoomFixture(db, host.id, { inviteCode: 'HSEAT1', maxPlayers: 2 });
         addRoomMemberFixture(db, room.id, guest.id, 'Bob');
 
-        const res = await request(app)
-            .post('/api/rooms/by-code/HSEAT1/claim-hotseat')
-            .send({});
+        const asked = await askToRejoin('HSEAT1');
+        expect(asked.status).toBe(200);
+        expect((await decide(room.id, asked.body.request_id, guest.token, 'approve')).status).toBe(403);
+        expect((await decide(room.id, asked.body.request_id, host.token, 'approve')).status).toBe(200);
 
-        expect(res.status).toBe(200);
-        expect(res.body.tokens).toHaveLength(2);
-        expect(res.body.tokens.map(record => record.name).sort()).toEqual(['Bob', 'Host']);
-        expect(res.body.tokens.every(record => record.token && record.userId)).toBe(true);
-
-        const bobToken = res.body.tokens.find(record => record.name === 'Bob').token;
-        const me = await request(app)
-            .get('/api/auth/me')
-            .set('Authorization', `Bearer ${bobToken}`);
-        expect(me.status).toBe(200);
+        const result = await collect(asked);
+        expect(result.body.tokens.map(record => record.name).sort()).toEqual(['Bob', 'Host']);
+        const bobToken = result.body.tokens.find(record => record.name === 'Bob').token;
+        const me = await request(app).get('/api/auth/me').set('Authorization', `Bearer ${bobToken}`);
         expect(me.body.id).toBe(guest.id);
     });
 
-    test('403 refuses hotseat resume when any member has an email account', async () => {
+    test('403 for a whole-room request when any member has an email account', async () => {
         const guest = createUserFixture(db, { anonymous: true });
         const room = createRoomFixture(db, user1.id, { inviteCode: 'HSEAT9', maxPlayers: 2 });
         addRoomMemberFixture(db, room.id, guest.id, 'Bob');
-
-        const res = await request(app)
-            .post('/api/rooms/by-code/HSEAT9/claim-hotseat')
-            .send({});
-
-        expect(res.status).toBe(403);
-        expect(res.body.tokens).toBeUndefined();
+        expect((await askToRejoin('HSEAT9')).status).toBe(403);
     });
 
-    test('200 returns tokens for all existing members when room is in progress', async () => {
-        const host = createUserFixture(db, { anonymous: true });
-        const room = createRoomFixture(db, host.id, { inviteCode: 'HSEAT2', status: 'in_progress', maxPlayers: 4 });
-
-        const res = await request(app)
-            .post('/api/rooms/by-code/hseat2/claim-hotseat')
-            .send({});
-
-        expect(res.status).toBe(200);
-        expect(res.body.tokens).toHaveLength(1);
-        expect(res.body.room.status).toBe('in_progress');
-    });
-
-    test('400 rejects hotseat claims while room is still open for new players', async () => {
-        createRoomFixture(db, user1.id, { inviteCode: 'HOPEN1', maxPlayers: 4 });
-
-        const res = await request(app)
-            .post('/api/rooms/by-code/HOPEN1/claim-hotseat')
-            .send({});
-
-        expect(res.status).toBe(400);
-        expect(res.body.error).toMatch(/still open/);
+    test('the old claim routes are gone', async () => {
+        const guest = createUserFixture(db, { anonymous: true });
+        const room = createRoomFixture(db, guest.id, { inviteCode: 'GONE01', status: 'in_progress' });
+        const member = await request(app)
+            .post('/api/rooms/by-code/GONE01/claim-member')
+            .send({ member_id: room.room_members[0].id });
+        const hotseat = await request(app).post('/api/rooms/by-code/GONE01/claim-hotseat').send({});
+        expect(member.status).toBe(404);
+        expect(hotseat.status).toBe(404);
+        expect(member.body.token).toBeUndefined();
+        expect(hotseat.body.tokens).toBeUndefined();
     });
 });
 

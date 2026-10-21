@@ -5,13 +5,14 @@ const crypto = require('crypto');
 const jwt = require('jsonwebtoken');
 const { sendEmail } = require('../mailer');
 const db = require('../db');
-const { getConfig } = require('../config');
+const { getConfig, REFRESHED_TOKEN_HEADER } = require('../config');
 const { createRateLimiter, getRequestActorKey } = require('../rateLimit');
 const { normalizeEmail, isValidEmail } = require('../normalizers');
 const { createAnonymousUser } = require('../services/rooms');
 
 const config = getConfig();
 const JWT_SECRET = config.jwtSecret;
+const JWT_PREVIOUS_SECRET = config.jwtPreviousSecret;
 const JWT_EXPIRY = config.jwtExpiry;
 const otpSendLimits = new Map();
 const otpVerifyLimits = new Map();
@@ -31,19 +32,29 @@ function requireAuth(req, res, next) {
     if (!header || !header.startsWith('Bearer ')) {
         return res.status(401).json({ error: 'Unauthorized' });
     }
-    const userId = verifyToken(header.slice(7));
-    if (!userId) return res.status(401).json({ error: 'Invalid token' });
-    req.userId = userId;
+    const result = readToken(header.slice(7));
+    if (!result) return res.status(401).json({ error: 'Invalid token' });
+    if (result.stale) res.set(REFRESHED_TOKEN_HEADER, makeToken(result.userId));
+    req.userId = result.userId;
     next();
+}
+
+// Returns { userId, stale } for a valid player token, or null. A stale token
+// was signed with JWT_SECRET_PREVIOUS and should be swapped for a new one.
+function readToken(token) {
+    const secrets = JWT_PREVIOUS_SECRET ? [JWT_SECRET, JWT_PREVIOUS_SECRET] : [JWT_SECRET];
+    for (const [index, secret] of secrets.entries()) {
+        try {
+            const userId = jwt.verify(token, secret).sub;
+            return userId ? { userId, stale: index > 0 } : null;
+        } catch {}
+    }
+    return null;
 }
 
 // Returns the user id for a valid player token, or null.
 function verifyToken(token) {
-    try {
-        return jwt.verify(token, JWT_SECRET).sub || null;
-    } catch {
-        return null;
-    }
+    return readToken(token)?.userId || null;
 }
 
 function makeToken(userId) {
@@ -192,12 +203,26 @@ router.post('/redeem-transfer', authRateLimit, (req, res) => {
     res.json({ token: makeToken(user.id), user: { ...user, is_anonymous: !!user.is_anonymous } });
 });
 
+// POST /api/auth/refresh-tokens — swap saved same-device (hotseat) tokens
+// signed with the previous secret for new ones. Tokens that are already
+// current come back unchanged; invalid ones come back as null.
+router.post('/refresh-tokens', authRateLimit, (req, res) => {
+    const tokens = Array.isArray(req.body?.tokens) ? req.body.tokens.slice(0, 12) : [];
+    res.json({
+        tokens: tokens.map(token => {
+            const result = typeof token === 'string' ? readToken(token) : null;
+            if (!result) return null;
+            return result.stale ? makeToken(result.userId) : token;
+        }),
+    });
+});
+
 router.post('/signout', requireAuth, (req, res) => {
     // JWTs are stateless; nothing to delete. Client clears the token.
     res.json({ ok: true });
 });
 
-module.exports = { router, requireAuth, makeToken, verifyToken };
+module.exports = { router, requireAuth, makeToken, verifyToken, readToken };
 
 function toSqliteDate(date) {
     return date.toISOString().replace('T', ' ').slice(0, 19);

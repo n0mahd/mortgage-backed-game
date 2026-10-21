@@ -169,6 +169,7 @@ async function loadRoomDataById(id) {
 }
 
 function subscribeToRoomUpdatesById(id) {
+    RejoinPrompts.watch(id);
     roomSubscription = subscribeToRoom(
         id,
         async (room) => {

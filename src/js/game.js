@@ -126,6 +126,7 @@ function setupRealtimeSubscriptions() {
     gameChannel = subscribeToGame(currentRoom.id, async (game) => {
         await applyGameUpdate(game);
     }, () => resyncGame());
+    RejoinPrompts.watch(currentRoom.id);
 
     // Phones drop the socket when the screen locks or the browser goes to the
     // background, so catch up whenever the page comes back.

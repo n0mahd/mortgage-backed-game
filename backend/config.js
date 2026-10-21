@@ -1,6 +1,8 @@
 const path = require('path');
 
 const DEFAULT_DEV_SECRET = 'dev-secret-change-me';
+// Response header carrying a replacement for a token signed with the previous secret.
+const REFRESHED_TOKEN_HEADER = 'X-Refreshed-Token';
 
 function loadDotEnv() {
     const fs = require('fs');
@@ -29,6 +31,10 @@ function getConfig() {
     const port = Number(process.env.PORT || 3000);
     const host = process.env.HOST || process.env.BIND_HOST || (isProduction() ? '127.0.0.1' : '0.0.0.0');
     const jwtSecret = process.env.JWT_SECRET || DEFAULT_DEV_SECRET;
+    // Set only while rotating JWT_SECRET: tokens signed with it still work and
+    // are swapped for new ones, so rotation signs nobody out. Remove it once
+    // players have moved over.
+    const jwtPreviousSecret = process.env.JWT_SECRET_PREVIOUS || null;
     const dbPath = process.env.DB_PATH || (process.env.NODE_ENV === 'test'
         ? ':memory:'
         : path.join(__dirname, 'game.db'));
@@ -45,6 +51,9 @@ function getConfig() {
         if (!process.env.JWT_SECRET || jwtSecret === DEFAULT_DEV_SECRET) {
             throw new Error('A non-default JWT_SECRET is required in production');
         }
+        if (jwtPreviousSecret === jwtSecret) {
+            throw new Error('JWT_SECRET_PREVIOUS must differ from JWT_SECRET');
+        }
         if (corsOrigins.length === 0 || corsOrigins.includes('*')) {
             throw new Error('CORS_ORIGINS must be explicit in production');
         }
@@ -59,6 +68,7 @@ function getConfig() {
         port,
         host,
         jwtSecret,
+        jwtPreviousSecret,
         jwtExpiry: process.env.JWT_EXPIRY || (isProduction() ? '12h' : '30d'),
         dbPath,
         corsOrigins,
@@ -76,6 +86,8 @@ function getConfig() {
             auth: buildRateLimitConfig('AUTH', rateLimitEnabled, { max: 120, windowMs: 15 * 60 * 1000 }),
             roomCreate: buildRateLimitConfig('ROOM_CREATE', rateLimitEnabled, { max: 12, windowMs: 60 * 60 * 1000 }),
             gameAction: buildRateLimitConfig('GAME_ACTION', rateLimitEnabled, { max: 120, windowMs: 60 * 1000 }),
+            rejoinRequest: buildRateLimitConfig('REJOIN_REQUEST', rateLimitEnabled, { max: 20, windowMs: 15 * 60 * 1000 }),
+            rejoinCollect: buildRateLimitConfig('REJOIN_COLLECT', rateLimitEnabled, { max: 600, windowMs: 15 * 60 * 1000 }),
             mcp: buildRateLimitConfig('MCP', rateLimitEnabled, { max: 300, windowMs: 60 * 1000 }),
             emailSender: buildRateLimitConfig('EMAIL_SENDER', rateLimitEnabled, { max: 10, windowMs: 60 * 60 * 1000 }),
             emailRecipient: buildRateLimitConfig('EMAIL_RECIPIENT', rateLimitEnabled, { max: 3, windowMs: 60 * 60 * 1000 }),
@@ -84,7 +96,8 @@ function getConfig() {
 }
 
 function getCorsOptions(config) {
-    if (config.corsOrigins.includes('*')) return { origin: '*', methods: ['GET', 'POST', 'PATCH', 'DELETE'] };
+    const exposedHeaders = [REFRESHED_TOKEN_HEADER];
+    if (config.corsOrigins.includes('*')) return { origin: '*', methods: ['GET', 'POST', 'PATCH', 'DELETE'], exposedHeaders };
     return {
         origin(origin, callback) {
             if (!origin || config.corsOrigins.includes(origin)) return callback(null, true);
@@ -93,6 +106,7 @@ function getCorsOptions(config) {
             return callback(err);
         },
         methods: ['GET', 'POST', 'PATCH', 'DELETE'],
+        exposedHeaders,
     };
 }
 
@@ -122,4 +136,4 @@ function parseTrustProxy(raw, production) {
     return raw;
 }
 
-module.exports = { getConfig, getCorsOptions, DEFAULT_DEV_SECRET };
+module.exports = { getConfig, getCorsOptions, DEFAULT_DEV_SECRET, REFRESHED_TOKEN_HEADER };

@@ -26,6 +26,7 @@ Production database: SQLite on the M60e at `/mnt/ssd/projects/mortgage-backed/ba
 | Room name (free text) | `rooms.name` | Shown in the lobby, in emails and to agents in the room | Room members | Forever | Nothing (no room deletion route) |
 | User ID (random UUID, pseudonymous) | Every table, `game_events.player_id`, `game_actions.actor_user_id` | Links a player to their seat and actions | Room members see IDs in room and game payloads | Forever | Cascades only if the user row is deleted |
 | Device transfer code | `device_transfer_codes.code_hash` (SHA-256) | Move a session to another device | Server only | Rows are never deleted (expire after 10 minutes) | Next code request for that user deletes unused ones |
+| Rejoin request | `rejoin_requests` (room, seat, SHA-256 of the asking browser's secret, status, who answered) | Let a player who lost their token back into their seat once another player approves | Server only; approvers see the seat name | Rows are never deleted (expire after 10 minutes) | Cascades with the room or seat |
 | Game history | `game_events`, `game_actions.request_json`/`result_json` | Game log, idempotent retries | Room members (events) | Forever | Nothing |
 | Rate-limit keys (IP, user ID, email sender and recipient) | In memory only | Abuse protection, including per-recipient email limits | Server only | Window length (15 to 60 minutes) | Process restart or window expiry |
 
@@ -69,7 +70,7 @@ user IDs, IPs or free text, and scrubbed error fingerprints.
 
 | Secret | Lives in | Rotate when |
 | --- | --- | --- |
-| `JWT_SECRET` | Production `backend/.env` only | On any leak (rotation logs everyone out; guests rejoin by room code) |
+| `JWT_SECRET` | Production `backend/.env` only | On any leak. Move the old value to `JWT_SECRET_PREVIOUS` so players are swapped onto the new secret without signing out, then remove it after a week or two (see `SETUP.md`) |
 | Email API key (`USESEND_API_KEY`) | Production `backend/.env` only | On any leak |
 
 ## Open findings
