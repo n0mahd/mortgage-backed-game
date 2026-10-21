@@ -129,7 +129,7 @@
         <p>Built with <a href="https://claude.ai/claude-code" target="_blank" rel="noopener">Claude Code</a>.</p>
     </footer>
 
-    <script src="src/js/api.js?v=12"></script>
+    <script src="src/js/api.js?v=13"></script>
     <script>
         document.addEventListener('DOMContentLoaded', () => {
             /* Enter key on resume code input */
@@ -178,14 +178,7 @@
                 await redeemDeviceTransferCode(input.value);
                 // Drop the one-time code from the address bar and history.
                 window.history.replaceState(null, '', window.location.pathname);
-                const rooms = await getUserRooms();
-                const activeRoom = rooms.find(room => room.status === 'in_progress')
-                    || rooms.find(room => room.status === 'waiting');
-                if (activeRoom) {
-                    navigateToRoom(activeRoom);
-                } else {
-                    window.location.href = 'lobby.html';
-                }
+                await openActiveGame();
             } catch (err) {
                 errorEl.textContent = err.message || 'That code did not work. Get a new one and try again.';
                 errorEl.style.display = 'block';
@@ -232,7 +225,7 @@
             }
 
             try {
-                await sendForgotRoomCodes(email);
+                await sendRoomCode({ action: 'forgot_code', email });
                 successEl.style.display = 'block';
             } catch (err) {
                 errorEl.textContent = err.message || 'Could not send room codes. Please try again.';

@@ -52,7 +52,7 @@ async function showGuestJoinSection() {
     const hasLocalHotseatResume = renderHotseatResumeOptions(optionsEl, normalizedRoomCode);
     if (!hasLocalHotseatResume) {
         try {
-            const room = await apiFetch(`/rooms/by-code/${normalizedRoomCode}`);
+            const room = await getRoomByCode(normalizedRoomCode);
             const hasExistingPlayerResume = renderExistingRoomMemberOptions(optionsEl, normalizedRoomCode, room);
             setGuestJoinFormVisible(!hasExistingPlayerResume);
         } catch (err) {
@@ -100,7 +100,7 @@ async function joinAsGuest() {
         if (existingUser && !existingUser.is_anonymous) {
             currentUser = existingUser;
         } else {
-            const anonData = await apiFetch('/auth/anonymous', { method: 'POST' });
+            const anonData = await createGuestUser();
             setToken(anonData.token);
             currentUser = anonData.user;
             createdAnonymousSession = true;
@@ -117,7 +117,7 @@ async function joinAsGuest() {
         const emailDisplay = document.getElementById('user-email');
         if (emailDisplay) emailDisplay.textContent = playerName;
 
-        history.replaceState(null, '', `waiting.html?room=${room.id}`);
+        history.replaceState(null, '', `waiting.html?room=${encodeURIComponent(room.id)}`);
 
         await loadRoomDataById(room.id);
         subscribeToRoomUpdatesById(room.id);
@@ -194,9 +194,7 @@ function subscribeToRoomUpdatesById(id) {
             updateRoomStatus(room.status, room.room_members ? room.room_members.length : undefined, room.max_players);
             if (room.status === 'in_progress') {
                 logActivity('Game is starting!');
-                setTimeout(() => {
-                    window.location.href = `game.html?room=${id}`;
-                }, 1500);
+                setTimeout(() => navigateToGameRoom(id), 1500);
             }
         }
     );
@@ -309,10 +307,7 @@ async function sendInviteEmail() {
     statusEl.classList.remove('is-success', 'is-error');
 
     try {
-        await apiFetch('/rooms/send-code', {
-            method: 'POST',
-            body: JSON.stringify({ email, inviteCode: currentRoom.invite_code })
-        });
+        await sendRoomCode({ email, inviteCode: currentRoom.invite_code });
     } catch (err) {
         statusEl.textContent = err.message || 'Could not send the invite.';
         statusEl.classList.add('is-error');
@@ -350,9 +345,7 @@ async function startGameFromLobby() {
 
         logActivity('Game started! Redirecting...');
 
-        setTimeout(() => {
-            window.location.href = `game.html?room=${activeRoomId}`;
-        }, 1000);
+        setTimeout(() => navigateToGameRoom(activeRoomId), 1000);
 
     } catch (error) {
         console.error('Error starting game:', error);
@@ -390,7 +383,7 @@ async function checkGameStatusById(id) {
     try {
         const game = await getGameByRoomId(id);
         if (game && currentRoom && currentRoom.status === 'in_progress') {
-            window.location.href = `game.html?room=${id}`;
+            navigateToGameRoom(id);
         }
     } catch (error) {
         console.error('Error checking game status:', error);

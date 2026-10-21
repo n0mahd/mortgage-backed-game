@@ -87,22 +87,16 @@ async function createRoom() {
 
         const me = await getCurrentUser();
         if (me && me.email) {
-            callSendRoomCode({
-                email: me.email,
-                inviteCode: room.invite_code,
-                roomName: room.name
-            });
+            // Best effort: the room page shows the code anyway.
+            sendRoomCode({ email: me.email, inviteCode: room.invite_code, roomName: room.name })
+                .catch(err => console.warn('Room code email error:', err));
         }
 
-        window.location.href = `waiting.html?room=${encodeURIComponent(room.id)}`;
+        navigateToWaitingRoom(room.id);
     } catch (error) {
         console.error('Error creating room:', error);
         alert('Error creating game: ' + error.message);
     }
-}
-
-function goToRoom(roomId) {
-    window.location.href = `waiting.html?room=${encodeURIComponent(roomId)}`;
 }
 
 function renderRoomCard(room) {
@@ -146,7 +140,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     document.getElementById('active-rooms-list')?.addEventListener('click', (event) => {
         const card = event.target.closest('.room-card[data-room-id]');
-        if (card) goToRoom(card.dataset.roomId);
+        if (card) navigateToWaitingRoom(card.dataset.roomId);
     });
 
     ['room-name', 'max-players', 'host-player-name'].forEach(id => {
