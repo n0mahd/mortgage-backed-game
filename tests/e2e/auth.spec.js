@@ -13,7 +13,7 @@ test.describe('Auth flow', () => {
         await page.goto(BASE);
         await expect(page.locator('body')).toBeVisible();
         // Should have at least one button or link to get started
-        const cta = page.locator('a[href*="auth"], button').first();
+        const cta = page.locator('a[href*="auth"]:visible, button:visible').first();
         await expect(cta).toBeVisible();
     });
 

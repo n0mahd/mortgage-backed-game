@@ -823,13 +823,14 @@ input[type="checkbox"] {
     box-shadow: 0 0 0 2px var(--forest);
 }
 
-/* "It's your turn" pill when you are on another tab */
+/* "It's your turn" pill when you are on another tab (top on phones, bottom on desktop) */
 #turn-banner {
     display: none;
     position: fixed;
     left: 50%;
     transform: translateX(-50%);
-    bottom: calc(var(--tabbar-h) + var(--safe-bottom) + var(--s3));
+    /* Under the app bar: at the bottom it would cover Accept/Decline and form buttons */
+    top: calc(var(--topbar-h) + var(--safe-top) + var(--s2));
     z-index: 55;
     align-items: center;
     gap: var(--s3);
@@ -3147,7 +3148,7 @@ input[type="checkbox"] {
     .game-page .container,
     .game-page.is-my-turn .container { padding-bottom: var(--s10); }
 
-    #turn-banner { bottom: var(--s6); }
+    #turn-banner { top: auto; bottom: var(--s6); }
 
     /* Turn layout: ticket + actions left, players right */
     #gameContent > .game-layout {

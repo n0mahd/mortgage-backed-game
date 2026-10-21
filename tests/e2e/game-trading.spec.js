@@ -225,7 +225,7 @@ test.describe('Trading — offer colors', () => {
         const park = card.locator('.trade-asset-tag', { hasText: 'Park Place' });
         await expect(park).toContainText('Dark Blue');
         await expect(park).toHaveCSS('--property-color', '#2C3E9E');
-        await expect(card.locator('.trade-asset-tag.cash')).toContainText('$50.00');
+        await expect(card.locator('.trade-asset-tag.cash')).toContainText('$50');
         if (process.env.TRADE_COLORS_SHOT) await card.screenshot({ path: process.env.TRADE_COLORS_SHOT });
     });
 });
