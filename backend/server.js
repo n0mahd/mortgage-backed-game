@@ -1,3 +1,7 @@
+'use strict';
+
+// HTTP and Socket.IO server: mounts the API routes and authenticates sockets.
+
 const express = require('express');
 const http = require('http');
 const { Server } = require('socket.io');
@@ -6,34 +10,31 @@ const { getConfig, getCorsOptions } = require('./config');
 const db = require('./db');
 const presence = require('./services/presence');
 const { canViewRoom } = require('./services/rooms');
+const { setSocketServer } = require('./services/roomEvents');
 const { readToken, makeToken } = require('./auth');
+const { createMcpRouter } = require('./mcp/server');
 
 const config = getConfig();
-const PORT = config.port;
-const HOST = config.host;
 
 const app = express();
 const server = http.createServer(app);
 const io = new Server(server, {
     cors: getCorsOptions(config)
 });
+setSocketServer(io);
 
 if (config.trustProxy !== false) {
     app.set('trust proxy', config.trustProxy);
 }
-
-const roomsRouter = require('./routes/rooms')(io);
-const gamesRouter = require('./routes/games')(io);
-const { createMcpRouter } = require('./mcp/server');
 
 app.use(cors(getCorsOptions(config)));
 app.use(express.json({ limit: config.requestBodyLimit }));
 
 // Routes
 app.use('/api/auth', require('./routes/auth'));
-app.use('/api/rooms', roomsRouter);
-app.use('/api/games', gamesRouter);
-app.use('/api/mcp', createMcpRouter(io));
+app.use('/api/rooms', require('./routes/rooms'));
+app.use('/api/games', require('./routes/games'));
+app.use('/api/mcp', createMcpRouter());
 app.use('/api/push', require('./routes/push'));
 
 // Health check
@@ -119,8 +120,8 @@ io.on('connection', (socket) => {
 
 
 if (require.main === module) {
-    server.listen(PORT, HOST, () => {
-        console.log(`Mortgage Backed Game backend running env=${config.env} host=${HOST} port=${PORT} db=${config.dbPath}`);
+    server.listen(config.port, config.host, () => {
+        console.log(`Mortgage Backed Game backend running env=${config.env} host=${config.host} port=${config.port} db=${config.dbPath}`);
     });
 }
 

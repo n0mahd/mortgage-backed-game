@@ -7,7 +7,7 @@ const crypto = require('crypto');
 const { v4: uuidv4 } = require('uuid');
 const db = require('../db');
 const { normalizeInviteCode } = require('../helpers');
-const { notifyRoom } = require('./roomEvents');
+const { emitToRoom, notifyRoom } = require('./roomEvents');
 
 class RoomError extends Error {
     constructor(status, message) {
@@ -110,7 +110,7 @@ function createRoom({ hostUserId, name, maxPlayers: rawMaxPlayers, playerName, s
 
 // Join a waiting room. Joining a room you are already in returns it unchanged.
 // agentSeatId is set when an agent takes the seat its invite reserved.
-function joinRoom(io, { roomId, userId, playerName, agentSeatId = null }) {
+function joinRoom({ roomId, userId, playerName, agentSeatId = null }) {
     const room = getRoomWithMembers(roomId);
     if (!room) throw new RoomError(404, 'Room not found');
 
@@ -130,7 +130,7 @@ function joinRoom(io, { roomId, userId, playerName, agentSeatId = null }) {
     `).run(uuidv4(), room.id, userId, uniquePlayerName(room.room_members, playerName || 'Guest'));
 
     const updatedRoom = getRoomWithMembers(room.id);
-    io.to(`room:${room.id}`).emit('room:member_change', updatedRoom);
+    emitToRoom(room.id, 'room:member_change', updatedRoom);
     notifyRoom(room.id);
     return updatedRoom;
 }

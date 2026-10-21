@@ -10,7 +10,7 @@ const { v4: uuidv4 } = require('uuid');
 const db = require('../db');
 const { getConfig } = require('../config');
 const { buildGameActionAuditRecord, logGameActionAudit } = require('./audit');
-const { notifyRoom } = require('./roomEvents');
+const { emitToRoom, notifyRoom } = require('./roomEvents');
 const { notifyTurnChange } = require('./turnAlerts');
 const {
     createInitialGame,
@@ -56,14 +56,14 @@ function safeRollback() {
     }
 }
 
-function publishGameUpdate(io, updatedGame) {
-    io.to(`room:${updatedGame.room_id}`).emit('game:state_update', parseGame(updatedGame));
+function publishGameUpdate(updatedGame) {
+    emitToRoom(updatedGame.room_id, 'game:state_update', parseGame(updatedGame));
     notifyRoom(updatedGame.room_id);
 }
 
 // Create the game for a room (host only). Returns the parsed game. If a game
 // already exists for the room it is returned unchanged.
-function startGameForRoom(io, { roomId, actorUserId, gameState, settings, minPlayers = 0 }) {
+function startGameForRoom({ roomId, actorUserId, gameState, settings, minPlayers = 0 }) {
     if (!roomId) throw new GameRuleError(400, 'room_id required');
 
     const room = getRoom(roomId);
@@ -100,7 +100,7 @@ function startGameForRoom(io, { roomId, actorUserId, gameState, settings, minPla
     }
 
     const game = getGame(gameId);
-    io.to(`room:${roomId}`).emit('room:status_change', { ...room, status: 'in_progress' });
+    emitToRoom(roomId, 'room:status_change', { ...room, status: 'in_progress' });
     notifyRoom(roomId);
     notifyTurnChange(null, game, actorUserId);
     return parseGame(game);
@@ -109,7 +109,7 @@ function startGameForRoom(io, { roomId, actorUserId, gameState, settings, minPla
 // Apply one game action authoritatively. Returns { game, events } exactly as the
 // HTTP route responds. A replayed actionId returns the stored result. Throws
 // GameRuleError for rule/validation failures; a 409 carries err.stateVersion.
-function applyGameAction(io, { gameId, actorUserId, actionId, type, payload, expectedVersion, requestBody }) {
+function applyGameAction({ gameId, actorUserId, actionId, type, payload, expectedVersion, requestBody }) {
     if (!actionId || !type) throw new GameRuleError(400, 'actionId and type required');
     if (typeof expectedVersion !== 'number') throw new GameRuleError(400, 'expectedVersion required');
 
@@ -168,7 +168,7 @@ function applyGameAction(io, { gameId, actorUserId, actionId, type, payload, exp
         throw err;
     }
 
-    publishGameUpdate(io, updatedGame);
+    publishGameUpdate(updatedGame);
     notifyTurnChange(previousGame, updatedGame, actorUserId);
     return result;
 }
