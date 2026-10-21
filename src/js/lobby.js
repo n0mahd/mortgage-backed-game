@@ -100,7 +100,7 @@ function renderRoomCard(room) {
     const memberCount = Array.isArray(room.room_members) ? room.room_members.length : 0;
     const maxPlayers = Number(room.max_players || 0);
     return `
-        <div class="room-card" data-room-id="${escapeAttr(room.id)}">
+        <div class="room-card" data-room-id="${escapeHtml(room.id)}">
             <div class="room-card-header">
                 <div class="room-name">${escapeHtml(room.name)}</div>
                 <div class="room-status ${roomStatusClass(room.status)}">${escapeHtml(formatStatus(room.status))}</div>
