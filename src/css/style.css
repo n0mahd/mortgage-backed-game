@@ -1363,6 +1363,7 @@ input[type="checkbox"] {
 
 .player-header {
     display: flex;
+    flex-wrap: wrap;
     align-items: center;
     gap: var(--s2);
     padding: var(--s4) var(--s4) 0;
