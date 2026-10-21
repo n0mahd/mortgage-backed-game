@@ -8,6 +8,7 @@ Start here:
 
 - Product/player rules: `README.md` and `documents/game-rules.md`.
 - Production and operational context: `SETUP.md`, `documents/production-roadmap.md`, and this file.
+- Personal data, logs, client storage, third parties and open privacy/security findings: `documents/privacy.md`.
 - Backend entry point: `backend/server.js`.
 - Backend routes: `backend/routes/`.
 - Authoritative game rules and all game-state mutation: `backend/domain/gameRules.js`.
@@ -47,6 +48,7 @@ Stop and share results only when all applicable items are true:
 
 - The code works locally against dev-only ports/data, not production.
 - `npm test` has passed as the final verification command.
+- Before any merge to `main` or deploy, the `privacy-check` skill has run in gate mode (`--base origin/main --url https://mortgage.abdlh.com --own-domain abdlh.com`). A scanner FAIL or a High finding blocks the merge, and `documents/privacy.md` describes the code being merged.
 - If narrower checks were used while iterating, the final check still includes the full root test command.
 - Public imports and user-facing APIs are unchanged unless an intentional API change was requested.
 - `AGENTS.md` remains accurate for future agents.
