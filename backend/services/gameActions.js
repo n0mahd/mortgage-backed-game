@@ -11,6 +11,7 @@ const db = require('../db');
 const { getConfig } = require('../config');
 const { buildGameActionAuditRecord, logGameActionAudit } = require('../audit');
 const { notifyRoom } = require('./roomEvents');
+const { notifyTurnChange } = require('./turnAlerts');
 const {
     createInitialGame,
     normalizeState,
@@ -107,6 +108,7 @@ function startGameForRoom(io, { roomId, actorUserId, gameState, minPlayers = 0 }
     const game = getGame(gameId);
     io.to(`room:${roomId}`).emit('room:status_change', { ...room, status: 'in_progress' });
     notifyRoom(roomId);
+    notifyTurnChange(null, game, actorUserId);
     return parseGame(game);
 }
 
@@ -122,11 +124,13 @@ function applyGameAction(io, { gameId, actorUserId, actionId, type, payload, exp
 
     let result;
     let updatedGame;
+    let previousGame;
     let events;
     try {
         db.exec('BEGIN');
         const game = getGame(gameId);
         if (!game) throw new GameRuleError(404, 'Game not found');
+        previousGame = game;
         if (game.state_version !== expectedVersion) {
             throw new GameRuleError(409, 'Stale game state');
         }
@@ -171,6 +175,7 @@ function applyGameAction(io, { gameId, actorUserId, actionId, type, payload, exp
     }
 
     publishGameUpdate(io, updatedGame);
+    notifyTurnChange(previousGame, updatedGame, actorUserId);
     return result;
 }
 

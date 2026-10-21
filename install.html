@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="icon" type="image/png" sizes="32x32" href="src/assets/favicon-32.png">
+    <link rel="apple-touch-icon" sizes="180x180" href="src/assets/apple-touch-icon.png">
+    <title>Mortgage Backed Monopoly</title>
+    <link rel="manifest" href="/manifest.webmanifest">
+    <meta name="theme-color" content="#1B4332">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-title" content="Mortgage">
+    <link rel="stylesheet" href="src/css/style.css?v=18">
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Mortgage Backed Monopoly</h1>
+        </div>
+
+        <div class="content install-content">
+            <!-- In Safari: how to add the game to the Home Screen. -->
+            <div id="install-steps" hidden>
+                <h2>Add the game to your Home Screen</h2>
+                <ol class="install-step-list">
+                    <li>Tap the <strong>Share</strong> button at the bottom of Safari (the square with an arrow).</li>
+                    <li>Scroll down and tap <strong>Add to Home Screen</strong>, then <strong>Add</strong>.</li>
+                    <li>Open the new <strong>Mortgage</strong> icon within 10 minutes. You'll already be signed in.</li>
+                    <li>In the game, tap <strong>Alerts</strong>, then <strong>Turn on alerts</strong>.</li>
+                </ol>
+                <p class="empty-state">Leave this page open until you've added it.</p>
+            </div>
+
+            <!-- In the Home Screen app: signing in and opening the game. -->
+            <div id="install-launch" hidden>
+                <h2>Opening your game…</h2>
+                <p id="install-error" class="turn-warning danger" hidden></p>
+                <a id="install-fallback" class="btn btn-primary" href="index.html#resume" hidden>Go to the home page</a>
+            </div>
+        </div>
+    </div>
+
+    <script src="src/js/api.js?v=6"></script>
+    <script src="src/js/install.js?v=1"></script>
+</body>
+</html>

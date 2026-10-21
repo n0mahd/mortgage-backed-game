@@ -17,6 +17,7 @@
     "nodemailer": "^6.9.11",
     "socket.io": "^4.7.4",
     "uuid": "^9.0.1",
+    "web-push": "^3.6.7",
     "zod": "^4.6.7"
   },
   "devDependencies": {

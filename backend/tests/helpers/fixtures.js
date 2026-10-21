@@ -18,6 +18,7 @@ function resetTestDb(db) {
         DELETE FROM rooms;
         DELETE FROM otps;
         DELETE FROM device_transfer_codes;
+        DELETE FROM push_subscriptions;
         DELETE FROM users;
     `);
 }

@@ -162,6 +162,21 @@ function migrate(db) {
             CREATE INDEX IF NOT EXISTS idx_agent_seats_user ON agent_seats (user_id);
         `);
     });
+
+    apply(db, '007_push_subscriptions', () => {
+        db.exec(`
+            CREATE TABLE IF NOT EXISTS push_subscriptions (
+                endpoint TEXT PRIMARY KEY,
+                user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                p256dh TEXT NOT NULL,
+                auth TEXT NOT NULL,
+                created_at TEXT NOT NULL DEFAULT (datetime('now')),
+                last_success_at TEXT
+            );
+            CREATE INDEX IF NOT EXISTS idx_push_subscriptions_user
+                ON push_subscriptions (user_id, created_at DESC);
+        `);
+    });
 }
 
 function apply(db, id, fn) {

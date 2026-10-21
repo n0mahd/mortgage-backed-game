@@ -32,6 +32,7 @@ app.use('/api/auth', authRouter);
 app.use('/api/rooms', roomsRouter);
 app.use('/api/games', gamesRouter);
 app.use('/api/mcp', createMcpRouter(io));
+app.use('/api/push', require('./routes/push'));
 
 // Health check
 app.get('/api/health', (_req, res) => {

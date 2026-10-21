@@ -1,0 +1,12 @@
+{
+  "name": "Mortgage Backed Monopoly",
+  "short_name": "Mortgage",
+  "description": "Monopoly with IPOs, debt and trades.",
+  "display": "standalone",
+  "background_color": "#F0FBF4",
+  "theme_color": "#1B4332",
+  "icons": [
+    { "src": "/src/assets/apple-touch-icon.png", "sizes": "180x180", "type": "image/png" },
+    { "src": "/src/assets/favicon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" }
+  ]
+}

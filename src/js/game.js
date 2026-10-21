@@ -96,6 +96,7 @@ async function loadGameData(roomId) {
         currentGame = game;
         lastGameSyncAt = Date.now();
         document.getElementById('move-device-btn')?.toggleAttribute('hidden', isHotseatMode);
+        document.getElementById('turn-alerts-btn')?.toggleAttribute('hidden', isHotseatMode);
 
         // Find current player data
         const gameState = game.game_state;
@@ -2336,6 +2337,8 @@ function bindStaticGameControls() {
     });
     document.getElementById('dismiss-hotseat-btn')?.addEventListener('click', dismissHotseatInterstitial);
     document.getElementById('move-device-btn')?.addEventListener('click', openMoveDeviceModal);
+    document.getElementById('turn-alerts-btn')?.addEventListener('click', openTurnAlertsModal);
+    document.getElementById('turnAlertsActions')?.addEventListener('click', handleTurnAlertsAction);
     document.getElementById('share-move-device-btn')?.addEventListener('click', shareMoveDeviceLink);
 }
 
@@ -2362,6 +2365,82 @@ async function openMoveDeviceModal() {
     } catch (error) {
         codeEl.textContent = '';
         expiryEl.textContent = error.message || 'Could not create a code. Try again.';
+    }
+}
+
+// ---------------------------------------------------------------
+// Turn alerts (push notifications). See src/js/turn-notifications.js.
+// ---------------------------------------------------------------
+const TURN_ALERT_COPY = {
+    'needs-install': {
+        text: 'On iPhone, alerts work once the game is on your Home Screen. Tap "Get ready to install", then tap Share and "Add to Home Screen". Open the new icon; you will already be signed in. Then tap Alerts again to turn them on.',
+        actions: [['prepare-install', 'Get ready to install', 'btn-primary']],
+    },
+    off: {
+        text: "Get a notification, with a buzz, when it's your turn, even when your phone is locked.",
+        actions: [['enable', 'Turn on alerts', 'btn-primary']],
+    },
+    on: {
+        text: "Alerts are on for this device. You'll get a notification when it's your turn.",
+        actions: [['test', 'Send a test', 'btn-secondary'], ['disable', 'Turn off', 'btn-secondary']],
+    },
+    denied: {
+        text: 'Notifications are blocked for this site. Allow them in your browser or phone settings, then come back here.',
+        actions: [],
+    },
+    unsupported: {
+        text: "This browser can't show notifications. Try Chrome or Firefox, or on iPhone add the game to your Home Screen.",
+        actions: [],
+    },
+    unavailable: {
+        text: 'Alerts are not available right now.',
+        actions: [],
+    },
+};
+
+async function renderTurnAlerts(message) {
+    const body = document.getElementById('turnAlertsBody');
+    const actions = document.getElementById('turnAlertsActions');
+    body.textContent = 'Checking…';
+    actions.innerHTML = '';
+    const state = await window.TurnNotifications.status().catch(() => 'unavailable');
+    const copy = TURN_ALERT_COPY[state] || TURN_ALERT_COPY.unavailable;
+    body.innerHTML = `<p>${escapeHtml(copy.text)}</p>${message ? `<p class="empty-state">${escapeHtml(message)}</p>` : ''}`;
+    actions.innerHTML = copy.actions.map(([action, label, style]) =>
+        `<button class="btn ${style}" data-turn-alerts="${action}">${escapeHtml(label)}</button>`
+    ).concat('<button class="btn btn-secondary" data-close-modal="turnAlertsModal">Done</button>').join('');
+}
+
+async function openTurnAlertsModal() {
+    openModal('turnAlertsModal');
+    await renderTurnAlerts();
+}
+
+async function handleTurnAlertsAction(event) {
+    const button = event.target.closest('[data-turn-alerts]');
+    if (!button) return;
+    button.disabled = true;
+    try {
+        switch (button.dataset.turnAlerts) {
+            case 'prepare-install':
+                await window.TurnNotifications.prepareHomeScreenInstall();
+                return;
+            case 'enable':
+                await window.TurnNotifications.enable();
+                await renderTurnAlerts('Alerts are on. Try "Send a test".');
+                return;
+            case 'test': {
+                const { sent } = await window.TurnNotifications.sendTest();
+                await renderTurnAlerts(sent ? 'Test sent. It should arrive in a few seconds.' : 'No device received it. Turn alerts off and on again.');
+                return;
+            }
+            case 'disable':
+                await window.TurnNotifications.disable();
+                await renderTurnAlerts('Alerts are off for this device.');
+                return;
+        }
+    } catch (error) {
+        await renderTurnAlerts(error.message || 'Something went wrong. Try again.');
     }
 }
 
