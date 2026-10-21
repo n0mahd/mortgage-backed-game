@@ -49,11 +49,11 @@ async function showGuestJoinSection() {
     if (codeInput) codeInput.value = normalizedRoomCode;
 
     const optionsEl = document.getElementById('hotseat-resume-options');
-    const hasLocalHotseatResume = renderHotseatResumeOptions(optionsEl, normalizedRoomCode);
+    const hasLocalHotseatResume = RoomResume.showSavedHotseat(optionsEl, normalizedRoomCode);
     if (!hasLocalHotseatResume) {
         try {
             const room = await getRoomByCode(normalizedRoomCode);
-            const hasExistingPlayerResume = renderExistingRoomMemberOptions(optionsEl, normalizedRoomCode, room);
+            const hasExistingPlayerResume = RoomResume.showExistingMembers(optionsEl, normalizedRoomCode, room);
             setGuestJoinFormVisible(!hasExistingPlayerResume);
         } catch (err) {
             console.warn('Could not load room resume options:', err);

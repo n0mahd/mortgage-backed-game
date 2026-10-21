@@ -129,7 +129,8 @@
         <p>Built with <a href="https://claude.ai/claude-code" target="_blank" rel="noopener">Claude Code</a>.</p>
     </footer>
 
-    <script src="src/js/api.js?v=14"></script>
+    <script src="src/js/api.js?v=15"></script>
+    <script src="src/js/room-resume.js?v=1"></script>
     <script>
         document.addEventListener('DOMContentLoaded', () => {
             /* Enter key on resume code input */
@@ -198,7 +199,7 @@
             errorEl.style.display = 'none';
 
             const optionsEl = document.getElementById('hotseat-resume-options');
-            if (renderHotseatResumeOptions(optionsEl, code)) {
+            if (RoomResume.showSavedHotseat(optionsEl, code)) {
                 return;
             }
 
