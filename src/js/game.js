@@ -2307,7 +2307,7 @@ function updatePlayerAssets(playerNumber) {
     const assetsHtml = player.properties.map(p => `
         <div class="asset-checkbox">
             <input type="checkbox" id="${playerNumber}-asset-${escapeAttr(p.id)}" value="${escapeAttr(p.id)}">
-            <label for="${playerNumber}-asset-${escapeAttr(p.id)}">${escapeHtml(p.name)} ($${p.value})</label>
+            <label for="${playerNumber}-asset-${escapeAttr(p.id)}">${tradeAssetSwatch(p.id)}${escapeHtml(p.name)} ($${p.value})</label>
         </div>
     `).join('');
     const jailCardHtml = player.hasGetOutOfJailCard ? `
@@ -2401,18 +2401,31 @@ function renderTradeOffers() {
 }
 
 function renderTradeOfferSide(cash, assetIds) {
-    const assetNames = (assetIds || []).map(id => tradeAssetName(id));
     const lines = [];
-    if (Number(cash || 0) > 0) lines.push(`$${Number(cash).toFixed(2)}`);
-    lines.push(...assetNames);
+    if (Number(cash || 0) > 0) lines.push(`<li class="trade-asset-line">${tradeAssetSwatch(null)}${escapeHtml(`$${Number(cash).toFixed(2)}`)}</li>`);
+    (assetIds || []).forEach(id => {
+        lines.push(`<li class="trade-asset-line">${tradeAssetSwatch(id)}${escapeHtml(tradeAssetName(id))}</li>`);
+    });
     if (lines.length === 0) return '<p class="empty-state">Nothing</p>';
-    return `<ul>${lines.map(line => `<li>${escapeHtml(line)}</li>`).join('')}</ul>`;
+    return `<ul class="trade-asset-list">${lines.join('')}</ul>`;
+}
+
+function tradeAssetProperty(assetId) {
+    return currentGame?.game_state?.properties?.find(prop => prop.id === assetId) || null;
 }
 
 function tradeAssetName(assetId) {
     if (assetId === GAME_JAIL_CARD_ASSET_ID) return 'Get Out of Jail Free card';
-    const property = currentGame?.game_state?.properties?.find(prop => prop.id === assetId);
+    const property = tradeAssetProperty(assetId);
     return property ? property.name : assetId;
+}
+
+// Color chip showing which group a traded asset belongs to; cash and cards get a hidden spacer chip.
+function tradeAssetSwatch(assetId) {
+    const property = assetId ? tradeAssetProperty(assetId) : null;
+    if (!property) return '<span class="trade-asset-swatch neutral" aria-hidden="true"></span>';
+    const color = getPropertyColorValue(property.color);
+    return `<span class="trade-asset-swatch" style="--property-color:${escapeAttr(color)};" title="${escapeAttr(property.color || '')}" aria-hidden="true"></span>`;
 }
 
 function formatTradeOfferAge(createdAt) {

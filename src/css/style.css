@@ -1650,6 +1650,39 @@ body {
     color: #34495e;
 }
 
+.trade-offer-sides ul.trade-asset-list {
+    margin-left: 0;
+    list-style: none;
+}
+
+.trade-asset-line {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    margin-bottom: 4px;
+}
+
+.trade-asset-swatch {
+    flex: none;
+    display: inline-block;
+    width: 12px;
+    height: 12px;
+    margin-right: 6px;
+    border-radius: 3px;
+    background: var(--property-color);
+    box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.15);
+    vertical-align: -1px;
+}
+
+.trade-asset-line .trade-asset-swatch {
+    margin-right: 0;
+    transform: translateY(1px);
+}
+
+.trade-asset-swatch.neutral {
+    visibility: hidden;
+}
+
 .trade-offer-actions {
     justify-content: flex-end;
     margin-top: 12px;

@@ -168,3 +168,32 @@ test.describe('Trading — UI', () => {
         await expect(page.locator('body')).toContainText('Mediterranean', { timeout: 5000 });
     });
 });
+
+test.describe('Trading — offer colors', () => {
+    test('pending offer shows each property in its color group', async ({ page, request }) => {
+        const setup = await setupTradingGame(request);
+
+        const res = await request.post(`${BASE_API}/games/${setup.game.id}/actions`, {
+            headers: { Authorization: `Bearer ${setup.guestToken}` },
+            data: {
+                actionId: `e2e-offer-colors-${Date.now()}`,
+                type: 'propose_trade',
+                payload: { player1Id: setup.guestId, player2Id: setup.hostId, player1Cash: 25, player2Cash: 0, player1AssetIds: ['prop-1'], player2AssetIds: ['prop-0'] },
+                expectedVersion: setup.game.state_version,
+            },
+        });
+        expect(res.ok()).toBeTruthy();
+
+        await page.setViewportSize({ width: 390, height: 844 });
+        await loginPage(page, setup.hostToken);
+        await page.goto(`${BASE}/game.html?room=${setup.room.id}`);
+        await page.getByRole('button', { name: 'Market' }).click();
+        const card = page.locator('#tradeOffersList .trade-offer-card');
+        await expect(card).toContainText('Bob proposed a trade', { timeout: 5000 });
+
+        const baltic = card.locator('.trade-asset-line', { hasText: 'Baltic Ave' }).locator('.trade-asset-swatch');
+        await expect(baltic).toHaveCSS('background-color', 'rgb(139, 69, 19)');
+        await expect(card.locator('.trade-asset-line', { hasText: '$25.00' }).locator('.trade-asset-swatch')).toHaveClass(/neutral/);
+        if (process.env.TRADE_COLORS_SHOT) await card.screenshot({ path: process.env.TRADE_COLORS_SHOT });
+    });
+});
