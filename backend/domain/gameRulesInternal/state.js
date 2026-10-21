@@ -3,13 +3,13 @@
 
 const {
     MONOPOLY_PROPERTIES,
-    HOUSE_COSTS,
     CHANCE_CARDS,
     COMMUNITY_CHEST_CARDS,
     shuffleDeck,
 } = require('./board');
-const { normalizeDate, normalizeDateString, structuredCloneSafe } = require('./util');
+const { expiresAfter, normalizeDate, normalizeDateString, structuredCloneSafe } = require('./util');
 const {
+    propertyWorth,
     calculateCorporationNetAssetValue,
     calculateCorporationShareValue,
     ensureCashFlow,
@@ -17,7 +17,6 @@ const {
 const { normalizeCorporationShareLedger, getSaleableShares } = require('./corporations');
 const { normalizeBankruptcyClaims } = require('./bankruptcy');
 const { normalizeAuction } = require('./auctions');
-const { tradeOfferExpiryFrom } = require('./trades');
 const { normalizePauseState } = require('./turns');
 
 function createInitialGame(roomMembers) {
@@ -108,7 +107,7 @@ function normalizeState(raw) {
             status: offer.status || 'pending',
             createdAt: normalizeDateString(offer.createdAt),
             expiresAt: offer.expiresAt || ((offer.status || 'pending') === 'pending'
-                ? tradeOfferExpiryFrom(state, normalizeDate(offer.createdAt))
+                ? expiresAfter(state.settings.tradeOfferTimeoutMs, normalizeDate(offer.createdAt))
                 : null),
         }))
         : [];
@@ -178,7 +177,7 @@ function syncDerivedPortfolios(state) {
                 id: prop.id,
                 name: prop.name,
                 color: prop.color,
-                value: prop.price + (prop.houses || 0) * (HOUSE_COSTS[prop.color] || 0),
+                value: propertyWorth(prop),
             }));
         player.corporations = state.corporations
             .map(corp => {

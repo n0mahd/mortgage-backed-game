@@ -114,10 +114,6 @@ function buyShares(state, player, payload, events) {
     log(state, `${player.name} bought ${shares} share(s) of ${corp.ticker} for $${totalCost.toFixed(2)} (${proceedsParts.join(', ')})`);
 }
 
-function canManageCorporationDebt(corp, userId) {
-    return controlsCorporation(corp, userId);
-}
-
 // The chairman or a majority holder runs an LLC: they can manage its debt and
 // accept property into it.
 function controlsCorporation(corp, userId) {
@@ -425,7 +421,6 @@ function resolveCorporationInsolvency(state, corp, actor, events, details = {}) 
 module.exports = {
     createIPO,
     buyShares,
-    canManageCorporationDebt,
     controlsCorporation,
     changeChairman,
     proposeChairmanVote,

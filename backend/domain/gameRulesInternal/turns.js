@@ -2,7 +2,7 @@
 
 const { makeEvent, log, cleanText, normalizeDateString, GameRuleError } = require('./util');
 const { calculateNetWorth, resetCashFlow, recordCashFlow } = require('./ledger');
-const { canManageCorporationDebt, resolveCorporationInsolvency } = require('./corporations');
+const { controlsCorporation, resolveCorporationInsolvency } = require('./corporations');
 const {
     liquidateBankruptPlayer,
     clearBankruptcyClaim,
@@ -26,7 +26,7 @@ function endTurn(state, player, events) {
         log(state, `${player.name} was charged $${totalInterest.toFixed(2)} in interest.`);
     }
     state.corporations.forEach(corp => {
-        if (!canManageCorporationDebt(corp, player.userId)) return;
+        if (!controlsCorporation(corp, player.userId)) return;
         let corpInterest = 0;
         (corp.debts || []).forEach(debt => {
             const interest = Number(debt.principal || 0) * (Number(debt.interestRate || 0) / 100);

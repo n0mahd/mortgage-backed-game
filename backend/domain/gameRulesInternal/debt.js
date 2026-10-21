@@ -3,7 +3,7 @@
 const { v4: uuidv4 } = require('uuid');
 const { uniqueIds, makeEvent, log, positiveNumber, GameRuleError } = require('./util');
 const { recordCashFlow } = require('./ledger');
-const { canManageCorporationDebt } = require('./corporations');
+const { controlsCorporation } = require('./corporations');
 
 function issueDebt(state, player, payload, events) {
     const amount = positiveNumber(payload.amount, 'amount');
@@ -15,7 +15,7 @@ function issueDebt(state, player, payload, events) {
         const corp = state.corporations.find(c => c.id === payload.corpId);
         if (!corp) throw new GameRuleError(404, 'Corporation not found');
         if (corp.insolvent) throw new GameRuleError(400, 'Corporation is insolvent');
-        if (!canManageCorporationDebt(corp, player.userId)) {
+        if (!controlsCorporation(corp, player.userId)) {
             throw new GameRuleError(403, 'Only the chairman or controlling shareholder can issue corporation debt');
         }
         const collateral = collateralIds.map(id => {
@@ -30,16 +30,21 @@ function issueDebt(state, player, payload, events) {
         log(state, `${player.name} issued debt under ${corp.ticker}: $${amount.toFixed(2)} @ ${interestRate}%`);
         return;
     }
-    const collateral = collateralIds.map(id => {
-        const prop = state.properties.find(p => p.id === id && p.ownerId === player.userId);
-        if (!prop) throw new GameRuleError(400, 'Collateral must be owned by issuer');
-        return { id: prop.id, name: prop.name, value: prop.price };
-    });
+    const collateral = playerCollateral(state, player, collateralIds);
     player.debts.push({ id: `debt-${uuidv4()}`, principal: amount, interestRate, collateral, issueDate: new Date().toISOString(), issuerType: 'player' });
     player.cash += amount;
     recordCashFlow(state, null, player.userId, amount);
     events.push(makeEvent(player, 'debt_issued', { issuer: player.name, amount, interestRate }));
     log(state, `${player.name} issued debt: $${amount.toFixed(2)} @ ${interestRate}%`);
+}
+
+// The player's own properties pledged against a loan, valued at list price.
+function playerCollateral(state, player, collateralIds) {
+    return collateralIds.map(id => {
+        const prop = state.properties.find(p => p.id === id && p.ownerId === player.userId);
+        if (!prop) throw new GameRuleError(400, 'Collateral must be owned by issuer');
+        return { id: prop.id, name: prop.name, value: prop.price };
+    });
 }
 
 function refinanceDebt(state, player, payload, events) {
@@ -63,11 +68,7 @@ function refinanceDebt(state, player, payload, events) {
     }
 
     const collateralIds = Array.isArray(payload.collateralIds) ? uniqueIds(payload.collateralIds) : [];
-    const collateral = collateralIds.map(id => {
-        const prop = state.properties.find(p => p.id === id && p.ownerId === player.userId);
-        if (!prop) throw new GameRuleError(400, 'Collateral must be owned by issuer');
-        return { id: prop.id, name: prop.name, value: prop.price };
-    });
+    const collateral = playerCollateral(state, player, collateralIds);
 
     const refinancedFrom = selectedDebts.map(debt => ({
         id: debt.id || null,

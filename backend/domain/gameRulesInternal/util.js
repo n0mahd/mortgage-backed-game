@@ -17,6 +17,24 @@ function requireHost(options, actorUserId) {
     if (!options.hostId || options.hostId !== actorUserId) throw new GameRuleError(403, 'Not the host');
 }
 
+// When something created now with this timeout expires (at least 1 second).
+function expiresAfter(timeoutMs, date = new Date()) {
+    return new Date(date.getTime() + Math.max(Number(timeoutMs || 0), 1000)).toISOString();
+}
+
+function isExpired(item) {
+    if (!item?.expiresAt) return false;
+    const expiresAt = new Date(item.expiresAt).getTime();
+    return Number.isFinite(expiresAt) && expiresAt <= Date.now();
+}
+
+// Records who closed an auction or trade offer, and when.
+function markResolved(item, actor, at = new Date().toISOString()) {
+    item.resolvedAt = at;
+    item.resolvedById = actor.userId;
+    item.resolvedByName = actor.name;
+}
+
 function makeEvent(player, type, data) {
     return { type, playerId: player ? player.userId : null, data: data || {} };
 }
@@ -72,6 +90,9 @@ class GameRuleError extends Error {
 }
 
 module.exports = {
+    expiresAfter,
+    isExpired,
+    markResolved,
     uniqueIds,
     requireHost,
     makeEvent,

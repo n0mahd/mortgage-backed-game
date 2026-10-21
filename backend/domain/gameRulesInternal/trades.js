@@ -4,6 +4,9 @@
 const { v4: uuidv4 } = require('uuid');
 const { JAIL_CARD_ASSET_ID } = require('./board');
 const {
+    expiresAfter,
+    isExpired,
+    markResolved,
     uniqueIds,
     makeEvent,
     log,
@@ -21,11 +24,6 @@ const {
     normalizeCorporationShareLedger,
     addCorporationAsset,
 } = require('./corporations');
-
-function tradeOfferExpiryFrom(state, date = new Date()) {
-    const timeoutMs = Math.max(Number(state.settings?.tradeOfferTimeoutMs || 0), 1000);
-    return new Date(date.getTime() + timeoutMs).toISOString();
-}
 
 function getTradeTerms(state, payload) {
     const player1 = state.players.find(p => p.userId === payload.player1Id);
@@ -218,7 +216,7 @@ function proposeTrade(state, actor, payload, events) {
         player1PropertiesToCorpId: terms.player1PropertiesToCorpId,
         player2PropertiesToCorpId: terms.player2PropertiesToCorpId,
         createdAt,
-        expiresAt: tradeOfferExpiryFrom(state, now),
+        expiresAt: expiresAfter(state.settings.tradeOfferTimeoutMs, now),
     };
     state.marketOffers.push(offer);
     events.push(makeEvent(actor, 'trade_offer_proposed', {
@@ -265,9 +263,7 @@ function cancelTrade(state, actor, payload, events) {
     const offer = findPendingTradeOffer(state, payload.offerId);
     if (![offer.player1Id, offer.player2Id].includes(actor.userId)) throw new GameRuleError(403, 'Trade must involve acting player');
     offer.status = offer.proposedById === actor.userId ? 'canceled' : 'declined';
-    offer.resolvedAt = new Date().toISOString();
-    offer.resolvedById = actor.userId;
-    offer.resolvedByName = actor.name;
+    markResolved(offer, actor);
     events.push(makeEvent(actor, 'trade_offer_canceled', {
         offerId: offer.id,
         proposer: offer.proposedByName,
@@ -281,9 +277,7 @@ function hostCancelTradeOffer(state, actor, payload, events) {
     const offer = findPendingTradeOffer(state, payload.offerId);
     offer.status = 'canceled';
     offer.cancelReason = 'host';
-    offer.resolvedAt = new Date().toISOString();
-    offer.resolvedById = actor.userId;
-    offer.resolvedByName = actor.name;
+    markResolved(offer, actor);
     events.push(makeEvent(actor, 'trade_offer_canceled', {
         offerId: offer.id,
         proposer: offer.proposedByName,
@@ -304,12 +298,10 @@ function expirePendingTradeOffersIfNeeded(state, actor, events) {
     const expiredOfferIds = new Set();
     const now = new Date().toISOString();
     (state.marketOffers || []).forEach(offer => {
-        if (offer.status !== 'pending' || !isTradeOfferExpired(offer)) return;
+        if (offer.status !== 'pending' || !isExpired(offer)) return;
         offer.status = 'expired';
         offer.cancelReason = 'timeout';
-        offer.resolvedAt = now;
-        offer.resolvedById = actor.userId;
-        offer.resolvedByName = actor.name;
+        markResolved(offer, actor, now);
         expiredOfferIds.add(offer.id);
         events.push(makeEvent(actor, 'trade_offer_expired', {
             offerId: offer.id,
@@ -323,12 +315,6 @@ function expirePendingTradeOffersIfNeeded(state, actor, events) {
     return expiredOfferIds;
 }
 
-function isTradeOfferExpired(offer) {
-    if (!offer?.expiresAt) return false;
-    const expiresAt = new Date(offer.expiresAt).getTime();
-    return Number.isFinite(expiresAt) && expiresAt <= Date.now();
-}
-
 function cancelPendingTradeOffersForPlayer(state, player, events) {
     const now = new Date().toISOString();
     (state.marketOffers || []).forEach(offer => {
@@ -336,9 +322,7 @@ function cancelPendingTradeOffersForPlayer(state, player, events) {
         if (![offer.player1Id, offer.player2Id].includes(player.userId)) return;
         offer.status = 'canceled';
         offer.cancelReason = 'bankruptcy';
-        offer.resolvedAt = now;
-        offer.resolvedById = player.userId;
-        offer.resolvedByName = player.name;
+        markResolved(offer, player, now);
         events.push(makeEvent(player, 'trade_offer_canceled', {
             offerId: offer.id,
             proposer: offer.proposedByName,
@@ -364,7 +348,6 @@ function manualPayment(state, actor, payload, events) {
 }
 
 module.exports = {
-    tradeOfferExpiryFrom,
     trade,
     proposeTrade,
     acceptTrade,
