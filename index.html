@@ -13,7 +13,7 @@
     <title>Mortgage Backed Monopoly — Play Monopoly like Wall Street</title>
     <link rel="preload" href="src/assets/fonts/besley-latin.woff2" as="font" type="font/woff2" crossorigin>
     <link rel="stylesheet" href="src/css/tokens.css?v=2">
-    <link rel="stylesheet" href="src/css/style.css?v=15">
+    <link rel="stylesheet" href="src/css/style.css?v=16">
 </head>
 <body class="landing-page">
 
@@ -24,6 +24,11 @@
             <p class="landing-tagline">If they did it in 2008, it's fair game.</p>
 
             <div id="resume" class="resume-card">
+                <p id="signed-out-notice" class="signed-out-notice" hidden>
+                    This browser isn't signed in to that game yet. On the device you've been playing on,
+                    tap "Play on another device" and enter its code under "Other ways back in". You can also
+                    enter your room code, or <a href="auth.html">sign in with email</a> if you used one.
+                </p>
                 <label class="resume-label" for="resume-code">Have a room code?</label>
                 <div class="input-row">
                     <input type="text" id="resume-code" class="code-input"
@@ -144,6 +149,14 @@
             document.getElementById('transfer-code')?.addEventListener('keypress', (e) => {
                 if (e.key === 'Enter') continueWithTransferCode();
             });
+            if (new URLSearchParams(window.location.search).get('signin') === 'game') {
+                document.getElementById('signed-out-notice').hidden = false;
+                const more = document.querySelector('.resume-more');
+                if (more) more.open = true;
+                document.getElementById('resume')?.scrollIntoView();
+                document.getElementById('transfer-code')?.focus();
+            }
+
             const transferFromLink = new URLSearchParams(window.location.search).get('transfer');
             if (transferFromLink) {
                 document.getElementById('transfer-code').value = transferFromLink;

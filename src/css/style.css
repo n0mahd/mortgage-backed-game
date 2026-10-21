@@ -1786,6 +1786,76 @@ input[type="checkbox"] {
     font-weight: 600;
 }
 
+/* Trade assets: properties read as deed strips, cash/cards/shares as plain chips */
+.trade-asset-list {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.trade-asset-tag {
+    --property-color: var(--rule-strong);
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+    padding: 6px 10px 6px 14px;
+    border-radius: var(--r-deed);
+    background: var(--note);
+    border: 1px solid var(--rule);
+    overflow: hidden;
+}
+
+.trade-asset-tag::before {
+    content: '';
+    position: absolute;
+    inset: 0 auto 0 0;
+    width: 5px;
+    background: var(--property-color);
+}
+
+.trade-asset-tag.cash,
+.trade-asset-tag.card,
+.trade-asset-tag.shares { --property-color: transparent; padding-left: 10px; }
+
+.trade-asset-tag.cash .trade-asset-name {
+    font-family: var(--font-money);
+    font-variant-numeric: lining-nums proportional-nums;
+}
+
+.trade-asset-name {
+    font-size: var(--text-sub);
+    font-weight: 650;
+    line-height: 1.25;
+    color: var(--ink);
+}
+
+.trade-asset-group {
+    font-size: var(--text-caption);
+    font-weight: 500;
+    color: var(--ink-3);
+}
+
+.trade-asset-dot {
+    display: inline-block;
+    width: 10px;
+    height: 10px;
+    margin-right: 8px;
+    border-radius: 2px;
+    background: var(--property-color);
+    vertical-align: 0;
+}
+
+.asset-shares .trade-share-input {
+    width: 76px;
+    min-height: 40px;
+    flex-shrink: 0;
+    padding: 0 var(--s2);
+    text-align: center;
+    font-family: var(--font-money);
+    font-weight: 700;
+}
+
 .trade-offer-actions {
     display: flex;
     gap: var(--s2);
@@ -2863,6 +2933,17 @@ input[type="checkbox"] {
 }
 
 .forgot-subform { display: none; padding-bottom: var(--s2); }
+
+.signed-out-notice {
+    margin-bottom: var(--s3);
+    padding: var(--s3);
+    border-radius: var(--r-control);
+    background: var(--gold-wash);
+    color: #6B4D07;
+    font-size: var(--text-footnote);
+}
+
+.signed-out-notice a { color: inherit; font-weight: 650; }
 
 .forgot-success {
     display: none;
