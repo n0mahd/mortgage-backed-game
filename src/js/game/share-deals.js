@@ -223,5 +223,5 @@
         return { sentences, rows, warnings, netChange, evenShares };
     }
 
-    global.ShareDeals = { summarize, corporationsRunBy, runsCorporation, percent };
+    global.ShareDeals = { summarize, corporationsRunBy, runsCorporation, sharesHeld, isInsolvent, percent };
 })(window);

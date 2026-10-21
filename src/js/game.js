@@ -177,6 +177,10 @@ function resyncGame() {
     return gameResyncInFlight;
 }
 
+function isRoomHost() {
+    return !!currentRoom && currentUser.id === currentRoom.host_id;
+}
+
 function isMyTurnIn(game) {
     const gameState = game?.game_state;
     if (!gameState || gameState.ended || gameState.paused || !currentUser) return false;
@@ -230,7 +234,7 @@ function renderGameState(gameState) {
     gameContent.innerHTML = `
         <div class="game-layout">
             <div class="game-layout-main">
-                ${renderTurnTicket(gameState, currentPlayer, isMyTurn, paused)}
+                ${renderTurnTicket(gameState, currentPlayer, landing, isMyTurn, paused)}
                 <div class="turn-context">
                     ${renderLandingSummary(landing, currentPlayer, isMyTurn)}
                     ${renderCashWarning(currentPlayer, isMyTurn)}
@@ -238,7 +242,7 @@ function renderGameState(gameState) {
                     ${renderLastCardSummary(gameState, currentPlayer)}
                 </div>
                 ${renderAuctionPanel(gameState)}
-                ${paused ? renderPausedActions(gameState) : (isMyTurn ? renderActionButtons() : renderNonTurnActions())}
+                ${paused ? renderPausedActions(gameState) : (isMyTurn ? renderActionButtons(landing) : renderNonTurnActions())}
             </div>
 
             <div>
@@ -275,7 +279,7 @@ function getPlayerColor(player) {
     return PLAYER_COLORS[Math.max(index, 0) % PLAYER_COLORS.length];
 }
 
-function renderTurnTicket(gameState, currentPlayer, isMyTurn, paused) {
+function renderTurnTicket(gameState, currentPlayer, landing, isMyTurn, paused) {
     const hasRolled = !!currentPlayer.diceRolled;
     const dice = hasRolled ? gameState.lastDiceRoll : null;
     const diceSignature = `${gameState.currentPlayerIndex}|${hasRolled}|${Array.isArray(dice) ? dice.join(',') : ''}`;
@@ -311,7 +315,7 @@ function renderTurnTicket(gameState, currentPlayer, isMyTurn, paused) {
                     <strong>${formatMoney(Math.round(myNetWorth))}</strong>
                 </div>
             </div>
-            ${renderTurnChecklist(gameState, currentPlayer, getLandingSummary(gameState, currentPlayer), isMyTurn)}
+            ${renderTurnChecklist(gameState, currentPlayer, landing, isMyTurn)}
         </section>
     `;
 }
@@ -405,7 +409,7 @@ function renderAuctionPanel(gameState) {
     const isHighBidder = auction.highBidderId === currentUser.id;
     const currentPlayer = gameState.players.find(player => player.userId === currentUser.id);
     const canAct = currentPlayer && !currentPlayer.bankrupt && !passed && !isHighBidder;
-    const isHost = currentRoom && currentUser.id === currentRoom.host_id;
+    const isHost = isRoomHost();
     const minBid = currentBid + 1;
     const status = auction.highBidderName
         ? `High bid: $${currentBid.toFixed(2)} by ${auction.highBidderName}`
@@ -445,11 +449,17 @@ function renderAuctionPanel(gameState) {
     `;
 }
 
+// Whole seconds until an ISO time (0 once it has passed), or null if unset or invalid.
+function secondsUntil(isoTime) {
+    if (!isoTime) return null;
+    const time = new Date(isoTime).getTime();
+    if (Number.isNaN(time)) return null;
+    return Math.max(Math.ceil((time - Date.now()) / 1000), 0);
+}
+
 function formatAuctionExpiry(expiresAt) {
-    if (!expiresAt) return '';
-    const expiry = new Date(expiresAt);
-    if (Number.isNaN(expiry.getTime())) return '';
-    const seconds = Math.max(Math.ceil((expiry.getTime() - Date.now()) / 1000), 0);
+    const seconds = secondsUntil(expiresAt);
+    if (seconds === null) return '';
     if (seconds <= 0) return 'Auction timeout reached. The next action will resolve it.';
     return `Timeout if idle for ${seconds}s more.`;
 }
@@ -890,13 +900,9 @@ function getCorporationAssetValue(corp) {
     return propertyValue + fallbackAssetValue;
 }
 
-function getCorporationDebtValue(corp) {
-    return (corp.debts || []).reduce((sum, debt) => sum + Number(debt.principal || 0), 0);
-}
-
 function getCorporationNetAssetValue(corp) {
-    if (corp.insolvent || corp.status === 'insolvent') return 0;
-    return getCorporationAssetValue(corp) + Number(corp.cash || 0) - getCorporationDebtValue(corp);
+    if (ShareDeals.isInsolvent(corp)) return 0;
+    return getCorporationAssetValue(corp) + Number(corp.cash || 0) - getDebtTotal(corp.debts);
 }
 
 function getCorporationShareValue(corp) {
@@ -971,11 +977,11 @@ function renderImprovePropertiesButton(gameState, player, auctionOpen) {
 }
 
 // Your turn: the dock holds the move the game needs next; optional moves sit in the grid.
-function renderActionButtons() {
+// landing is getLandingSummary() for the current player.
+function renderActionButtons(landing) {
     const gameState = currentGame.game_state;
     const currentPlayer = gameState.players[gameState.currentPlayerIndex];
     const hasRolled = currentPlayer.diceRolled;
-    const landing = getLandingSummary(gameState, currentPlayer);
     const turnEnd = TurnEndOutlook.forPlayer(gameState, currentPlayer);
     const owesMoney = turnEnd.goesBankrupt;
     const endTurnLabel = owesMoney
@@ -1055,8 +1061,7 @@ function renderPausedActions() {
 
 // Host-only controls, kept away from turn actions so End Game is never a slip of the thumb.
 function renderHostPanel(gameState) {
-    const isHost = currentRoom && currentUser.id === currentRoom.host_id;
-    if (!isHost || gameState.ended) return '';
+    if (!isRoomHost() || gameState.ended) return '';
     const paused = !!gameState.paused;
     return `
         <section class="host-panel" aria-label="Host controls">
@@ -1273,26 +1278,23 @@ async function confirmPurchase() {
         return;
     }
 
-    try {
-        await performGameAction('buy_property', {});
-        closeModal('buyPropertyModal');
-        selectedPropertyId = null;
-
-    } catch (error) {
-        console.error('Error purchasing property:', error);
-        alert('Failed to purchase property');
-    }
+    await submitGameAction('buy_property', {}, {
+        errorText: 'Failed to purchase property',
+        alwaysErrorText: true,
+        onSaved: closeBuyPropertyModal,
+    });
 }
 
 async function startAuctionFromPurchase() {
-    try {
-        await performGameAction('start_auction', {});
-        closeModal('buyPropertyModal');
-        selectedPropertyId = null;
-    } catch (error) {
-        console.error('Error starting auction:', error);
-        alert(error.message || 'Failed to start auction');
-    }
+    await submitGameAction('start_auction', {}, {
+        errorText: 'Failed to start auction',
+        onSaved: closeBuyPropertyModal,
+    });
+}
+
+function closeBuyPropertyModal() {
+    closeModal('buyPropertyModal');
+    selectedPropertyId = null;
 }
 
 async function placeAuctionBid() {
@@ -1303,31 +1305,16 @@ async function placeAuctionBid() {
         return;
     }
 
-    try {
-        await performGameAction('place_bid', { amount });
-    } catch (error) {
-        console.error('Error placing auction bid:', error);
-        alert(error.message || 'Failed to place bid');
-    }
+    await submitGameAction('place_bid', { amount }, { errorText: 'Failed to place bid' });
 }
 
 async function passAuction() {
-    try {
-        await performGameAction('pass_auction', {});
-    } catch (error) {
-        console.error('Error passing auction:', error);
-        alert(error.message || 'Failed to pass auction');
-    }
+    await submitGameAction('pass_auction', {}, { errorText: 'Failed to pass auction' });
 }
 
 async function hostCancelAuction() {
     if (!confirm('Cancel this auction? No property or cash will move.')) return;
-    try {
-        await performGameAction('host_cancel_auction', {});
-    } catch (error) {
-        console.error('Error canceling auction:', error);
-        alert(error.message || 'Failed to cancel auction');
-    }
+    await submitGameAction('host_cancel_auction', {}, { errorText: 'Failed to cancel auction' });
 }
 
 // Open IPO Modal
@@ -1361,19 +1348,16 @@ async function createIPO() {
         return;
     }
 
-    try {
-        await performGameAction('create_ipo', {
-            ticker,
-            totalShares: numShares,
-            pricePerShare,
-            assetIds: selectedAssets.map(asset => asset.id),
-        });
-        closeModal('ipoModal');
-
-    } catch (error) {
-        console.error('Error creating IPO:', error);
-        alert('Failed to create IPO');
-    }
+    await submitGameAction('create_ipo', {
+        ticker,
+        totalShares: numShares,
+        pricePerShare,
+        assetIds: selectedAssets.map(asset => asset.id),
+    }, {
+        errorText: 'Failed to create IPO',
+        alwaysErrorText: true,
+        onSaved: () => closeModal('ipoModal'),
+    });
 }
 
 // Open Debt Modal
@@ -1580,20 +1564,17 @@ async function issueDebt() {
         return;
     }
 
-    try {
-        await performGameAction('issue_debt', {
-            amount: loanAmount,
-            interestRate,
-            issuerType,
-            corpId,
-            collateralIds: selectedCollateral,
-        });
-        closeModal('debtModal');
-
-    } catch (error) {
-        console.error('Error issuing debt:', error);
-        alert('Failed to issue debt');
-    }
+    await submitGameAction('issue_debt', {
+        amount: loanAmount,
+        interestRate,
+        issuerType,
+        corpId,
+        collateralIds: selectedCollateral,
+    }, {
+        errorText: 'Failed to issue debt',
+        alwaysErrorText: true,
+        onSaved: () => closeModal('debtModal'),
+    });
 }
 
 async function settleDebt() {
@@ -1610,19 +1591,16 @@ async function settleDebt() {
         return;
     }
 
-    try {
-        const debt = currentPlayerData.debts[debtIndex];
-        await performGameAction('pay_debt', {
-            debtId: debt && debt.id,
-            debtIndex,
-            amount: paymentAmount,
-        });
-        closeModal('debtModal');
-
-    } catch (error) {
-        console.error('Error settling debt:', error);
-        alert('Failed to settle debt');
-    }
+    const debt = currentPlayerData.debts[debtIndex];
+    await submitGameAction('pay_debt', {
+        debtId: debt && debt.id,
+        debtIndex,
+        amount: paymentAmount,
+    }, {
+        errorText: 'Failed to settle debt',
+        alwaysErrorText: true,
+        onSaved: () => closeModal('debtModal'),
+    });
 }
 
 async function refinanceDebt() {
@@ -1648,19 +1626,16 @@ async function refinanceDebt() {
     const selectedCollateral = Array.from(document.querySelectorAll('#refinanceCollateralAssets input:checked'))
         .map(cb => cb.value);
 
-    try {
-        await performGameAction('refinance_debt', {
-            amount: refinanceAmount,
-            debtIds: selectedItems.map(item => item.debt.id).filter(Boolean),
-            debtIndexes: selectedItems.map(item => item.index),
-            collateralIds: selectedCollateral,
-        });
-        closeModal('debtModal');
-
-    } catch (error) {
-        console.error('Error refinancing debt:', error);
-        alert('Failed to refinance debt');
-    }
+    await submitGameAction('refinance_debt', {
+        amount: refinanceAmount,
+        debtIds: selectedItems.map(item => item.debt.id).filter(Boolean),
+        debtIndexes: selectedItems.map(item => item.index),
+        collateralIds: selectedCollateral,
+    }, {
+        errorText: 'Failed to refinance debt',
+        alwaysErrorText: true,
+        onSaved: () => closeModal('debtModal'),
+    });
 }
 
 // Open Corporation Modal
@@ -1677,7 +1652,7 @@ async function openCorporationModal() {
         const treasuryListedShares = getTreasuryListedShares(corp);
         const founderListedShares = getFounderListedShares(corp);
         const isFounder = corp.founderId === currentUser.id;
-        const isInsolvent = !!corp.insolvent || corp.status === 'insolvent';
+        const isInsolvent = ShareDeals.isInsolvent(corp);
         const buyableShares = getBuyableListedShares(corp, currentUser.id);
         const canBuy = isMyTurn && buyableShares > 0 && !isInsolvent;
         const governanceHtml = renderChairmanGovernance(corp);
@@ -1744,7 +1719,7 @@ async function openCorporationModal() {
 }
 
 function renderChairmanGovernance(corp) {
-    if (corp.insolvent || corp.status === 'insolvent') {
+    if (ShareDeals.isInsolvent(corp)) {
         return `
             <div class="chairman-governance">
                 <h4>Chairman Governance</h4>
@@ -1752,7 +1727,7 @@ function renderChairmanGovernance(corp) {
             </div>
         `;
     }
-    const myShares = sharesForUi(corp, currentUser.id);
+    const myShares = ShareDeals.sharesHeld(corp, currentUser.id);
     const candidates = chairmanCandidateOptions(corp);
     const voteOptions = candidates.map(player =>
         `<option value="${escapeHtml(player.userId)}">${escapeHtml(player.name)}</option>`
@@ -1806,7 +1781,7 @@ function chairmanCandidateOptions(corp) {
     return players.filter(player =>
         player.userId === corp.chairmanId ||
         player.userId === corp.founderId ||
-        sharesForUi(corp, player.userId) > 0
+        ShareDeals.sharesHeld(corp, player.userId) > 0
     );
 }
 
@@ -1815,13 +1790,8 @@ function majorityHolderName(corp) {
     return holder ? holder.name : null;
 }
 
-function sharesForUi(corp, userId) {
-    const holder = (corp.shareholders || []).find(shareholder => shareholder.userId === userId);
-    return Number(holder?.shares || 0);
-}
-
 function hasMajoritySharesUi(corp, userId) {
-    return sharesForUi(corp, userId) > Number(corp.totalShares || 0) / 2;
+    return ShareDeals.sharesHeld(corp, userId) > Number(corp.totalShares || 0) / 2;
 }
 
 function majorityThresholdUi(corp) {
@@ -1829,46 +1799,40 @@ function majorityThresholdUi(corp) {
 }
 
 function voteSupportSharesUi(corp, vote) {
-    return (vote.supporters || []).reduce((sum, supporter) => sum + sharesForUi(corp, supporter.userId), 0);
+    return (vote.supporters || []).reduce((sum, supporter) => sum + ShareDeals.sharesHeld(corp, supporter.userId), 0);
 }
 
 async function changeChairmanByMajority(corpId) {
     const candidateUserId = document.getElementById(`chairmanMajority-${corpId}`).value;
-    try {
-        await performGameAction('change_chairman', { corpId, candidateUserId });
-        await openCorporationModal();
-    } catch (error) {
-        console.error('Error changing chairman:', error);
-        alert('Failed to change chairman');
-    }
+    await submitGameAction('change_chairman', { corpId, candidateUserId }, {
+        errorText: 'Failed to change chairman',
+        alwaysErrorText: true,
+        onSaved: openCorporationModal,
+    });
 }
 
 async function proposeChairmanVote(corpId) {
     const candidateUserId = document.getElementById(`chairmanVoteCandidate-${corpId}`).value;
-    try {
-        await performGameAction('propose_chairman_vote', { corpId, candidateUserId });
-        await openCorporationModal();
-    } catch (error) {
-        console.error('Error proposing chairman vote:', error);
-        alert('Failed to propose chairman vote');
-    }
+    await submitGameAction('propose_chairman_vote', { corpId, candidateUserId }, {
+        errorText: 'Failed to propose chairman vote',
+        alwaysErrorText: true,
+        onSaved: openCorporationModal,
+    });
 }
 
 async function supportChairmanVote(corpId, voteId) {
-    try {
-        await performGameAction('support_chairman_vote', { corpId, voteId });
-        await openCorporationModal();
-    } catch (error) {
-        console.error('Error supporting chairman vote:', error);
-        alert('Failed to support chairman vote');
-    }
+    await submitGameAction('support_chairman_vote', { corpId, voteId }, {
+        errorText: 'Failed to support chairman vote',
+        alwaysErrorText: true,
+        onSaved: openCorporationModal,
+    });
 }
 
 async function buyShares(corpId) {
     const gameState = currentGame.game_state;
     const corp = gameState.corporations.find(c => c.id === corpId);
     if (!corp) return;
-    if (corp.insolvent || corp.status === 'insolvent') {
+    if (ShareDeals.isInsolvent(corp)) {
         alert('This corporation is insolvent and cannot sell shares.');
         return;
     }
@@ -1887,34 +1851,27 @@ async function buyShares(corpId) {
         return;
     }
 
-    try {
-        await performGameAction('buy_shares', { corpId, shares: numShares });
-        closeModal('corporationModal');
-
-    } catch (error) {
-        console.error('Error buying shares:', error);
-        alert(error.message || 'Failed to buy shares');
-    }
+    await submitGameAction('buy_shares', { corpId, shares: numShares }, {
+        errorText: 'Failed to buy shares',
+        onSaved: () => closeModal('corporationModal'),
+    });
 }
 
 // End turn
 async function endTurn() {
-    try {
-        const beforeUserId = currentUser.id;
-        await performGameAction('end_turn', {});
-        const gameState = currentGame.game_state;
-        const nextPlayer = gameState.players[gameState.currentPlayerIndex];
-        if (gameState.ended) return;
-
-        // --- Hotseat: show pass-device screen before next player takes over ---
-        if (isHotseatMode && nextPlayer && nextPlayer.userId !== beforeUserId) {
-            showHotseatInterstitial(nextPlayer.name);
-        }
-
-    } catch (error) {
-        console.error('Error ending turn:', error);
-        alert(error.message || 'Failed to end turn');
-    }
+    const beforeUserId = currentUser.id;
+    await submitGameAction('end_turn', {}, {
+        errorText: 'Failed to end turn',
+        onSaved: () => {
+            const gameState = currentGame.game_state;
+            const nextPlayer = gameState.players[gameState.currentPlayerIndex];
+            if (gameState.ended) return;
+            // Hotseat: show the pass-device screen before the next player takes over.
+            if (isHotseatMode && nextPlayer && nextPlayer.userId !== beforeUserId) {
+                showHotseatInterstitial(nextPlayer.name);
+            }
+        },
+    });
 }
 
 // ── Hotseat: pass-device interstitial ──────────────────────────────
@@ -1949,8 +1906,9 @@ function dismissHotseatInterstitial() {
 async function hostEndGame() {
     if (!confirm('End the game now and declare a winner by net worth?')) return;
     try {
-        await performGameAction('host_end_game', {});
-        showWinnerFromState(currentGame.game_state, 'Host ended the game.');
+        if (await performGameAction('host_end_game', {})) {
+            showWinnerFromState(currentGame.game_state, 'Host ended the game.');
+        }
     } catch (error) {
         console.error('Error ending game:', error);
         alert('Failed to end game: ' + error.message);
@@ -1959,23 +1917,36 @@ async function hostEndGame() {
 
 async function hostPauseGame() {
     if (!confirm('Pause the game for everyone? Players will not be able to take normal actions until the host resumes.')) return;
-    try {
-        if (!await performGameAction('host_pause_game', { reason: 'Host paused the game' })) return;
-        showToast('Game paused.');
-    } catch (error) {
-        console.error('Error pausing game:', error);
-        showToast(error.message || 'Failed to pause game.');
-    }
+    await submitGameAction('host_pause_game', { reason: 'Host paused the game' }, {
+        errorText: 'Failed to pause game.',
+        showError: showToast,
+        onSaved: () => showToast('Game paused.'),
+    });
 }
 
 async function hostResumeGame() {
     if (!confirm('Resume the game for everyone?')) return;
+    await submitGameAction('host_resume_game', {}, {
+        errorText: 'Failed to resume game.',
+        showError: showToast,
+        onSaved: () => showToast('Game resumed.'),
+    });
+}
+
+// Sends a game action from a button or form and tells the player if it failed.
+// onSaved(result) runs only once the server saved the action: performGameAction
+// returns null after a conflict, which it has already explained. On failure the
+// player sees the server's message, or errorText when there is none; with
+// alwaysErrorText they always see errorText. showError defaults to alert.
+async function submitGameAction(type, payload, { errorText, alwaysErrorText = false, onSaved, showError = alert } = {}) {
     try {
-        if (!await performGameAction('host_resume_game', {})) return;
-        showToast('Game resumed.');
+        const result = await performGameAction(type, payload);
+        if (result && onSaved) await onSaved(result);
+        return result;
     } catch (error) {
-        console.error('Error resuming game:', error);
-        showToast(error.message || 'Failed to resume game.');
+        console.error(`Game action ${type} failed:`, error);
+        showError(alwaysErrorText ? errorText : (error.message || errorText));
+        return null;
     }
 }
 
@@ -2809,7 +2780,7 @@ function renderTradeOffers() {
         const expired = isTradeOfferExpiredForDisplay(offer);
         const canAccept = !expired && participant && offer.proposedById !== currentUser.id;
         const canCancel = participant;
-        const isHost = currentRoom && currentUser.id === currentRoom.host_id;
+        const isHost = isRoomHost();
         const canHostCancel = isHost && !canCancel;
         const canClearExpired = expired && (participant || isHost);
         const hasActions = canAccept || canCancel || canHostCancel;
@@ -2879,11 +2850,7 @@ function renderTradeAssetTag(name, groupLabel, kind, color) {
 
 // Board order keeps each color group together in an offer.
 function sortTradeAssetIds(assetIds) {
-    const boardPosition = id => {
-        const square = BOARD_SQUARES.find(sq => sq.propertyId === id);
-        return square ? square.position : Number.MAX_SAFE_INTEGER;
-    };
-    return [...(assetIds || [])].sort((a, b) => boardPosition(a) - boardPosition(b));
+    return [...(assetIds || [])].sort((a, b) => getPropertyBoardPosition(a) - getPropertyBoardPosition(b));
 }
 
 function tradeAssetProperty(assetId) {
@@ -2916,9 +2883,8 @@ function formatTradeOfferAge(createdAt) {
 }
 
 function formatTradeOfferExpiry(expiresAt) {
-    const expiry = new Date(expiresAt);
-    if (Number.isNaN(expiry.getTime())) return '';
-    const seconds = Math.max(Math.ceil((expiry.getTime() - Date.now()) / 1000), 0);
+    const seconds = secondsUntil(expiresAt);
+    if (seconds === null) return '';
     if (seconds <= 0) return 'expired';
     if (seconds < 60) return `expires in ${seconds}s`;
     const minutes = Math.ceil(seconds / 60);
@@ -2926,59 +2892,50 @@ function formatTradeOfferExpiry(expiresAt) {
 }
 
 function isTradeOfferExpiredForDisplay(offer) {
-    if (!offer?.expiresAt) return false;
-    const expiry = new Date(offer.expiresAt);
-    return !Number.isNaN(expiry.getTime()) && expiry.getTime() <= Date.now();
+    return secondsUntil(offer?.expiresAt) === 0;
 }
 
 function actionEventsInclude(result, type) {
     return Array.isArray(result?.events) && result.events.some(event => event.type === type);
 }
 
+function showMarketError(message) {
+    showMarketStatus(message, 'error');
+}
+
 async function acceptTradeOffer(offerId) {
-    try {
-        const result = await performGameAction('accept_trade', { offerId });
-        if (!result) return;
-        if (actionEventsInclude(result, 'trade_offer_expired')) {
-            showMarketStatus('Trade offer expired before it could be accepted.', 'error');
-        } else {
-            showMarketStatus('Trade accepted and executed.', 'success');
-        }
-    } catch (error) {
-        console.error('Error accepting trade offer:', error);
-        showMarketStatus(error.message || 'Failed to accept trade offer.', 'error');
-    }
+    await submitGameAction('accept_trade', { offerId }, {
+        errorText: 'Failed to accept trade offer.',
+        showError: showMarketError,
+        onSaved: result => {
+            if (actionEventsInclude(result, 'trade_offer_expired')) {
+                showMarketStatus('Trade offer expired before it could be accepted.', 'error');
+            } else {
+                showMarketStatus('Trade accepted and executed.', 'success');
+            }
+        },
+    });
 }
 
 async function cancelTradeOffer(offerId) {
-    try {
-        const result = await performGameAction('cancel_trade', { offerId });
-        if (!result) return;
-        if (actionEventsInclude(result, 'trade_offer_expired')) {
-            showMarketStatus('Trade offer expired and was cleared.', 'success');
-        } else {
-            showMarketStatus('Trade offer updated.', 'success');
-        }
-    } catch (error) {
-        console.error('Error canceling trade offer:', error);
-        showMarketStatus(error.message || 'Failed to update trade offer.', 'error');
-    }
+    await submitGameAction('cancel_trade', { offerId }, {
+        errorText: 'Failed to update trade offer.',
+        showError: showMarketError,
+        onSaved: result => showMarketStatus(actionEventsInclude(result, 'trade_offer_expired')
+            ? 'Trade offer expired and was cleared.'
+            : 'Trade offer updated.', 'success'),
+    });
 }
 
 async function hostCancelTradeOffer(offerId) {
     if (!confirm('Cancel this trade offer as host? No cash or properties will move.')) return;
-    try {
-        const result = await performGameAction('host_cancel_trade_offer', { offerId });
-        if (!result) return;
-        if (actionEventsInclude(result, 'trade_offer_expired')) {
-            showMarketStatus('Trade offer expired and was cleared.', 'success');
-        } else {
-            showMarketStatus('Trade offer canceled by host.', 'success');
-        }
-    } catch (error) {
-        console.error('Error host-canceling trade offer:', error);
-        showMarketStatus(error.message || 'Failed to cancel trade offer.', 'error');
-    }
+    await submitGameAction('host_cancel_trade_offer', { offerId }, {
+        errorText: 'Failed to cancel trade offer.',
+        showError: showMarketError,
+        onSaved: result => showMarketStatus(actionEventsInclude(result, 'trade_offer_expired')
+            ? 'Trade offer expired and was cleared.'
+            : 'Trade offer canceled by host.', 'success'),
+    });
 }
 
 async function executeTransaction() {
@@ -3003,25 +2960,26 @@ async function executeTransaction() {
         return;
     }
 
-    try {
-        if (!await performGameAction('propose_trade', terms)) return;
-        showMarketStatus('Trade proposal sent. It will execute when the other player accepts.', 'success');
+    await submitGameAction('propose_trade', terms, {
+        errorText: 'Failed to execute transaction.',
+        showError: showMarketError,
+        onSaved: () => {
+            showMarketStatus('Trade proposal sent. It will execute when the other player accepts.', 'success');
+            resetTradeForm();
+        },
+    });
+}
 
-        // Reset form
-        document.getElementById('player1Cash').value = 0;
-        document.getElementById('player2Cash').value = 0;
-        ['player1', 'player2'].forEach(side => {
-            document.getElementById(`${side}Assets`).dataset.playerId = '';
-            document.getElementById(`${side}Destination`).dataset.receiverId = '';
-        });
-        updatePlayerAssets('player1');
-        updatePlayerAssets('player2');
-        updateMarketActionState();
-
-    } catch (error) {
-        console.error('Error executing transaction:', error);
-        showMarketStatus(error.message || 'Failed to execute transaction.', 'error');
-    }
+function resetTradeForm() {
+    document.getElementById('player1Cash').value = 0;
+    document.getElementById('player2Cash').value = 0;
+    ['player1', 'player2'].forEach(side => {
+        document.getElementById(`${side}Assets`).dataset.playerId = '';
+        document.getElementById(`${side}Destination`).dataset.receiverId = '';
+    });
+    updatePlayerAssets('player1');
+    updatePlayerAssets('player2');
+    updateMarketActionState();
 }
 
 async function makePayment() {
@@ -3042,16 +3000,15 @@ async function makePayment() {
         return;
     }
 
-    try {
-        if (!await performGameAction('manual_payment', { fromPlayerId, toPlayerId, amount })) return;
-        showMarketStatus('Payment completed successfully.', 'success');
-        document.getElementById('paymentAmount').value = '';
-        updateMarketActionState();
-
-    } catch (error) {
-        console.error('Error making payment:', error);
-        showMarketStatus(error.message || 'Failed to make payment.', 'error');
-    }
+    await submitGameAction('manual_payment', { fromPlayerId, toPlayerId, amount }, {
+        errorText: 'Failed to make payment.',
+        showError: showMarketError,
+        onSaved: () => {
+            showMarketStatus('Payment completed successfully.', 'success');
+            document.getElementById('paymentAmount').value = '';
+            updateMarketActionState();
+        },
+    });
 }
 
 // ============================================================
@@ -3075,35 +3032,21 @@ function renderBoardTab() {
 // ---------------------------------------------------------------
 async function rollDiceAndMove() {
     if (!currentGame || !currentUser) return;
-    try {
-        const payload = Array.isArray(window.__E2E_NEXT_DICE)
-            ? { testDice: window.__E2E_NEXT_DICE.splice(0, 2) }
-            : {};
-        await performGameAction('roll_dice', payload);
-    } catch (error) {
-        console.error('Error rolling dice:', error);
-        alert(error.message || 'Failed to roll dice');
-    }
+    // Tests set window.__E2E_NEXT_DICE to choose the roll.
+    const payload = Array.isArray(window.__E2E_NEXT_DICE)
+        ? { testDice: window.__E2E_NEXT_DICE.splice(0, 2) }
+        : {};
+    await submitGameAction('roll_dice', payload, { errorText: 'Failed to roll dice' });
 }
 
 async function payJailFine() {
     if (!currentGame || !currentUser) return;
-    try {
-        await performGameAction('pay_jail_fine', {});
-    } catch (error) {
-        console.error('Error paying Jail fine:', error);
-        alert(error.message || 'Failed to pay Jail fine');
-    }
+    await submitGameAction('pay_jail_fine', {}, { errorText: 'Failed to pay Jail fine' });
 }
 
 async function useJailCard() {
     if (!currentGame || !currentUser) return;
-    try {
-        await performGameAction('use_get_out_of_jail_card', {});
-    } catch (error) {
-        console.error('Error using Get Out of Jail Free card:', error);
-        alert(error.message || 'Failed to use Jail card');
-    }
+    await submitGameAction('use_get_out_of_jail_card', {}, { errorText: 'Failed to use Jail card' });
 }
 
 // ---------------------------------------------------------------
@@ -3178,19 +3121,18 @@ function houseModalAdjust(propertyId, delta) {
 async function confirmHousePurchase() {
     if (!currentGame || !currentUser) return;
 
-    try {
-        const selections = Object.fromEntries(Object.entries(pendingHouseSelections).filter(([, delta]) => delta > 0));
-        if (Object.keys(selections).length === 0) {
-            showToast('No houses selected.');
-            return;
-        }
-        await performGameAction('buy_houses', { selections });
-        pendingHouseSelections = {};
-        houseModalRender = null;
-        closeModal('houseModal');
-
-    } catch (error) {
-        console.error('Error buying houses:', error);
-        alert('Failed to purchase houses');
+    const selections = Object.fromEntries(Object.entries(pendingHouseSelections).filter(([, delta]) => delta > 0));
+    if (Object.keys(selections).length === 0) {
+        showToast('No houses selected.');
+        return;
     }
+    await submitGameAction('buy_houses', { selections }, {
+        errorText: 'Failed to purchase houses',
+        alwaysErrorText: true,
+        onSaved: () => {
+            pendingHouseSelections = {};
+            houseModalRender = null;
+            closeModal('houseModal');
+        },
+    });
 }
