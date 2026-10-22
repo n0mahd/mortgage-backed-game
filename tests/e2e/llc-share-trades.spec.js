@@ -39,7 +39,7 @@ async function setupGameWithLlc(request) {
         data: {
             actionId: `e2e-ipo-${Date.now()}`,
             type: 'create_ipo',
-            payload: { ticker: 'ALC', totalShares: 10, pricePerShare: 20, assetIds: ['prop-0'] },
+            payload: { ticker: 'ALC', totalShares: 10, assetIds: ['prop-0'] },
             expectedVersion: game.state_version,
         },
     });

@@ -223,7 +223,7 @@ describe('trading LLC shares', () => {
         ownProperty(state, 'prop-3', 'alice', 'Alice');
         const { state: withCorp } = applyAction(state, 'alice', {
             type: 'create_ipo',
-            payload: { ticker: 'ALC', totalShares: 10, pricePerShare: 50, assetIds: ['prop-3'] },
+            payload: { ticker: 'ALC', totalShares: 10, assetIds: ['prop-3'] },
         });
         return { state: withCorp, corp: withCorp.corporations[0] };
     }
@@ -330,7 +330,7 @@ describe('trading a property into an LLC for shares', () => {
         ownProperty(state, 'prop-3', 'alice', 'Alice');
         const { state: withCorp } = applyAction(state, 'alice', {
             type: 'create_ipo',
-            payload: { ticker: 'ALC', totalShares: 12, pricePerShare: 50, assetIds: ['prop-3'] },
+            payload: { ticker: 'ALC', totalShares: 12, assetIds: ['prop-3'] },
         });
         return { state: withCorp, corp: withCorp.corporations[0] };
     }
@@ -421,7 +421,7 @@ describe('majority holders chair their LLC', () => {
         ownProperty(state, 'prop-3', 'alice', 'Alice');
         const { state: withCorp } = applyAction(state, 'alice', {
             type: 'create_ipo',
-            payload: { ticker: 'ALC', totalShares: 10, pricePerShare: 50, assetIds: ['prop-3'] },
+            payload: { ticker: 'ALC', totalShares: 10, assetIds: ['prop-3'] },
         });
         return withCorp;
     }

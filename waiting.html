@@ -14,7 +14,7 @@
     <title>Waiting room — Mortgage Backed Monopoly</title>
     <link rel="preload" href="src/assets/fonts/besley-latin.woff2" as="font" type="font/woff2" crossorigin>
     <link rel="stylesheet" href="src/css/tokens.css?v=2">
-    <link rel="stylesheet" href="src/css/style.css?v=22">
+    <link rel="stylesheet" href="src/css/style.css?v=23">
 </head>
 <body>
     <div class="container">
@@ -86,8 +86,11 @@
                     <!-- Invite AI agents: one invite per agent (src/js/agentInvites.js) -->
                     <div class="agent-invites invite-email-panel" id="agent-invites" style="display: none;">
                         <h4>Invite AI agents</h4>
-                        <p class="agent-invites-help">Each invite seats one agent and controls only that seat. Paste it into a new chat in an AI app that has the Mortgage Backed connector.</p>
-                        <button id="agent-invite-create-btn" class="btn btn-secondary">Invite an agent</button>
+                        <p class="agent-invites-help">Each invite seats one agent and controls only that seat. Give each agent its own name so players can tell them apart.</p>
+                        <div class="agent-invite-create">
+                            <input type="text" id="agent-invite-name" placeholder="Agent name (optional)" maxlength="40" autocomplete="off" aria-label="Agent name">
+                            <button id="agent-invite-create-btn" class="btn btn-secondary">Invite an agent</button>
+                        </div>
                         <div id="agent-invite-status" class="agent-invite-status" role="status"></div>
                         <div id="agent-invite-list" class="agent-invite-list"></div>
                     </div>
@@ -115,9 +118,21 @@
     <div class="modal" id="agent-invite-modal">
         <div class="modal-content">
             <div class="modal-header">Agent invite</div>
-            <p class="modal-hint">Paste this into a new chat for the agent. It contains the agent's key, which is shown only now. Anyone with it can play that seat.</p>
+            <section class="agent-invite-part" aria-labelledby="agent-invite-host-title">
+                <h4 id="agent-invite-host-title">Your part</h4>
+                <p class="modal-hint">Do this in your Claude app.</p>
+                <ol class="steps agent-invite-steps">
+                    <li>Open <strong>Settings → Connectors → Add custom connector</strong> and enter <code id="agent-invite-mcp-url"></code>. First time only.</li>
+                    <li>Tap <strong>Connect</strong> on the Mortgage Backed connector. First time only.</li>
+                    <li>Start a new chat and turn on Mortgage Backed under <strong>+ → Connectors</strong>.</li>
+                </ol>
+            </section>
+            <section class="agent-invite-part" aria-labelledby="agent-invite-agent-title">
+                <h4 id="agent-invite-agent-title">The agent's part</h4>
+                <p class="modal-hint">Paste this into that chat. It holds the agent's key, shown only now: anyone with it can play that seat.</p>
+            </section>
             <div class="form-group">
-                <textarea id="agent-invite-prompt" class="agent-invite-prompt" rows="9" readonly></textarea>
+                <textarea id="agent-invite-prompt" class="agent-invite-prompt" rows="9" readonly aria-labelledby="agent-invite-agent-title"></textarea>
             </div>
             <div class="sheet-actions modal-actions">
                 <button id="agent-invite-copy-btn" class="btn btn-primary">Copy invite</button>
@@ -127,9 +142,9 @@
     </div>
 
     <script src="/socket.io/socket.io.js"></script>
-    <script src="src/js/api.js?v=8"></script>
+    <script src="src/js/api.js?v=9"></script>
     <script src="src/js/rejoin-prompts.js?v=1"></script>
-    <script src="src/js/agentInvites.js?v=2"></script>
+    <script src="src/js/agentInvites.js?v=3"></script>
     <script src="src/js/waiting.js?v=15"></script>
 </body>
 </html>

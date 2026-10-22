@@ -58,7 +58,7 @@ function mbsState({ totalShares = 10, aliceShares = 7 } = {}) {
     let state = own(makeState(), [...MBS_ASSETS, ILLINOIS, KENTUCKY, MEDITERRANEAN], 'alice', 'Alice');
     state = applyAction(state, 'alice', {
         type: 'create_ipo',
-        payload: { ticker: 'MBS', totalShares, pricePerShare: 100, assetIds: MBS_ASSETS },
+        payload: { ticker: 'MBS', totalShares, assetIds: MBS_ASSETS },
     }).state;
     const corp = state.corporations[0];
     const bobShares = totalShares - aliceShares;
@@ -143,7 +143,7 @@ describe('adding properties to an existing corporation', () => {
 
     test('an IPO can issue up to 12,000 shares', () => {
         const state = own(makeState(), [ILLINOIS, KENTUCKY], 'alice', 'Alice');
-        const ipo = (shares, id) => applyAction(state, 'alice', { type: 'create_ipo', payload: { ticker: 'BIG', totalShares: shares, pricePerShare: 1, assetIds: [id] } });
+        const ipo = (shares, id) => applyAction(state, 'alice', { type: 'create_ipo', payload: { ticker: 'BIG', totalShares: shares, assetIds: [id] } });
         expect(ipo(12000, ILLINOIS).state.corporations[0].totalShares).toBe(12000);
         expectRefused(() => ipo(12001, KENTUCKY), /12,000 or fewer/);
     });
@@ -193,7 +193,7 @@ describe('adding properties to an existing corporation', () => {
         expectRefused(() => add(state, 'alice', { assetIds: [ILLINOIS] }), /backs a loan/);
         expectRefused(() => applyAction(state, 'alice', {
             type: 'create_ipo',
-            payload: { ticker: 'ILL', totalShares: 10, pricePerShare: 10, assetIds: [ILLINOIS] },
+            payload: { ticker: 'ILL', totalShares: 10, assetIds: [ILLINOIS] },
         }), /backs a loan/);
         expectRefused(() => applyAction(state, 'alice', {
             type: 'propose_trade',
