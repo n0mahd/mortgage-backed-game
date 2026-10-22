@@ -75,12 +75,19 @@
                 ? `Rent goes straight to shareholders. You hold ${pct}, so on ${corp.ticker}'s properties you pay only the other ${global.ShareDeals.percent(total - mine, total)} of the rent.`
                 : 'Rent goes straight to the shareholders, split by shares.')
             : `Everyone pays full rent into the ${corp.ticker} treasury, shareholders included. ${mine > 0 ? `Your ${pct} stake grows with it.` : ''}`;
+        const other = policy === 'payout' ? 'reinvest' : 'payout';
+        const otherLabel = other === 'payout' ? 'Payout' : 'Reinvest';
+        const lockedTurns = Number(corp.rentPolicyLockedTurns || 0);
+        const lockLine = lockedTurns > 0
+            ? `<small>The chairman can't change it alone for ${lockedTurns} more of their turns. Every shareholder agreeing changes it at once.</small>`
+            : '';
         let controls = '';
-        if (runs) {
-            const locked = !isMyTurn() || hasRolled();
-            const lockNote = !isMyTurn() ? 'You can change this at the start of your turn.'
-                : (hasRolled() ? 'Locked: you have rolled. Change it at the start of your next turn.' : 'Change it now, before you roll. Once you roll it locks for this turn.');
-            const other = policy === 'payout' ? 'reinvest' : 'payout';
+        if (runs && !corp.rentPolicyVote) {
+            const canSwitch = isMyTurn() && !hasRolled() && lockedTurns === 0;
+            const note = lockedTurns > 0 ? 'Locked after the last change. Ask the shareholders instead.'
+                : (!isMyTurn() ? 'You can change this at the start of your turn.'
+                    : (hasRolled() ? 'Locked: you have rolled. Change it at the start of your next turn.'
+                        : `Change it now, before you roll. It then stays put for your next 5 turns unless every shareholder agrees.`));
             const debt = (corp.debts || []).reduce((sum, d) => sum + Number(d.principal || 0), 0);
             const debtWarning = other === 'payout' && debt > 0
                 ? `<p class="share-deal-warning">${esc(corp.ticker)} owes ${money(debt)}. In Payout its treasury stops growing, but interest is still charged to it.</p>`
@@ -88,18 +95,79 @@
             controls = `
                 ${debtWarning}
                 <div class="governance-control">
-                    <button class="btn btn-primary btn-sm" data-game-action="set-rent-policy" data-corp-id="${attr(corp.id)}" data-policy="${other}"${locked ? ' disabled' : ''}>Switch to ${other === 'payout' ? 'Payout' : 'Reinvest'}</button>
+                    ${canSwitch || lockedTurns === 0
+                        ? `<button class="btn btn-primary btn-sm" data-game-action="set-rent-policy" data-corp-id="${attr(corp.id)}" data-policy="${other}"${canSwitch ? '' : ' disabled'}>Switch to ${otherLabel}</button>`
+                        : ''}
+                    ${mine > 0 && lockedTurns > 0 ? proposeButton(corp, other, otherLabel) : ''}
                 </div>
-                <small>${esc(lockNote)}</small>
+                <small>${esc(note)}</small>
             `;
+        } else if (mine > 0 && !corp.rentPolicyVote) {
+            controls = `<div class="governance-control">${proposeButton(corp, other, otherLabel)}</div>`;
         }
         return `
             <div class="corp-rent-policy">
                 <h4>Rent policy: <span class="badge${policy === 'payout' ? ' badge-gold' : ''}">${policy === 'payout' ? 'Payout' : 'Reinvest'}</span></h4>
                 <p>${esc(effect)}</p>
+                ${lockLine}
+                ${renderRentPolicyVote(corp)}
                 ${controls}
             </div>
         `;
+    }
+
+    function proposeButton(corp, policy, label) {
+        return `<button class="btn btn-secondary btn-sm" data-game-action="propose-rent-policy" data-corp-id="${attr(corp.id)}" data-policy="${policy}">Ask every shareholder to switch to ${label}</button>`;
+    }
+
+    // An open rent-policy vote: who agreed, who hasn't yet, and Agree / Reject
+    // for a shareholder who hasn't answered.
+    function shareholdersOf(corp) {
+        return (corp.shareholders || [])
+            .filter(h => Number(h.shares || 0) > 0)
+            .filter(h => !(state()?.players || []).find(p => p.userId === h.userId)?.bankrupt);
+    }
+
+    function renderRentPolicyVote(corp) {
+        const vote = corp.rentPolicyVote;
+        if (!vote) return '';
+        const holders = shareholdersOf(corp);
+        const agreed = holders.filter(h => vote.supporterIds.includes(h.userId));
+        const waiting = holders.filter(h => !vote.supporterIds.includes(h.userId));
+        const nameOf = h => (h.userId === me() ? 'you' : h.name);
+        const canAnswer = sharesOf(corp, me()) > 0 && !vote.supporterIds.includes(me());
+        return `
+            <div class="chairman-vote-row">
+                <div>
+                    <strong>Switch to ${vote.policy === 'payout' ? 'Payout' : 'Reinvest'}?</strong>
+                    <span>Proposed by ${esc(vote.proposedByName || 'a shareholder')}. Agreed: ${esc(agreed.map(nameOf).join(', ') || 'nobody yet')}. Waiting for: ${esc(waiting.map(nameOf).join(', '))}. It switches when everyone agrees; one no closes it.</span>
+                </div>
+                ${canAnswer ? `
+                    <button class="btn btn-primary btn-sm" data-game-action="vote-rent-policy" data-corp-id="${attr(corp.id)}" data-approve="true">Agree</button>
+                    <button class="btn btn-secondary btn-sm" data-game-action="vote-rent-policy" data-corp-id="${attr(corp.id)}" data-approve="false">Reject</button>
+                ` : ''}
+            </div>
+        `;
+    }
+
+    async function proposeRentPolicy(corpId, policy) {
+        try {
+            await global.performGameAction('propose_rent_policy_change', { corpId, policy });
+            global.openCorporationModal();
+        } catch (error) {
+            global.logActionError('Error proposing rent policy change:', error);
+            alert(error.message || 'Failed to propose the change');
+        }
+    }
+
+    async function voteRentPolicy(corpId, approve) {
+        try {
+            await global.performGameAction('vote_rent_policy_change', { corpId, approve });
+            global.openCorporationModal();
+        } catch (error) {
+            global.logActionError('Error voting on rent policy:', error);
+            alert(error.message || 'Failed to vote');
+        }
     }
 
     async function setRentPolicy(corpId, policy) {
@@ -339,14 +407,17 @@
         document.getElementById('send-property-offer-btn')?.addEventListener('click', sendPropertyOffer);
     }
 
-    // Offers someone needs to answer, for the turn checklist / badges.
+    // Property offers and rent-policy votes someone needs to answer, for the
+    // Corporations button.
     function offersAwaiting(userId) {
-        return (state()?.propertyOffers || []).filter(offer => {
+        const votes = (state()?.corporations || []).filter(corp => corp.rentPolicyVote && !isInsolvent(corp)
+            && sharesOf(corp, userId) > 0 && !corp.rentPolicyVote.supporterIds.includes(userId));
+        return [...votes, ...(state()?.propertyOffers || []).filter(offer => {
             if (offer.status !== 'pending') return false;
             if (offer.awaiting === 'offerer') return offer.offererId === userId;
             const corp = corpById(offer.corpId);
             return !!corp && global.ShareDeals.runsCorporation(corp, userId);
-        });
+        })];
     }
 
     global.CorporationDesk = {
@@ -355,6 +426,8 @@
         renderOfferButton,
         renderPropertyOffers,
         setRentPolicy,
+        proposeRentPolicy,
+        voteRentPolicy,
         payDividend,
         buildForCorporation,
         tradeAsCorporation,

@@ -847,8 +847,8 @@ function renderPlayerCard(player, isCurrentUser) {
                 <h4>Corporations</h4>
                 ${player.corporations.map(c => `
                     <div class="corp-badge">
-                        ${escapeHtml(c.ticker)}: ${c.sharesOwned} of ${c.totalShares} shares (${ownershipPercent(c.sharesOwned, c.totalShares)}%)
-                        <span class="corp-assets-owned">NAV: $${getPlayerCorporationShareValue(c).toFixed(2)}/share</span>
+                        ${escapeHtml(c.ticker)}: ${ShareDeals.count(c.sharesOwned)} of ${ShareDeals.count(c.totalShares)} shares (${ownershipPercent(c.sharesOwned, c.totalShares)}%)
+                        <span class="corp-assets-owned">NAV: ${ShareDeals.perShare(getPlayerCorporationShareValue(c))}/share</span>
                         ${c.insolvent ? '<span class="badge badge-danger">Insolvent</span>' : ''}
                         ${renderCorporationAssetSummary(c.id)}
                     </div>
@@ -1101,7 +1101,7 @@ function buyUnavailableLabel(landing) {
 // Flags property offers waiting for this player (as offerer or chairman).
 function renderCorporationsButton() {
     const waiting = CorporationDesk.offersAwaiting(currentUser.id).length;
-    const hint = waiting ? `${waiting} offer${waiting === 1 ? '' : 's'} waiting for you` : 'Shares and chairmen';
+    const hint = waiting ? `${waiting} waiting for your answer` : 'Shares and chairmen';
     return `<button class="btn btn-secondary btn-sm${waiting ? ' is-featured' : ''}" data-game-action="open-corporation">Corporations<small>${hint}</small></button>`;
 }
 
@@ -1143,8 +1143,18 @@ function formatLogEvent(type, data) {
         case 'property_purchase':
             if (data.actor) return `${data.actor} bought ${data.property} for ${data.buyer} for $${Number(data.price).toFixed(2)}`;
             return `${data.buyer} purchased ${data.property} for $${Number(data.price).toFixed(2)}`;
-        case 'rent_policy_changed':
-            return `${data.actor} switched ${data.ticker} to ${data.policy === 'payout' ? 'Payout: rent goes to its shareholders' : 'Reinvest: rent stays in its treasury'}`;
+        case 'rent_policy_changed': {
+            const label = data.policy === 'payout' ? 'Payout: rent goes to its shareholders' : 'Reinvest: rent stays in its treasury';
+            return data.method === 'unanimous'
+                ? `Every ${data.ticker} shareholder agreed: ${data.ticker} switched to ${label}`
+                : `${data.actor} switched ${data.ticker} to ${label} (locked for their next ${data.lockedTurns || 5} turns)`;
+        }
+        case 'rent_policy_vote_proposed':
+            return `${data.actor} asked every ${data.ticker} shareholder to switch it to ${data.policy === 'payout' ? 'Payout' : 'Reinvest'}`;
+        case 'rent_policy_vote_supported':
+            return `${data.actor} agreed to switch ${data.ticker} to ${data.policy === 'payout' ? 'Payout' : 'Reinvest'}`;
+        case 'rent_policy_vote_rejected':
+            return `${data.actor} rejected switching ${data.ticker} to ${data.policy === 'payout' ? 'Payout' : 'Reinvest'}`;
         case 'dividend_paid':
             return `${data.ticker} paid a $${Number(data.amount).toFixed(2)} dividend: ${formatPayouts(data.payouts)}`;
         case 'rent_distributed':
@@ -1154,15 +1164,15 @@ function formatLogEvent(type, data) {
         case 'property_offer_countered':
             return `${data.actor} countered: ${(data.properties || []).join(', ')} to ${data.ticker} for $${Number(data.price).toFixed(2)}`;
         case 'property_offer_accepted':
-            return `${data.ticker} took ${(data.properties || []).join(', ')} from ${data.offerer} for ${Number(data.newShares) > 0 ? `${data.newShares} new shares` : `$${Number(data.price).toFixed(2)}`}`;
+            return `${data.ticker} took ${(data.properties || []).join(', ')} from ${data.offerer} for ${Number(data.newShares) > 0 ? `${ShareDeals.count(data.newShares)} new shares` : `$${Number(data.price).toFixed(2)}`}`;
         case 'property_offer_closed':
             return `The offer of ${(data.properties || []).join(', ')} to ${data.ticker} was ${data.status === 'expired' ? 'left to expire' : data.status}`;
         case 'ipo_created':
-            return `${data.founder} created IPO ${data.ticker}: ${data.founderShares || data.shares} shares held by ${data.founder}`;
+            return `${data.founder} created IPO ${data.ticker}: ${ShareDeals.count(data.founderShares || data.shares)} shares held by ${data.founder}`;
         case 'corporation_assets_added': {
             const names = Array.isArray(data.properties) ? data.properties.join(', ') : 'property';
             const shares = Number(data.newShares || 0);
-            return `${data.actor} put ${names} into ${data.ticker}${shares ? ` for ${shares} new share${shares === 1 ? '' : 's'} (${data.ticker} now has ${data.totalShares})` : ''}`;
+            return `${data.actor} put ${names} into ${data.ticker}${shares ? ` for ${ShareDeals.count(shares)} new share${shares === 1 ? '' : 's'} (${data.ticker} now has ${ShareDeals.count(data.totalShares)})` : ''}`;
         }
         case 'share_purchase': {
             const founderShares = Number(data.founderShares || 0);
@@ -1882,7 +1892,7 @@ async function openCorporationModal() {
         const netAssetValue = getCorporationNetAssetValue(corp);
         const shareValue = getCorporationShareValue(corp);
         const shareholderRows = shareholders.length
-            ? shareholders.map(s => `<li>${escapeHtml(s.name)}: ${s.shares} shares (${ownershipPercent(s.shares, corp.totalShares)}%)</li>`).join('')
+            ? shareholders.map(s => `<li>${escapeHtml(s.name)}: ${ShareDeals.count(s.shares)} shares (${ownershipPercent(s.shares, corp.totalShares)}%)</li>`).join('')
             : '<li>No active shareholders</li>';
         const debtRows = debts.length
             ? debts.map(d => `<li>$${Number(d.principal || 0).toFixed(2)} @ ${Number(d.interestRate || 0)}% (interest next turn: $${interestPayment(d).toFixed(2)})</li>`).join('')
@@ -1899,7 +1909,7 @@ async function openCorporationModal() {
             <p>Chairman: ${escapeHtml(isInsolvent ? 'Closed' : (corp.chairmanName || corp.founderName || 'Unassigned'))}</p>
             <p>Majority holder: ${escapeHtml(majorityHolderName(corp) || 'None')}</p>
             <p>Treasury Cash: $${Number(corp.cash || 0).toFixed(2)}</p>
-            <p>Total Shares: ${corp.totalShares} | NAV: $${shareValue.toFixed(2)}/share</p>
+            <p>Total Shares: ${ShareDeals.count(corp.totalShares)} | NAV: ${ShareDeals.perShare(shareValue)}/share</p>
             <p>Net Asset Value: $${netAssetValue.toFixed(2)}</p>
             ${listingDetails}
             ${isInsolvent ? '<p class="corp-status-warning">This corporation is closed after treasury insolvency. Properties returned to the Bank; shares, debt, and governance were wiped.</p>' : ''}
@@ -1967,7 +1977,7 @@ function renderChairmanGovernance(corp) {
                 <div class="chairman-vote-row">
                     <div>
                         <strong>${escapeHtml(vote.candidateName)}</strong>
-                        <span>${supportedShares}/${corp.totalShares} shares supporting, ${required} needed</span>
+                        <span>${ShareDeals.count(supportedShares)}/${ShareDeals.count(corp.totalShares)} shares supporting, ${ShareDeals.count(required)} needed</span>
                     </div>
                     ${canSupport ? `<button class="btn btn-primary btn-sm" data-game-action="support-chairman-vote" data-corp-id="${escapeAttr(corp.id)}" data-vote-id="${escapeAttr(vote.id)}">Support</button>` : ''}
                 </div>
@@ -1978,7 +1988,7 @@ function renderChairmanGovernance(corp) {
     return `
         <div class="chairman-governance">
             <h4>Chairman Governance</h4>
-            <p>Changing chairman requires ${required}/${corp.totalShares} shares.</p>
+            <p>Changing chairman requires ${ShareDeals.count(required)}/${ShareDeals.count(corp.totalShares)} shares.</p>
             ${hasMajoritySharesUi(corp, currentUser.id) ? `
                 <div class="governance-control">
                     <label>Majority change:</label>
@@ -2912,7 +2922,7 @@ function updatePlayerAssets(playerNumber) {
             return `
                 <div class="asset-checkbox asset-shares">
                     <input type="number" class="trade-share-input" id="${inputId}" data-corp-id="${escapeAttr(corp.id)}" data-total-shares="${Number(corp.totalShares)}" min="0" max="${Number(corp.sharesOwned)}" step="1" value="0">
-                    <label for="${inputId}">${escapeHtml(corp.ticker)} shares (holds ${Number(corp.sharesOwned)} of ${Number(corp.totalShares)})</label>
+                    <label for="${inputId}">${escapeHtml(corp.ticker)} shares (holds ${ShareDeals.count(corp.sharesOwned)} of ${ShareDeals.count(corp.totalShares)})</label>
                     <span class="trade-share-pct" aria-live="polite"></span>
                 </div>
             `;
@@ -2955,7 +2965,7 @@ function renderCorporationTradeAssets(container, playerNumber, corp, holderKey) 
     const sharesHtml = treasury > 0 ? `
         <div class="asset-checkbox asset-shares">
             <input type="number" class="trade-share-input" id="${inputId}" data-corp-id="${escapeAttr(corp.id)}" data-total-shares="${Number(corp.totalShares)}" min="0" max="${treasury}" step="1" value="0">
-            <label for="${inputId}">${escapeHtml(corp.ticker)} treasury shares (has ${treasury} of ${Number(corp.totalShares)})</label>
+            <label for="${inputId}">${escapeHtml(corp.ticker)} treasury shares (has ${ShareDeals.count(treasury)} of ${ShareDeals.count(corp.totalShares)})</label>
             <span class="trade-share-pct" aria-live="polite"></span>
         </div>` : '';
     container.innerHTML = (propsHtml + sharesHtml) || `<p class="empty-state">${escapeHtml(corp.ticker)} has no properties or treasury shares to offer. It can still pay cash.</p>`;
@@ -3058,7 +3068,7 @@ function renderShareDealSummary(summary, options = {}) {
         <tr><td>${escapeHtml(row.label)}</td><td class="${escapeAttr(row.tone || '')}">${escapeHtml(row.value)}</td></tr>
     `).join('');
     const even = options.showEven && summary.evenShares ? `
-        <p class="share-deal-even">An even trade is ${summary.evenShares.shares} of ${summary.evenShares.total} ${escapeHtml(summary.evenShares.ticker)} shares (${escapeHtml(ShareDeals.percent(summary.evenShares.shares, summary.evenShares.total))}).
+        <p class="share-deal-even">An even trade is ${ShareDeals.count(summary.evenShares.shares)} of ${ShareDeals.count(summary.evenShares.total)} ${escapeHtml(summary.evenShares.ticker)} shares (${escapeHtml(ShareDeals.percent(summary.evenShares.shares, summary.evenShares.total))}).
         <button type="button" class="btn btn-secondary btn-sm" data-game-action="use-even-shares">Use ${summary.evenShares.shares}</button></p>
     ` : '';
     return `
@@ -3193,7 +3203,7 @@ function renderAddToCorpChoices(event) {
         const canIssue = ids.length > 0 && quote.newShares > 0;
         const choice = canIssue ? addToCorpChoice : 'gift';
         const sharesDetail = canIssue
-            ? `${quote.newShares} new share${quote.newShares === 1 ? '' : 's'} at today's value per share, so the other holders' stakes keep their value.`
+            ? `${ShareDeals.count(quote.newShares)} new share${quote.newShares === 1 ? '' : 's'} at today's value per share, so the other holders' stakes keep their value.`
             : (quote.noSharesReason || 'Pick a property to see how many shares it is worth.');
         choices.innerHTML = `
             <p class="trade-destination-title">What do you get back?</p>

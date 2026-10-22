@@ -10,8 +10,8 @@ const BOARDWALK = { id: 'prop-26', name: 'Boardwalk', color: 'Dark Blue', price:
 const ILLINOIS = { id: 'prop-15', name: 'Illinois Avenue', color: 'Red', price: 240, rent: [20, 100, 300, 750, 925, 1100] };
 const KENTUCKY = { id: 'prop-13', name: 'Kentucky Avenue', color: 'Red', price: 220, rent: [18, 90, 250, 700, 875, 1050] };
 
-// MBS: 1,000 shares (Sam 500, Alex 300, Kim 200), owns the Dark Blues and has
-// $600 in its treasury: worth $1,350, so $1.35 a share. It is Sam's turn.
+// MBS: 12,000 shares (Sam 6,000, Alex 3,600, Kim 2,400), owns the Dark Blues
+// and has $600 in its treasury: worth $1,350, so $0.1125 a share. Sam's turn.
 async function setupGame(request, { samOverrides = {}, illinoisOwner = 'alex' } = {}) {
     const users = {};
     for (const name of ['Alex', 'Sam', 'Kim']) {
@@ -53,15 +53,15 @@ async function setupGame(request, { samOverrides = {}, illinoisOwner = 'alex' } 
                     founderName: 'Sam',
                     chairmanId: ids.sam,
                     chairmanName: 'Sam',
-                    totalShares: 1000,
+                    totalShares: 12000,
                     assets: [
                         { id: PARK.id, name: PARK.name, value: PARK.price, color: PARK.color },
                         { id: BOARDWALK.id, name: BOARDWALK.name, value: BOARDWALK.price, color: BOARDWALK.color },
                     ],
                     shareholders: [
-                        { userId: ids.sam, name: 'Sam', shares: 500 },
-                        { userId: ids.alex, name: 'Alex', shares: 300 },
-                        { userId: ids.kim, name: 'Kim', shares: 200 },
+                        { userId: ids.sam, name: 'Sam', shares: 6000 },
+                        { userId: ids.alex, name: 'Alex', shares: 3600 },
+                        { userId: ids.kim, name: 'Kim', shares: 2400 },
                     ],
                     availableShares: 0,
                     treasuryShares: 0,
@@ -112,7 +112,9 @@ test('the chairman switches to Payout and pays a dividend', async ({ browser, re
     await sam.page.click('[data-game-action="open-corporation"]');
     await sam.page.click('[data-game-action="set-rent-policy"][data-policy="payout"]');
     await expect(sam.page.locator('.corp-rent-policy')).toContainText('Rent policy: Payout');
-    await expect(sam.page.locator('[data-game-action="set-rent-policy"][data-policy="reinvest"]')).toBeEnabled();
+    // Now locked: Sam can't flip it back alone for his next 5 turns.
+    await expect(sam.page.locator('.corp-rent-policy')).toContainText("can't change it alone for 5 more of their turns");
+    await expect(sam.page.locator('[data-game-action="set-rent-policy"]')).toHaveCount(0);
 
     // Alex reopens the sheet and reads that his stake cuts the rent he pays.
     await expect.poll(() => alex.page.evaluate(() => currentGame.game_state.corporations[0].rentPolicy)).toBe('payout');
@@ -132,6 +134,40 @@ test('the chairman switches to Payout and pays a dividend', async ({ browser, re
     await sam.context.close();
 });
 
+test('during the lock, the policy changes when every shareholder agrees', async ({ browser, request }) => {
+    const { room, game, users } = await setupGame(request);
+    const sam = await openGame(browser, room, users.Sam);
+    const alex = await openGame(browser, room, users.Alex);
+    const kim = await openGame(browser, room, users.Kim);
+
+    await sam.page.click('[data-game-action="open-corporation"]');
+    await sam.page.click('[data-game-action="set-rent-policy"][data-policy="payout"]');
+    await expect(sam.page.locator('.corp-rent-policy')).toContainText('Rent policy: Payout');
+
+    // Alex asks to go back to Reinvest; Kim and Sam agree.
+    await expect.poll(() => alex.page.evaluate(() => currentGame.game_state.corporations[0].rentPolicy)).toBe('payout');
+    await alex.page.click('[data-game-action="open-corporation"]');
+    await alex.page.click('[data-game-action="propose-rent-policy"][data-policy="reinvest"]');
+    await expect(alex.page.locator('.corp-rent-policy')).toContainText('Waiting for: Sam, Kim');
+
+    await expect(kim.page.locator('[data-game-action="open-corporation"]').first()).toContainText('1 waiting for your answer', { timeout: 10000 });
+    await kim.page.click('[data-game-action="open-corporation"]');
+    await kim.page.click('[data-game-action="vote-rent-policy"][data-approve="true"]');
+    await expect(kim.page.locator('.corp-rent-policy')).toContainText('Waiting for: Sam');
+
+    await expect.poll(() => sam.page.evaluate(() => currentGame.game_state.corporations[0].rentPolicyVote?.supporterIds?.length || 0)).toBe(2);
+    await sam.page.click('[data-close-modal="corporationModal"]');
+    await sam.page.click('[data-game-action="open-corporation"]');
+    await sam.page.click('[data-game-action="vote-rent-policy"][data-approve="true"]');
+    await expect(sam.page.locator('.corp-rent-policy')).toContainText('Rent policy: Reinvest');
+    const mbs = (await fetchState(request, game, users.Sam)).corporations[0];
+    expect(mbs).toMatchObject({ rentPolicy: 'reinvest', rentPolicyVote: null, rentPolicyLockedTurns: 5 });
+
+    await kim.context.close();
+    await alex.context.close();
+    await sam.context.close();
+});
+
 test('a player offers a property, the chairman counters and the offerer accepts', async ({ browser, request }) => {
     const { room, game, users, ids } = await setupGame(request);
     const sam = await openGame(browser, room, users.Sam);
@@ -143,20 +179,19 @@ test('a player offers a property, the chairman counters and the offerer accepts'
     await expect(alex.page.locator('#send-property-offer-btn')).toBeDisabled();
     await alex.page.check('#propertyOfferAssets input[value="prop-15"]');
     const preview = alex.page.locator('#propertyOfferPreview');
-    // Book value $240 at $1.35 a share: 177.8, rounded down to 177 new shares,
-    // so the offerer gives up under a dollar to rounding.
-    await expect(preview).toContainText('You give MBS Illinois Avenue for 177 new MBS shares.');
-    await expect(preview).toContainText('Your net worth−$1');
+    // Book value $240 at $0.1125 a share: 2,133 new shares (rounded down).
+    await expect(preview).toContainText('You give MBS Illinois Avenue for 2,133 new MBS shares.');
+    await expect(preview).toContainText('Your net worth$0');
 
     await alex.page.check('input[name="propertyOfferBasis"][value="set"]');
     await alex.page.fill('#propertyOfferPriceInput', '300');
-    await expect(preview).toContainText('for 222 new MBS shares');
+    await expect(preview).toContainText('for 2,666 new MBS shares');
     await expect(preview).toContainText('Paying $60 over book value');
     await alex.page.click('#send-property-offer-btn');
     await expect(alex.page.locator('#propertyOfferModal')).not.toHaveClass(/active/);
 
     // Sam's Corporations button flags it; the MBS card shows what it costs him.
-    await expect(sam.page.locator('[data-game-action="open-corporation"]').first()).toContainText('1 offer waiting for you', { timeout: 10000 });
+    await expect(sam.page.locator('[data-game-action="open-corporation"]').first()).toContainText('1 waiting for your answer', { timeout: 10000 });
     await sam.page.click('[data-game-action="open-corporation"]');
     const offerCard = sam.page.locator('.corp-property-offers .trade-offer-card');
     await expect(offerCard).toContainText('Alex → MBS: $300 in new shares', { timeout: 10000 });
@@ -172,9 +207,9 @@ test('a player offers a property, the chairman counters and the offerer accepts'
 
     await expect.poll(async () => (await fetchState(request, game, users.Sam)).properties.find(p => p.id === 'prop-15').ownerId).toBe('corp-mbs');
     const mbs = (await fetchState(request, game, users.Sam)).corporations[0];
-    // $260 / $1.35 = 192.6, so 192 new shares.
-    expect(mbs.totalShares).toBe(1192);
-    expect(mbs.shareholders.find(h => h.userId === ids.alex).shares).toBe(492);
+    // $260 / $0.1125 = 2,311.1, so 2,311 new shares.
+    expect(mbs.totalShares).toBe(14311);
+    expect(mbs.shareholders.find(h => h.userId === ids.alex).shares).toBe(3600 + 2311);
 
     await alex.context.close();
     await sam.context.close();

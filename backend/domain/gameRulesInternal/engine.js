@@ -2,6 +2,7 @@ const { v4: uuidv4 } = require('uuid');
 const {
     DEFAULT_CORPORATION_SHARES,
     MAX_CORPORATION_SHARES,
+    RENT_POLICY_COOLDOWN_TURNS,
     normalizeRentPolicy,
     splitByShares,
     shareholderRentDue,
@@ -187,6 +188,9 @@ function normalizeState(raw) {
         corp.status = corp.insolvent ? 'insolvent' : (corp.status || 'active');
         corp.availableShares = Math.max(0, Math.floor(Number(corp.availableShares ?? corp.totalShares ?? 0)));
         corp.rentPolicy = normalizeRentPolicy(corp.rentPolicy);
+        corp.rentPolicyLockedTurns = Math.max(0, Math.floor(Number(corp.rentPolicyLockedTurns || 0)));
+        corp.rentPolicyLockSkipsTurnOf = corp.rentPolicyLockSkipsTurnOf || null;
+        corp.rentPolicyVote = normalizeRentPolicyVote(corp.rentPolicyVote);
         if (corp.insolvent) {
             corp.chairmanId = corp.chairmanId || null;
             corp.chairmanName = corp.chairmanName || null;
@@ -342,6 +346,12 @@ function applyAction(inputState, actorUserId, action, options = {}) {
         case 'set_rent_policy':
             requireTurn();
             setRentPolicy(state, actor, action.payload || {}, events);
+            break;
+        case 'propose_rent_policy_change':
+            proposeRentPolicyChange(state, actor, action.payload || {}, events);
+            break;
+        case 'vote_rent_policy_change':
+            voteRentPolicyChange(state, actor, action.payload || {}, events);
             break;
         case 'pay_dividend':
             requireTurn();
@@ -1133,19 +1143,110 @@ function requireTreasuryCash(corp, amount) {
 }
 
 // Payout sends rent straight to the shareholders; Reinvest keeps it in the
-// treasury. It changes only before the runner rolls, so nobody can switch it
-// after seeing where they or anyone else landed.
+// treasury. The runner changes it on their own only before they roll, so
+// nobody can switch it after seeing where anyone landed, and a change then
+// stays put for their next RENT_POLICY_COOLDOWN_TURNS turns. During that
+// cooldown it changes only if every shareholder agrees (a policy vote).
 function setRentPolicy(state, player, payload, events) {
     const corp = runCorporation(state, player, payload.corpId);
-    const policy = String(payload.policy || '');
-    if (!['payout', 'reinvest'].includes(policy)) throw new GameRuleError(400, "Rent policy must be 'payout' or 'reinvest'");
+    const policy = requireRentPolicy(payload.policy);
     if (hasMovedThisTurn(state, player)) {
         throw new GameRuleError(400, `${corp.ticker}'s rent policy can only change at the start of your turn, before you roll`);
     }
     if (corp.rentPolicy === policy) throw new GameRuleError(400, `${corp.ticker} is already in ${policy} mode`);
+    if (corp.rentPolicyLockedTurns > 0) {
+        throw new GameRuleError(400, `${corp.ticker}'s rent policy is locked for ${corp.rentPolicyLockedTurns} more of your turns. To change it sooner, every shareholder has to agree: propose the change to them.`);
+    }
+    applyRentPolicy(state, corp, policy, player, events, 'chairman');
+}
+
+function requireRentPolicy(value) {
+    const policy = String(value || '');
+    if (!['payout', 'reinvest'].includes(policy)) throw new GameRuleError(400, "Rent policy must be 'payout' or 'reinvest'");
+    return policy;
+}
+
+// rentPolicyLockedTurns counts the chairman's turns still locked. A change
+// made during the chairman's own turn doesn't count that turn
+// (rentPolicyLockSkipsTurnOf), so the lock always covers their next turns.
+function applyRentPolicy(state, corp, policy, actor, events, method) {
     corp.rentPolicy = policy;
-    events.push(makeEvent(player, 'rent_policy_changed', { actor: player.name, ticker: corp.ticker, policy }));
-    log(state, `${player.name} switched ${corp.ticker} to ${policy === 'payout' ? 'Payout: rent now goes to its shareholders' : 'Reinvest: rent now stays in its treasury'}.`);
+    corp.rentPolicyLockedTurns = RENT_POLICY_COOLDOWN_TURNS;
+    const current = state.players[state.currentPlayerIndex];
+    corp.rentPolicyLockSkipsTurnOf = current && current.userId === corp.chairmanId ? current.userId : null;
+    corp.rentPolicyVote = null;
+    events.push(makeEvent(actor, 'rent_policy_changed', { actor: actor.name, ticker: corp.ticker, policy, method, lockedTurns: RENT_POLICY_COOLDOWN_TURNS }));
+    const label = policy === 'payout' ? 'Payout: rent now goes to its shareholders' : 'Reinvest: rent now stays in its treasury';
+    const what = method === 'unanimous'
+        ? `Every ${corp.ticker} shareholder agreed to switch ${corp.ticker} to ${label}.`
+        : `${actor.name} switched ${corp.ticker} to ${label}.`;
+    log(state, `${what} The chairman can't change it alone for their next ${RENT_POLICY_COOLDOWN_TURNS} turns.`);
+}
+
+// A policy vote: any shareholder proposes a switch; it happens the moment
+// every current shareholder has agreed, and any one of them can reject it.
+function normalizeRentPolicyVote(vote) {
+    if (!vote || !['payout', 'reinvest'].includes(vote.policy)) return null;
+    return {
+        policy: vote.policy,
+        proposedById: vote.proposedById || null,
+        proposedByName: vote.proposedByName || null,
+        supporterIds: Array.isArray(vote.supporterIds) ? [...new Set(vote.supporterIds.filter(Boolean))] : [],
+        createdAt: vote.createdAt || new Date().toISOString(),
+    };
+}
+
+function shareholderForVote(state, corp, player) {
+    if (!corp) throw new GameRuleError(404, 'Corporation not found');
+    if (corp.insolvent) throw new GameRuleError(400, `${corp.ticker} is insolvent`);
+    if (sharesFor(corp, player.userId) <= 0) throw new GameRuleError(403, `Only ${corp.ticker} shareholders can vote on its rent policy`);
+}
+
+function proposeRentPolicyChange(state, player, payload, events) {
+    const corp = state.corporations.find(c => c.id === payload.corpId);
+    shareholderForVote(state, corp, player);
+    const policy = requireRentPolicy(payload.policy);
+    if (corp.rentPolicy === policy) throw new GameRuleError(400, `${corp.ticker} is already in ${policy} mode`);
+    corp.rentPolicyVote = {
+        policy,
+        proposedById: player.userId,
+        proposedByName: player.name,
+        supporterIds: [player.userId],
+        createdAt: new Date().toISOString(),
+    };
+    events.push(makeEvent(player, 'rent_policy_vote_proposed', { actor: player.name, ticker: corp.ticker, policy }));
+    log(state, `${player.name} proposed switching ${corp.ticker} to ${policy === 'payout' ? 'Payout' : 'Reinvest'}. It happens if every shareholder agrees.`);
+    passRentPolicyVoteIfUnanimous(state, corp, player, events);
+}
+
+function voteRentPolicyChange(state, player, payload, events) {
+    const corp = state.corporations.find(c => c.id === payload.corpId);
+    shareholderForVote(state, corp, player);
+    const vote = corp.rentPolicyVote;
+    if (!vote) throw new GameRuleError(404, `${corp.ticker} has no rent policy vote open`);
+    if (payload.approve === false) {
+        corp.rentPolicyVote = null;
+        events.push(makeEvent(player, 'rent_policy_vote_rejected', { actor: player.name, ticker: corp.ticker, policy: vote.policy }));
+        log(state, `${player.name} rejected switching ${corp.ticker} to ${vote.policy === 'payout' ? 'Payout' : 'Reinvest'}.`);
+        return;
+    }
+    if (!vote.supporterIds.includes(player.userId)) vote.supporterIds.push(player.userId);
+    events.push(makeEvent(player, 'rent_policy_vote_supported', { actor: player.name, ticker: corp.ticker, policy: vote.policy }));
+    passRentPolicyVoteIfUnanimous(state, corp, player, events);
+}
+
+// Shareholders who still have to agree for the open vote to pass.
+function rentPolicyHoldouts(state, corp) {
+    const vote = corp.rentPolicyVote;
+    if (!vote) return [];
+    return activeShareholders(state, corp)
+        .map(holder => holder.player)
+        .filter(holder => !vote.supporterIds.includes(holder.userId));
+}
+
+function passRentPolicyVoteIfUnanimous(state, corp, actor, events) {
+    if (rentPolicyHoldouts(state, corp).length > 0) return;
+    applyRentPolicy(state, corp, corp.rentPolicyVote.policy, actor, events, 'unanimous');
 }
 
 // Splits treasury cash across the shareholders by shares held. The slice for
@@ -2455,6 +2556,12 @@ function endTurn(state, player, events) {
                 interestCharged: corpInterest,
             });
         }
+    });
+    // The rent-policy cooldown counts the chairman's own turns.
+    state.corporations.forEach(corp => {
+        if (corp.chairmanId !== player.userId) return;
+        if (corp.rentPolicyLockSkipsTurnOf === player.userId) corp.rentPolicyLockSkipsTurnOf = null;
+        else if (corp.rentPolicyLockedTurns > 0) corp.rentPolicyLockedTurns -= 1;
     });
     const bankruptcyClaim = settleBankruptcyClaimAtTurnEnd(state, player, events);
     if ((player.cash < 0 || bankruptcyClaim) && !player.bankrupt) {

@@ -71,9 +71,9 @@ test('an IPO is created without a price, and treasury shares sell at NAV', async
     await expect(page.locator('#ipoModal')).toBeVisible();
     await expect(page.locator('#ipoModal')).not.toContainText(/price/i);
     await page.locator('#ipoTicker').fill('BRWN');
-    // Every company issues 1,000 shares; there's no share-count field.
+    // Every company issues 12,000 shares; there's no share-count field.
     await expect(page.locator('#ipoShares')).toHaveCount(0);
-    await expect(page.locator('#ipoModal')).toContainText('1,000 shares');
+    await expect(page.locator('#ipoModal')).toContainText('12,000 shares');
     await page.locator('#ipo-asset-prop-0').check();
     await page.locator('#create-ipo-btn').click();
     await expect(page.locator('#ipoModal')).toBeHidden();
@@ -81,7 +81,7 @@ test('an IPO is created without a price, and treasury shares sell at NAV', async
     await gameButton(page, 'open-corporation').click();
     const cards = page.locator('#corporationModal .corporation-card');
     const brwn = cards.filter({ hasText: 'BRWN' });
-    await expect(brwn).toContainText('Total Shares: 1000 | NAV: $0.06/share');
+    await expect(brwn).toContainText('Total Shares: 12,000 | NAV: $0.0050/share');
     const trsy = cards.filter({ hasText: 'TRSY' });
     await expect(trsy).toContainText('Treasury shares for sale: 3 at $50 each (NAV)');
     await expect(cards.first()).not.toContainText('Price:');

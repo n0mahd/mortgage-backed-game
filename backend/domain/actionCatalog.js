@@ -18,10 +18,12 @@ const ACTIONS = [
     { type: 'place_bid', category: 'auction', payload: { amount: 'number > current bid, <= your cash' }, description: 'Bid in the open auction.' },
     { type: 'pass_auction', category: 'auction', payload: {}, description: 'Pass in the open auction (the current high bidder cannot pass).' },
     { type: 'buy_houses', category: 'assets', payload: { selections: { '<propertyId>': 'integer houses to add (total per property <= 5; 5th = hotel)' }, corpId: '<corporation id you run (optional): build on its complete groups from its treasury>' }, description: 'Buy houses/hotels on properties where you (or the corporation you build for) own the complete color group. Your turn only.' },
-    { type: 'create_ipo', category: 'assets', payload: { ticker: 'string, up to 8 letters/digits', totalShares: 'integer 1-1000 (optional, default 1000)', assetIds: ['<propertyId you own>'] }, description: 'Bundle your properties into a corporation; you get all of its shares. Nothing is listed for sale: others buy your shares by a propose_trade you accept. Your turn only.' },
+    { type: 'create_ipo', category: 'assets', payload: { ticker: 'string, up to 8 letters/digits', totalShares: 'integer 1-12000 (optional, default 12000)', assetIds: ['<propertyId you own>'] }, description: 'Bundle your properties into a corporation; you get all of its shares. Nothing is listed for sale: others buy your shares by a propose_trade you accept. Your turn only.' },
     { type: 'add_to_corporation', category: 'assets', payload: { corpId: '<corporation id you run (chairman or majority holder)>', assetIds: ['<propertyId you own, not backing a loan>'], issueShares: 'boolean (optional): take new shares for it' }, description: 'Put more of your properties into a corporation you run, at book value. With issueShares, you get whole new shares at the current value per share (rounded down) so other holders keep their value; without it the property raises every share\'s value. A built colour group goes in whole. Your turn only.' },
     { type: 'buy_shares', category: 'assets', payload: { corpId: '<corporation id>', shares: 'integer > 0' }, description: 'Buy treasury shares a corporation has for sale, at its current share value (NAV). Shares a player holds can only be bought with a propose_trade they accept. Your turn only.' },
-    { type: 'set_rent_policy', category: 'corporation', payload: { corpId: '<corporation id you run>', policy: "'payout' or 'reinvest'" }, description: 'Payout: rent goes straight to shareholders, and a shareholder landing there pays only the part they do not own. Reinvest: everyone pays full rent into the treasury. Your turn, before you roll.' },
+    { type: 'set_rent_policy', category: 'corporation', payload: { corpId: '<corporation id you run>', policy: "'payout' or 'reinvest'" }, description: 'Payout: rent goes straight to shareholders, and a shareholder landing there pays only the part they do not own. Reinvest: everyone pays full rent into the treasury. Your turn, before you roll. After a change it is locked for your next 5 turns; to change it sooner use propose_rent_policy_change.' },
+    { type: 'propose_rent_policy_change', category: 'corporation', payload: { corpId: '<corporation id you hold shares in>', policy: "'payout' or 'reinvest'" }, description: 'Ask every shareholder to switch the rent policy; it switches the moment all of them agree (you count as agreeing). Works any time, including during the 5-turn lock. Any time.' },
+    { type: 'vote_rent_policy_change', category: 'corporation', payload: { corpId: '<corporation id with an open rent policy vote>', approve: 'boolean' }, description: 'Agree to (approve: true) or reject (approve: false) an open rent policy vote; one rejection closes it. Any time.' },
     { type: 'pay_dividend', category: 'corporation', payload: { corpId: '<corporation id you run>', amount: 'number > 0, <= its treasury cash' }, description: 'Pay treasury cash to the shareholders by shares held; the slice for treasury shares stays. Your turn only.' },
     { type: 'offer_property_to_corporation', category: 'corporation', payload: { corpId: '<corporation id you do not run>', assetIds: ['<propertyId you own, not backing a loan>'], price: 'number > 0 (optional; omit for book value)', payWith: "'shares' (default: new shares at the current value per share) or 'cash' (from its treasury)" }, description: "Offer properties to a corporation; its chairman accepts, declines or counters. Any time." },
     { type: 'respond_property_offer', category: 'corporation', payload: { offerId: '<pending property offer id>', response: "'accept', 'decline' or 'counter'", price: 'number > 0 (counter only)', payWith: "'shares' or 'cash' (counter only, optional)" }, description: 'Answer a property offer waiting for you (as offerer or as the corporation chairman); either side can decline or withdraw at any time.' },
@@ -91,7 +93,13 @@ function buildCandidates(state, me, hostId) {
     }
     state.corporations.forEach(corp => {
         add('buy_shares', { corpId: corp.id, shares: 1 });
-        add('set_rent_policy', { corpId: corp.id, policy: corp.rentPolicy === 'payout' ? 'reinvest' : 'payout' });
+        const otherPolicy = corp.rentPolicy === 'payout' ? 'reinvest' : 'payout';
+        add('set_rent_policy', { corpId: corp.id, policy: otherPolicy });
+        add('propose_rent_policy_change', { corpId: corp.id, policy: otherPolicy });
+        if (corp.rentPolicyVote) {
+            add('vote_rent_policy_change', { corpId: corp.id, approve: true });
+            add('vote_rent_policy_change', { corpId: corp.id, approve: false });
+        }
         add('pay_dividend', { corpId: corp.id, amount: Math.max(1, Math.floor(Number(corp.cash || 0))) });
         add('buy_property', { corpId: corp.id });
         const corpPropertyIds = state.properties.filter(prop => prop.ownerId === corp.id).map(prop => prop.id);

@@ -7,10 +7,14 @@
 
 const RENT_POLICIES = ['reinvest', 'payout'];
 const DEFAULT_RENT_POLICY = 'reinvest';
-// New corporations issue this many shares, so stakes read like percentages
-// to one decimal and a single property can be swapped for new shares.
-const DEFAULT_CORPORATION_SHARES = 1000;
+// New corporations issue 12,000 shares: it splits evenly in halves, thirds,
+// quarters, sixths and eighths, and is fine enough that a single property can
+// be swapped for new shares.
+const DEFAULT_CORPORATION_SHARES = 12000;
 const MAX_CORPORATION_SHARES = 1000000;
+// After the runner changes the rent policy on their own, it stays put for
+// their next RENT_POLICY_COOLDOWN_TURNS turns unless every shareholder agrees.
+const RENT_POLICY_COOLDOWN_TURNS = 5;
 
 function roundCents(value) {
     return Math.round(Number(value) * 100) / 100;
@@ -57,6 +61,7 @@ module.exports = {
     DEFAULT_RENT_POLICY,
     DEFAULT_CORPORATION_SHARES,
     MAX_CORPORATION_SHARES,
+    RENT_POLICY_COOLDOWN_TURNS,
     normalizeRentPolicy,
     splitByShares,
     shareholderRentDue,

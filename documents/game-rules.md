@@ -205,7 +205,7 @@ Any player may bundle one or more of their properties into a corporation and sel
 
 1. On your turn, go to the **Game** tab and click **Create IPO**.
 2. Select the properties to include as corporate assets. A color group with buildings must go in whole: ticking one of its streets ticks the rest.
-3. Set a **ticker symbol** (e.g., `MBS`). Every new corporation issues **1,000 shares**, so 10 shares is 1%. There is no IPO price: what your shares are worth is set by the corporation's net asset value, and what someone pays for them is whatever you agree in a trade.
+3. Set a **ticker symbol** (e.g., `MBS`). Every new corporation issues **12,000 shares**. 12,000 splits evenly in halves (6,000), thirds (4,000), quarters (3,000), sixths (2,000) and eighths (1,500), and 120 shares is 1%. There is no IPO price: what your shares are worth is set by the corporation's net asset value, and what someone pays for them is whatever you agree in a trade.
 4. Click **Create** — the selected properties transfer into the corporation and you receive all of its shares.
 
 ### Adding Properties to a Corporation You Run
@@ -215,7 +215,7 @@ If you run a corporation (you're its chairman or hold more than half its shares)
 1. Open **Corporations** from the Game tab and tap **Add properties to MBS** on that corporation's card. **Create IPO** also lists the companies you run.
 2. Tick the properties to add. A property backing a loan can't go in until the loan is paid off or refinanced. A color group with buildings goes in whole: ticking one of its streets ticks the rest.
 3. If other players hold shares, choose what you get back:
-   - **New shares** (the usual choice). You get new shares at today's value per share, so the other holders' stakes keep their value. For example, MBS has 1,000 shares and is worth $1,200, so one share is worth $1.20. Illinois Ave ($240) gets you 200 new shares, and MBS then has 1,200. Shares are whole numbers, rounded down. Corporations created before shares went to 1,000 keep their share counts. Any value the new shares don't cover goes to every shareholder, and the screen tells you how much the others gain before you confirm.
+   - **New shares** (the usual choice). You get new shares at today's value per share, so the other holders' stakes keep their value. For example, MBS has 12,000 shares and is worth $1,200, so one share is worth $0.10. Illinois Ave ($240) gets you 2,400 new shares, and MBS then has 14,400. Shares are whole numbers, rounded down. Corporations created before shares went to 12,000 keep their share counts. Any value the new shares don't cover goes to every shareholder, and the screen tells you how much the others gain before you confirm.
    - **Nothing, it's a gift.** Every share rises in value, including the other holders'.
 4. Check **Before you confirm** for the corporation's value, your shares and your net-worth change, then tap **Add**. Nobody else has to agree.
 
@@ -234,7 +234,9 @@ The chairman, or anyone holding more than half the shares, runs a corporation fr
 | Reinvest | Everyone pays full rent, shareholders included | The treasury, for the chairman to spend |
 | Payout | A shareholder pays only the part they don't own; everyone else pays in full | Straight to the shareholders, split by shares. The slice for treasury shares stays in the treasury |
 
-On paper both cost the lander the same: in Reinvest your stake in the treasury grows by your share of what you paid. The difference is cash in hand versus value locked in the company. The policy changes only **on the chairman's turn, before they roll**; once the dice are rolled it is locked until their next turn, so nobody can switch it after seeing where they landed. Debt interest is still charged to the treasury in Payout mode, so a corporation with debt needs cash to cover it.
+On paper both cost the lander the same: in Reinvest your stake in the treasury grows by your share of what you paid. The difference is cash in hand versus value locked in the company. **Changing the policy.** The chairman (or a majority holder) can change it alone only **on their own turn, before they roll**, so nobody can switch it after seeing where anyone landed. After a change it is **locked for the chairman's next 5 turns**: they can change it alone again on their 6th turn. During the lock it changes only if **every shareholder agrees**. Any shareholder can tap **Ask every shareholder to switch**; each holder sees **Agree** / **Reject** on the corporation card (the Corporations button says when an answer is waiting). The policy switches the moment the last holder agrees, at any point in the game, and that starts a fresh 5-turn lock. One rejection closes the vote. A sole shareholder's proposal passes at once.
+
+Debt interest is still charged to the treasury in Payout mode, so a corporation with debt needs cash to cover it.
 
 **Dividends.** On their turn the chairman can pay any amount of treasury cash to the shareholders, split by shares held. The slice for treasury shares stays in the treasury.
 
@@ -368,11 +370,11 @@ To send shares (or property) as a gift, propose a one-sided trade where the othe
 
 ### Trading a Property for Shares
 
-You can put a property into another player's corporation in exchange for part of its shares, for example "I give you Boardwalk, you give me 250 of your 1,000 MBS shares".
+You can put a property into another player's corporation in exchange for part of its shares, for example "I give you Boardwalk, you give me 3,000 of your 12,000 MBS shares".
 
 1. Open **Corporations** from the Game tab and tap **Offer a property for MBS shares** on that corporation's card. The Market tab opens with you on one side and the chairman on the other. You can also set up the same trade in the Market tab directly.
 2. Tick the property you're giving. Under **Where should your properties go?**, choose **Into MBS** rather than **To Sam**.
-3. Enter how many MBS shares you want back. The box shows the percentage, e.g. 250 shares of 1,000 = 25%.
+3. Enter how many MBS shares you want back. The box shows the percentage, e.g. 3,000 shares of 12,000 = 25%.
 4. The **Your offer** box reads the deal back in one sentence and shows the corporation's value before and after, your stake and your net-worth change. For a straight property-for-shares deal it also shows the even split and a **Use N** button.
 5. Propose the trade. The other player sees the same summary from their side and accepts or declines.
 
@@ -464,3 +466,7 @@ Property value is recorded at purchase price plus houses/hotels. Corporation sha
 | Interest timing | End of your turn |
 | Bankruptcy trigger | Cash < $0 at turn end |
 | Win condition | Last solvent player OR host ends game |
+| Shares per new corporation | 12,000 (120 shares = 1%) |
+| Default rent policy | Reinvest |
+| Rent policy change | Chairman alone: own turn, before rolling; then locked for their next 5 turns. Anytime: every shareholder agrees |
+| Property / trade offers expire | 10 minutes |

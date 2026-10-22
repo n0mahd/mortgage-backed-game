@@ -33,6 +33,8 @@
         'adjust-house': button => global.houseModalAdjust(button.dataset.propertyId, Number(button.dataset.delta)),
         'open-house': () => global.openHouseModal(),
         'set-rent-policy': button => global.CorporationDesk.setRentPolicy(button.dataset.corpId, button.dataset.policy),
+        'propose-rent-policy': button => global.CorporationDesk.proposeRentPolicy(button.dataset.corpId, button.dataset.policy),
+        'vote-rent-policy': button => global.CorporationDesk.voteRentPolicy(button.dataset.corpId, button.dataset.approve === 'true'),
         'pay-dividend': button => global.CorporationDesk.payDividend(button.dataset.corpId),
         'build-for-corporation': button => global.CorporationDesk.buildForCorporation(button.dataset.corpId),
         'trade-as-corporation': button => global.CorporationDesk.tradeAsCorporation(button.dataset.corpId),

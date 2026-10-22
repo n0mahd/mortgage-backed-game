@@ -57,7 +57,9 @@ function attentionFor(state, userId) {
     }
     const offerForMe = (state.marketOffers || []).some(offer => offer.status === 'pending' && offer.recipientId === userId)
         || (state.propertyOffers || []).some(offer => offer.status === 'pending'
-            && (offer.awaiting === 'offerer' ? offer.offererId === userId : runsCorp(state, offer.corpId, userId)));
+            && (offer.awaiting === 'offerer' ? offer.offererId === userId : runsCorp(state, offer.corpId, userId)))
+        || (state.corporations || []).some(corp => corp.rentPolicyVote && !corp.insolvent && sharesHeld(corp, userId) > 0
+            && !(corp.rentPolicyVote.supporterIds || []).includes(userId));
     if (offerForMe) return 'trade_offer_for_you';
     const current = state.players[state.currentPlayerIndex];
     if (current && current.userId === userId) return 'your_turn';
@@ -164,6 +166,12 @@ function summarizeGame({ room, members, game, userId }) {
             total_shares: corp.totalShares,
             cash: round(corp.cash),
             rent_policy: corp.rentPolicy || 'reinvest',
+            rent_policy_locked_turns: Number(corp.rentPolicyLockedTurns || 0),
+            rent_policy_vote: corp.rentPolicyVote ? {
+                policy: corp.rentPolicyVote.policy,
+                proposed_by: clip(corp.rentPolicyVote.proposedByName),
+                you_agreed: (corp.rentPolicyVote.supporterIds || []).includes(userId),
+            } : null,
             assets: (corp.assets || []).map(asset => asset.id),
             shareholders: (corp.shareholders || []).map(holder => ({ name: clip(holder.name), shares: holder.shares })),
             open_chairman_votes: (corp.chairmanVotes || []).filter(vote => vote.status === 'open').map(vote => ({ id: vote.id, candidate: clip(vote.candidateName) })),

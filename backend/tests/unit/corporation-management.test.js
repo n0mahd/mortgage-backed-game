@@ -53,16 +53,19 @@ function own(state, ids, ownerId, ownerName) {
     return state;
 }
 
-// Alice founds MBS with the Dark Blues (1,000 shares) and the cap table is set
-// to `holders`; the rest stays with Alice.
+// Alice founds MBS with the Dark Blues (12,000 shares). `holders` gives each
+// stake in thousandths (500 = 50%); shares the holders don't take stay in the
+// treasury.
+const SHARES = 12000;
+const PER_MILLE = SHARES / 1000;
 function mbsState({ holders = { alice: 500, bob: 300, carol: 200 }, cash = 0 } = {}) {
     let state = own(baseState(), [PARK_PLACE, BOARDWALK], 'alice', 'Alice');
     state = act(state, 'alice', 'create_ipo', { ticker: 'MBS', assetIds: [PARK_PLACE, BOARDWALK] });
     const corp = state.corporations[0];
-    corp.shareholders = Object.entries(holders).map(([userId, shares]) => ({
-        userId, name: state.players.find(p => p.userId === userId).name, shares,
+    corp.shareholders = Object.entries(holders).map(([userId, perMille]) => ({
+        userId, name: state.players.find(p => p.userId === userId).name, shares: perMille * PER_MILLE,
     }));
-    corp.treasuryShares = corp.totalShares - Object.values(holders).reduce((a, b) => a + b, 0);
+    corp.treasuryShares = corp.totalShares - corp.shareholders.reduce((sum, h) => sum + h.shares, 0);
     corp.cash = cash;
     return normalizeState(state);
 }
@@ -101,9 +104,9 @@ function landOnBoardwalk(state, userId) {
 }
 
 describe('new corporations', () => {
-    test('issue 1,000 shares and start in Reinvest mode', () => {
+    test('issue 12,000 shares and start in Reinvest mode', () => {
         const state = act(own(baseState(), [ILLINOIS], 'alice', 'Alice'), 'alice', 'create_ipo', { ticker: 'ILL', assetIds: [ILLINOIS] });
-        expect(corpOf(state).totalShares).toBe(1000);
+        expect(corpOf(state).totalShares).toBe(12000);
         expect(corpOf(state).rentPolicy).toBe('reinvest');
     });
 
@@ -131,6 +134,62 @@ describe('rent policy', () => {
         refused(() => setPolicy(doubles, 'payout'), /before you roll/);
     });
 
+    // Ends the current player's turn (after a roll) and the next players' until
+    // it is `userId`'s turn again.
+    function passTurnsUntil(state, userId) {
+        let next = state;
+        do {
+            const current = next.players[next.currentPlayerIndex].userId;
+            if (!next.players[next.currentPlayerIndex].diceRolled) next = act(next, current, 'roll_dice', {}, { dice: [1, 2] });
+            next = act(next, current, 'end_turn');
+        } while (next.players[next.currentPlayerIndex].userId !== userId);
+        return next;
+    }
+
+    test('after the chairman switches it alone, it is locked for their next 5 turns', () => {
+        let state = setPolicy(mbsState(), 'payout');
+        expect(corpOf(state).rentPolicyLockedTurns).toBe(5);
+        for (let turn = 1; turn <= 5; turn += 1) {
+            state = passTurnsUntil(state, 'alice');
+            refused(() => setPolicy(state, 'reinvest'), /locked for \d+ more of your turns.*every shareholder/);
+        }
+        state = passTurnsUntil(state, 'alice');
+        state = setPolicy(state, 'reinvest');
+        expect(corpOf(state).rentPolicy).toBe('reinvest');
+    });
+
+    test('during the lock it changes once every shareholder agrees', () => {
+        let state = setPolicy(mbsState(), 'payout');
+        const corpId = corpOf(state).id;
+        // Bob proposes on Alice's turn; Carol and Alice agree.
+        state = act(state, 'bob', 'propose_rent_policy_change', { corpId, policy: 'reinvest' });
+        expect(corpOf(state).rentPolicyVote).toMatchObject({ policy: 'reinvest', supporterIds: ['bob'] });
+        state = act(state, 'carol', 'vote_rent_policy_change', { corpId, approve: true });
+        expect(corpOf(state).rentPolicy).toBe('payout');
+        const { state: passed, events } = actWithEvents(state, 'alice', 'vote_rent_policy_change', { corpId, approve: true });
+        expect(corpOf(passed).rentPolicy).toBe('reinvest');
+        expect(corpOf(passed).rentPolicyVote).toBeNull();
+        expect(events.find(e => e.type === 'rent_policy_changed').data.method).toBe('unanimous');
+        // A unanimous switch starts a fresh lock for the chairman.
+        expect(corpOf(passed).rentPolicyLockedTurns).toBe(5);
+    });
+
+    test('one shareholder rejecting closes the vote; outsiders cannot vote', () => {
+        let state = setPolicy(mbsState({ holders: { alice: 500, bob: 300 } }), 'payout');
+        const corpId = corpOf(state).id;
+        refused(() => act(state, 'carol', 'propose_rent_policy_change', { corpId, policy: 'reinvest' }), /Only MBS shareholders/);
+        state = act(state, 'alice', 'propose_rent_policy_change', { corpId, policy: 'reinvest' });
+        state = act(state, 'bob', 'vote_rent_policy_change', { corpId, approve: false });
+        expect(corpOf(state).rentPolicyVote).toBeNull();
+        expect(corpOf(state).rentPolicy).toBe('payout');
+    });
+
+    test('a sole shareholder changes it at once by proposing', () => {
+        let state = setPolicy(mbsState({ holders: { alice: 1000 } }), 'payout');
+        state = act(state, 'alice', 'propose_rent_policy_change', { corpId: corpOf(state).id, policy: 'reinvest' });
+        expect(corpOf(state).rentPolicy).toBe('reinvest');
+    });
+
     test('only the runner can change it, and only on their turn', () => {
         const state = mbsState();
         refused(() => act(state, 'bob', 'set_rent_policy', { corpId: corpOf(state).id, policy: 'payout' }), /current player/);
@@ -155,7 +214,7 @@ describe('rent on a corporation property', () => {
     });
 
     test('Payout: a non-holder pays in full and the treasury keeps the slice for its own shares', () => {
-        const state = setPolicy(mbsState({ holders: { alice: 600, bob: 300 } }), 'payout'); // 100 treasury shares
+        const state = setPolicy(mbsState({ holders: { alice: 600, bob: 300 } }), 'payout'); // 10% in the treasury
         const { state: after } = landOnBoardwalk(state, 'carol');
         expect(cashOf(after, 'carol')).toBe(1400);
         expect(cashOf(after, 'alice')).toBe(1560);
@@ -250,7 +309,7 @@ describe('spending the treasury', () => {
 });
 
 describe('offering a property to a company', () => {
-    // MBS: Dark Blues $750, no cash, 1,000 shares, so $0.75 a share.
+    // MBS: Dark Blues $750, no cash, 12,000 shares, so $0.0625 a share.
     function offer(state, userId, payload) {
         return act(state, userId, 'offer_property_to_corporation', { corpId: corpOf(state).id, ...payload });
     }
@@ -269,8 +328,8 @@ describe('offering a property to a company', () => {
         state = respond(state, 'alice', 'accept');
         const corp = corpOf(state);
         expect(state.properties.find(p => p.id === ILLINOIS).ownerId).toBe(corp.id);
-        expect(sharesOf(corp, 'bob')).toBe(300 + 320); // 240 / 0.75
-        expect(corp.totalShares).toBe(1320);
+        expect(sharesOf(corp, 'bob')).toBe(3600 + 3840); // 240 / 0.0625
+        expect(corp.totalShares).toBe(15840);
         expect(calculateNetWorth(state, 'alice')).toBeCloseTo(aliceBefore);
         expect(calculateNetWorth(state, 'bob')).toBeCloseTo(bobBefore);
     });
@@ -283,7 +342,7 @@ describe('offering a property to a company', () => {
         expect(state.propertyOffers[0]).toMatchObject({ price: 270, awaiting: 'offerer' });
         refused(() => respond(state, 'alice', 'accept'), /waiting for Bob/);
         state = respond(state, 'bob', 'accept');
-        expect(sharesOf(corpOf(state), 'bob')).toBe(300 + 360); // 270 / 0.75
+        expect(sharesOf(corpOf(state), 'bob')).toBe(3600 + 4320); // 270 / 0.0625
         expect(state.propertyOffers[0].status).toBe('accepted');
     });
 
@@ -293,7 +352,7 @@ describe('offering a property to a company', () => {
         state = respond(state, 'alice', 'accept');
         expect(cashOf(state, 'carol')).toBe(1750);
         expect(corpOf(state).cash).toBe(150);
-        expect(corpOf(state).totalShares).toBe(1000);
+        expect(corpOf(state).totalShares).toBe(12000);
     });
 
     test('a deal that hands over a majority makes the offerer chairman', () => {
@@ -367,23 +426,23 @@ describe('trading as the company', () => {
         let state = mbsState({ cash: 300 });
         state = propose(state, 'alice', {
             player1Id: 'alice', player1CorpId: corpOf(state).id, player2Id: 'carol',
-            player1Cash: 150, player2Shares: [{ corpId: corpOf(state).id, shares: 200 }],
+            player1Cash: 150, player2Shares: [{ corpId: corpOf(state).id, shares: 2400 }],
         });
         state = acceptFirst(state, 'carol');
         expect(sharesOf(corpOf(state), 'carol')).toBe(0);
-        expect(corpOf(state).treasuryShares).toBe(200);
+        expect(corpOf(state).treasuryShares).toBe(2400);
         expect(corpOf(state).cash).toBe(150);
     });
 
     test('the company sells treasury shares in a trade', () => {
-        let state = mbsState({ holders: { alice: 500, bob: 300 } }); // 200 treasury shares
+        let state = mbsState({ holders: { alice: 500, bob: 300 } }); // 2,400 treasury shares
         state = propose(state, 'alice', {
             player1Id: 'alice', player1CorpId: corpOf(state).id, player2Id: 'carol',
-            player1Shares: [{ corpId: corpOf(state).id, shares: 150 }], player2Cash: 120,
+            player1Shares: [{ corpId: corpOf(state).id, shares: 1800 }], player2Cash: 120,
         });
         state = acceptFirst(state, 'carol');
-        expect(sharesOf(corpOf(state), 'carol')).toBe(150);
-        expect(corpOf(state).treasuryShares).toBe(50);
+        expect(sharesOf(corpOf(state), 'carol')).toBe(1800);
+        expect(corpOf(state).treasuryShares).toBe(600);
         expect(corpOf(state).cash).toBe(120);
     });
 
