@@ -706,7 +706,6 @@ test.describe('Game mechanics — UI', () => {
                     chairmanId: h.user.id,
                     chairmanName: 'Alice',
                     totalShares: 8,
-                    pricePerShare: 50,
                     availableShares: 5,
                     treasuryShares: 5,
                     assets: [{ id: 'prop-0', name: 'Mediterranean Ave', value: 60, color: 'Brown' }],

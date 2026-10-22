@@ -81,7 +81,7 @@ test.describe('thorough real-player UI game flow', () => {
             await settleDebt(pages.Alice, 75);
             await shot(testInfo, pages.Alice, '12-alice-settles-partial-debt');
 
-            await createIpo(pages.Alice, 'BRWN', 8, 50, 'prop-0');
+            await createIpo(pages.Alice, 'BRWN', 8, 'prop-0');
             await shot(testInfo, pages.Alice, '13-alice-creates-ipo');
 
             await expectCorporationDetails(pages.Alice, 'BRWN', /Alice:\s*8 shares \(100\.0%\)/i);
@@ -338,13 +338,12 @@ async function settleDebt(page, amount) {
     await expect(page.locator('#gameContent')).toContainText(/Debts/, { timeout: 10000 });
 }
 
-async function createIpo(page, ticker, shares, price, assetId) {
+async function createIpo(page, ticker, shares, assetId) {
     await openTab(page, 'Game');
     await activeGameButton(page, 'open-ipo').click();
     await expect(page.locator('#ipoModal')).toBeVisible();
     await page.locator('#ipoTicker').fill(ticker);
     await page.locator('#ipoShares').fill(String(shares));
-    await page.locator('#ipoPrice').fill(String(price));
     await page.locator(`#ipo-asset-${assetId}`).check();
     await clickAndWaitForGameVersion(page, page.locator('#create-ipo-btn'));
     await expect(page.locator('#gameContent')).toContainText(ticker, { timeout: 10000 });

@@ -471,7 +471,7 @@ const commands = {
         for (const p of state.players) {
             lines.push(`${p.name}: $${Number(p.cash).toFixed(2)} sq ${p.position}${p.inJail ? ' JAIL' : ''}${p.bankrupt ? ' BANKRUPT' : ''} · ${(p.properties || []).map(x => x.name).join(', ') || 'no property'} · debts ${(p.debts || []).length}`);
         }
-        (state.corporations || []).forEach(c => lines.push(`corp ${c.ticker}: ${c.totalShares} shares @ $${c.pricePerShare}, available ${c.availableShares}, chair ${c.chairmanName}`));
+        (state.corporations || []).forEach(c => lines.push(`corp ${c.ticker}: ${c.totalShares} shares, available ${c.availableShares}, chair ${c.chairmanName}`));
         lines.push('recent log:', ...state.gameLog.slice(-6).map(e => `  ${String(e.message).replace(/<[^>]+>/g, '')}`));
         return { text: lines.join('\n') };
     },
