@@ -36,6 +36,24 @@ function pendingAgentSeatCount(roomId, exceptSeatId = null) {
     `).get(roomId, exceptSeatId).count;
 }
 
+const PLAYER_NAME_MAX = 40;
+
+function sameName(a, b) {
+    return String(a).trim().toLocaleLowerCase() === String(b).trim().toLocaleLowerCase();
+}
+
+// Two players with one name can't be told apart in trades, logs or the board,
+// so a joining player whose name is taken gets a number: "Claude 2".
+function uniquePlayerName(members, name) {
+    const taken = candidate => members.some(member => sameName(member.player_name, candidate));
+    if (!taken(name)) return name;
+    for (let n = 2; ; n++) {
+        const suffix = ` ${n}`;
+        const candidate = name.slice(0, PLAYER_NAME_MAX - suffix.length).trimEnd() + suffix;
+        if (!taken(candidate)) return candidate;
+    }
+}
+
 function getRoomWithMembers(roomId) {
     const room = db.prepare(`SELECT * FROM rooms WHERE id = ?`).get(roomId);
     if (!room) return null;
@@ -95,7 +113,7 @@ function joinRoom(io, { roomId, userId, playerName, agentSeatId = null }) {
     db.prepare(`
         INSERT INTO room_members (id, room_id, user_id, player_name)
         VALUES (?, ?, ?, ?)
-    `).run(uuidv4(), room.id, userId, playerName || 'Guest');
+    `).run(uuidv4(), room.id, userId, uniquePlayerName(room.room_members, playerName || 'Guest'));
 
     const updatedRoom = getRoomWithMembers(room.id);
     io.to(`room:${room.id}`).emit('room:member_change', updatedRoom);
@@ -125,6 +143,8 @@ module.exports = {
     RoomError,
     getRoomMembers,
     pendingAgentSeatCount,
+    PLAYER_NAME_MAX,
+    sameName,
     getRoomWithMembers,
     getRoomByInviteCode,
     createAnonymousUser,

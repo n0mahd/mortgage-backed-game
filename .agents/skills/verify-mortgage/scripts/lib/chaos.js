@@ -197,9 +197,7 @@ class Chaos {
             await bot.gameButton(seat, 'open-ipo').click();
             await p.locator('#ipoModal').waitFor({ state: 'visible' });
             await p.locator('#ipoTicker').fill(bot.pick(['', 'A', 'TOOLONGTICKER', 'x-1', '😀']));
-            field = bot.pick(['#ipoShares', '#ipoPrice']);
-            await p.locator('#ipoShares').fill('4');
-            await p.locator('#ipoPrice').fill('25');
+            field = '#ipoShares';
             await p.locator(field).fill(junk.value);
             await p.locator('#ipoAssets input[type="checkbox"]').first().check().catch(() => {});
             await p.locator('#create-ipo-btn').click().catch(() => {});

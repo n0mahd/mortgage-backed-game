@@ -468,6 +468,29 @@ input[type="checkbox"] {
 
 .asset-checkbox:has(input:checked) { background: var(--mint-wash); }
 
+/* A colour group that can't be picked: one note, then its streets greyed out */
+.asset-locked-group {
+    padding: var(--s3) var(--s4);
+    border-top: 1px solid var(--rule);
+    background: var(--paper);
+}
+
+.asset-locked-group:first-child { border-top: 0; }
+
+.asset-locked-note {
+    font-size: var(--text-caption);
+    color: var(--ink-3);
+    margin-bottom: var(--s2);
+}
+
+.asset-locked-row {
+    padding: var(--s1) 0;
+    font-size: var(--text-sub);
+    color: var(--ink-3);
+}
+
+.asset-locked-row .debt-detail { display: inline; margin: 0 0 0 var(--s1); }
+
 .debt-detail {
     display: block;
     font-size: var(--text-caption);
@@ -2845,10 +2868,14 @@ input[type="checkbox"] {
     align-items: center;
     justify-content: space-between;
     gap: var(--s3);
+    flex-wrap: wrap;
     padding: var(--s2) 0;
     border-top: 1px solid var(--rule);
     font-size: var(--text-sub);
 }
+
+/* Narrow phones put Rename/Revoke under the name instead of squeezing it. */
+.agent-invite-row-info { flex: 1 1 10rem; }
 
 .agent-invite-prompt {
     min-height: 180px;
@@ -2857,6 +2884,25 @@ input[type="checkbox"] {
     font-size: var(--text-footnote);
     line-height: 1.45;
 }
+
+.agent-invite-row-actions {
+    display: flex;
+    gap: var(--s2);
+}
+
+.agent-invite-create {
+    display: flex;
+    flex-direction: column;
+    gap: var(--s2);
+}
+
+.agent-invite-part h4 { margin: var(--s4) 0 var(--s1); }
+
+.agent-invite-steps { margin: var(--s3) 0; }
+
+.steps.agent-invite-steps strong { display: inline; }
+
+.agent-invite-steps code { word-break: break-all; }
 
 .player-badge-agent { background: #E3EEF6; color: var(--info); }
 

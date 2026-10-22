@@ -33,13 +33,13 @@ The host can seat AI agents (Claude, ChatGPT, or any MCP client) as players. Eac
 
 **MCP endpoint:** `https://mortgage.abdlh.com/api/mcp` (Streamable HTTP, no sign-in)
 
-1. Add the endpoint to the agent's app once: in the Claude app, **Settings → Connectors → Add custom connector**. For Claude Code, `claude mcp add --transport http mortgage-backed https://mortgage.abdlh.com/api/mcp`. Other clients: a remote Streamable HTTP server with the same URL.
-2. Create a room in the browser. In the waiting room, the host taps **Invite an agent** once per agent. Each tap creates an invite holding a new agent key (`mbagent_…`), shown once. Copy it into a new chat for that agent.
-3. The agent calls `join_game` with its key and a name, then loops on `wait_for_turn` → `take_action` until the game ends. It shows up in the player list with an **AI** badge, and the host presses **Start Game** when everyone is in.
+1. Add the endpoint to the agent's app once, yourself: an agent can't add a connector to your account. In the Claude app, **Settings → Connectors → Add custom connector**, then tap **Connect** on it, and check it is on (**+ → Connectors**) in the chat you paste the invite into. For Claude Code, `claude mcp add --transport http mortgage-backed https://mortgage.abdlh.com/api/mcp`. Other clients: a remote Streamable HTTP server with the same URL.
+2. Create a room in the browser. In the waiting room, the host taps **Invite an agent** once per agent, optionally typing the agent's name first. Each tap creates an invite holding a new agent key (`mbagent_…`), shown once. Copy it into a new chat for that agent. Until the game starts, **Rename** changes an agent's name.
+3. The agent calls `join_game` with its key (and a name, if the host didn't pick one), then loops on `wait_for_turn` → `take_action` until the game ends. It shows up in the player list with an **AI** badge, and the host presses **Start Game** when everyone is in. Two players never share a name: a name already taken in the room gets a number (`Claude 2`).
 
 | Tool | What it does |
 |------|--------------|
-| `join_game(agent_key, player_name)` | Take the seat this key was issued for; calling it again returns the agent's state |
+| `join_game(agent_key, player_name?)` | Take the seat this key was issued for, under the host's name for it or else `player_name`; calling it again returns the agent's state |
 | `get_game_state(agent_key)` | The agent's view: whose turn, cash, position, properties, jail, ownership, auction, trade offers, recent log, and `legal_actions` right now |
 | `take_action(agent_key, type, payload?)` | One game action as itself (for example `roll_dice`, `buy_property`, `place_bid {amount}`, `end_turn`) |
 | `wait_for_turn(agent_key, timeout_seconds?)` | Returns once the agent needs to act, the game starts or ends, or after up to 50 seconds |
@@ -98,7 +98,7 @@ Tap **Buy Property** after landing on an unowned property. Cash is deducted imme
 
 Requires owning at least one property.
 
-Tap **Create IPO** and select which properties to bundle into a corporation. Set a **ticker symbol**, **number of shares** (1–12, default 10), and **price per share**. The selected properties move out of your personal holdings into the corporation and you receive all of its shares. A color group with houses or hotels must go in whole. Nobody can buy your shares without your agreement: shares change hands through trade offers in the Market, and whoever gains a majority becomes chairman.
+Tap **Create IPO** and select which properties to bundle into a corporation. Set a **ticker symbol** and the **number of shares** (1–12, default 10); there is no IPO price. The selected properties move out of your personal holdings into the corporation and you receive all of its shares. A color group with houses or hotels must go in whole. Nobody can buy your shares without your agreement: shares change hands through trade offers in the Market, and whoever gains a majority becomes chairman.
 
 If you already run a corporation, tap **Add properties to <ticker>** on its card in **Corporations** to move more properties into it. When other players hold shares, you can take whole new shares at today's value per share (12 shares at most), so their stakes keep their value. Or you can give the property outright, which raises every share's value.
 
@@ -130,9 +130,9 @@ Tap **Manage Debt → Refinance Existing Debt**. Select one or more existing deb
 
 ### Buy Shares
 
-To buy shares a player holds, make them an offer in the **Market** tab; the shares move only if they accept. If bankruptcy returned shares to a corporation's treasury, tap **Corporations** during your turn to buy those at the corporation's price; that cash goes into the corporation treasury.
+To buy shares a player holds, make them an offer in the **Market** tab; the shares move only if they accept. If bankruptcy returned shares to a corporation's treasury, tap **Corporations** during your turn to buy those at the current share value (NAV, below); that cash goes into the corporation treasury.
 
-Player net worth values corporation stakes by net asset value, not the price per share: corporation-owned property value plus treasury cash minus corporation debt, divided by total shares. Share value is floored at $0 if the corporation's net asset value is negative.
+Player net worth values corporation stakes by net asset value: corporation-owned property value plus treasury cash minus corporation debt, divided by total shares. Share value is floored at $0 if the corporation's net asset value is negative.
 
 If corporate debt interest pushes a corporation below $0 treasury cash, the corporation becomes insolvent. Its properties return to the bank, houses/hotels are cleared, corporation debts and shareholder positions are wiped, the chairman seat closes, and no further shares/debt/governance actions are available for that corporation.
 

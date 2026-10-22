@@ -154,12 +154,13 @@ describe('MCP agent play', () => {
 
     test('host invites an agent, it joins with its key, and both play turns authoritatively', async () => {
         const host = await hostRoom();
-        const invite = await inviteAgent(host, 'Claude chat 1');
+        const invite = await inviteAgent(host);
         expect(invite.key).toMatch(/^mbagent_[A-Za-z0-9_-]{43}$/);
         expect(invite.mcp_url).toBe('https://mortgage.abdlh.com/api/mcp');
         expect(invite.prompt).toContain(invite.key);
-        expect(invite.prompt).toContain('https://mortgage.abdlh.com/api/mcp');
-        expect(invite.seat).toMatchObject({ label: 'Claude chat 1', status: 'pending', player_name: null });
+        expect(invite.prompt).toMatch(/join_game tool with agent_key \S+ and a player name you choose/);
+        expect(invite.prompt).toMatch(/ask me to turn on the Mortgage Backed connector for this chat/);
+        expect(invite.seat).toMatchObject({ label: null, status: 'pending', player_name: null });
         // Only the hash is stored.
         const stored = db.prepare(`SELECT key_hash FROM agent_seats`).get();
         expect(stored.key_hash).not.toContain(invite.key);
@@ -264,6 +265,74 @@ describe('MCP agent play', () => {
             await request(app)[method](path).set('Authorization', `Bearer ${guest.token}`).send({}).expect(403);
         }
         await request(app).post(`/api/rooms/${host.roomId}/agent-seats`).send({}).expect(401);
+    });
+
+    test('the host names agents, and two agents never share a name', async () => {
+        const host = await hostRoom({ maxPlayers: 6 });
+        const named = await inviteAgent(host, 'Claude Opus');
+        expect(named.prompt).toContain('playing as Claude Opus');
+        expect(named.prompt).not.toMatch(/a player name you choose/);
+        const unnamedA = await inviteAgent(host);
+        const unnamedB = await inviteAgent(host);
+
+        // The host's name wins over the agent's pick, which is optional for named seats.
+        const agentA = await connectAgent();
+        const joinedNamed = await call(agentA, 'join_game', { agent_key: named.key, player_name: 'Claude' });
+        expect(joinedNamed.state.room.members.find(member => member.is_you).name).toBe('Claude Opus');
+        // Agents that pick the same name are told apart with a number.
+        await call(await connectAgent(), 'join_game', { agent_key: unnamedA.key, player_name: 'Claude' });
+        const unnamedNoName = await call(await connectAgent(), 'join_game', { agent_key: unnamedB.key });
+        expect(unnamedNoName.error).toMatch(/Choose a player_name/);
+        await call(await connectAgent(), 'join_game', { agent_key: unnamedB.key, player_name: 'claude' });
+
+        const room = await request(app).get(`/api/rooms/${host.roomId}`).set('Authorization', `Bearer ${host.token}`).expect(200);
+        expect(room.body.room_members.map(member => member.player_name)).toEqual(['Host', 'Claude Opus', 'Claude', 'claude 2']);
+        // The same applies to people joining by room code.
+        const guest = await joinByCode(host.inviteCode, 'host');
+        expect(guest.res.body.room_members.map(member => member.player_name)).toContain('host 2');
+
+        // A host-chosen name can't clash with a player or another invite.
+        const clash = await request(app).post(`/api/rooms/${host.roomId}/agent-seats`).set('Authorization', `Bearer ${host.token}`).send({ label: 'CLAUDE' });
+        expect(clash.status).toBe(400);
+        expect(clash.body.error).toBe('Another player is already called CLAUDE');
+    });
+
+    test('the host renames agents until the game starts', async () => {
+        const host = await hostRoom();
+        const pending = await inviteAgent(host);
+        const joined = await inviteAgent(host);
+        const agent = await connectAgent();
+        await call(agent, 'join_game', { agent_key: joined.key, player_name: 'Claude' });
+        const rename = (seatId, label, token = host.token) => request(app)
+            .patch(`/api/rooms/${host.roomId}/agent-seats/${seatId}`).set('Authorization', `Bearer ${token}`).send({ label });
+
+        const socket = await connectSocket(host.token, host.roomId);
+        try {
+            const change = new Promise(resolve => socket.once('room:member_change', resolve));
+            const renamed = await rename(joined.seat.id, '  Claude B  ').expect(200);
+            expect(renamed.body).toMatchObject({ label: 'Claude B', player_name: 'Claude B', status: 'joined' });
+            expect((await change).room_members.map(member => member.player_name)).toEqual(['Host', 'Claude B']);
+        } finally {
+            socket.disconnect();
+        }
+        const state = await call(agent, 'get_game_state', { agent_key: joined.key });
+        expect(state.room.members.find(member => member.is_you).name).toBe('Claude B');
+
+        // A pending invite's name becomes the agent's name when it joins.
+        await rename(pending.seat.id, 'Claude A').expect(200);
+        expect((await rename(pending.seat.id, 'claude b').expect(400)).body.error).toBe('Another player is already called claude b');
+        expect((await rename(pending.seat.id, 'Host').expect(400)).body.error).toMatch(/already called Host/);
+        expect((await rename(pending.seat.id, '   ').expect(400)).body.error).toBe('Enter a name');
+        // Renaming to its own name in another case is fine.
+        await rename(joined.seat.id, 'CLAUDE B').expect(200);
+
+        const guest = await joinByCode(host.inviteCode, 'Guest');
+        await rename(joined.seat.id, 'Sneaky', guest.token).expect(403);
+        await call(await connectAgent(), 'join_game', { agent_key: pending.key, player_name: 'Whatever' });
+        await startGame(host);
+        expect((await rename(joined.seat.id, 'Too Late').expect(400)).body.error).toBe('Names are fixed once the game starts');
+        const game = await request(app).get(`/api/games/by-room/${host.roomId}`).set('Authorization', `Bearer ${host.token}`).expect(200);
+        expect(game.body.game_state.players.map(player => player.name)).toEqual(['Host', 'CLAUDE B', 'Guest', 'Claude A']);
     });
 
     test('pending invites hold seats against people joining by room code', async () => {

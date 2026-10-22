@@ -103,12 +103,13 @@ describe('game rule edge cases', () => {
 
         const created = applyAction(state, 'alice', {
             type: 'create_ipo',
-            payload: { ticker: 'BRWN', totalShares: 12, pricePerShare: 50, assetIds: ['prop-0'] },
+            payload: { ticker: 'BRWN', totalShares: 12, assetIds: ['prop-0'] },
         });
         const corporation = created.state.corporations.find(corp => corp.ticker === 'BRWN');
         const aliceAfterIpo = created.state.players.find(player => player.userId === 'alice');
 
         expect(corporation.shareholders).toEqual([{ userId: 'alice', name: 'Alice', shares: 12 }]);
+        expect(corporation.pricePerShare).toBeUndefined();
         expect(corporation.availableShares).toBe(0);
         expect(corporation.treasuryShares).toBe(0);
         expect(aliceAfterIpo.corporations[0].sharesOwned).toBe(12);
@@ -145,7 +146,6 @@ describe('game rule edge cases', () => {
                 chairmanId: 'alice',
                 chairmanName: 'Alice',
                 totalShares: 12,
-                pricePerShare: 50,
                 availableShares: 9,
                 assets: [],
                 shareholders: [{ userId: 'bob', name: 'Bob', shares: 3 }],
@@ -162,7 +162,7 @@ describe('game rule edge cases', () => {
         expect(corporation.treasuryShares).toBe(0);
     });
 
-    test('treasury shares can be purchased by the founder and pay the corporation treasury', () => {
+    test('treasury shares sell at NAV and pay the corporation treasury', () => {
         const state = makeState({
             corporations: [{
                 id: 'corp-1',
@@ -173,13 +173,14 @@ describe('game rule edge cases', () => {
                 chairmanId: 'alice',
                 chairmanName: 'Alice',
                 totalShares: 12,
-                pricePerShare: 50,
                 availableShares: 3,
                 treasuryShares: 3,
                 assets: [],
                 shareholders: [{ userId: 'alice', name: 'Alice', shares: 9 }],
                 debts: [],
-                cash: 0,
+                // NAV is $600 over 12 shares: $50 a share. A stale IPO price is ignored.
+                cash: 600,
+                pricePerShare: 5,
             }],
         });
 
@@ -192,12 +193,37 @@ describe('game rule edge cases', () => {
         const event = result.events.find(item => item.type === 'share_purchase');
 
         expect(alice.cash).toBe(1400);
-        expect(corporation.cash).toBe(100);
+        expect(corporation.cash).toBe(700);
+        expect(corporation.pricePerShare).toBeUndefined();
         expect(corporation.treasuryShares).toBe(1);
         expect(corporation.availableShares).toBe(1);
         expect(corporation.shareholders.find(holder => holder.userId === 'alice').shares).toBe(11);
-        expect(event.data.founderProceeds).toBe(0);
+        expect(event.data.pricePerShare).toBe(50);
         expect(event.data.treasuryProceeds).toBe(100);
+    });
+
+    test('treasury shares of a corporation worth $0 are not for sale', () => {
+        const state = makeState({
+            corporations: [{
+                id: 'corp-1',
+                ticker: 'ZERO',
+                name: 'ZERO Corporation',
+                founderId: 'alice',
+                founderName: 'Alice',
+                chairmanId: 'alice',
+                chairmanName: 'Alice',
+                totalShares: 10,
+                availableShares: 2,
+                treasuryShares: 2,
+                assets: [],
+                shareholders: [{ userId: 'alice', name: 'Alice', shares: 8 }],
+                debts: [],
+                cash: 0,
+            }],
+        });
+
+        expect(() => applyAction(state, 'alice', { type: 'buy_shares', payload: { corpId: 'corp-1', shares: 1 } }))
+            .toThrow(/worth \$0/);
     });
 
     test('corporation-owned properties collect rent into corporation treasury', () => {
@@ -243,7 +269,6 @@ describe('game rule edge cases', () => {
                 chairmanId: 'bob',
                 chairmanName: 'Bob',
                 totalShares: 8,
-                pricePerShare: 50,
                 availableShares: 8,
                 assets: [{ id: 'prop-0', name: 'Mediterranean Avenue', value: 60, color: 'Brown' }],
                 shareholders: [],
@@ -380,7 +405,6 @@ describe('game rule edge cases', () => {
                 chairmanId: 'alice',
                 chairmanName: 'Alice',
                 totalShares: 8,
-                pricePerShare: 50,
                 availableShares: 5,
                 treasuryShares: 5,
                 assets: [],
@@ -437,7 +461,6 @@ describe('game rule edge cases', () => {
                 chairmanId: 'bob',
                 chairmanName: 'Bob',
                 totalShares: 8,
-                pricePerShare: 50,
                 availableShares: 8,
                 assets: [{ id: 'prop-26', name: 'Boardwalk', value: 400, color: 'Dark Blue' }],
                 shareholders: [],
@@ -484,7 +507,6 @@ describe('game rule edge cases', () => {
                 chairmanId: 'alice',
                 chairmanName: 'Alice',
                 totalShares: 8,
-                pricePerShare: 50,
                 availableShares: 1,
                 treasuryShares: 1,
                 assets: [],
@@ -866,7 +888,6 @@ describe('game rule edge cases', () => {
                 chairmanId: 'alice',
                 chairmanName: 'Alice',
                 totalShares: 8,
-                pricePerShare: 50,
                 availableShares: 5,
                 treasuryShares: 5,
                 assets: [{ id: 'prop-0', name: 'Mediterranean Ave', value: 60, color: 'Brown' }],
@@ -904,7 +925,7 @@ describe('game rule edge cases', () => {
         expect(corporation.shareholders).toEqual([]);
         expect(corporation.availableShares).toBe(0);
         expect(corporation.treasuryShares).toBe(0);
-        expect(corporation.pricePerShare).toBe(0);
+        expect(corporation.pricePerShare).toBeUndefined();
         expect(corporation.chairmanId).toBeNull();
         expect(corporation.chairmanName).toBeNull();
         expect(corporation.chairmanVotes[0].status).toBe('closed');
@@ -938,7 +959,6 @@ describe('game rule edge cases', () => {
                 chairmanId: 'alice',
                 chairmanName: 'Alice',
                 totalShares: 8,
-                pricePerShare: 50,
                 availableShares: 4,
                 assets: [],
                 shareholders: [{ userId: 'alice', name: 'Alice', shares: 4 }],

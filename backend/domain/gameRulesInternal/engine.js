@@ -173,7 +173,8 @@ function normalizeState(raw) {
         corp.chairmanVotes = Array.isArray(corp.chairmanVotes) ? corp.chairmanVotes : [];
         corp.cash = Number(corp.cash || 0);
         corp.totalShares = Math.max(0, Math.floor(Number(corp.totalShares || 0)));
-        corp.pricePerShare = Number(corp.pricePerShare || 0);
+        // IPOs used to set a price per share; treasury shares now sell at NAV.
+        delete corp.pricePerShare;
         corp.treasuryShares = Math.max(0, Math.floor(Number(corp.treasuryShares || 0)));
         corp.insolvent = !!corp.insolvent || corp.status === 'insolvent';
         corp.status = corp.insolvent ? 'insolvent' : (corp.status || 'active');
@@ -663,7 +664,14 @@ function summarizeCardEffect(before, state, player) {
     return parts.length ? parts.join('; ') : 'no immediate cash or position change';
 }
 
+// Doubles leave diceRolled false so the player can roll again, but they have still
+// landed; lastDiceRoll is cleared when a turn ends or a Jail fine/card is used.
+function hasMovedThisTurn(state, player) {
+    return !!player.diceRolled || Array.isArray(state.lastDiceRoll);
+}
+
 function buyProperty(state, player, events) {
+    if (!hasMovedThisTurn(state, player)) throw new GameRuleError(400, 'Roll before buying a property');
     const square = BOARD_SQUARES[player.position || 0];
     if (!square || !square.propertyId) throw new GameRuleError(400, 'You are not on a property');
     const prop = state.properties.find(p => p.id === square.propertyId);
@@ -679,7 +687,7 @@ function buyProperty(state, player, events) {
 
 function startAuction(state, player, events) {
     if (state.auction?.status === 'open') throw new GameRuleError(400, 'Auction already in progress');
-    if (!player.diceRolled) throw new GameRuleError(400, 'Roll before starting an auction');
+    if (!hasMovedThisTurn(state, player)) throw new GameRuleError(400, 'Roll before starting an auction');
     const square = BOARD_SQUARES[player.position || 0];
     if (!square || !square.propertyId) throw new GameRuleError(400, 'You are not on a property');
     const prop = state.properties.find(p => p.id === square.propertyId);
@@ -873,7 +881,6 @@ function createIPO(state, player, payload, events) {
     const ticker = String(payload.ticker || '').trim().toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 8);
     const assetIds = Array.isArray(payload.assetIds) ? payload.assetIds : [];
     const totalShares = positiveInt(payload.totalShares || payload.shares, 'shares');
-    const pricePerShare = positiveNumber(payload.pricePerShare, 'pricePerShare');
     if (!ticker) throw new GameRuleError(400, 'Ticker is required');
     if (totalShares > MAX_CORPORATION_SHARES) throw new GameRuleError(400, `Shares must be ${MAX_CORPORATION_SHARES} or fewer`);
     if (state.corporations.some(c => c.ticker === ticker)) throw new GameRuleError(400, 'Ticker already exists');
@@ -894,7 +901,6 @@ function createIPO(state, player, payload, events) {
         chairmanId: player.userId,
         chairmanName: player.name,
         totalShares,
-        pricePerShare,
         assets,
         shareholders: [{ userId: player.userId, name: player.name, shares: totalShares }],
         // Nothing is for sale at a fixed price: the founder sells by trade offers.
@@ -916,9 +922,8 @@ function createIPO(state, player, payload, events) {
         shares: totalShares,
         founderShares: totalShares,
         listedShares: totalShares,
-        pricePerShare,
     }));
-    log(state, `${player.name} created ${ticker} IPO: ${totalShares} shares, all held by ${player.name}, priced at $${pricePerShare} each`);
+    log(state, `${player.name} created ${ticker} IPO: ${totalShares} shares, all held by ${player.name}`);
 }
 
 // Whoever runs an LLC can put more of their own properties into it. If other
@@ -1031,40 +1036,25 @@ function buyShares(state, player, payload, events) {
     if (!corp) throw new GameRuleError(404, 'Corporation not found');
     if (corp.insolvent) throw new GameRuleError(400, 'Corporation is insolvent');
     const shares = positiveInt(payload.shares, 'shares');
-    const salePool = getShareSalePool(state, corp);
-    // Only the corporation's own treasury shares sell at its price. Shares a
-    // player holds change hands only by a trade offer that player accepts.
-    const maxShares = salePool.treasuryListedShares;
+    // Only the corporation's own treasury shares are for sale. Shares a player
+    // holds change hands only by a trade offer that player accepts.
+    const maxShares = getSaleableShares(corp);
     if (shares > maxShares) {
         throw new GameRuleError(400, maxShares > 0
             ? `${corp.ticker} has only ${maxShares} treasury share(s) for sale`
             : `${corp.ticker} has no treasury shares for sale. To buy shares a player holds, make them an offer in the Market.`);
     }
-    const holdersBefore = snapshotHoldings(corp);
-    const totalCost = shares * corp.pricePerShare;
+    // Treasury shares sell at what each share is worth right now (NAV).
+    const pricePerShare = roundCents(calculateCorporationShareValue(state, corp));
+    if (pricePerShare <= 0) throw new GameRuleError(400, `${corp.ticker} shares are worth $0, so its treasury shares are not for sale`);
+    const totalCost = roundCents(shares * pricePerShare);
     if (player.cash < totalCost) throw new GameRuleError(400, 'Insufficient funds');
-
-    let remaining = shares;
-    const treasuryShares = Math.min(remaining, salePool.treasuryListedShares);
-    const founderShares = remaining - treasuryShares;
+    const holdersBefore = snapshotHoldings(corp);
 
     player.cash -= totalCost;
-    if (treasuryShares > 0) {
-        const treasuryCost = treasuryShares * corp.pricePerShare;
-        corp.cash = Number(corp.cash || 0) + treasuryCost;
-        corp.treasuryShares = Math.max(0, Number(corp.treasuryShares || 0) - treasuryShares);
-        recordCashFlow(state, player.userId, corp.id, treasuryCost);
-        remaining -= treasuryShares;
-    }
-    if (founderShares > 0) {
-        if (!salePool.founder || !salePool.founderHolding || salePool.founder.bankrupt) {
-            throw new GameRuleError(400, 'Founder listed shares are not available');
-        }
-        const founderCost = founderShares * corp.pricePerShare;
-        salePool.founder.cash += founderCost;
-        salePool.founderHolding.shares = Number(salePool.founderHolding.shares || 0) - founderShares;
-        recordCashFlow(state, player.userId, salePool.founder.userId, founderCost);
-    }
+    corp.cash = Number(corp.cash || 0) + totalCost;
+    corp.treasuryShares = Math.max(0, Number(corp.treasuryShares || 0) - shares);
+    recordCashFlow(state, player.userId, corp.id, totalCost);
 
     addShareholderShares(corp, player, shares);
     removeZeroShareholders(corp);
@@ -1076,17 +1066,13 @@ function buyShares(state, player, payload, events) {
         buyer: player.name,
         ticker: corp.ticker,
         shares,
+        pricePerShare,
         totalCost,
-        founderShares,
-        treasuryShares,
-        founderProceeds: founderShares * corp.pricePerShare,
-        treasuryProceeds: treasuryShares * corp.pricePerShare,
-        seller: founderShares > 0 ? salePool.founder.name : '[Treasury]',
+        treasuryShares: shares,
+        treasuryProceeds: totalCost,
+        seller: '[Treasury]',
     }));
-    const proceedsParts = [];
-    if (founderShares > 0) proceedsParts.push(`$${(founderShares * corp.pricePerShare).toFixed(2)} to ${salePool.founder.name}`);
-    if (treasuryShares > 0) proceedsParts.push(`$${(treasuryShares * corp.pricePerShare).toFixed(2)} to ${corp.ticker} treasury`);
-    log(state, `${player.name} bought ${shares} share(s) of ${corp.ticker} for $${totalCost.toFixed(2)} (${proceedsParts.join(', ')})`);
+    log(state, `${player.name} bought ${shares} treasury share(s) of ${corp.ticker} at $${pricePerShare.toFixed(2)} each for $${totalCost.toFixed(2)}`);
 }
 
 // Lenders keep a 10% equity cushion: a new loan is at most 90% of the value of
@@ -1440,25 +1426,6 @@ function shareholderShareTotal(corp) {
 // this rule are dropped when the ledger is normalized.
 function getSaleableShares(corp) {
     return Number(corp.treasuryShares || 0);
-}
-
-function getShareSalePool(state, corp) {
-    const founder = state.players.find(player => player.userId === corp.founderId);
-    const founderHolding = (corp.shareholders || []).find(shareholder => shareholder.userId === corp.founderId);
-    const listedShares = Math.max(0, Math.floor(Number(corp.availableShares || 0)));
-    const treasuryShares = Math.max(0, Math.floor(Number(corp.treasuryShares || 0)));
-    const treasuryListedShares = Math.min(treasuryShares, listedShares);
-    const founderListedShares = Math.min(
-        Math.max(listedShares - treasuryListedShares, 0),
-        Math.max(0, Number(founderHolding?.shares || 0))
-    );
-    return {
-        founder,
-        founderHolding,
-        treasuryListedShares,
-        founderListedShares,
-        totalListedShares: treasuryListedShares + founderListedShares,
-    };
 }
 
 function returnSharesToTreasury(corp, shares) {
@@ -2106,7 +2073,6 @@ function resolveCorporationInsolvency(state, corp, actor, events, details = {}) 
     corp.shareholders = [];
     corp.availableShares = 0;
     corp.treasuryShares = 0;
-    corp.pricePerShare = 0;
     corp.chairmanId = null;
     corp.chairmanName = null;
     corp.chairmanVotes = (corp.chairmanVotes || []).map(vote => {
@@ -2484,7 +2450,6 @@ function syncDerivedPortfolios(state) {
                     ticker: corp.ticker,
                     sharesOwned: holder ? holder.shares : 0,
                     totalShares: corp.totalShares,
-                    pricePerShare: corp.pricePerShare,
                     shareValue,
                     netAssetValue,
                     availableShares: Number(corp.availableShares || 0),
@@ -2655,7 +2620,6 @@ function roundCents(value) {
 const AMOUNT_LABELS = {
     amount: 'The amount',
     bid: 'Your bid',
-    pricePerShare: 'The price per share',
     player1Cash: 'The cash offered',
     player2Cash: 'The cash asked for',
     interestRate: 'The interest rate',
@@ -2717,6 +2681,7 @@ module.exports = {
     applyAction,
     calculateRent,
     calculateNetWorth,
+    calculateCorporationShareValue,
     validateStateInvariants,
     applyCardEffect,
     shuffleDeck,

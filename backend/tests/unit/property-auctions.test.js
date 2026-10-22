@@ -5,6 +5,7 @@ const {
     applyAction,
     normalizeState,
 } = require('../../domain/gameRules');
+const { listLegalActions } = require('../../domain/actionCatalog');
 
 function makeState(overrides = {}) {
     return normalizeState({
@@ -196,5 +197,50 @@ describe('property auction rules', () => {
         expect(after.auction.status).not.toBe('open');
         expect(after.properties.find(p => p.id === 'prop-0').ownerId).toBe('bob');
         expect(after.players.find(p => p.userId === 'bob').cash).toBe(1475);
+    });
+});
+
+describe('resolving a property landed on with doubles', () => {
+    // Alice starts on GO with no roll yet; 3 + 3 lands her on Oriental Avenue.
+    function rolledDoubles() {
+        const state = makeState({
+            players: [player('alice', 'Alice'), player('bob', 'Bob'), player('carol', 'Carol')],
+            lastDiceRoll: null,
+        });
+        return applyAction(state, 'alice', { type: 'roll_dice', payload: {} }, { dice: [3, 3] }).state;
+    }
+
+    test('the player can buy the property before rolling again', () => {
+        const state = rolledDoubles();
+        expect(state.players[0].diceRolled).toBe(false);
+
+        const after = applyAction(state, 'alice', { type: 'buy_property', payload: {} }).state;
+
+        expect(after.properties.find(p => p.name === 'Oriental Avenue').ownerId).toBe('alice');
+        expect(listLegalActions(after, 'alice').map(a => a.type)).toContain('roll_dice');
+    });
+
+    test('the player can send the property to auction before rolling again', () => {
+        const after = startAuction(rolledDoubles()).state;
+
+        expect(after.auction.status).toBe('open');
+        expect(after.auction.propertyName).toBe('Oriental Avenue');
+    });
+
+    test('buy and auction are listed as legal actions', () => {
+        const types = listLegalActions(rolledDoubles(), 'alice').map(a => a.type);
+
+        expect(types).toEqual(expect.arrayContaining(['buy_property', 'start_auction', 'roll_dice']));
+    });
+
+    test('the square a player starts the turn on cannot be bought before rolling', () => {
+        const state = makeState({
+            players: [player('alice', 'Alice', { position: 1 }), player('bob', 'Bob'), player('carol', 'Carol')],
+            lastDiceRoll: null,
+        });
+
+        expect(() => applyAction(state, 'alice', { type: 'buy_property', payload: {} }))
+            .toThrow('Roll before buying a property');
+        expect(() => startAuction(state)).toThrow('Roll before starting an auction');
     });
 });

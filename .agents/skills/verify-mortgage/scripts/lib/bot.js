@@ -457,7 +457,6 @@ class Autoplay {
         const ticker = `${seat.name.slice(0, 3).toUpperCase()}${Math.floor(this.rand() * 90 + 10)}`;
         await seat.page.locator('#ipoTicker').fill(ticker);
         await seat.page.locator('#ipoShares').fill(String(4 + Math.floor(this.rand() * 8)));
-        await seat.page.locator('#ipoPrice').fill(String(20 + Math.floor(this.rand() * 60)));
         const asset = seat.page.locator(`#ipo-asset-${props[0].id}`);
         if (await asset.count()) await asset.check();
         else await seat.page.locator('#ipoAssets input[type="checkbox"]').first().check();
@@ -505,7 +504,7 @@ class Autoplay {
         const me = state.players.find(p => p.userId === seat.userId);
         if (!holder || !me) return;
         const shares = Math.min(wanted, Number(holder.shares));
-        const cash = Math.min(Math.floor(Number(me.cash) * 0.5), Math.round(shares * Number(corp.pricePerShare || 50) * (0.8 + this.rand() * 0.6)));
+        const cash = Math.min(Math.floor(Number(me.cash) * 0.5), Math.round(shares * 50 * (0.8 + this.rand() * 0.6)));
         if (cash <= 0) return;
         await this.marketTab(seat);
         await seat.page.locator('#player1Select').selectOption({ value: seat.userId });

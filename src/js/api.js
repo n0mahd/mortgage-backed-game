@@ -512,8 +512,13 @@ async function getRoomById(roomId) {
 
 // Host-only AI agent invites. createAgentInvite's response holds the agent key;
 // it is never returned again.
-async function createAgentInvite(roomId) {
-    return apiFetch(`/rooms/${roomId}/agent-seats`, { method: 'POST', body: JSON.stringify({}) });
+// label is the agent's player name; empty lets the agent choose one.
+async function createAgentInvite(roomId, label = '') {
+    return apiFetch(`/rooms/${roomId}/agent-seats`, { method: 'POST', body: JSON.stringify(label ? { label } : {}) });
+}
+
+async function renameAgentInvite(roomId, seatId, label) {
+    return apiFetch(`/rooms/${roomId}/agent-seats/${encodeURIComponent(seatId)}`, { method: 'PATCH', body: JSON.stringify({ label }) });
 }
 
 async function listAgentInvites(roomId) {

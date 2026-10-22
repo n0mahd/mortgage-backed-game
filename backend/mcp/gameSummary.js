@@ -4,7 +4,7 @@
 // presentation: reads state, never decides rules (legal actions come from
 // domain/actionCatalog, which dry-runs the engine).
 
-const { BOARD_SQUARES, calculateNetWorth } = require('../domain/gameRules');
+const { BOARD_SQUARES, calculateNetWorth, calculateCorporationShareValue } = require('../domain/gameRules');
 const { listLegalActions } = require('../domain/actionCatalog');
 
 // Agents read this after every action, so it stays compact: static board data
@@ -157,7 +157,8 @@ function summarizeGame({ room, members, game, userId }) {
             ticker: corp.ticker,
             chairman: clip(corp.chairmanName),
             insolvent: !!corp.insolvent,
-            price_per_share: corp.pricePerShare,
+            share_value: round(calculateCorporationShareValue(state, corp)),
+            treasury_shares_for_sale: Number(corp.treasuryShares || 0),
             total_shares: corp.totalShares,
             cash: round(corp.cash),
             assets: (corp.assets || []).map(asset => asset.id),

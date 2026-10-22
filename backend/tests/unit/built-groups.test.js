@@ -100,7 +100,7 @@ describe('colour groups with buildings stay together', () => {
     test('a street in a built group cannot be traded into an LLC', () => {
         let state = own(aliceBuiltOrange(), ['prop-3'], 'bob', 'Bob');
         state.currentPlayerIndex = 1; // IPOs happen on your own turn
-        state = applyAction(state, 'bob', { type: 'create_ipo', payload: { ticker: 'BOB', totalShares: 10, pricePerShare: 50, assetIds: ['prop-3'] } }).state;
+        state = applyAction(state, 'bob', { type: 'create_ipo', payload: { ticker: 'BOB', totalShares: 10, assetIds: ['prop-3'] } }).state;
         const corp = state.corporations[0];
         expectRefused(() => propose(state, 'alice', {
             player1AssetIds: [ORANGE[0]],
@@ -125,14 +125,14 @@ describe('colour groups with buildings stay together', () => {
     test('an IPO of only part of a built group is refused', () => {
         expectRefused(() => applyAction(aliceBuiltOrange(), 'alice', {
             type: 'create_ipo',
-            payload: { ticker: 'ORNG', totalShares: 10, pricePerShare: 50, assetIds: [ORANGE[0]] },
+            payload: { ticker: 'ORNG', totalShares: 10, assetIds: [ORANGE[0]] },
         }), /whole/);
     });
 
     test('an IPO of the whole built group keeps the buildings in the LLC', () => {
         const { state } = applyAction(aliceBuiltOrange(3), 'alice', {
             type: 'create_ipo',
-            payload: { ticker: 'ORNG', totalShares: 10, pricePerShare: 50, assetIds: ORANGE },
+            payload: { ticker: 'ORNG', totalShares: 10, assetIds: ORANGE },
         });
         const corp = state.corporations[0];
         ORANGE.forEach(id => expect(state.properties.find(p => p.id === id).ownerId).toBe(corp.id));
@@ -142,7 +142,7 @@ describe('colour groups with buildings stay together', () => {
     test('shares in an LLC that holds a built group can be sold by trade', () => {
         let state = applyAction(aliceBuiltOrange(), 'alice', {
             type: 'create_ipo',
-            payload: { ticker: 'ORNG', totalShares: 10, pricePerShare: 50, assetIds: ORANGE },
+            payload: { ticker: 'ORNG', totalShares: 10, assetIds: ORANGE },
         }).state;
         const corp = state.corporations[0];
         const { state: proposed } = propose(state, 'alice', { player1Shares: [{ corpId: corp.id, shares: 6 }], player2Cash: 400 });
