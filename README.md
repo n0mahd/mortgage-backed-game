@@ -98,9 +98,11 @@ Tap **Buy Property** after landing on an unowned property. Cash is deducted imme
 
 Requires owning at least one property.
 
-Tap **Create IPO** and select which properties to bundle into a corporation. Set a **ticker symbol** and the **number of shares** (1–12,000, default 10); there is no IPO price. The selected properties move out of your personal holdings into the corporation and you receive all of its shares. A color group with houses or hotels must go in whole. Nobody can buy your shares without your agreement: shares change hands through trade offers in the Market, and whoever gains a majority becomes chairman.
+Tap **Create IPO** and select which properties to bundle into a corporation. Set a **ticker symbol**; every corporation issues 12,000 shares (it splits evenly in halves, thirds, quarters and sixths) and there is no IPO price. The selected properties move out of your personal holdings into the corporation and you receive all of its shares. A color group with houses or hotels must go in whole. Nobody can buy your shares without your agreement: shares change hands through trade offers in the Market, and whoever gains a majority becomes chairman.
 
-If you already run a corporation, tap **Add properties to <ticker>** on its card in **Corporations** to move more properties into it. When other players hold shares, you can take whole new shares at today's value per share, rounded to the nearest share (12,000 shares at most), so their stakes keep their value. Or you can give the property outright, which raises every share's value.
+If you already run a corporation, tap **Add properties to <ticker>** on its card in **Corporations** to move more properties into it. When other players hold shares, you can take whole new shares at today's value per share, so their stakes keep their value. Or you can give the property outright, which raises every share's value.
+
+The chairman also runs the corporation from its card: a **rent policy** (Reinvest keeps full rent in the treasury; Payout sends rent straight to shareholders, and a shareholder landing there pays only the part they don't own; the chairman changes it alone only before rolling, then it is locked for their next 5 turns unless every shareholder agrees), **dividends**, buying the property they land on and building houses from the treasury, and **Trading as** the corporation in the Market. Anyone else can **offer a property** to a corporation at book value or their own price, for new shares or treasury cash; the chairman accepts, declines or counters. See section 9 of `documents/game-rules.md`.
 
 ---
 

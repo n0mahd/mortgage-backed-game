@@ -58,9 +58,10 @@ function mbsState({ totalShares = 10, aliceShares = 7 } = {}) {
     let state = own(makeState(), [...MBS_ASSETS, ILLINOIS, KENTUCKY, MEDITERRANEAN], 'alice', 'Alice');
     state = applyAction(state, 'alice', {
         type: 'create_ipo',
-        payload: { ticker: 'MBS', totalShares, assetIds: MBS_ASSETS },
+        payload: { ticker: 'MBS', totalShares: 10, assetIds: MBS_ASSETS },
     }).state;
     const corp = state.corporations[0];
+    corp.totalShares = totalShares;
     const bobShares = totalShares - aliceShares;
     corp.shareholders = [{ userId: 'alice', name: 'Alice', shares: aliceShares }];
     if (bobShares > 0) corp.shareholders.push({ userId: 'bob', name: 'Bob', shares: bobShares });
@@ -134,11 +135,18 @@ describe('adding properties to an existing corporation', () => {
         expect(calculateNetWorth(after, 'bob') - bobBefore).toBeCloseTo(24);
     });
 
-    test('a corporation can have up to 12,000 shares', () => {
-        const { state } = add(mbsState({ totalShares: 11999, aliceShares: 9000 }), 'alice', { assetIds: [ILLINOIS], issueShares: true });
-        expect(state.corporations[0].totalShares).toBe(12000);
-        expect(sharesOf(state.corporations[0], 'alice')).toBe(9001);
-        expectRefused(() => add(state, 'alice', { assetIds: [KENTUCKY], issueShares: true }), /12,000 shares, the most allowed/);
+    test('there is no 12-share cap: a contribution gets every share it is worth', () => {
+        // 11 shares at ~$109: Illinois ($240) is worth 2.2, so 2 new shares.
+        const { state } = add(mbsState({ totalShares: 11, aliceShares: 8 }), 'alice', { assetIds: [ILLINOIS], issueShares: true });
+        expect(state.corporations[0].totalShares).toBe(13);
+        expect(sharesOf(state.corporations[0], 'alice')).toBe(10);
+    });
+
+    test('adding properties can grow a corporation to 1,000,000 shares', () => {
+        const { state } = add(mbsState({ totalShares: 999999, aliceShares: 900000 }), 'alice', { assetIds: [ILLINOIS], issueShares: true });
+        expect(state.corporations[0].totalShares).toBe(1000000);
+        expect(sharesOf(state.corporations[0], 'alice')).toBe(900001);
+        expectRefused(() => add(state, 'alice', { assetIds: [KENTUCKY], issueShares: true }), /1,000,000 shares, the most allowed/);
     });
 
     test('an IPO can issue up to 12,000 shares', () => {

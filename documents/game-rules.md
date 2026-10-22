@@ -193,6 +193,8 @@ Rent = dice roll × multiplier:
 
 When you land on an owned property, rent is transferred automatically and recorded in the log. The Game tab shows recent cash flow so players can see what they paid and received.
 
+Rent on a corporation's property depends on its **rent policy** (section 9). In **Reinvest** mode everyone pays full rent into the treasury, shareholders included. In **Payout** mode the rent goes straight to the shareholders, and a shareholder who lands there pays only the share of the rent they don't own: with 30% of the corporation, you pay 70%. The landing summary says which mode applies before you pay.
+
 ---
 
 ## 9. IPOs (Corporations)
@@ -203,7 +205,7 @@ Any player may bundle one or more of their properties into a corporation and sel
 
 1. On your turn, go to the **Game** tab and click **Create IPO**.
 2. Select the properties to include as corporate assets. A color group with buildings must go in whole: ticking one of its streets ticks the rest.
-3. Set a **ticker symbol** (e.g., `MBS`) and the **number of shares** to issue (default 10, at most 12,000). There is no IPO price: what your shares are worth is set by the corporation's net asset value, and what someone pays for them is whatever you agree in a trade.
+3. Set a **ticker symbol** (e.g., `MBS`). Every new corporation issues **12,000 shares**. 12,000 splits evenly in halves (6,000), thirds (4,000), quarters (3,000), sixths (2,000) and eighths (1,500), and 120 shares is 1%. There is no IPO price: what your shares are worth is set by the corporation's net asset value, and what someone pays for them is whatever you agree in a trade.
 4. Click **Create** — the selected properties transfer into the corporation and you receive all of its shares.
 
 ### Adding Properties to a Corporation You Run
@@ -213,13 +215,43 @@ If you run a corporation (you're its chairman or hold more than half its shares)
 1. Open **Corporations** from the Game tab and tap **Add properties to MBS** on that corporation's card. **Create IPO** also lists the companies you run.
 2. Tick the properties to add. A property backing a loan can't go in until the loan is paid off or refinanced. A color group with buildings goes in whole: ticking one of its streets ticks the rest.
 3. If other players hold shares, choose what you get back:
-   - **New shares** (the usual choice). You get new shares at today's value per share, so the other holders' stakes keep their value. For example, MBS has 10 shares and is worth $1,200, so one share is worth $120. Illinois Ave ($240) gets you 2 new shares, and MBS then has 12. Shares are whole numbers rounded to the nearest share, and a corporation can't go over 12,000 shares. Rounding can move up to half a share's value between you and the other holders, and the screen shows how much before you confirm. A property worth less than half a share gets no new shares, so it can only go in as a gift.
+   - **New shares** (the usual choice). You get new shares at today's value per share, so the other holders' stakes keep their value. For example, MBS has 12,000 shares and is worth $1,200, so one share is worth $0.10. Illinois Ave ($240) gets you 2,400 new shares, and MBS then has 14,400. Shares are whole numbers rounded to the nearest share, so rounding can move up to half a share's value between you and the other holders; the screen shows how much before you confirm. A property worth less than half a share gets no new shares and can only go in as a gift. Corporations created before shares went to 12,000 keep their share counts. Any value the new shares don't cover goes to every shareholder, and the screen tells you how much the others gain before you confirm.
    - **Nothing, it's a gift.** Every share rises in value, including the other holders'.
 4. Check **Before you confirm** for the corporation's value, your shares and your net-worth change, then tap **Add**. Nobody else has to agree.
 
 If you hold every share, the property simply moves into the corporation; your net worth doesn't change. New shares can't be priced while a corporation is worth $0 or less. You can't add properties while you owe an unpaid claim.
 
-To put a property into a corporation someone else runs, offer it to them in a trade (see **Trading a Property for Shares** in section 12).
+To put a property into a corporation someone else runs, make it a **property offer** (below), or trade it for the chairman's own shares (see **Trading a Property for Shares** in section 12).
+
+### Running a Corporation
+
+The chairman, or anyone holding more than half the shares, runs a corporation from its card in **Corporations**.
+
+**Rent policy.** Choose **Reinvest** (the default) or **Payout**:
+
+| | Who pays what | Where it goes |
+|---|---|---|
+| Reinvest | Everyone pays full rent, shareholders included | The treasury, for the chairman to spend |
+| Payout | A shareholder pays only the part they don't own; everyone else pays in full | Straight to the shareholders, split by shares. The slice for treasury shares stays in the treasury |
+
+On paper both cost the lander the same: in Reinvest your stake in the treasury grows by your share of what you paid. The difference is cash in hand versus value locked in the company. **Changing the policy.** The chairman (or a majority holder) can change it alone only **on their own turn, before they roll**, so nobody can switch it after seeing where anyone landed. After a change it is **locked for the chairman's next 5 turns**: they can change it alone again on their 6th turn. During the lock it changes only if **every shareholder agrees**. Any shareholder can tap **Ask every shareholder to switch**; each holder sees **Agree** / **Reject** on the corporation card (the Corporations button says when an answer is waiting). The policy switches the moment the last holder agrees, at any point in the game, and that starts a fresh 5-turn lock. One rejection closes the vote. A sole shareholder's proposal passes at once.
+
+Debt interest is still charged to the treasury in Payout mode, so a corporation with debt needs cash to cover it.
+
+**Dividends.** On their turn the chairman can pay any amount of treasury cash to the shareholders, split by shares held. The slice for treasury shares stays in the treasury.
+
+**Buying and building.** When the chairman lands on an unowned property, the Buy sheet asks **Who's buying?** and can buy it for the corporation from its treasury. **Build Houses** has a **Build for** choice for groups the corporation owns whole, paid from its treasury. A group split between the chairman and the corporation can't be built on.
+
+**Trading as the corporation.** In the Market, **Trading as** lets the chairman trade for the corporation: its treasury cash, its properties and its own treasury shares. It can buy its own shares back into the treasury, and trade with another corporation (that one's chairman accepts). Built groups still can't be traded. A runner can't trade personally with their own corporation: treasury cash reaches players only through a dividend every holder shares.
+
+### Property Offers
+
+Anyone who doesn't run a corporation can offer it properties. Tap **Offer a property to MBS** on its card, tick the properties and choose:
+
+- **At what price?** **Book value** (price plus buildings; nobody gains or loses value) or **Set my price**.
+- **Paid with** **new shares** at today's value per share, or **treasury cash**.
+
+The preview shows the new shares, each holder's stake before and after, the value per share, and your net-worth change. The chairman sees the same numbers for their own stake, plus a warning when the price is above book value, and can **Accept**, **Decline** or **Counter** with another price. A counter goes back to the offerer, who can accept, counter or withdraw. Offers expire after 10 minutes, and are checked again on acceptance (the property must still be yours and free of loans). A deal that hands the offerer more than half the shares makes them chairman. The chairman's own properties go in only at book value, through **Add properties**.
 
 ### Selling Shares
 
@@ -326,7 +358,7 @@ Bank, tax, card, jail bail, and interest bankruptcies return your directly owned
 Trades let two players exchange any combination of cash, properties, corporation (LLC) shares, and Get Out of Jail Free cards after both involved players agree.
 
 1. Go to the **Market** tab.
-2. Select **Player 1** and **Player 2** from the dropdowns.
+2. Select **Player 1** and **Player 2** from the dropdowns. If a player runs a corporation, **Trading as** lets that side trade for the corporation instead (see **Running a Corporation** in section 9).
 3. Enter how much cash each player contributes to the swap.
 4. Check the properties each player is transferring. A player holding a Get Out of Jail Free card can check it too, so the card can be sold for cash or swapped as part of a deal. For each corporation a player holds shares in, enter how many shares they are transferring (up to the number they hold).
 5. Click **Propose Transaction** — the offer appears under **Pending Trade Offers**.
@@ -338,11 +370,11 @@ To send shares (or property) as a gift, propose a one-sided trade where the othe
 
 ### Trading a Property for Shares
 
-You can put a property into another player's corporation in exchange for part of its shares, for example "I give you Boardwalk, you give me 3 of your 12 MBS shares".
+You can put a property into another player's corporation in exchange for part of its shares, for example "I give you Boardwalk, you give me 3,000 of your 12,000 MBS shares".
 
 1. Open **Corporations** from the Game tab and tap **Offer a property for MBS shares** on that corporation's card. The Market tab opens with you on one side and the chairman on the other. You can also set up the same trade in the Market tab directly.
 2. Tick the property you're giving. Under **Where should your properties go?**, choose **Into MBS** rather than **To Sam**.
-3. Enter how many MBS shares you want back. The box shows the percentage, e.g. 4 shares of 12 = 33.3%. Shares are whole numbers, so not every percentage is possible.
+3. Enter how many MBS shares you want back. The box shows the percentage, e.g. 3,000 shares of 12,000 = 25%.
 4. The **Your offer** box reads the deal back in one sentence and shows the corporation's value before and after, your stake and your net-worth change. For a straight property-for-shares deal it also shows the even split and a **Use N** button.
 5. Propose the trade. The other player sees the same summary from their side and accepts or declines.
 
@@ -434,3 +466,7 @@ Property value is recorded at purchase price plus houses/hotels. Corporation sha
 | Interest timing | End of your turn |
 | Bankruptcy trigger | Cash < $0 at turn end |
 | Win condition | Last solvent player OR host ends game |
+| Shares per new corporation | 12,000 (120 shares = 1%) |
+| Default rent policy | Reinvest |
+| Rent policy change | Chairman alone: own turn, before rolling; then locked for their next 5 turns. Anytime: every shareholder agrees |
+| Property / trade offers expire | 10 minutes |
