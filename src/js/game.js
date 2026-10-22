@@ -19,6 +19,7 @@ const ACTION_RETRY_DELAYS_MS = [500, 1500, 3000];
 
 // Hotseat mode (same-device local play)
 let isHotseatMode = false;
+let isSpectator = false;
 let hotseatTokens = []; // [{userId, token, name}]
 
 // Initialize game on page load
@@ -104,9 +105,14 @@ async function loadGameData(roomId) {
 
         currentPlayerData = gameState.players.find(p => p.userId === currentUser.id);
 
-        if (!currentPlayerData) {
+        // A host without a seat watches: same board and log, no moves.
+        isSpectator = !currentPlayerData && room.host_id === currentUser.id;
+        if (!currentPlayerData && !isSpectator) {
             throw new Error('You are not a player in this game');
         }
+        document.body.classList.toggle('is-spectator', isSpectator);
+        document.querySelector('.nav-tab[data-section="market"]')?.toggleAttribute('hidden', isSpectator);
+        document.getElementById('turn-alerts-btn')?.toggleAttribute('hidden', isHotseatMode || isSpectator);
 
         document.getElementById('user-email').textContent =
             currentUser.email || (currentPlayerData && currentPlayerData.name) || 'Guest';
@@ -241,7 +247,7 @@ function renderGameState(gameState) {
                     ${renderLastCardSummary(gameState, currentPlayer)}
                 </div>
                 ${renderAuctionPanel(gameState)}
-                ${paused ? renderPausedActions(gameState) : (isMyTurn ? renderActionButtons() : renderNonTurnActions())}
+                ${isSpectator ? renderSpectatorNote() : (paused ? renderPausedActions(gameState) : (isMyTurn ? renderActionButtons() : renderNonTurnActions()))}
             </div>
 
             <div class="game-layout-side">
@@ -1110,6 +1116,15 @@ function renderNonTurnActions() {
         ${renderCorporationsButton()}
         <button class="btn btn-secondary btn-sm" data-switch-section="market">Trade or pay<small>Opens the market</small></button>
     `);
+}
+
+function renderSpectatorNote() {
+    return `
+        <section class="moves">
+            <div class="section-heading"><h3>Watching</h3></div>
+            <p class="empty-state">You're hosting this game without a seat. The players move on their own; host controls are below.</p>
+        </section>
+    `;
 }
 
 function renderPausedActions() {

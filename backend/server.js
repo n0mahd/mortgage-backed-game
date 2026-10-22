@@ -5,6 +5,7 @@ const cors = require('cors');
 const { getConfig, getCorsOptions } = require('./config');
 const db = require('./db');
 const presence = require('./services/presence');
+const { canViewRoom } = require('./services/rooms');
 const { router: authRouter, readToken, makeToken } = require('./routes/auth');
 
 const config = getConfig();
@@ -93,10 +94,7 @@ io.on('connection', (socket) => {
             reply({ ok: false, error: 'Not authenticated' });
             return;
         }
-        const membership = db.prepare(`
-            SELECT 1 FROM room_members WHERE room_id = ? AND user_id = ?
-        `).get(roomId, socket.userId);
-        if (!membership) {
+        if (!canViewRoom(roomId, socket.userId)) {
             reply({ ok: false, error: 'Not a room member' });
             return;
         }

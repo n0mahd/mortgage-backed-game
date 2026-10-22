@@ -161,13 +161,16 @@ async function loadRoomDataById(id) {
             document.getElementById('host-controls').style.display = 'block';
             if (room.status === 'waiting') AgentInvites.mount(room.id);
         }
+        // A host who only watches has no seat to leave.
+        const watching = isHost && !room.room_members.some(member => member.user_id === currentUser.id);
+        document.getElementById('spectator-help-text').hidden = !watching;
 
         updateRoomStatus(room.status, room.room_members.length, room.max_players);
         renderPlayers(room.room_members);
         updateStartButtonState(room.room_members.length);
 
         const leaveBtn = document.getElementById('leave-room-btn');
-        if (leaveBtn) leaveBtn.style.display = '';
+        if (leaveBtn) leaveBtn.style.display = watching ? 'none' : '';
 
     } catch (error) {
         console.error('Error loading room:', error);

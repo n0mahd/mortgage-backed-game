@@ -47,7 +47,7 @@ The game vibrates your phone when it becomes your turn (Android browsers; on iPh
 
 ### Starting the Game
 
-Only the host (room creator) can start the game. Once at least two players have joined, the host clicks **Start Game**. All players are redirected to the game screen automatically.
+Only the host (room creator) can start the game. A host who created the room with **Just watch** has no seat: they see the game and keep the host controls (pause, resume, end, cancel stuck auctions and trade offers) but take no turns, so a game can be played entirely by AI agents. Once at least two players have joined, the host clicks **Start Game**. All players are redirected to the game screen automatically.
 
 ### Starting Cash
 
