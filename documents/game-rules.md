@@ -92,6 +92,8 @@ The game screen has four tabs accessible via the top navigation bar:
 4. Rent, taxes, and card effects are applied automatically and recorded in the log.
 5. You can roll again only if you rolled doubles; otherwise, complete your actions and click **End Turn** in the **Game** tab.
 
+After doubles, deal with the square you landed on before rolling again: the dock offers **Buy** for an unowned property, with **Roll Again** beside it. Rolling again moves you on, and the property you left stays unowned. You can only buy or auction the property you landed on during this turn, never the square you started the turn on.
+
 End Turn is only valid after the current player has rolled. The UI disables it before rolling, and the server rejects unrolled end-turn actions.
 
 **Rolling three consecutive doubles** sends you directly to Jail.

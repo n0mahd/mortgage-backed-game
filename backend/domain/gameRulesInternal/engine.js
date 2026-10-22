@@ -658,7 +658,14 @@ function summarizeCardEffect(before, state, player) {
     return parts.length ? parts.join('; ') : 'no immediate cash or position change';
 }
 
+// Doubles leave diceRolled false so the player can roll again, but they have still
+// landed; lastDiceRoll is cleared when a turn ends or a Jail fine/card is used.
+function hasMovedThisTurn(state, player) {
+    return !!player.diceRolled || Array.isArray(state.lastDiceRoll);
+}
+
 function buyProperty(state, player, events) {
+    if (!hasMovedThisTurn(state, player)) throw new GameRuleError(400, 'Roll before buying a property');
     const square = BOARD_SQUARES[player.position || 0];
     if (!square || !square.propertyId) throw new GameRuleError(400, 'You are not on a property');
     const prop = state.properties.find(p => p.id === square.propertyId);
@@ -674,7 +681,7 @@ function buyProperty(state, player, events) {
 
 function startAuction(state, player, events) {
     if (state.auction?.status === 'open') throw new GameRuleError(400, 'Auction already in progress');
-    if (!player.diceRolled) throw new GameRuleError(400, 'Roll before starting an auction');
+    if (!hasMovedThisTurn(state, player)) throw new GameRuleError(400, 'Roll before starting an auction');
     const square = BOARD_SQUARES[player.position || 0];
     if (!square || !square.propertyId) throw new GameRuleError(400, 'You are not on a property');
     const prop = state.properties.find(p => p.id === square.propertyId);

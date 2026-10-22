@@ -280,10 +280,10 @@ function getPlayerColor(player) {
 }
 
 function renderTurnTicket(gameState, currentPlayer, isMyTurn, paused) {
-    const hasRolled = !!currentPlayer.diceRolled;
-    const dice = hasRolled ? gameState.lastDiceRoll : null;
+    const { hasRolled, hasMoved, rollAgain } = getRollState(gameState, currentPlayer);
+    const dice = hasMoved ? gameState.lastDiceRoll : null;
     const diceSignature = `${gameState.currentPlayerIndex}|${hasRolled}|${Array.isArray(dice) ? dice.join(',') : ''}`;
-    const rolling = hasRolled && previousDiceSignature !== null && previousDiceSignature !== diceSignature;
+    const rolling = !!dice && previousDiceSignature !== null && previousDiceSignature !== diceSignature;
     previousDiceSignature = diceSignature;
 
     const me = currentPlayerData || currentPlayer;
@@ -292,6 +292,7 @@ function renderTurnTicket(gameState, currentPlayer, isMyTurn, paused) {
     let status;
     if (gameState.ended) status = 'Final standings are in the Game Over summary';
     else if (paused) status = 'Paused by the host';
+    else if (rollAgain) status = `Doubles! Now on ${BOARD_SQUARES[currentPlayer.position || 0]?.name || 'the board'}, ${isMyTurn ? 'roll again' : 'rolling again'}`;
     else if (currentPlayer.inJail && !hasRolled) status = isMyTurn ? 'In Jail. Roll doubles, pay $50, or use a card.' : 'In Jail, deciding how to get out';
     else if (!hasRolled) status = isMyTurn ? 'Roll to move' : 'About to roll';
     else status = `Rolled ${dice ? dice[0] + dice[1] : ''}, now on ${BOARD_SQUARES[currentPlayer.position || 0]?.name || 'the board'}`;
@@ -460,20 +461,20 @@ function formatAuctionExpiry(expiresAt) {
 }
 
 function renderTurnChecklist(gameState, currentPlayer, landing, isMyTurn) {
-    const hasRolled = !!currentPlayer.diceRolled;
+    const { hasRolled, hasMoved, rollAgain } = getRollState(gameState, currentPlayer);
     const ended = !!gameState.ended;
     const waitingForJailChoice = currentPlayer.inJail && !hasRolled;
     const items = [
         {
             label: waitingForJailChoice ? 'Jail' : 'Roll',
-            state: hasRolled ? 'complete' : (isMyTurn ? 'current' : 'upcoming'),
-            detail: hasRolled
-                ? formatDiceLabel(gameState.lastDiceRoll)
+            state: hasMoved && !(rollAgain && !landing.canBuy) ? 'complete' : (isMyTurn ? 'current' : 'upcoming'),
+            detail: hasMoved
+                ? `${formatDiceLabel(gameState.lastDiceRoll)}${rollAgain ? ', roll again' : ''}`
                 : (waitingForJailChoice ? 'Roll doubles, pay fine, or use card' : 'Waiting for dice'),
         },
         {
             label: 'Resolve',
-            state: !hasRolled ? 'upcoming' : (landing.canBuy || gameState.auction?.status === 'open' ? 'current' : 'complete'),
+            state: !hasMoved ? 'upcoming' : (landing.canBuy || gameState.auction?.status === 'open' ? 'current' : 'complete'),
             detail: landing.canBuy ? 'Property available' : landing.squareName,
         },
         {
@@ -512,6 +513,14 @@ function formatDiceLabel(dice) {
     return `${dice[0]} + ${dice[1]} = ${dice[0] + dice[1]}`;
 }
 
+// diceRolled means the move is finished. After doubles it stays false so the player
+// can roll again, but they have still landed: lastDiceRoll is set for this turn.
+function getRollState(gameState, player) {
+    const hasRolled = !!player.diceRolled;
+    const hasMoved = hasRolled || Array.isArray(gameState.lastDiceRoll);
+    return { hasRolled, hasMoved, rollAgain: hasMoved && !hasRolled };
+}
+
 function getLandingSummary(gameState, player) {
     const position = player.position || 0;
     const square = BOARD_SQUARES[position] || BOARD_SQUARES[0];
@@ -521,7 +530,17 @@ function getLandingSummary(gameState, player) {
         ? gameState.properties.find(prop => prop.id === square.propertyId)
         : null;
     const isBuyableSquare = ['property', 'railroad', 'utility'].includes(square.type);
-    const canBuy = !!(isBuyableSquare && property && !property.ownerId);
+    const unowned = !!(isBuyableSquare && property && !property.ownerId);
+    const canBuy = unowned && getRollState(gameState, player).hasMoved;
+
+    if (unowned && !canBuy) {
+        return {
+            label,
+            squareName: square.name,
+            detail: `Unowned ${square.type.replace('_', ' ')}. You can only buy where you land, so roll first.`,
+            canBuy,
+        };
+    }
 
     if (canBuy) {
         return {
@@ -993,7 +1012,7 @@ function renderImprovePropertiesButton(gameState, player, auctionOpen) {
 function renderActionButtons() {
     const gameState = currentGame.game_state;
     const currentPlayer = gameState.players[gameState.currentPlayerIndex];
-    const hasRolled = currentPlayer.diceRolled;
+    const { hasRolled, rollAgain } = getRollState(gameState, currentPlayer);
     const landing = getLandingSummary(gameState, currentPlayer);
     const turnEnd = getTurnEndOutlook(gameState, currentPlayer);
     const owesMoney = turnEnd.goesBankrupt;
@@ -1002,7 +1021,7 @@ function renderActionButtons() {
         : (turnEnd.settlesClaim ? `Pay ${formatMoney(turnEnd.unpaid)} & End Turn` : 'End Turn');
     const auctionOpen = gameState.auction?.status === 'open';
     const waitingForJailChoice = currentPlayer.inJail && !hasRolled;
-    const rollButtonLabel = waitingForJailChoice ? 'Roll for Doubles' : 'Roll Dice';
+    const rollButtonLabel = waitingForJailChoice ? 'Roll for Doubles' : (rollAgain ? 'Roll Again' : 'Roll Dice');
     const buyInDock = landing.canBuy && !auctionOpen;
 
     const jailChoiceButtons = waitingForJailChoice ? `
@@ -1015,12 +1034,17 @@ function renderActionButtons() {
     const endTurnDisabled = !hasRolled || auctionOpen
         ? `disabled title="${auctionOpen ? 'Resolve auction before ending your turn' : 'Roll before ending your turn'}"`
         : '';
-    const endTurnButton = `<button class="btn ${endTurnClass} action-btn-end-turn" data-game-action="end-turn" ${endTurnDisabled}>${escapeHtml(auctionOpen ? 'Resolve Auction' : endTurnLabel)}</button>`;
-    const primaryButton = !hasRolled
-        ? `<button class="btn btn-primary" data-game-action="roll-dice">${rollButtonLabel}</button>`
-        : (buyInDock ? `<button class="btn btn-success action-btn-buy" data-game-action="open-buy-property">Buy for ${formatMoney(landing.price)}</button>` : '');
+    // After doubles on an unowned property, Buy takes the primary slot and Roll Again
+    // takes End Turn's, which stays unavailable until the final roll anyway.
+    const rollAgainButton = rollAgain && buyInDock
+        ? `<button class="btn btn-secondary" data-game-action="roll-dice">${rollButtonLabel}</button>`
+        : '';
+    const endTurnButton = rollAgainButton || `<button class="btn ${endTurnClass} action-btn-end-turn" data-game-action="end-turn" ${endTurnDisabled}>${escapeHtml(auctionOpen ? 'Resolve Auction' : endTurnLabel)}</button>`;
+    const primaryButton = buyInDock
+        ? `<button class="btn btn-success action-btn-buy" data-game-action="open-buy-property">Buy for ${formatMoney(landing.price)}</button>`
+        : (!hasRolled && !auctionOpen ? `<button class="btn btn-primary" data-game-action="roll-dice">${rollButtonLabel}</button>` : '');
 
-    const buyTile = buyInDock || !hasRolled ? '' : (auctionOpen
+    const buyTile = buyInDock || (!hasRolled && !auctionOpen) ? '' : (auctionOpen
         ? '<button class="btn btn-secondary btn-sm action-btn-buy" disabled>Auction Open<small>Bid in the panel above</small></button>'
         : `<button class="btn btn-secondary btn-sm action-btn-buy" disabled title="${escapeAttr(landing.detail)}">${escapeHtml(buyUnavailableLabel(landing))}<small>${escapeHtml(landing.squareName)}</small></button>`);
 
