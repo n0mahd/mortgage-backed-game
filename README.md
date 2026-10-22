@@ -98,9 +98,9 @@ Tap **Buy Property** after landing on an unowned property. Cash is deducted imme
 
 Requires owning at least one property.
 
-Tap **Create IPO** and select which properties to bundle into a corporation. Set a **ticker symbol**, **number of shares** (1–12, default 10), and **price per share**. The selected properties move out of your personal holdings into the corporation and you receive all of its shares. A color group with houses or hotels must go in whole. Nobody can buy your shares without your agreement: shares change hands through trade offers in the Market, and whoever gains a majority becomes chairman.
+Tap **Create IPO** and select which properties to bundle into a corporation. Set a **ticker symbol**, **number of shares** (1–12,000, default 10), and **price per share**. The selected properties move out of your personal holdings into the corporation and you receive all of its shares. A color group with houses or hotels must go in whole. Nobody can buy your shares without your agreement: shares change hands through trade offers in the Market, and whoever gains a majority becomes chairman.
 
-If you already run a corporation, tap **Add properties to <ticker>** on its card in **Corporations** to move more properties into it. When other players hold shares, you can take whole new shares at today's value per share (12 shares at most), so their stakes keep their value. Or you can give the property outright, which raises every share's value.
+If you already run a corporation, tap **Add properties to <ticker>** on its card in **Corporations** to move more properties into it. When other players hold shares, you can take whole new shares at today's value per share, rounded to the nearest share (12,000 shares at most), so their stakes keep their value. Or you can give the property outright, which raises every share's value.
 
 ---
 

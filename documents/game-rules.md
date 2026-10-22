@@ -201,7 +201,7 @@ Any player may bundle one or more of their properties into a corporation and sel
 
 1. On your turn, go to the **Game** tab and click **Create IPO**.
 2. Select the properties to include as corporate assets. A color group with buildings must go in whole: ticking one of its streets ticks the rest.
-3. Set a **ticker symbol** (e.g., `MBS`), the **number of shares** to issue (default 10, at most 12), and the **price per share**.
+3. Set a **ticker symbol** (e.g., `MBS`), the **number of shares** to issue (default 10, at most 12,000), and the **price per share**.
 4. Click **Create** — the selected properties transfer into the corporation and you receive all of its shares.
 
 ### Adding Properties to a Corporation You Run
@@ -211,7 +211,7 @@ If you run a corporation (you're its chairman or hold more than half its shares)
 1. Open **Corporations** from the Game tab and tap **Add properties to MBS** on that corporation's card. **Create IPO** also lists the companies you run.
 2. Tick the properties to add. A property backing a loan can't go in until the loan is paid off or refinanced. A color group with buildings goes in whole: ticking one of its streets ticks the rest.
 3. If other players hold shares, choose what you get back:
-   - **New shares** (the usual choice). You get new shares at today's value per share, so the other holders' stakes keep their value. For example, MBS has 10 shares and is worth $1,200, so one share is worth $120. Illinois Ave ($240) gets you 2 new shares, and MBS then has 12. Shares are whole numbers, rounded down, and a corporation can't go over 12 shares. Any value the new shares don't cover goes to every shareholder, and the screen tells you how much the others gain before you confirm.
+   - **New shares** (the usual choice). You get new shares at today's value per share, so the other holders' stakes keep their value. For example, MBS has 10 shares and is worth $1,200, so one share is worth $120. Illinois Ave ($240) gets you 2 new shares, and MBS then has 12. Shares are whole numbers rounded to the nearest share, and a corporation can't go over 12,000 shares. Rounding can move up to half a share's value between you and the other holders, and the screen shows how much before you confirm. A property worth less than half a share gets no new shares, so it can only go in as a gift.
    - **Nothing, it's a gift.** Every share rises in value, including the other holders'.
 4. Check **Before you confirm** for the corporation's value, your shares and your net-worth change, then tap **Add**. Nobody else has to agree.
 

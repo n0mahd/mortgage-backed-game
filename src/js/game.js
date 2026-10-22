@@ -2912,7 +2912,7 @@ function offerPropertyForShares(corpId) {
 
 // Adding your own properties to a company you run (add_to_corporation). The
 // server decides the share count; this only previews it.
-const MAX_CORPORATION_SHARES = 12;
+const MAX_CORPORATION_SHARES = 12000;
 let addToCorpId = null;
 let addToCorpChoice = 'shares'; // the player's pick; shown when shares are possible
 

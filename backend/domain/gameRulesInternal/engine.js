@@ -81,7 +81,7 @@ const HOUSE_COSTS = {
 
 const JAIL_FINE_AMOUNT = 50;
 const JAIL_CARD_ASSET_ID = 'get-out-of-jail-free';
-const MAX_CORPORATION_SHARES = 12;
+const MAX_CORPORATION_SHARES = 12000;
 
 const CHANCE_CARDS = [
     { id: 'ch-1', text: 'Advance to GO. Collect $200.', action: { type: 'advance_to', position: 0 } },
@@ -875,7 +875,7 @@ function createIPO(state, player, payload, events) {
     const totalShares = positiveInt(payload.totalShares || payload.shares, 'shares');
     const pricePerShare = positiveNumber(payload.pricePerShare, 'pricePerShare');
     if (!ticker) throw new GameRuleError(400, 'Ticker is required');
-    if (totalShares > MAX_CORPORATION_SHARES) throw new GameRuleError(400, `Shares must be ${MAX_CORPORATION_SHARES} or fewer`);
+    if (totalShares > MAX_CORPORATION_SHARES) throw new GameRuleError(400, `Shares must be ${MAX_CORPORATION_SHARES.toLocaleString('en-US')} or fewer`);
     if (state.corporations.some(c => c.ticker === ticker)) throw new GameRuleError(400, 'Ticker already exists');
     if (assetIds.length === 0) throw new GameRuleError(400, 'At least one asset is required');
     const assets = assetIds.map(id => {
@@ -923,9 +923,8 @@ function createIPO(state, player, payload, events) {
 
 // Whoever runs an LLC can put more of their own properties into it. If other
 // players hold shares, the runner can take new shares priced at the current
-// value per share, so the other stakes keep their value. Shares are whole
-// (rounded down) and the 12-share cap holds; value the new shares don't cover
-// is a gift to every shareholder.
+// value per share, so the other stakes keep their value. Shares are whole,
+// rounded to the nearest share, so stakes can move by up to half a share.
 function addToCorporation(state, player, payload, events) {
     const corp = state.corporations.find(c => c.id === payload.corpId);
     if (!corp) throw new GameRuleError(404, 'Corporation not found');
@@ -969,7 +968,7 @@ function addToCorporation(state, player, payload, events) {
 }
 
 // How many whole new shares a contribution is worth at the LLC's current value
-// per share, rounded down and kept within the share cap. newShares is 0, with
+// per share, rounded to the nearest share and kept within the share cap. newShares is 0, with
 // a reason, when shares can't or needn't be issued.
 function corporationContributionQuote(state, corp, userId, assetIds) {
     const value = assetIds.reduce((sum, id) => sum + collateralValue(state.properties.find(p => p.id === id)), 0);
@@ -983,12 +982,12 @@ function corporationContributionQuote(state, corp, userId, assetIds) {
     } else if (netAssetValue <= 0) {
         quote.noSharesReason = `${corp.ticker} is worth $0 or less, so new shares can't be priced`;
     } else {
-        quote.fairShares = Math.floor((value * totalShares) / netAssetValue);
+        quote.fairShares = Math.round((value * totalShares) / netAssetValue);
         quote.newShares = Math.min(quote.fairShares, room);
         if (room === 0) {
-            quote.noSharesReason = `${corp.ticker} already has ${MAX_CORPORATION_SHARES} shares, the most allowed`;
+            quote.noSharesReason = `${corp.ticker} already has ${MAX_CORPORATION_SHARES.toLocaleString('en-US')} shares, the most allowed`;
         } else if (quote.fairShares === 0) {
-            quote.noSharesReason = `That is worth less than one ${corp.ticker} share`;
+            quote.noSharesReason = `That is worth less than half a ${corp.ticker} share`;
         }
     }
     return quote;
