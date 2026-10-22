@@ -1,4 +1,13 @@
 const { v4: uuidv4 } = require('uuid');
+const {
+    DEFAULT_CORPORATION_SHARES,
+    MAX_CORPORATION_SHARES,
+    RENT_POLICY_COOLDOWN_TURNS,
+    normalizeRentPolicy,
+    splitByShares,
+    shareholderRentDue,
+    sharesForPrice,
+} = require('./corporateFinance');
 
 const MONOPOLY_PROPERTIES = [
     { name: 'Mediterranean Avenue', color: 'Brown', price: 60, rent: [2, 10, 30, 90, 160, 250] },
@@ -178,6 +187,10 @@ function normalizeState(raw) {
         corp.insolvent = !!corp.insolvent || corp.status === 'insolvent';
         corp.status = corp.insolvent ? 'insolvent' : (corp.status || 'active');
         corp.availableShares = Math.max(0, Math.floor(Number(corp.availableShares ?? corp.totalShares ?? 0)));
+        corp.rentPolicy = normalizeRentPolicy(corp.rentPolicy);
+        corp.rentPolicyLockedTurns = Math.max(0, Math.floor(Number(corp.rentPolicyLockedTurns || 0)));
+        corp.rentPolicyLockSkipsTurnOf = corp.rentPolicyLockSkipsTurnOf || null;
+        corp.rentPolicyVote = normalizeRentPolicyVote(corp.rentPolicyVote);
         if (corp.insolvent) {
             corp.chairmanId = corp.chairmanId || null;
             corp.chairmanName = corp.chairmanName || null;
@@ -213,6 +226,10 @@ function normalizeState(raw) {
                 : null),
         }))
         : [];
+    // Keep every pending property offer and the most recent resolved ones.
+    const propertyOffers = Array.isArray(state.propertyOffers) ? state.propertyOffers : [];
+    const resolvedOffers = propertyOffers.filter(offer => offer.status !== 'pending').slice(-30);
+    state.propertyOffers = propertyOffers.filter(offer => offer.status === 'pending' || resolvedOffers.includes(offer));
     state.auction = normalizeAuction(state.auction);
     state.bankruptcyClaims = normalizeBankruptcyClaims(state.bankruptcyClaims);
     state.turnCashFlow = state.turnCashFlow && typeof state.turnCashFlow === 'object' ? state.turnCashFlow : {};
@@ -294,7 +311,7 @@ function applyAction(inputState, actorUserId, action, options = {}) {
             break;
         case 'buy_property':
             requireTurn();
-            buyProperty(state, actor, events);
+            buyProperty(state, actor, action.payload || {}, events);
             break;
         case 'start_auction':
             requireTurn();
@@ -318,9 +335,33 @@ function applyAction(inputState, actorUserId, action, options = {}) {
             requireTurn();
             createIPO(state, actor, action.payload || {}, events);
             break;
+        case 'add_to_corporation':
+            requireTurn();
+            addToCorporation(state, actor, action.payload || {}, events);
+            break;
         case 'buy_shares':
             requireTurn();
             buyShares(state, actor, action.payload || {}, events);
+            break;
+        case 'set_rent_policy':
+            requireTurn();
+            setRentPolicy(state, actor, action.payload || {}, events);
+            break;
+        case 'propose_rent_policy_change':
+            proposeRentPolicyChange(state, actor, action.payload || {}, events);
+            break;
+        case 'vote_rent_policy_change':
+            voteRentPolicyChange(state, actor, action.payload || {}, events);
+            break;
+        case 'pay_dividend':
+            requireTurn();
+            payDividend(state, actor, action.payload || {}, events);
+            break;
+        case 'offer_property_to_corporation':
+            offerPropertyToCorporation(state, actor, action.payload || {}, events);
+            break;
+        case 'respond_property_offer':
+            respondPropertyOffer(state, actor, action.payload || {}, events);
             break;
         case 'change_chairman':
             changeChairman(state, actor, action.payload || {}, events);
@@ -388,6 +429,7 @@ function applyAction(inputState, actorUserId, action, options = {}) {
     if (!tradeOfferResolutionTypes.has(action.type)) {
         expirePendingTradeOffersIfNeeded(state, actor, events);
     }
+    expirePendingPropertyOffers(state, actor, events);
 
     syncDerivedPortfolios(state);
     const invariant = validateStateInvariants(state);
@@ -496,14 +538,13 @@ function processLanding(state, player, square, diceTotal, events, options = {}) 
         if (!owner && !corporationOwner) return;
         if (owner && owner.bankrupt) return;
         if (corporationOwner && corporationOwner.insolvent) return;
-        const rent = calculateRentForLanding(state, prop.id, diceTotal, options);
-        const creditor = owner
-            ? { type: 'player', id: owner.userId, name: owner.name, entity: owner }
-            : { type: 'corporation', id: corporationOwner.id, name: `[${corporationOwner.ticker}]`, entity: corporationOwner };
-        payCreditorAvailableCash(state, player, creditor, rent, `Rent for ${square.name}`, events, {
-            propertyId: prop.id,
-            propertyName: prop.name,
-        });
+        const fullRent = calculateRentForLanding(state, prop.id, diceTotal, options);
+        if (owner) {
+            payCreditorAvailableCash(state, player, { type: 'player', id: owner.userId, name: owner.name, entity: owner },
+                fullRent, `Rent for ${square.name}`, events, { propertyId: prop.id, propertyName: prop.name });
+            return;
+        }
+        payCorporationRent(state, player, corporationOwner, prop, `Rent for ${square.name}`, fullRent, events);
         return;
     }
     if (square.type === 'tax') {
@@ -665,12 +706,16 @@ function hasMovedThisTurn(state, player) {
     return !!player.diceRolled || Array.isArray(state.lastDiceRoll);
 }
 
-function buyProperty(state, player, events) {
+function buyProperty(state, player, payload, events) {
     if (!hasMovedThisTurn(state, player)) throw new GameRuleError(400, 'Roll before buying a property');
     const square = BOARD_SQUARES[player.position || 0];
     if (!square || !square.propertyId) throw new GameRuleError(400, 'You are not on a property');
     const prop = state.properties.find(p => p.id === square.propertyId);
     if (!prop || prop.ownerId) throw new GameRuleError(400, 'Property is not available');
+    if (payload.corpId) {
+        buyPropertyForCorporation(state, player, runCorporation(state, player, payload.corpId), prop, events);
+        return;
+    }
     if (player.cash < prop.price) throw new GameRuleError(400, 'Insufficient funds');
     prop.ownerId = player.userId;
     prop.ownerName = player.name;
@@ -875,9 +920,10 @@ function hostCancelAuction(state, actor, events) {
 function createIPO(state, player, payload, events) {
     const ticker = String(payload.ticker || '').trim().toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 8);
     const assetIds = Array.isArray(payload.assetIds) ? payload.assetIds : [];
-    const totalShares = positiveInt(payload.totalShares || payload.shares, 'shares');
+    const requestedShares = payload.totalShares || payload.shares;
+    const totalShares = requestedShares ? positiveInt(requestedShares, 'shares') : DEFAULT_CORPORATION_SHARES;
     if (!ticker) throw new GameRuleError(400, 'Ticker is required');
-    if (totalShares > 12) throw new GameRuleError(400, 'Shares must be 12 or fewer');
+    if (totalShares > DEFAULT_CORPORATION_SHARES) throw new GameRuleError(400, `Shares must be ${DEFAULT_CORPORATION_SHARES} or fewer`);
     if (state.corporations.some(c => c.ticker === ticker)) throw new GameRuleError(400, 'Ticker already exists');
     if (assetIds.length === 0) throw new GameRuleError(400, 'At least one asset is required');
     const assets = assetIds.map(id => {
@@ -885,13 +931,8 @@ function createIPO(state, player, payload, events) {
         if (!prop || prop.ownerId !== player.userId) throw new GameRuleError(400, 'IPO assets must be owned by founder');
         return { id: prop.id, name: prop.name, value: prop.price, color: prop.color };
     });
-    new Set(assets.map(asset => asset.color)).forEach(color => {
-        if (!groupHasBuildings(state, color)) return;
-        const missing = state.properties.filter(p => p.color === color && !assetIds.includes(p.id));
-        if (missing.length) {
-            throw new GameRuleError(400, `The ${color} group has buildings, so the IPO must include the whole group. Also select ${missing.map(p => p.name).join(' and ')}.`);
-        }
-    });
+    requireUnpledged(state, assetIds);
+    requireWholeBuiltGroups(state, assetIds, 'the IPO');
     const corporation = {
         id: `corp-${uuidv4()}`,
         ticker,
@@ -909,6 +950,7 @@ function createIPO(state, player, payload, events) {
         cash: 0,
         debts: [],
         chairmanVotes: [],
+        rentPolicy: normalizeRentPolicy(),
     };
     state.corporations.push(corporation);
     assets.forEach(asset => {
@@ -924,6 +966,114 @@ function createIPO(state, player, payload, events) {
         listedShares: totalShares,
     }));
     log(state, `${player.name} created ${ticker} IPO: ${totalShares} shares, all held by ${player.name}`);
+}
+
+// Whoever runs an LLC can put more of their own properties into it. If other
+// players hold shares, the runner can take new shares priced at the current
+// value per share, so the other stakes keep their value. Shares are whole
+// (rounded down) and the 12-share cap holds; value the new shares don't cover
+// is a gift to every shareholder.
+function addToCorporation(state, player, payload, events) {
+    const corp = state.corporations.find(c => c.id === payload.corpId);
+    if (!corp) throw new GameRuleError(404, 'Corporation not found');
+    if (corp.insolvent) throw new GameRuleError(400, `${corp.ticker} is insolvent and cannot take property`);
+    if (!controlsCorporation(corp, player.userId)) {
+        throw new GameRuleError(403, `You don't run ${corp.ticker}. To put a property into it, offer it to ${corp.chairmanName || 'the chairman'} in a trade.`);
+    }
+    const assetIds = uniqueIds(payload.assetIds);
+    if (assetIds.length === 0) throw new GameRuleError(400, `Choose a property to put into ${corp.ticker}`);
+    requireNoOpenClaim(state, player, `put property into ${corp.ticker}`);
+    assetIds.forEach(id => {
+        const prop = state.properties.find(p => p.id === id);
+        if (!prop || prop.ownerId !== player.userId) throw new GameRuleError(400, 'You can only put in properties you own');
+    });
+    requireUnpledged(state, assetIds);
+    requireWholeBuiltGroups(state, assetIds, corp.ticker);
+    const quote = corporationContributionQuote(state, corp, player.userId, assetIds);
+    if (payload.issueShares === true && quote.newShares === 0) throw new GameRuleError(400, quote.noSharesReason);
+    const newShares = payload.issueShares === true ? quote.newShares : 0;
+
+    transferPropertiesToCorporation(state, player, corp, assetIds);
+    // The chair stays put: the runner already chairs or holds a majority.
+    if (newShares > 0) {
+        corp.totalShares = Number(corp.totalShares || 0) + newShares;
+        addShareholderShares(corp, player, newShares);
+        normalizeCorporationShareLedger(state, corp);
+    }
+    const names = assetIds.map(id => state.properties.find(p => p.id === id).name);
+    events.push(makeEvent(player, 'corporation_assets_added', {
+        actor: player.name,
+        ticker: corp.ticker,
+        properties: names,
+        value: quote.value,
+        newShares,
+        totalShares: corp.totalShares,
+    }));
+    const sharesNote = newShares > 0
+        ? ` and received ${newShares} new share${newShares === 1 ? '' : 's'} (${corp.ticker} now has ${corp.totalShares})`
+        : '';
+    log(state, `${player.name} put ${names.join(', ')} into ${corp.ticker}${sharesNote}`);
+}
+
+// How many whole new shares a contribution is worth at the LLC's current value
+// per share, rounded down and kept within the share cap. The price defaults to
+// the properties' book value (price plus buildings); a property offer can name
+// another price. newShares is 0, with a reason, when shares can't or needn't
+// be issued.
+function corporationContributionQuote(state, corp, userId, assetIds, price = null) {
+    const value = assetIds.reduce((sum, id) => sum + collateralValue(state.properties.find(p => p.id === id)), 0);
+    const agreedPrice = price == null ? value : Number(price);
+    const totalShares = Number(corp.totalShares || 0);
+    const otherShares = totalShares - sharesFor(corp, userId);
+    const netAssetValue = calculateCorporationNetAssetValue(state, corp);
+    const room = Math.max(0, MAX_CORPORATION_SHARES - totalShares);
+    const quote = { value, price: agreedPrice, newShares: 0, fairShares: 0, noSharesReason: null };
+    if (otherShares <= 0) {
+        quote.noSharesReason = `You hold every ${corp.ticker} share, so new shares would change nothing`;
+    } else if (netAssetValue <= 0) {
+        quote.noSharesReason = `${corp.ticker} is worth $0 or less, so new shares can't be priced`;
+    } else {
+        quote.fairShares = sharesForPrice(agreedPrice, totalShares, netAssetValue);
+        quote.newShares = Math.min(quote.fairShares, room);
+        if (room === 0) {
+            quote.noSharesReason = `${corp.ticker} already has ${MAX_CORPORATION_SHARES} shares, the most allowed`;
+        } else if (quote.fairShares === 0) {
+            quote.noSharesReason = `That is worth less than one ${corp.ticker} share`;
+        }
+    }
+    return quote;
+}
+
+// Adding property never raises cash, so a player with an unpaid claim can't do
+// it: the property would only move out of the creditor's reach. (An IPO stays
+// open to them, since selling its shares is how a built group raises cash.)
+function requireNoOpenClaim(state, player, what) {
+    if (getBankruptcyClaim(state, player.userId)) {
+        throw new GameRuleError(400, `You owe an unpaid claim, so you can't ${what} until it's paid`);
+    }
+}
+
+// A property backing a loan stays with its owner until the loan is paid or
+// refinanced onto other collateral.
+function requireUnpledged(state, propertyIds) {
+    const pledged = pledgedPropertyIds(state);
+    propertyIds.forEach(id => {
+        if (!pledged.has(id)) return;
+        const prop = state.properties.find(p => p.id === id);
+        throw new GameRuleError(400, `${prop?.name || id} backs a loan. Pay the loan off or refinance it first.`);
+    });
+}
+
+// A colour group with buildings moves into an LLC whole.
+function requireWholeBuiltGroups(state, propertyIds, destination) {
+    const colors = new Set(propertyIds.map(id => state.properties.find(p => p.id === id)?.color).filter(Boolean));
+    colors.forEach(color => {
+        if (!groupHasBuildings(state, color)) return;
+        const missing = state.properties.filter(p => p.color === color && !propertyIds.includes(p.id));
+        if (missing.length) {
+            throw new GameRuleError(400, `The ${color} group has buildings, so ${destination} must take the whole group. Also select ${missing.map(p => p.name).join(' and ')}.`);
+        }
+    });
 }
 
 function buyShares(state, player, payload, events) {
@@ -968,6 +1118,374 @@ function buyShares(state, player, payload, events) {
         seller: '[Treasury]',
     }));
     log(state, `${player.name} bought ${shares} treasury share(s) of ${corp.ticker} at $${pricePerShare.toFixed(2)} each for $${totalCost.toFixed(2)}`);
+}
+
+// ---- Running a corporation ------------------------------------------------
+// The chairman (or a majority holder) runs an LLC: sets what happens to its
+// rent, pays dividends, and spends the treasury on property, houses and
+// trades. A runner can't move treasury cash to themselves except through a
+// dividend every holder shares.
+
+function runCorporation(state, player, corpId) {
+    const corp = state.corporations.find(c => c.id === corpId);
+    if (!corp) throw new GameRuleError(404, 'Corporation not found');
+    if (corp.insolvent) throw new GameRuleError(400, `${corp.ticker} is insolvent`);
+    if (!controlsCorporation(corp, player.userId)) {
+        throw new GameRuleError(403, `Only ${corp.ticker}'s chairman or a majority holder can do that`);
+    }
+    return corp;
+}
+
+function requireTreasuryCash(corp, amount) {
+    if (Number(corp.cash || 0) + 1e-9 < amount) {
+        throw new GameRuleError(400, `${corp.ticker}'s treasury has $${Number(corp.cash || 0).toFixed(2)}, not enough for $${Number(amount).toFixed(2)}`);
+    }
+}
+
+// Payout sends rent straight to the shareholders; Reinvest keeps it in the
+// treasury. The runner changes it on their own only before they roll, so
+// nobody can switch it after seeing where anyone landed, and a change then
+// stays put for their next RENT_POLICY_COOLDOWN_TURNS turns. During that
+// cooldown it changes only if every shareholder agrees (a policy vote).
+function setRentPolicy(state, player, payload, events) {
+    const corp = runCorporation(state, player, payload.corpId);
+    const policy = requireRentPolicy(payload.policy);
+    if (hasMovedThisTurn(state, player)) {
+        throw new GameRuleError(400, `${corp.ticker}'s rent policy can only change at the start of your turn, before you roll`);
+    }
+    if (corp.rentPolicy === policy) throw new GameRuleError(400, `${corp.ticker} is already in ${policy} mode`);
+    if (corp.rentPolicyLockedTurns > 0) {
+        throw new GameRuleError(400, `${corp.ticker}'s rent policy is locked for ${corp.rentPolicyLockedTurns} more of your turns. To change it sooner, every shareholder has to agree: propose the change to them.`);
+    }
+    applyRentPolicy(state, corp, policy, player, events, 'chairman');
+}
+
+function requireRentPolicy(value) {
+    const policy = String(value || '');
+    if (!['payout', 'reinvest'].includes(policy)) throw new GameRuleError(400, "Rent policy must be 'payout' or 'reinvest'");
+    return policy;
+}
+
+// rentPolicyLockedTurns counts the chairman's turns still locked. A change
+// made during the chairman's own turn doesn't count that turn
+// (rentPolicyLockSkipsTurnOf), so the lock always covers their next turns.
+function applyRentPolicy(state, corp, policy, actor, events, method) {
+    corp.rentPolicy = policy;
+    corp.rentPolicyLockedTurns = RENT_POLICY_COOLDOWN_TURNS;
+    const current = state.players[state.currentPlayerIndex];
+    corp.rentPolicyLockSkipsTurnOf = current && current.userId === corp.chairmanId ? current.userId : null;
+    corp.rentPolicyVote = null;
+    events.push(makeEvent(actor, 'rent_policy_changed', { actor: actor.name, ticker: corp.ticker, policy, method, lockedTurns: RENT_POLICY_COOLDOWN_TURNS }));
+    const label = policy === 'payout' ? 'Payout: rent now goes to its shareholders' : 'Reinvest: rent now stays in its treasury';
+    const what = method === 'unanimous'
+        ? `Every ${corp.ticker} shareholder agreed to switch ${corp.ticker} to ${label}.`
+        : `${actor.name} switched ${corp.ticker} to ${label}.`;
+    log(state, `${what} The chairman can't change it alone for their next ${RENT_POLICY_COOLDOWN_TURNS} turns.`);
+}
+
+// A policy vote: any shareholder proposes a switch; it happens the moment
+// every current shareholder has agreed, and any one of them can reject it.
+function normalizeRentPolicyVote(vote) {
+    if (!vote || !['payout', 'reinvest'].includes(vote.policy)) return null;
+    return {
+        policy: vote.policy,
+        proposedById: vote.proposedById || null,
+        proposedByName: vote.proposedByName || null,
+        supporterIds: Array.isArray(vote.supporterIds) ? [...new Set(vote.supporterIds.filter(Boolean))] : [],
+        createdAt: vote.createdAt || new Date().toISOString(),
+    };
+}
+
+function shareholderForVote(state, corp, player) {
+    if (!corp) throw new GameRuleError(404, 'Corporation not found');
+    if (corp.insolvent) throw new GameRuleError(400, `${corp.ticker} is insolvent`);
+    if (sharesFor(corp, player.userId) <= 0) throw new GameRuleError(403, `Only ${corp.ticker} shareholders can vote on its rent policy`);
+}
+
+function proposeRentPolicyChange(state, player, payload, events) {
+    const corp = state.corporations.find(c => c.id === payload.corpId);
+    shareholderForVote(state, corp, player);
+    const policy = requireRentPolicy(payload.policy);
+    if (corp.rentPolicy === policy) throw new GameRuleError(400, `${corp.ticker} is already in ${policy} mode`);
+    corp.rentPolicyVote = {
+        policy,
+        proposedById: player.userId,
+        proposedByName: player.name,
+        supporterIds: [player.userId],
+        createdAt: new Date().toISOString(),
+    };
+    events.push(makeEvent(player, 'rent_policy_vote_proposed', { actor: player.name, ticker: corp.ticker, policy }));
+    log(state, `${player.name} proposed switching ${corp.ticker} to ${policy === 'payout' ? 'Payout' : 'Reinvest'}. It happens if every shareholder agrees.`);
+    passRentPolicyVoteIfUnanimous(state, corp, player, events);
+}
+
+function voteRentPolicyChange(state, player, payload, events) {
+    const corp = state.corporations.find(c => c.id === payload.corpId);
+    shareholderForVote(state, corp, player);
+    const vote = corp.rentPolicyVote;
+    if (!vote) throw new GameRuleError(404, `${corp.ticker} has no rent policy vote open`);
+    if (payload.approve === false) {
+        corp.rentPolicyVote = null;
+        events.push(makeEvent(player, 'rent_policy_vote_rejected', { actor: player.name, ticker: corp.ticker, policy: vote.policy }));
+        log(state, `${player.name} rejected switching ${corp.ticker} to ${vote.policy === 'payout' ? 'Payout' : 'Reinvest'}.`);
+        return;
+    }
+    if (!vote.supporterIds.includes(player.userId)) vote.supporterIds.push(player.userId);
+    events.push(makeEvent(player, 'rent_policy_vote_supported', { actor: player.name, ticker: corp.ticker, policy: vote.policy }));
+    passRentPolicyVoteIfUnanimous(state, corp, player, events);
+}
+
+// Shareholders who still have to agree for the open vote to pass.
+function rentPolicyHoldouts(state, corp) {
+    const vote = corp.rentPolicyVote;
+    if (!vote) return [];
+    return activeShareholders(state, corp)
+        .map(holder => holder.player)
+        .filter(holder => !vote.supporterIds.includes(holder.userId));
+}
+
+function passRentPolicyVoteIfUnanimous(state, corp, actor, events) {
+    if (rentPolicyHoldouts(state, corp).length > 0) return;
+    applyRentPolicy(state, corp, corp.rentPolicyVote.policy, actor, events, 'unanimous');
+}
+
+// Splits treasury cash across the shareholders by shares held. The slice for
+// shares the treasury holds itself stays in the treasury.
+function payDividend(state, player, payload, events) {
+    const corp = runCorporation(state, player, payload.corpId);
+    const amount = roundCents(positiveNumber(payload.amount, 'amount'));
+    requireTreasuryCash(corp, amount);
+    const totalShares = Number(corp.totalShares || 0);
+    const holders = activeShareholders(state, corp);
+    if (holders.length === 0) throw new GameRuleError(400, `${corp.ticker} has no shareholders to pay`);
+    const { parts } = splitByShares(amount, [
+        ...holders,
+        { treasury: true, shares: Math.max(0, totalShares - holders.reduce((sum, h) => sum + h.shares, 0)) },
+    ]);
+    const payouts = payFromTreasury(state, corp, parts.filter(part => !part.treasury));
+    if (payouts.length === 0) throw new GameRuleError(400, 'That dividend is too small to pay anyone a cent');
+    const paid = roundCents(payouts.reduce((sum, p) => sum + p.amount, 0));
+    events.push(makeEvent(player, 'dividend_paid', { actor: player.name, ticker: corp.ticker, amount: paid, payouts }));
+    log(state, `${player.name} paid a ${corp.ticker} dividend: ${describePayouts(payouts)}.`);
+}
+
+function activeShareholders(state, corp) {
+    return (corp.shareholders || [])
+        .map(holder => ({ player: state.players.find(p => p.userId === holder.userId && !p.bankrupt), shares: Number(holder.shares || 0) }))
+        .filter(holder => holder.player && holder.shares > 0);
+}
+
+function payFromTreasury(state, corp, parts) {
+    return parts.map(part => {
+        corp.cash = roundCents(Number(corp.cash || 0) - part.amount);
+        part.player.cash = roundCents(Number(part.player.cash || 0) + part.amount);
+        recordCashFlow(state, corp.id, part.player.userId, part.amount);
+        return { name: part.player.name, userId: part.player.userId, amount: part.amount };
+    });
+}
+
+function describePayouts(payouts) {
+    return payouts.map(p => `$${p.amount.toFixed(2)} to ${p.name}`).join(', ');
+}
+
+// In Payout mode the rent a corporation just received goes on to its
+// shareholders, except the one who paid it (their slice was never charged).
+// Shares the treasury holds keep their slice in the treasury.
+function distributeCorporationRent(state, corp, amount, payer, events) {
+    if (corp.insolvent || corp.rentPolicy !== 'payout' || !(amount > 0)) return;
+    const totalShares = Number(corp.totalShares || 0);
+    const holders = activeShareholders(state, corp).filter(holder => holder.player.userId !== payer.userId);
+    const payerShares = sharesFor(corp, payer.userId);
+    const treasuryShares = Math.max(0, totalShares - payerShares - holders.reduce((sum, h) => sum + h.shares, 0));
+    const { parts } = splitByShares(amount, [...holders, { treasury: true, shares: treasuryShares }]);
+    const payouts = payFromTreasury(state, corp, parts.filter(part => !part.treasury));
+    if (payouts.length === 0) return;
+    events.push(makeEvent(payer, 'rent_distributed', { ticker: corp.ticker, payer: payer.name, amount, payouts }));
+    log(state, `${corp.ticker} passed ${payer.name}'s rent to its shareholders: ${describePayouts(payouts)}.`);
+}
+
+function buyPropertyForCorporation(state, player, corp, prop, events) {
+    requireTreasuryCash(corp, prop.price);
+    corp.cash = roundCents(Number(corp.cash || 0) - prop.price);
+    recordCashFlow(state, corp.id, null, prop.price);
+    prop.ownerId = corp.id;
+    prop.ownerName = `[${corp.ticker}]`;
+    addCorporationAsset(corp, prop);
+    events.push(makeEvent(player, 'property_purchase', { buyer: `[${corp.ticker}]`, actor: player.name, property: prop.name, price: prop.price }));
+    log(state, `${player.name} bought ${prop.name} for ${corp.ticker} for $${prop.price.toFixed(2)} from its treasury`);
+}
+
+function removeCorporationAsset(corp, propertyId) {
+    corp.assets = (corp.assets || []).filter(asset => asset.id !== propertyId);
+}
+
+// Anyone who doesn't run an LLC can offer it properties, at book value or at a
+// price they name, paid in new shares at the current value per share or in
+// treasury cash. The runner accepts, declines or counters; a counter goes back
+// to the offerer. The runner's own properties go in through add_to_corporation,
+// at book value only, since nobody independent would approve their price.
+function offerPropertyToCorporation(state, player, payload, events) {
+    const corp = state.corporations.find(c => c.id === payload.corpId);
+    if (!corp) throw new GameRuleError(404, 'Corporation not found');
+    if (corp.insolvent) throw new GameRuleError(400, `${corp.ticker} is insolvent and cannot take property`);
+    if (!corp.chairmanId) throw new GameRuleError(400, `${corp.ticker} has no chairman to accept an offer`);
+    if (controlsCorporation(corp, player.userId)) {
+        throw new GameRuleError(400, `You run ${corp.ticker}. Add your own properties with "Add properties", at book value.`);
+    }
+    const assetIds = uniqueIds(payload.assetIds);
+    const terms = propertyOfferTerms(payload);
+    const quote = validatePropertyOffer(state, corp, player, assetIds, terms);
+    const now = new Date();
+    const offer = {
+        id: `propoffer-${uuidv4()}`,
+        status: 'pending',
+        corpId: corp.id,
+        ticker: corp.ticker,
+        offererId: player.userId,
+        offererName: player.name,
+        assetIds,
+        priceBasis: terms.price == null ? 'book' : 'set',
+        price: quote.price,
+        bookValue: quote.value,
+        payWith: terms.payWith,
+        awaiting: 'corporation',
+        createdAt: now.toISOString(),
+        expiresAt: tradeOfferExpiryFrom(state, now),
+    };
+    state.propertyOffers.push(offer);
+    events.push(makeEvent(player, 'property_offer_made', propertyOfferEventData(state, offer, player)));
+    log(state, `${player.name} offered ${propertyNames(state, assetIds)} to ${corp.ticker} for $${offer.price.toFixed(2)} in ${offer.payWith === 'cash' ? 'treasury cash' : 'new shares'}`);
+}
+
+function propertyOfferTerms(payload) {
+    const payWith = payload.payWith === 'cash' ? 'cash' : 'shares';
+    const hasPrice = payload.price !== undefined && payload.price !== null && payload.price !== '';
+    return { payWith, price: hasPrice ? roundCents(positiveNumber(payload.price, 'price')) : null };
+}
+
+// Checks a property offer can go through now and prices it. Run on the offer,
+// every counter and again on acceptance, since holdings move in between.
+function validatePropertyOffer(state, corp, offerer, assetIds, terms) {
+    if (assetIds.length === 0) throw new GameRuleError(400, `Choose a property to offer ${corp.ticker}`);
+    assetIds.forEach(id => {
+        const prop = state.properties.find(p => p.id === id);
+        if (!prop || prop.ownerId !== offerer.userId) throw new GameRuleError(400, `${offerer.name} no longer owns ${prop?.name || 'that property'}`);
+    });
+    requireNoOpenClaim(state, offerer, `put property into ${corp.ticker}`);
+    requireUnpledged(state, assetIds);
+    requireWholeBuiltGroups(state, assetIds, corp.ticker);
+    const quote = corporationContributionQuote(state, corp, offerer.userId, assetIds, terms.price);
+    if (terms.payWith === 'shares' && quote.newShares === 0) throw new GameRuleError(400, quote.noSharesReason);
+    if (terms.payWith === 'cash') requireTreasuryCash(corp, quote.price);
+    return quote;
+}
+
+function findPendingPropertyOffer(state, offerId) {
+    const offer = (state.propertyOffers || []).find(item => item.id === offerId && item.status === 'pending');
+    if (!offer) throw new GameRuleError(404, 'Pending property offer not found');
+    if (isTradeOfferExpired(offer)) throw new GameRuleError(400, 'That property offer has expired');
+    return offer;
+}
+
+function respondPropertyOffer(state, actor, payload, events) {
+    const offer = findPendingPropertyOffer(state, payload.offerId);
+    const corp = state.corporations.find(c => c.id === offer.corpId);
+    const offerer = state.players.find(p => p.userId === offer.offererId);
+    const isOfferer = actor.userId === offer.offererId;
+    const runsCorp = !!corp && controlsCorporation(corp, actor.userId);
+    if (!isOfferer && !runsCorp) throw new GameRuleError(403, `Only ${offer.offererName} or ${offer.ticker}'s chairman can answer this offer`);
+    const response = String(payload.response || '');
+    if (response === 'decline') {
+        offer.status = isOfferer ? 'canceled' : 'declined';
+        resolvePropertyOffer(offer, actor);
+        events.push(makeEvent(actor, 'property_offer_closed', { ...propertyOfferEventData(state, offer, actor), status: offer.status }));
+        log(state, `${actor.name} ${isOfferer ? 'withdrew' : 'declined'} the offer of ${propertyNames(state, offer.assetIds)} to ${offer.ticker}`);
+        return;
+    }
+    const awaitingMe = offer.awaiting === 'offerer' ? isOfferer : runsCorp;
+    if (!awaitingMe) throw new GameRuleError(400, `This offer is waiting for ${offer.awaiting === 'offerer' ? offer.offererName : `${offer.ticker}'s chairman`}`);
+    if (!corp || corp.insolvent) throw new GameRuleError(400, `${offer.ticker} can no longer take property`);
+    if (!offerer || offerer.bankrupt) throw new GameRuleError(400, `${offer.offererName} can no longer make this deal`);
+    if (response === 'counter') {
+        const terms = propertyOfferTerms({ price: payload.price, payWith: payload.payWith || offer.payWith });
+        if (terms.price == null) throw new GameRuleError(400, 'A counter needs a price');
+        const quote = validatePropertyOffer(state, corp, offerer, offer.assetIds, terms);
+        offer.price = quote.price;
+        offer.priceBasis = 'set';
+        offer.payWith = terms.payWith;
+        offer.awaiting = isOfferer ? 'corporation' : 'offerer';
+        offer.expiresAt = tradeOfferExpiryFrom(state, new Date());
+        events.push(makeEvent(actor, 'property_offer_countered', propertyOfferEventData(state, offer, actor)));
+        log(state, `${actor.name} countered: ${propertyNames(state, offer.assetIds)} to ${offer.ticker} for $${offer.price.toFixed(2)} in ${offer.payWith === 'cash' ? 'treasury cash' : 'new shares'}`);
+        return;
+    }
+    if (response !== 'accept') throw new GameRuleError(400, "Response must be 'accept', 'decline' or 'counter'");
+    acceptPropertyOffer(state, actor, offer, corp, offerer, events);
+}
+
+function acceptPropertyOffer(state, actor, offer, corp, offerer, events) {
+    // A book-value offer is repriced at today's book value; a named price stands.
+    const terms = { payWith: offer.payWith, price: offer.priceBasis === 'book' ? null : offer.price };
+    const quote = validatePropertyOffer(state, corp, offerer, offer.assetIds, terms);
+    const holdersBefore = snapshotHoldings(corp);
+    transferPropertiesToCorporation(state, offerer, corp, offer.assetIds);
+    let newShares = 0;
+    if (offer.payWith === 'cash') {
+        corp.cash = roundCents(Number(corp.cash || 0) - quote.price);
+        offerer.cash = roundCents(Number(offerer.cash || 0) + quote.price);
+        recordCashFlow(state, corp.id, offerer.userId, quote.price);
+    } else {
+        newShares = quote.newShares;
+        corp.totalShares = Number(corp.totalShares || 0) + newShares;
+        addShareholderShares(corp, offerer, newShares);
+        normalizeCorporationShareLedger(state, corp);
+        chairMajorityHolder(state, corp, holdersBefore, offerer, events);
+    }
+    offer.price = quote.price;
+    offer.newShares = newShares;
+    offer.status = 'accepted';
+    resolvePropertyOffer(offer, actor);
+    events.push(makeEvent(actor, 'property_offer_accepted', { ...propertyOfferEventData(state, offer, actor), newShares, totalShares: corp.totalShares }));
+    const paidWith = newShares > 0 ? `${newShares} new shares` : `$${quote.price.toFixed(2)} from the treasury`;
+    log(state, `${offer.ticker} took ${propertyNames(state, offer.assetIds)} from ${offerer.name} for ${paidWith}`);
+}
+
+function resolvePropertyOffer(offer, actor) {
+    offer.resolvedAt = new Date().toISOString();
+    offer.resolvedById = actor.userId;
+    offer.resolvedByName = actor.name;
+}
+
+function propertyOfferEventData(state, offer, actor) {
+    return {
+        offerId: offer.id,
+        actor: actor.name,
+        offerer: offer.offererName,
+        ticker: offer.ticker,
+        properties: offer.assetIds.map(id => state.properties.find(p => p.id === id)?.name || id),
+        price: offer.price,
+        payWith: offer.payWith,
+        awaiting: offer.awaiting,
+    };
+}
+
+function propertyNames(state, ids) {
+    return ids.map(id => state.properties.find(p => p.id === id)?.name || id).join(', ');
+}
+
+function expirePendingPropertyOffers(state, actor, events) {
+    (state.propertyOffers || []).forEach(offer => {
+        if (offer.status !== 'pending') return;
+        const corp = state.corporations.find(c => c.id === offer.corpId);
+        const offerer = state.players.find(p => p.userId === offer.offererId);
+        const reason = isTradeOfferExpired(offer) ? 'timeout'
+            : (!corp || corp.insolvent ? 'corporation_insolvent' : (!offerer || offerer.bankrupt ? 'bankruptcy' : null));
+        if (!reason) return;
+        offer.status = reason === 'timeout' ? 'expired' : 'canceled';
+        offer.cancelReason = reason;
+        resolvePropertyOffer(offer, actor);
+        events.push(makeEvent(actor, 'property_offer_closed', { ...propertyOfferEventData(state, offer, actor), status: offer.status, reason }));
+    });
 }
 
 // Lenders keep a 10% equity cushion: a new loan is at most 90% of the value of
@@ -1355,28 +1873,41 @@ function payDebt(state, player, payload, events) {
     log(state, `${player.name} paid $${amount.toFixed(2)} towards debt`);
 }
 
+// Builds on complete colour groups. With payload.corpId the runner builds on
+// groups the corporation owns whole, paying from its treasury.
 function buyHouses(state, player, payload, events) {
     const selections = payload.selections || {};
+    const corp = payload.corpId ? runCorporation(state, player, payload.corpId) : null;
+    const ownerId = corp ? corp.id : player.userId;
     let totalCost = 0;
     const changes = [];
     for (const [propId, deltaRaw] of Object.entries(selections)) {
         const delta = Number(deltaRaw);
         if (!Number.isInteger(delta) || delta <= 0) continue;
         const prop = state.properties.find(p => p.id === propId);
-        if (!prop || prop.ownerId !== player.userId) throw new GameRuleError(400, 'Can only improve owned properties');
-        if (!ownsCompleteGroup(state, player.userId, prop.color)) throw new GameRuleError(400, 'Must own complete color group');
+        if (!prop || prop.ownerId !== ownerId) throw new GameRuleError(400, corp ? `${corp.ticker} doesn't own that property` : 'Can only improve owned properties');
+        if (!ownsCompleteGroup(state, ownerId, prop.color)) throw new GameRuleError(400, corp ? `${corp.ticker} must own the whole ${prop.color} group` : 'Must own complete color group');
         if (!HOUSE_COSTS[prop.color]) throw new GameRuleError(400, 'Cannot improve this property type');
         if ((prop.houses || 0) + delta > 5) throw new GameRuleError(400, 'Too many houses');
         totalCost += delta * HOUSE_COSTS[prop.color];
         changes.push({ prop, delta });
     }
     if (changes.length === 0) throw new GameRuleError(400, 'No houses selected');
-    if (player.cash < totalCost) throw new GameRuleError(400, 'Insufficient funds');
-    player.cash -= totalCost;
-    recordCashFlow(state, player.userId, null, totalCost);
+    if (corp) {
+        requireTreasuryCash(corp, totalCost);
+        corp.cash = roundCents(Number(corp.cash || 0) - totalCost);
+        recordCashFlow(state, corp.id, null, totalCost);
+    } else {
+        if (player.cash < totalCost) throw new GameRuleError(400, 'Insufficient funds');
+        player.cash -= totalCost;
+        recordCashFlow(state, player.userId, null, totalCost);
+    }
     changes.forEach(({ prop, delta }) => { prop.houses = (prop.houses || 0) + delta; });
-    events.push(makeEvent(player, 'house_purchase', { player: player.name, cost: totalCost }));
-    log(state, `${player.name} bought houses/hotels for $${totalCost}`);
+    const builder = corp ? `[${corp.ticker}]` : player.name;
+    events.push(makeEvent(player, 'house_purchase', { player: builder, actor: player.name, cost: totalCost }));
+    log(state, corp
+        ? `${player.name} built houses/hotels for ${corp.ticker} for $${totalCost} from its treasury`
+        : `${player.name} bought houses/hotels for $${totalCost}`);
 }
 
 function getTradeTerms(state, payload) {
@@ -1391,14 +1922,41 @@ function getTradeTerms(state, payload) {
     const player2Shares = normalizeTradeShares(payload.player2Shares);
     const player1PropertiesToCorpId = optionalTradeCorpId(payload.player1PropertiesToCorpId);
     const player2PropertiesToCorpId = optionalTradeCorpId(payload.player2PropertiesToCorpId);
+    const player1CorpId = optionalTradeCorpId(payload.player1CorpId);
+    const player2CorpId = optionalTradeCorpId(payload.player2CorpId);
     if (player1Cash <= 0 && player2Cash <= 0 && player1AssetIds.length === 0 && player2AssetIds.length === 0
         && player1Shares.length === 0 && player2Shares.length === 0) {
         throw new GameRuleError(400, 'Trade must include cash, property or shares');
     }
     return {
         player1, player2, player1Cash, player2Cash, player1AssetIds, player2AssetIds, player1Shares, player2Shares,
-        player1PropertiesToCorpId, player2PropertiesToCorpId,
+        player1PropertiesToCorpId, player2PropertiesToCorpId, player1CorpId, player2CorpId,
+        player1Corp: tradingCorporation(state, player1CorpId),
+        player2Corp: tradingCorporation(state, player2CorpId),
     };
+}
+
+// A side's player can trade for an LLC they run (*CorpId): that side's cash,
+// properties and treasury shares come from the LLC, and what it receives goes
+// into the LLC. Null means the player trades for themselves.
+function tradingCorporation(state, corpId) {
+    if (!corpId) return null;
+    const corp = state.corporations.find(c => c.id === corpId);
+    if (!corp) throw new GameRuleError(404, 'Corporation not found');
+    return corp;
+}
+
+// One side of a trade: who gives, from which balance sheet, and whose
+// properties and cash change.
+function tradeSides(terms) {
+    const side1 = { player: terms.player1, corp: terms.player1Corp, cash: terms.player1Cash, assetIds: terms.player1AssetIds, shares: terms.player1Shares, propertiesToCorpId: terms.player1PropertiesToCorpId };
+    const side2 = { player: terms.player2, corp: terms.player2Corp, cash: terms.player2Cash, assetIds: terms.player2AssetIds, shares: terms.player2Shares, propertiesToCorpId: terms.player2PropertiesToCorpId };
+    [side1, side2].forEach(side => {
+        side.entity = side.corp || side.player;
+        side.entityId = side.corp ? side.corp.id : side.player.userId;
+        side.label = side.corp ? side.corp.ticker : side.player.name;
+    });
+    return [side1, side2];
 }
 
 // A side's properties can go into an LLC run by the other player instead of to
@@ -1502,18 +2060,60 @@ function splitTradeAssets(assetIds) {
 }
 
 function validateTradeTerms(state, terms) {
-    const { player1, player2, player1Cash, player2Cash, player1AssetIds, player2AssetIds } = terms;
-    if (player1.cash < player1Cash || player2.cash < player2Cash) throw new GameRuleError(400, 'Insufficient trade cash');
-    const side1 = splitTradeAssets(player1AssetIds);
-    const side2 = splitTradeAssets(player2AssetIds);
-    validatePropertyTransferList(state, player1, side1.propertyIds);
-    validatePropertyTransferList(state, player2, side2.propertyIds);
-    validateShareTransferList(state, player1, terms.player1Shares);
-    validateShareTransferList(state, player2, terms.player2Shares);
-    validatePropertyDestination(state, side1.propertyIds, player2, terms.player1PropertiesToCorpId);
-    validatePropertyDestination(state, side2.propertyIds, player1, terms.player2PropertiesToCorpId);
-    validateJailCardTransfer(player1, player2, side1.jailCard, side2.jailCard);
-    validateJailCardTransfer(player2, player1, side2.jailCard, side1.jailCard);
+    const [side1, side2] = tradeSides(terms);
+    validateTradeSide(state, side1, side2);
+    validateTradeSide(state, side2, side1);
+    validateJailCardTransfer(terms.player1, terms.player2, splitTradeAssets(side1.assetIds).jailCard, splitTradeAssets(side2.assetIds).jailCard);
+    validateJailCardTransfer(terms.player2, terms.player1, splitTradeAssets(side2.assetIds).jailCard, splitTradeAssets(side1.assetIds).jailCard);
+}
+
+// What one side gives, checked against the side that receives it.
+function validateTradeSide(state, giver, receiver) {
+    const { propertyIds, jailCard } = splitTradeAssets(giver.assetIds);
+    if (Number(giver.entity.cash || 0) + 1e-9 < giver.cash) {
+        throw new GameRuleError(400, giver.corp ? `${giver.corp.ticker}'s treasury doesn't have $${giver.cash.toFixed(2)}` : 'Insufficient trade cash');
+    }
+    if (giver.corp) {
+        if (giver.corp.insolvent) throw new GameRuleError(400, `${giver.corp.ticker} is insolvent and cannot trade`);
+        if (!controlsCorporation(giver.corp, giver.player.userId)) {
+            throw new GameRuleError(400, `${giver.player.name} does not run ${giver.corp.ticker}, so can't trade for it`);
+        }
+        if (receiver.corp && receiver.corp.id === giver.corp.id) throw new GameRuleError(400, 'A company cannot trade with itself');
+        // The runner can't take treasury cash or property for themselves; money
+        // reaches them only through a dividend every holder shares.
+        if (!receiver.corp && controlsCorporation(giver.corp, receiver.player.userId)) {
+            throw new GameRuleError(400, `${receiver.player.name} runs ${giver.corp.ticker}, so can't trade with it personally. Pay a dividend instead.`);
+        }
+        if (jailCard) throw new GameRuleError(400, 'A company has no Get Out of Jail Free card to trade');
+        if (giver.propertiesToCorpId) throw new GameRuleError(400, `${giver.corp.ticker}'s properties go to whoever receives them`);
+        propertyIds.forEach(id => {
+            const prop = state.properties.find(p => p.id === id);
+            if (!prop || prop.ownerId !== giver.corp.id) throw new GameRuleError(400, `${giver.corp.ticker} does not own ${prop?.name || 'that property'}`);
+            requireUnpledged(state, [id]);
+            if (groupHasBuildings(state, prop.color)) {
+                throw new GameRuleError(400, `${prop.name} is in the ${prop.color} group, which has buildings. A built group can't be traded.`);
+            }
+        });
+        giver.shares.forEach(({ corpId, shares }) => {
+            if (corpId !== giver.corp.id) throw new GameRuleError(400, `${giver.corp.ticker} can only trade its own treasury shares`);
+            if (Number(giver.corp.treasuryShares || 0) < shares) {
+                throw new GameRuleError(400, `${giver.corp.ticker} holds only ${Number(giver.corp.treasuryShares || 0)} treasury share(s)`);
+            }
+        });
+    } else {
+        validatePropertyTransferList(state, giver.player, propertyIds);
+        validateShareTransferList(state, giver.player, giver.shares);
+        if (receiver.corp && giver.propertiesToCorpId && giver.propertiesToCorpId !== receiver.corp.id) {
+            throw new GameRuleError(400, `Properties given to ${receiver.corp.ticker} go into ${receiver.corp.ticker}`);
+        }
+        if (!receiver.corp) validatePropertyDestination(state, propertyIds, receiver.player, giver.propertiesToCorpId);
+    }
+    if (receiver.corp) {
+        if (jailCard) throw new GameRuleError(400, `${receiver.corp.ticker} can't hold a Get Out of Jail Free card`);
+        giver.shares.forEach(({ corpId }) => {
+            if (corpId !== receiver.corp.id) throw new GameRuleError(400, `${receiver.corp.ticker} can only take back its own shares`);
+        });
+    }
 }
 
 function validateJailCardTransfer(from, to, givesCard, receivesCard) {
@@ -1525,23 +2125,80 @@ function validateJailCardTransfer(from, to, givesCard, receivesCard) {
 }
 
 function applyTradeTransfer(state, terms, events = []) {
-    const { player1, player2, player1Cash, player2Cash, player1AssetIds, player2AssetIds } = terms;
-    const side1 = splitTradeAssets(player1AssetIds);
-    const side2 = splitTradeAssets(player2AssetIds);
-    player1.cash = player1.cash - player1Cash + player2Cash;
-    player2.cash = player2.cash - player2Cash + player1Cash;
-    if (player1Cash > 0) recordCashFlow(state, player1.userId, player2.userId, player1Cash);
-    if (player2Cash > 0) recordCashFlow(state, player2.userId, player1.userId, player2Cash);
-    transferTradeProperties(state, player1, player2, side1.propertyIds, terms.player1PropertiesToCorpId);
-    transferTradeProperties(state, player2, player1, side2.propertyIds, terms.player2PropertiesToCorpId);
-    transferShares(state, player1, player2, terms.player1Shares, events);
-    transferShares(state, player2, player1, terms.player2Shares, events);
-    if (side1.jailCard !== side2.jailCard) {
-        const giver = side1.jailCard ? player1 : player2;
-        const receiver = side1.jailCard ? player2 : player1;
+    const [side1, side2] = tradeSides(terms);
+    moveTradeCash(state, side1, side2);
+    moveTradeCash(state, side2, side1);
+    moveTradeProperties(state, side1, side2);
+    moveTradeProperties(state, side2, side1);
+    moveTradeShares(state, side1, side2, events);
+    moveTradeShares(state, side2, side1, events);
+    const card1 = splitTradeAssets(side1.assetIds).jailCard;
+    const card2 = splitTradeAssets(side2.assetIds).jailCard;
+    if (card1 !== card2) {
+        const giver = card1 ? terms.player1 : terms.player2;
+        const receiver = card1 ? terms.player2 : terms.player1;
         giver.hasGetOutOfJailCard = false;
         receiver.hasGetOutOfJailCard = true;
     }
+}
+
+function moveTradeCash(state, giver, receiver) {
+    if (!(giver.cash > 0)) return;
+    giver.entity.cash = roundCents(Number(giver.entity.cash || 0) - giver.cash);
+    receiver.entity.cash = roundCents(Number(receiver.entity.cash || 0) + giver.cash);
+    recordCashFlow(state, giver.entityId, receiver.entityId, giver.cash);
+}
+
+function moveTradeProperties(state, giver, receiver) {
+    const { propertyIds } = splitTradeAssets(giver.assetIds);
+    if (propertyIds.length === 0) return;
+    if (!giver.corp && !receiver.corp) {
+        transferTradeProperties(state, giver.player, receiver.player, propertyIds, giver.propertiesToCorpId);
+        return;
+    }
+    if (!giver.corp) {
+        transferPropertiesToCorporation(state, giver.player, receiver.corp, propertyIds);
+        return;
+    }
+    propertyIds.forEach(id => {
+        const prop = state.properties.find(p => p.id === id);
+        removeCorporationAsset(giver.corp, id);
+        if (receiver.corp) {
+            prop.ownerId = receiver.corp.id;
+            prop.ownerName = `[${receiver.corp.ticker}]`;
+            addCorporationAsset(receiver.corp, prop);
+        } else {
+            prop.ownerId = receiver.player.userId;
+            prop.ownerName = receiver.player.name;
+        }
+    });
+}
+
+// Shares a company gives come out of its treasury; shares it receives are its
+// own, bought back into the treasury.
+function moveTradeShares(state, giver, receiver, events) {
+    if (giver.shares.length === 0) return;
+    if (!giver.corp && !receiver.corp) {
+        transferShares(state, giver.player, receiver.player, giver.shares, events);
+        return;
+    }
+    giver.shares.forEach(({ corpId, shares }) => {
+        const corp = state.corporations.find(c => c.id === corpId);
+        const holdersBefore = snapshotHoldings(corp);
+        if (giver.corp) {
+            corp.treasuryShares = Number(corp.treasuryShares || 0) - shares;
+            corp.availableShares = Math.min(Number(corp.availableShares || 0), corp.treasuryShares);
+            addShareholderShares(corp, receiver.player, shares);
+            normalizeCorporationShareLedger(state, corp);
+            chairMajorityHolder(state, corp, holdersBefore, receiver.player, events);
+        } else {
+            const holder = corp.shareholders.find(h => h.userId === giver.player.userId);
+            holder.shares = Number(holder.shares || 0) - shares;
+            removeZeroShareholders(corp);
+            corp.treasuryShares = Number(corp.treasuryShares || 0) + shares;
+            normalizeCorporationShareLedger(state, corp);
+        }
+    });
 }
 
 function transferTradeProperties(state, from, to, propertyIds, corpId) {
@@ -1592,6 +2249,10 @@ function proposeTrade(state, actor, payload, events) {
         player2Shares,
         player1PropertiesToCorpId: terms.player1PropertiesToCorpId,
         player2PropertiesToCorpId: terms.player2PropertiesToCorpId,
+        player1CorpId: terms.player1CorpId,
+        player2CorpId: terms.player2CorpId,
+        player1CorpTicker: terms.player1Corp?.ticker || null,
+        player2CorpTicker: terms.player2Corp?.ticker || null,
         createdAt,
         expiresAt: tradeOfferExpiryFrom(state, now),
     };
@@ -1895,6 +2556,12 @@ function endTurn(state, player, events) {
                 interestCharged: corpInterest,
             });
         }
+    });
+    // The rent-policy cooldown counts the chairman's own turns.
+    state.corporations.forEach(corp => {
+        if (corp.chairmanId !== player.userId) return;
+        if (corp.rentPolicyLockSkipsTurnOf === player.userId) corp.rentPolicyLockSkipsTurnOf = null;
+        else if (corp.rentPolicyLockedTurns > 0) corp.rentPolicyLockedTurns -= 1;
     });
     const bankruptcyClaim = settleBankruptcyClaimAtTurnEnd(state, player, events);
     if ((player.cash < 0 || bankruptcyClaim) && !player.bankrupt) {
@@ -2203,9 +2870,30 @@ function resolveBankruptcyCreditor(state, claim) {
     return null;
 }
 
+// Rent on a corporation's property goes into its treasury. In Payout mode a
+// shareholder pays only the part of the rent they don't own, and what the
+// treasury receives goes straight on to the other shareholders.
+function payCorporationRent(state, player, corp, prop, reason, fullRent, events) {
+    const payout = corp.rentPolicy === 'payout';
+    const ownShares = payout ? sharesFor(corp, player.userId) : 0;
+    const due = payout ? shareholderRentDue(fullRent, ownShares, corp.totalShares) : fullRent;
+    const extra = { propertyId: prop.id, propertyName: prop.name };
+    if (due < fullRent) {
+        extra.fullRent = fullRent;
+        extra.ownPercent = Math.round((ownShares / Number(corp.totalShares || 1)) * 1000) / 10;
+    }
+    if (due <= 0) {
+        log(state, `${player.name} owns all of ${corp.ticker}, so pays no rent on ${prop.name}`);
+        return;
+    }
+    const paid = payCreditorAvailableCash(state, player, { type: 'corporation', id: corp.id, name: `[${corp.ticker}]`, entity: corp },
+        due, reason, events, extra);
+    distributeCorporationRent(state, corp, paid, player, events);
+}
+
 function payCreditorAvailableCash(state, debtor, creditor, amountOwed, reason, events, extra = {}) {
     const owed = Number(amountOwed || 0);
-    if (owed <= 0) return;
+    if (owed <= 0) return 0;
     const availableCash = Math.max(Number(debtor.cash || 0), 0);
     const paidAmount = Math.min(availableCash, owed);
     const unpaidAmount = owed - paidAmount;
@@ -2244,6 +2932,7 @@ function payCreditorAvailableCash(state, debtor, creditor, amountOwed, reason, e
     } else {
         log(state, `${debtor.name} paid $${owed.toFixed(2)} to ${creditor.name} for ${reason}`);
     }
+    return paidAmount;
 }
 
 function settleBankruptcyClaimAtTurnEnd(state, player, events) {
@@ -2272,6 +2961,7 @@ function settleBankruptcyClaimAtTurnEnd(state, player, events) {
             unpaidAmount: claim.unpaidAmount,
         }));
         log(state, `${player.name} paid $${payment.toFixed(2)} toward ${claim.reason} owed to ${creditor.name}.`);
+        if (creditor.type === 'corporation' && claim.propertyId) distributeCorporationRent(state, creditor.entity, payment, player, events);
     }
 
     if (Number(claim.unpaidAmount || 0) <= 0) {
@@ -2371,6 +3061,7 @@ function validatePropertyTransferList(state, from, ids) {
     ids.forEach(id => {
         const prop = state.properties.find(p => p.id === id);
         if (!prop || prop.ownerId !== from.userId) throw new GameRuleError(400, 'Can only transfer owned property');
+        requireUnpledged(state, [id]);
         if (groupHasBuildings(state, prop.color)) {
             throw new GameRuleError(400, `${prop.name} is in the ${prop.color} group, which has buildings. A built group can't be traded; put the whole group into an IPO and sell shares instead.`);
         }

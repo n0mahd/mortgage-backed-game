@@ -42,6 +42,16 @@
         return `${Number.isInteger(value) ? value : value.toFixed(1).replace(/\.0$/, '')}%`;
     }
 
+    // 12,000-share companies: "3,600" and "$0.1125".
+    function count(value) {
+        return Number(value || 0).toLocaleString('en-US');
+    }
+
+    function perShare(value) {
+        const v = Number(value || 0);
+        return `$${v >= 1 ? v.toFixed(2) : v.toFixed(4)}`;
+    }
+
     function money(value) {
         const rounded = Math.round(Number(value || 0));
         return `$${Math.abs(rounded).toLocaleString('en-US')}`;
@@ -145,7 +155,7 @@
                 const shareCorp = corpById(gameState, lot.corpId);
                 const total = Number(shareCorp?.totalShares || 0);
                 const n = Number(lot.shares);
-                parts.push(`${n} of ${total} ${shareCorp ? shareCorp.ticker : 'LLC'} share${n === 1 ? '' : 's'} (${percent(n, total)})`);
+                parts.push(`${count(n)} of ${count(total)} ${shareCorp ? shareCorp.ticker : 'LLC'} share${n === 1 ? '' : 's'} (${percent(n, total)})`);
             });
             if (side.jailCard) parts.push('a Get Out of Jail Free card');
             const clauses = [];
@@ -182,7 +192,7 @@
                 if (before !== after) {
                     rows.push({
                         label: `Your ${entry.corp.ticker} shares`,
-                        value: `${before} → ${after} (${percent(before, total)} → ${percent(after, total)}), worth ${money(valueAfter)}`,
+                        value: `${count(before)} → ${count(after)} (${percent(before, total)} → ${percent(after, total)}), worth ${money(valueAfter)}`,
                     });
                 }
             });
@@ -223,5 +233,114 @@
         return { sentences, rows, warnings, netChange, evenShares };
     }
 
-    global.ShareDeals = { summarize, corporationsRunBy, runsCorporation, percent };
+    // Mirrors the engine's contribution quote: whole new shares at the current
+    // value per share, rounded down, total capped at maxShares. options.price
+    // overrides the book value (a property offer at a named price).
+    function contributionQuote(gameState, corp, userId, propertyIds, options) {
+        const value = propertyIds.reduce((sum, id) => sum + propertyValue(gameState, id), 0);
+        const price = options.price == null ? value : Number(options.price);
+        const totalShares = Number(corp.totalShares || 0);
+        const otherShares = totalShares - sharesHeld(corp, userId);
+        const netAssetValue = options.netAssetValue(corp);
+        const room = Math.max(0, options.maxShares - totalShares);
+        const quote = { value, price, newShares: 0, fairShares: 0, otherShares, noSharesReason: null };
+        if (otherShares <= 0) {
+            quote.noSharesReason = `You hold every ${corp.ticker} share, so there's no one to share the value with.`;
+        } else if (netAssetValue <= 0) {
+            quote.noSharesReason = `${corp.ticker} is worth $0 or less, so new shares can't be priced.`;
+        } else {
+            quote.fairShares = Math.floor((price * totalShares) / netAssetValue + 1e-9);
+            quote.newShares = Math.min(quote.fairShares, room);
+            if (room === 0) quote.noSharesReason = `${corp.ticker} already has ${options.maxShares} shares, the most allowed.`;
+            else if (propertyIds.length && quote.fairShares === 0) quote.noSharesReason = `That's worth less than one ${corp.ticker} share (${perShare(netAssetValue / totalShares)}).`;
+        }
+        return quote;
+    }
+
+    // Preview for add_to_corporation, shaped like summarize() so the same
+    // renderer shows it: { sentences, rows, warnings }.
+    function summarizeContribution(gameState, corp, userId, propertyIds, issueShares, options) {
+        const quote = contributionQuote(gameState, corp, userId, propertyIds, options);
+        const newShares = issueShares ? quote.newShares : 0;
+        const total = Number(corp.totalShares || 0);
+        const mine = sharesHeld(corp, userId);
+        const navBefore = Math.max(0, options.netAssetValue(corp));
+        const navAfter = Math.max(0, options.netAssetValue(corp) + quote.value);
+        const stakeBefore = total ? (mine * navBefore) / total : 0;
+        const stakeAfter = total + newShares ? ((mine + newShares) * navAfter) / (total + newShares) : 0;
+        const netChange = stakeAfter - stakeBefore - quote.value;
+        const names = list(propertyIds.map(id => propertyName(gameState, id)));
+        const sentences = [newShares > 0
+            ? `You put ${names} into ${corp.ticker} and get ${count(newShares)} new share${newShares === 1 ? '' : 's'}.`
+            : `You put ${names} into ${corp.ticker}.`];
+        const rows = [
+            { label: `${corp.ticker} value`, value: `${money(navBefore)} → ${money(navAfter)}` },
+            {
+                label: `Your ${corp.ticker} shares`,
+                value: `${count(mine)} of ${count(total)} → ${count(mine + newShares)} of ${count(total + newShares)} (${percent(mine + newShares, total + newShares)})`,
+            },
+            { label: 'Your net worth', value: signedMoney(netChange), tone: Math.round(netChange) > 0 ? 'up' : (Math.round(netChange) < 0 ? 'down' : '') },
+        ];
+        const warnings = [];
+        if (Math.round(netChange) < 0) {
+            warnings.push(newShares > 0
+                ? `The other ${corp.ticker} holders gain ${money(-netChange)}: whole shares, rounded down, don't cover the full value.`
+                : `The other ${corp.ticker} holders gain ${money(-netChange)}, since their shares rise in value too.`);
+        }
+        return { sentences, rows, warnings, netChange, quote };
+    }
+
+    // Preview of a property offer to an LLC: offererId gives propertyIds for
+    // `price`, paid in new shares (at the current value per share) or treasury
+    // cash. Read by the offerer, the chairman, or anyone: viewerId decides
+    // whose stake gets the "your stake" row.
+    function summarizePropertyOffer(gameState, corp, offererId, propertyIds, price, payWith, viewerId, options) {
+        const quote = contributionQuote(gameState, corp, offererId, propertyIds, { ...options, price });
+        const total = Number(corp.totalShares || 0);
+        const newShares = payWith === 'cash' ? 0 : quote.newShares;
+        const navBefore = Math.max(0, options.netAssetValue(corp));
+        const navAfter = Math.max(0, options.netAssetValue(corp) + quote.value - (payWith === 'cash' ? quote.price : 0));
+        const totalAfter = total + newShares;
+        const perShareBefore = total ? navBefore / total : 0;
+        const perShareAfter = totalAfter ? navAfter / totalAfter : 0;
+        const offerer = playerById(gameState, offererId);
+        const who = userId => (userId === viewerId ? 'You' : (playerById(gameState, userId)?.name || 'Someone'));
+        const names = list(propertyIds.map(id => propertyName(gameState, id)));
+        const paid = payWith === 'cash'
+            ? `${money(quote.price)} from the ${corp.ticker} treasury`
+            : `${count(newShares)} new ${corp.ticker} share${newShares === 1 ? '' : 's'}`;
+        const sentences = [`${who(offererId)} ${offererId === viewerId ? 'give' : 'gives'} ${corp.ticker} ${names} for ${paid}.`];
+        const rows = [];
+        if (Math.round(quote.price) !== Math.round(quote.value)) {
+            rows.push({ label: 'Book value', value: `${money(quote.value)} (price ${quote.price > quote.value ? '+' : '−'}${money(Math.abs(quote.price - quote.value))})` });
+        }
+        if (newShares > 0) rows.push({ label: 'Value per share', value: `${perShare(perShareBefore)} → ${perShare(perShareAfter)}` });
+        const holders = new Map((corp.shareholders || []).map(item => [item.userId, Number(item.shares || 0)]));
+        if (!holders.has(offererId)) holders.set(offererId, 0);
+        const warnings = [];
+        holders.forEach((before, userId) => {
+            const after = before + (userId === offererId ? newShares : 0);
+            const valueBefore = before * perShareBefore;
+            const valueAfter = after * perShareAfter;
+            if (newShares > 0) {
+                rows.push({ label: who(userId), value: `${percent(before, total)} → ${percent(after, totalAfter)}` });
+            }
+            if (userId === viewerId) {
+                const change = userId === offererId
+                    ? valueAfter - valueBefore + (payWith === 'cash' ? quote.price : 0) - quote.value
+                    : valueAfter - valueBefore;
+                rows.push({ label: 'Your net worth', value: signedMoney(change), tone: Math.round(change) > 0 ? 'up' : (Math.round(change) < 0 ? 'down' : '') });
+            }
+            if (after > totalAfter / 2 && before <= total / 2 && userId !== corp.chairmanId) {
+                warnings.push(`${who(userId)} will own over half of ${corp.ticker} and ${userId === viewerId ? 'can' : 'could'} replace the chairman.`);
+            }
+        });
+        if (Math.round(quote.price - quote.value) > 0) {
+            warnings.push(`Paying ${money(quote.price - quote.value)} over book value moves value from the other ${corp.ticker} holders to ${offerer?.name || 'the offerer'}.`);
+        }
+        if (payWith !== 'cash' && propertyIds.length && newShares === 0) warnings.push(quote.noSharesReason || 'This price buys no shares.');
+        return { sentences, rows, warnings, quote, newShares };
+    }
+
+    global.ShareDeals = { summarize, summarizeContribution, summarizePropertyOffer, contributionQuote, corporationsRunBy, runsCorporation, percent, count, perShare };
 })(window);

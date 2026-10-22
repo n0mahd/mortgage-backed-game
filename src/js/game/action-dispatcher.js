@@ -22,6 +22,7 @@
         'host-resume': () => global.hostResumeGame(),
         'buy-shares': button => global.buyShares(button.dataset.corpId),
         'offer-property-for-shares': button => global.offerPropertyForShares(button.dataset.corpId),
+        'open-add-to-corporation': button => global.openAddToCorporationModal(button.dataset.corpId),
         'use-even-shares': () => global.useEvenShares(),
         'support-chairman-vote': button => global.supportChairmanVote(button.dataset.corpId, button.dataset.voteId),
         'change-chairman-majority': button => global.changeChairmanByMajority(button.dataset.corpId),
@@ -31,6 +32,14 @@
         'host-cancel-trade-offer': button => global.hostCancelTradeOffer(button.dataset.offerId),
         'adjust-house': button => global.houseModalAdjust(button.dataset.propertyId, Number(button.dataset.delta)),
         'open-house': () => global.openHouseModal(),
+        'set-rent-policy': button => global.CorporationDesk.setRentPolicy(button.dataset.corpId, button.dataset.policy),
+        'propose-rent-policy': button => global.CorporationDesk.proposeRentPolicy(button.dataset.corpId, button.dataset.policy),
+        'vote-rent-policy': button => global.CorporationDesk.voteRentPolicy(button.dataset.corpId, button.dataset.approve === 'true'),
+        'pay-dividend': button => global.CorporationDesk.payDividend(button.dataset.corpId),
+        'build-for-corporation': button => global.CorporationDesk.buildForCorporation(button.dataset.corpId),
+        'trade-as-corporation': button => global.CorporationDesk.tradeAsCorporation(button.dataset.corpId),
+        'open-property-offer': button => global.CorporationDesk.openPropertyOffer(button.dataset.corpId),
+        'respond-property-offer': button => global.CorporationDesk.respondPropertyOffer(button.dataset.offerId, button.dataset.response),
     };
 
     function run(button) {
