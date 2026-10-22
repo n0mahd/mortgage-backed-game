@@ -2696,12 +2696,31 @@ function updatePlayerAssets(playerNumber) {
         shares: new Map(Array.from(container.querySelectorAll('.trade-share-input')).map(input => [input.dataset.corpId, input.value])),
     } : null;
 
+    // Streets in a built-up colour group can't be traded; show each such group
+    // once, greyed out, with one note instead of repeating it on every street.
+    const lockedGroups = new Map();
+    player.properties.forEach(p => {
+        if (!groupHasBuildingsUi(p.color)) return;
+        if (!lockedGroups.has(p.color)) lockedGroups.set(p.color, []);
+        lockedGroups.get(p.color).push(p);
+    });
+    const renderedGroups = new Set();
     const assetsHtml = player.properties.map(p => {
-        const built = groupHasBuildingsUi(p.color);
+        if (lockedGroups.has(p.color)) {
+            if (renderedGroups.has(p.color)) return '';
+            renderedGroups.add(p.color);
+            return `
+        <div class="asset-locked-group">
+            <p class="asset-locked-note">The ${escapeHtml(p.color)} group has buildings, so these can't be traded. IPO the group and sell shares instead.</p>
+            ${lockedGroups.get(p.color).map(street => `
+            <div class="asset-locked-row">${propertyDot(street.id)}${escapeHtml(street.name)}<span class="debt-detail">${formatMoney(street.value)}</span></div>`).join('')}
+        </div>
+    `;
+        }
         return `
-        <div class="asset-checkbox${built ? ' asset-locked' : ''}">
-            <input type="checkbox" id="${playerNumber}-asset-${escapeAttr(p.id)}" value="${escapeAttr(p.id)}"${built ? ' disabled' : ''}>
-            <label for="${playerNumber}-asset-${escapeAttr(p.id)}">${propertyDot(p.id)}${escapeHtml(p.name)} <span class="debt-detail">${formatMoney(p.value)}</span>${built ? ` <span class="debt-detail">Can't be traded: the ${escapeHtml(p.color)} group has buildings. IPO the whole group and sell shares instead.</span>` : ''}</label>
+        <div class="asset-checkbox">
+            <input type="checkbox" id="${playerNumber}-asset-${escapeAttr(p.id)}" value="${escapeAttr(p.id)}">
+            <label for="${playerNumber}-asset-${escapeAttr(p.id)}">${propertyDot(p.id)}${escapeHtml(p.name)} <span class="debt-detail">${formatMoney(p.value)}</span></label>
         </div>
     `;
     }).join('');
