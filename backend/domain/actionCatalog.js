@@ -19,6 +19,7 @@ const ACTIONS = [
     { type: 'pass_auction', category: 'auction', payload: {}, description: 'Pass in the open auction (the current high bidder cannot pass).' },
     { type: 'buy_houses', category: 'assets', payload: { selections: { '<propertyId>': 'integer houses to add (total per property <= 5; 5th = hotel)' } }, description: 'Buy houses/hotels on properties where you own the complete color group. Your turn only.' },
     { type: 'create_ipo', category: 'assets', payload: { ticker: 'string, up to 8 letters/digits', totalShares: 'integer 1-12', pricePerShare: 'number > 0', assetIds: ['<propertyId you own>'] }, description: 'Bundle your properties into a corporation; you get all shares and they are listed for sale. Your turn only.' },
+    { type: 'add_to_corporation', category: 'assets', payload: { corpId: '<corporation id you run (chairman or majority holder)>', assetIds: ['<propertyId you own, not backing a loan>'], issueShares: 'boolean (optional): take new shares for it' }, description: 'Put more of your properties into a corporation you run. With issueShares, you get whole new shares at the current value per share (rounded down, 12 shares max) so other holders keep their value; without it the property raises every share\'s value. A built colour group goes in whole. Your turn only.' },
     { type: 'buy_shares', category: 'assets', payload: { corpId: '<corporation id>', shares: 'integer > 0' }, description: 'Buy treasury shares a corporation has for sale, at its price. Shares a player holds can only be bought with a propose_trade they accept. Your turn only.' },
     { type: 'issue_debt', category: 'debt', payload: { amount: 'number > 0', collateralIds: ['<propertyId you own, not already backing a loan> (required; amount <= 90% of their value)'], issuerType: "'player' (default) or 'corporation'", corpId: '<corporation id, when issuerType is corporation>' }, description: 'Borrow cash at the room debt rate; interest compounds each time you end your turn. Your turn only.' },
     { type: 'pay_debt', category: 'debt', payload: { debtId: '<your debt id>', amount: 'number > 0, <= your cash' }, description: 'Repay part or all of a debt. Your turn only.' },
@@ -71,6 +72,8 @@ function buildCandidates(state, me, hostId) {
     const add = (type, payload = {}) => candidates.push({ type, payload });
     const others = state.players.filter(player => player.userId !== me.userId && !player.bankrupt);
     const myPropertyIds = state.properties.filter(prop => prop.ownerId === me.userId).map(prop => prop.id);
+    const myPriciestPropertyId = state.properties.filter(prop => prop.ownerId === me.userId)
+        .reduce((best, prop) => (!best || Number(prop.price || 0) > Number(best.price || 0) ? prop : best), null)?.id;
 
     ['roll_dice', 'pay_jail_fine', 'use_get_out_of_jail_card', 'buy_property', 'start_auction', 'end_turn', 'pass_auction'].forEach(type => add(type));
 
@@ -84,6 +87,11 @@ function buildCandidates(state, me, hostId) {
     }
     state.corporations.forEach(corp => {
         add('buy_shares', { corpId: corp.id, shares: 1 });
+        if (myPropertyIds.length > 0) {
+            // The priciest property is the likeliest to be worth a whole share.
+            add('add_to_corporation', { corpId: corp.id, assetIds: [myPriciestPropertyId], issueShares: true });
+            add('add_to_corporation', { corpId: corp.id, assetIds: [myPropertyIds[0]] });
+        }
         others.forEach(other => {
             add('change_chairman', { corpId: corp.id, candidateUserId: other.userId });
             add('propose_chairman_vote', { corpId: corp.id, candidateUserId: other.userId });

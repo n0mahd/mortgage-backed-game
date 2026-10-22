@@ -81,6 +81,7 @@ const HOUSE_COSTS = {
 
 const JAIL_FINE_AMOUNT = 50;
 const JAIL_CARD_ASSET_ID = 'get-out-of-jail-free';
+const MAX_CORPORATION_SHARES = 12;
 
 const CHANCE_CARDS = [
     { id: 'ch-1', text: 'Advance to GO. Collect $200.', action: { type: 'advance_to', position: 0 } },
@@ -316,6 +317,10 @@ function applyAction(inputState, actorUserId, action, options = {}) {
         case 'create_ipo':
             requireTurn();
             createIPO(state, actor, action.payload || {}, events);
+            break;
+        case 'add_to_corporation':
+            requireTurn();
+            addToCorporation(state, actor, action.payload || {}, events);
             break;
         case 'buy_shares':
             requireTurn();
@@ -870,7 +875,7 @@ function createIPO(state, player, payload, events) {
     const totalShares = positiveInt(payload.totalShares || payload.shares, 'shares');
     const pricePerShare = positiveNumber(payload.pricePerShare, 'pricePerShare');
     if (!ticker) throw new GameRuleError(400, 'Ticker is required');
-    if (totalShares > 12) throw new GameRuleError(400, 'Shares must be 12 or fewer');
+    if (totalShares > MAX_CORPORATION_SHARES) throw new GameRuleError(400, `Shares must be ${MAX_CORPORATION_SHARES} or fewer`);
     if (state.corporations.some(c => c.ticker === ticker)) throw new GameRuleError(400, 'Ticker already exists');
     if (assetIds.length === 0) throw new GameRuleError(400, 'At least one asset is required');
     const assets = assetIds.map(id => {
@@ -878,13 +883,8 @@ function createIPO(state, player, payload, events) {
         if (!prop || prop.ownerId !== player.userId) throw new GameRuleError(400, 'IPO assets must be owned by founder');
         return { id: prop.id, name: prop.name, value: prop.price, color: prop.color };
     });
-    new Set(assets.map(asset => asset.color)).forEach(color => {
-        if (!groupHasBuildings(state, color)) return;
-        const missing = state.properties.filter(p => p.color === color && !assetIds.includes(p.id));
-        if (missing.length) {
-            throw new GameRuleError(400, `The ${color} group has buildings, so the IPO must include the whole group. Also select ${missing.map(p => p.name).join(' and ')}.`);
-        }
-    });
+    requireUnpledged(state, assetIds);
+    requireWholeBuiltGroups(state, assetIds, 'the IPO');
     const corporation = {
         id: `corp-${uuidv4()}`,
         ticker,
@@ -919,6 +919,111 @@ function createIPO(state, player, payload, events) {
         pricePerShare,
     }));
     log(state, `${player.name} created ${ticker} IPO: ${totalShares} shares, all held by ${player.name}, priced at $${pricePerShare} each`);
+}
+
+// Whoever runs an LLC can put more of their own properties into it. If other
+// players hold shares, the runner can take new shares priced at the current
+// value per share, so the other stakes keep their value. Shares are whole
+// (rounded down) and the 12-share cap holds; value the new shares don't cover
+// is a gift to every shareholder.
+function addToCorporation(state, player, payload, events) {
+    const corp = state.corporations.find(c => c.id === payload.corpId);
+    if (!corp) throw new GameRuleError(404, 'Corporation not found');
+    if (corp.insolvent) throw new GameRuleError(400, `${corp.ticker} is insolvent and cannot take property`);
+    if (!controlsCorporation(corp, player.userId)) {
+        throw new GameRuleError(403, `You don't run ${corp.ticker}. To put a property into it, offer it to ${corp.chairmanName || 'the chairman'} in a trade.`);
+    }
+    const assetIds = uniqueIds(payload.assetIds);
+    if (assetIds.length === 0) throw new GameRuleError(400, `Choose a property to put into ${corp.ticker}`);
+    requireNoOpenClaim(state, player, `put property into ${corp.ticker}`);
+    assetIds.forEach(id => {
+        const prop = state.properties.find(p => p.id === id);
+        if (!prop || prop.ownerId !== player.userId) throw new GameRuleError(400, 'You can only put in properties you own');
+    });
+    requireUnpledged(state, assetIds);
+    requireWholeBuiltGroups(state, assetIds, corp.ticker);
+    const quote = corporationContributionQuote(state, corp, player.userId, assetIds);
+    if (payload.issueShares === true && quote.newShares === 0) throw new GameRuleError(400, quote.noSharesReason);
+    const newShares = payload.issueShares === true ? quote.newShares : 0;
+
+    transferPropertiesToCorporation(state, player, corp, assetIds);
+    // The chair stays put: the runner already chairs or holds a majority.
+    if (newShares > 0) {
+        corp.totalShares = Number(corp.totalShares || 0) + newShares;
+        addShareholderShares(corp, player, newShares);
+        normalizeCorporationShareLedger(state, corp);
+    }
+    const names = assetIds.map(id => state.properties.find(p => p.id === id).name);
+    events.push(makeEvent(player, 'corporation_assets_added', {
+        actor: player.name,
+        ticker: corp.ticker,
+        properties: names,
+        value: quote.value,
+        newShares,
+        totalShares: corp.totalShares,
+    }));
+    const sharesNote = newShares > 0
+        ? ` and received ${newShares} new share${newShares === 1 ? '' : 's'} (${corp.ticker} now has ${corp.totalShares})`
+        : '';
+    log(state, `${player.name} put ${names.join(', ')} into ${corp.ticker}${sharesNote}`);
+}
+
+// How many whole new shares a contribution is worth at the LLC's current value
+// per share, rounded down and kept within the share cap. newShares is 0, with
+// a reason, when shares can't or needn't be issued.
+function corporationContributionQuote(state, corp, userId, assetIds) {
+    const value = assetIds.reduce((sum, id) => sum + collateralValue(state.properties.find(p => p.id === id)), 0);
+    const totalShares = Number(corp.totalShares || 0);
+    const otherShares = totalShares - sharesFor(corp, userId);
+    const netAssetValue = calculateCorporationNetAssetValue(state, corp);
+    const room = Math.max(0, MAX_CORPORATION_SHARES - totalShares);
+    const quote = { value, newShares: 0, fairShares: 0, noSharesReason: null };
+    if (otherShares <= 0) {
+        quote.noSharesReason = `You hold every ${corp.ticker} share, so new shares would change nothing`;
+    } else if (netAssetValue <= 0) {
+        quote.noSharesReason = `${corp.ticker} is worth $0 or less, so new shares can't be priced`;
+    } else {
+        quote.fairShares = Math.floor((value * totalShares) / netAssetValue);
+        quote.newShares = Math.min(quote.fairShares, room);
+        if (room === 0) {
+            quote.noSharesReason = `${corp.ticker} already has ${MAX_CORPORATION_SHARES} shares, the most allowed`;
+        } else if (quote.fairShares === 0) {
+            quote.noSharesReason = `That is worth less than one ${corp.ticker} share`;
+        }
+    }
+    return quote;
+}
+
+// Adding property never raises cash, so a player with an unpaid claim can't do
+// it: the property would only move out of the creditor's reach. (An IPO stays
+// open to them, since selling its shares is how a built group raises cash.)
+function requireNoOpenClaim(state, player, what) {
+    if (getBankruptcyClaim(state, player.userId)) {
+        throw new GameRuleError(400, `You owe an unpaid claim, so you can't ${what} until it's paid`);
+    }
+}
+
+// A property backing a loan stays with its owner until the loan is paid or
+// refinanced onto other collateral.
+function requireUnpledged(state, propertyIds) {
+    const pledged = pledgedPropertyIds(state);
+    propertyIds.forEach(id => {
+        if (!pledged.has(id)) return;
+        const prop = state.properties.find(p => p.id === id);
+        throw new GameRuleError(400, `${prop?.name || id} backs a loan. Pay the loan off or refinance it first.`);
+    });
+}
+
+// A colour group with buildings moves into an LLC whole.
+function requireWholeBuiltGroups(state, propertyIds, destination) {
+    const colors = new Set(propertyIds.map(id => state.properties.find(p => p.id === id)?.color).filter(Boolean));
+    colors.forEach(color => {
+        if (!groupHasBuildings(state, color)) return;
+        const missing = state.properties.filter(p => p.color === color && !propertyIds.includes(p.id));
+        if (missing.length) {
+            throw new GameRuleError(400, `The ${color} group has buildings, so ${destination} must take the whole group. Also select ${missing.map(p => p.name).join(' and ')}.`);
+        }
+    });
 }
 
 function buyShares(state, player, payload, events) {
@@ -2406,6 +2511,7 @@ function validatePropertyTransferList(state, from, ids) {
     ids.forEach(id => {
         const prop = state.properties.find(p => p.id === id);
         if (!prop || prop.ownerId !== from.userId) throw new GameRuleError(400, 'Can only transfer owned property');
+        requireUnpledged(state, [id]);
         if (groupHasBuildings(state, prop.color)) {
             throw new GameRuleError(400, `${prop.name} is in the ${prop.color} group, which has buildings. A built group can't be traded; put the whole group into an IPO and sell shares instead.`);
         }

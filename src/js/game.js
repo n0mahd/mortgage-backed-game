@@ -1098,6 +1098,11 @@ function formatLogEvent(type, data) {
             return `${data.buyer} purchased ${data.property} for $${Number(data.price).toFixed(2)}`;
         case 'ipo_created':
             return `${data.founder} created IPO ${data.ticker}: ${data.founderShares || data.shares} shares held by ${data.founder}, priced at $${Number(data.pricePerShare).toFixed(2)}/share`;
+        case 'corporation_assets_added': {
+            const names = Array.isArray(data.properties) ? data.properties.join(', ') : 'property';
+            const shares = Number(data.newShares || 0);
+            return `${data.actor} put ${names} into ${data.ticker}${shares ? ` for ${shares} new share${shares === 1 ? '' : 's'} (${data.ticker} now has ${data.totalShares})` : ''}`;
+        }
         case 'share_purchase': {
             const founderShares = Number(data.founderShares || 0);
             const treasuryShares = Number(data.treasuryShares || 0);
@@ -1387,6 +1392,13 @@ async function openIPOModal() {
 
     const container = document.getElementById('ipoAssets');
     container.innerHTML = assetsHtml;
+    const runCorps = ShareDeals.corporationsRunBy(currentGame.game_state, currentUser.id);
+    const existing = document.getElementById('ipoExistingCorps');
+    existing.hidden = runCorps.length === 0;
+    existing.innerHTML = runCorps.length ? `
+        <small>Or add these properties to a company you already run:</small>
+        ${runCorps.map(corp => `<button class="btn btn-secondary btn-sm" data-game-action="open-add-to-corporation" data-corp-id="${escapeAttr(corp.id)}">Add to ${escapeHtml(corp.ticker)}</button>`).join('')}
+    ` : '';
     // A built group goes into an IPO whole, so ticking one street ticks the group.
     container.querySelectorAll('input[data-built-group]').forEach(input => {
         input.addEventListener('change', () => {
@@ -1763,8 +1775,10 @@ async function openCorporationModal() {
         const buyableShares = getBuyableListedShares(corp);
         const canBuy = isMyTurn && buyableShares > 0 && !isInsolvent;
         const governanceHtml = renderChairmanGovernance(corp);
-        const canOfferProperty = !isInsolvent && !!corp.chairmanId && corp.chairmanId !== currentUser.id
-            && (currentPlayerData?.properties || []).length > 0 && !currentPlayerData?.bankrupt;
+        const hasProperties = (currentPlayerData?.properties || []).length > 0 && !currentPlayerData?.bankrupt;
+        const runsIt = ShareDeals.runsCorporation(corp, currentUser.id);
+        const canOfferProperty = !isInsolvent && !!corp.chairmanId && !runsIt && hasProperties;
+        const canAddProperty = runsIt && hasProperties;
         const pricePerShare = Number(corp.pricePerShare || 0);
         const netAssetValue = getCorporationNetAssetValue(corp);
         const shareValue = getCorporationShareValue(corp);
@@ -1808,6 +1822,12 @@ async function openCorporationModal() {
                 <div class="offer-property-for-shares">
                     <button class="btn btn-success" data-game-action="offer-property-for-shares" data-corp-id="${escapeAttr(corp.id)}">Offer a property for ${escapeHtml(corp.ticker)} shares</button>
                     <small>Put one of your properties into ${escapeHtml(corp.ticker)} in exchange for part of its ${Number(corp.totalShares || 0)} shares. ${escapeHtml(corp.chairmanName || 'The chairman')} has to accept.</small>
+                </div>
+            ` : ''}
+            ${canAddProperty ? `
+                <div class="offer-property-for-shares">
+                    <button class="btn btn-success" data-game-action="open-add-to-corporation" data-corp-id="${escapeAttr(corp.id)}"${isMyTurn ? '' : ' disabled'}>Add properties to ${escapeHtml(corp.ticker)}</button>
+                    <small>${isMyTurn ? `Move more of your properties into ${escapeHtml(corp.ticker)}.` : 'You can do this on your turn.'}</small>
                 </div>
             ` : ''}
             ${canBuy ? `
@@ -2406,6 +2426,8 @@ function bindStaticGameControls() {
     document.getElementById('confirm-purchase-btn')?.addEventListener('click', confirmPurchase);
     document.getElementById('start-auction-btn')?.addEventListener('click', startAuctionFromPurchase);
     document.getElementById('create-ipo-btn')?.addEventListener('click', createIPO);
+    document.getElementById('add-to-corp-btn')?.addEventListener('click', submitAddToCorporation);
+    document.getElementById('addToCorpModal')?.addEventListener('change', renderAddToCorpChoices);
     document.getElementById('debtAction')?.addEventListener('change', toggleDebtForm);
     document.getElementById('debtIssuer')?.addEventListener('change', renderDebtCollateralOptions);
     document.getElementById('debtToSettle')?.addEventListener('change', updateSettlementFullAmountState);
@@ -2886,6 +2908,109 @@ function offerPropertyForShares(corpId) {
     showMarketStatus(`Tick the property you're offering, then enter how many ${corp.ticker} shares you want back.`, 'info');
     document.querySelector('#market .transaction-form')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     shareInput?.focus({ preventScroll: true });
+}
+
+// Adding your own properties to a company you run (add_to_corporation). The
+// server decides the share count; this only previews it.
+const MAX_CORPORATION_SHARES = 12;
+let addToCorpId = null;
+let addToCorpChoice = 'shares'; // the player's pick; shown when shares are possible
+
+function openAddToCorporationModal(corpId) {
+    const gameState = currentGame?.game_state;
+    const corp = gameState?.corporations?.find(item => item.id === corpId);
+    if (!corp) return;
+    addToCorpId = corp.id;
+    closeModal('corporationModal');
+    closeModal('ipoModal');
+    const pledged = pledgedPropertyIdsUi();
+    document.getElementById('addToCorpTitle').textContent = `Add properties to ${corp.ticker}`;
+    document.getElementById('addToCorpHint').textContent = `${corp.ticker} will own them and collect their rent, so every ${corp.ticker} share is worth more.`;
+    const container = document.getElementById('addToCorpAssets');
+    container.innerHTML = (currentPlayerData?.properties || []).map(p => {
+        const built = groupHasBuildingsUi(p.color);
+        const isPledged = pledged.has(p.id);
+        const note = isPledged
+            ? 'Backs a loan: pay it off or refinance first'
+            : (built ? `Has buildings: goes in with the whole ${p.color} group` : '');
+        return `
+        <div class="asset-checkbox${isPledged ? ' asset-locked' : ''}">
+            <input type="checkbox" id="add-corp-asset-${escapeAttr(p.id)}" value="${escapeAttr(p.id)}"${built ? ` data-built-group="${escapeAttr(p.color)}"` : ''}${isPledged ? ' disabled' : ''}>
+            <label for="add-corp-asset-${escapeAttr(p.id)}">${propertyDot(p.id)}${escapeHtml(p.name)} <span class="debt-detail">${formatMoney(p.value)}</span>${note ? ` <span class="debt-detail">${escapeHtml(note)}</span>` : ''}</label>
+        </div>
+    `;
+    }).join('') || '<p class="empty-state">You have no properties to add.</p>';
+    // A built group goes in whole, so ticking one street ticks the group.
+    container.querySelectorAll('input[data-built-group]').forEach(input => {
+        input.addEventListener('change', () => {
+            container.querySelectorAll(`input[data-built-group="${CSS.escape(input.dataset.builtGroup)}"]:not(:disabled)`).forEach(other => { other.checked = input.checked; });
+        });
+    });
+    document.getElementById('addToCorpShares').innerHTML = '';
+    addToCorpChoice = 'shares';
+    renderAddToCorpChoices();
+    openModal('addToCorpModal');
+}
+
+function selectedAddToCorpIds() {
+    return Array.from(document.querySelectorAll('#addToCorpAssets input:checked')).map(cb => cb.value);
+}
+
+function addToCorpOptions() {
+    return { netAssetValue: getCorporationNetAssetValue, maxShares: MAX_CORPORATION_SHARES };
+}
+
+// Redraws the "what do you get back" choice and the preview whenever the
+// ticked properties or the choice change.
+function renderAddToCorpChoices(event) {
+    if (event?.target?.name === 'addToCorpReturn') addToCorpChoice = event.target.value;
+    const gameState = currentGame?.game_state;
+    const corp = gameState?.corporations?.find(item => item.id === addToCorpId);
+    if (!corp) return;
+    const ids = selectedAddToCorpIds();
+    const quote = ShareDeals.contributionQuote(gameState, corp, currentUser.id, ids, addToCorpOptions());
+    const choices = document.getElementById('addToCorpShares');
+    if (quote.otherShares <= 0) {
+        // Sole owner: the property just moves inside the company.
+        choices.innerHTML = '';
+    } else {
+        const canIssue = ids.length > 0 && quote.newShares > 0;
+        const choice = canIssue ? addToCorpChoice : 'gift';
+        const sharesDetail = canIssue
+            ? `${quote.newShares} new share${quote.newShares === 1 ? '' : 's'} at today's value per share, so the other holders' stakes keep their value.`
+            : (quote.noSharesReason || 'Pick a property to see how many shares it is worth.');
+        choices.innerHTML = `
+            <p class="trade-destination-title">What do you get back?</p>
+            <label class="trade-destination-option">
+                <input type="radio" name="addToCorpReturn" value="shares"${choice === 'shares' ? ' checked' : ''}${canIssue ? '' : ' disabled'}>
+                <span><strong>New ${escapeHtml(corp.ticker)} shares</strong><small>${escapeHtml(sharesDetail)}</small></span>
+            </label>
+            <label class="trade-destination-option">
+                <input type="radio" name="addToCorpReturn" value="gift"${choice === 'gift' ? ' checked' : ''}>
+                <span><strong>Nothing, it's a gift</strong><small>Every ${escapeHtml(corp.ticker)} share rises in value, including the other holders'.</small></span>
+            </label>
+        `;
+    }
+    const issueShares = choices.querySelector('input:checked')?.value === 'shares';
+    const preview = document.getElementById('addToCorpPreview');
+    preview.hidden = ids.length === 0;
+    preview.innerHTML = ids.length
+        ? `<h4>Before you confirm</h4>${renderShareDealSummary(ShareDeals.summarizeContribution(gameState, corp, currentUser.id, ids, issueShares, addToCorpOptions()))}`
+        : '';
+    document.getElementById('add-to-corp-btn').disabled = ids.length === 0;
+}
+
+async function submitAddToCorporation() {
+    const assetIds = selectedAddToCorpIds();
+    if (!addToCorpId || !assetIds.length) return;
+    const issueShares = document.querySelector('#addToCorpShares input:checked')?.value === 'shares';
+    try {
+        await performGameAction('add_to_corporation', { corpId: addToCorpId, assetIds, issueShares });
+        closeModal('addToCorpModal');
+    } catch (error) {
+        logActionError('Error adding properties to corporation:', error);
+        alert(error.message || 'Failed to add properties');
+    }
 }
 
 // Share lots entered in a trade side, as [{ corpId, shares }].

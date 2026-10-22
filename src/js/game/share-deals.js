@@ -223,5 +223,60 @@
         return { sentences, rows, warnings, netChange, evenShares };
     }
 
-    global.ShareDeals = { summarize, corporationsRunBy, runsCorporation, percent };
+    // Mirrors the engine's add_to_corporation quote: whole new shares at the
+    // current value per share, rounded down, total capped at maxShares.
+    function contributionQuote(gameState, corp, userId, propertyIds, options) {
+        const value = propertyIds.reduce((sum, id) => sum + propertyValue(gameState, id), 0);
+        const totalShares = Number(corp.totalShares || 0);
+        const otherShares = totalShares - sharesHeld(corp, userId);
+        const netAssetValue = options.netAssetValue(corp);
+        const room = Math.max(0, options.maxShares - totalShares);
+        const quote = { value, newShares: 0, fairShares: 0, otherShares, noSharesReason: null };
+        if (otherShares <= 0) {
+            quote.noSharesReason = `You hold every ${corp.ticker} share, so there's no one to share the value with.`;
+        } else if (netAssetValue <= 0) {
+            quote.noSharesReason = `${corp.ticker} is worth $0 or less, so new shares can't be priced.`;
+        } else {
+            quote.fairShares = Math.floor((value * totalShares) / netAssetValue);
+            quote.newShares = Math.min(quote.fairShares, room);
+            if (room === 0) quote.noSharesReason = `${corp.ticker} already has ${options.maxShares} shares, the most allowed.`;
+            else if (propertyIds.length && quote.fairShares === 0) quote.noSharesReason = `That's worth less than one ${corp.ticker} share (${money(netAssetValue / totalShares)}).`;
+        }
+        return quote;
+    }
+
+    // Preview for add_to_corporation, shaped like summarize() so the same
+    // renderer shows it: { sentences, rows, warnings }.
+    function summarizeContribution(gameState, corp, userId, propertyIds, issueShares, options) {
+        const quote = contributionQuote(gameState, corp, userId, propertyIds, options);
+        const newShares = issueShares ? quote.newShares : 0;
+        const total = Number(corp.totalShares || 0);
+        const mine = sharesHeld(corp, userId);
+        const navBefore = Math.max(0, options.netAssetValue(corp));
+        const navAfter = Math.max(0, options.netAssetValue(corp) + quote.value);
+        const stakeBefore = total ? (mine * navBefore) / total : 0;
+        const stakeAfter = total + newShares ? ((mine + newShares) * navAfter) / (total + newShares) : 0;
+        const netChange = stakeAfter - stakeBefore - quote.value;
+        const names = list(propertyIds.map(id => propertyName(gameState, id)));
+        const sentences = [newShares > 0
+            ? `You put ${names} into ${corp.ticker} and get ${newShares} new share${newShares === 1 ? '' : 's'}.`
+            : `You put ${names} into ${corp.ticker}.`];
+        const rows = [
+            { label: `${corp.ticker} value`, value: `${money(navBefore)} → ${money(navAfter)}` },
+            {
+                label: `Your ${corp.ticker} shares`,
+                value: `${mine} of ${total} → ${mine + newShares} of ${total + newShares} (${percent(mine + newShares, total + newShares)})`,
+            },
+            { label: 'Your net worth', value: signedMoney(netChange), tone: Math.round(netChange) > 0 ? 'up' : (Math.round(netChange) < 0 ? 'down' : '') },
+        ];
+        const warnings = [];
+        if (Math.round(netChange) < 0) {
+            warnings.push(newShares > 0
+                ? `The other ${corp.ticker} holders gain ${money(-netChange)}: whole shares, rounded down, don't cover the full value.`
+                : `The other ${corp.ticker} holders gain ${money(-netChange)}, since their shares rise in value too.`);
+        }
+        return { sentences, rows, warnings, netChange, quote };
+    }
+
+    global.ShareDeals = { summarize, summarizeContribution, contributionQuote, corporationsRunBy, runsCorporation, percent };
 })(window);

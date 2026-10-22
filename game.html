@@ -195,9 +195,27 @@
                 <label>Properties to include</label>
                 <div class="asset-list" id="ipoAssets"></div>
             </div>
+            <div class="offer-property-for-shares" id="ipoExistingCorps" hidden></div>
             <div class="sheet-actions">
                 <button id="create-ipo-btn" class="btn btn-success">Create IPO</button>
                 <button class="btn btn-secondary" data-close-modal="ipoModal">Cancel</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal" id="addToCorpModal">
+        <div class="modal-content">
+            <div class="modal-header" id="addToCorpTitle">Add properties</div>
+            <p class="modal-hint" id="addToCorpHint"></p>
+            <div class="form-group">
+                <label>Properties to add</label>
+                <div class="asset-list" id="addToCorpAssets"></div>
+            </div>
+            <div class="trade-destination" id="addToCorpShares"></div>
+            <div class="trade-preview" id="addToCorpPreview" hidden></div>
+            <div class="sheet-actions">
+                <button id="add-to-corp-btn" class="btn btn-success" disabled>Add</button>
+                <button class="btn btn-secondary" data-close-modal="addToCorpModal">Cancel</button>
             </div>
         </div>
     </div>
@@ -362,11 +380,11 @@
     <script src="src/js/ui.js?v=1"></script>
     <script src="src/js/rejoin-prompts.js?v=1"></script>
     <script src="src/js/board.js?v=10"></script>
-    <script src="src/js/game/action-dispatcher.js?v=2"></script>
+    <script src="src/js/game/action-dispatcher.js?v=3"></script>
     <script src="src/js/game/turn-alert.js?v=1"></script>
     <script src="src/js/game/turn-end-outlook.js?v=1"></script>
-    <script src="src/js/game/share-deals.js?v=1"></script>
+    <script src="src/js/game/share-deals.js?v=2"></script>
     <script src="src/js/turn-notifications.js?v=1"></script>
-    <script src="src/js/game.js?v=30"></script>
+    <script src="src/js/game.js?v=31"></script>
 </body>
 </html>

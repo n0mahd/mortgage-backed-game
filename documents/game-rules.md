@@ -204,6 +204,21 @@ Any player may bundle one or more of their properties into a corporation and sel
 3. Set a **ticker symbol** (e.g., `MBS`), the **number of shares** to issue (default 10, at most 12), and the **price per share**.
 4. Click **Create** — the selected properties transfer into the corporation and you receive all of its shares.
 
+### Adding Properties to a Corporation You Run
+
+If you run a corporation (you're its chairman or hold more than half its shares), you can move more of your own properties into it on your turn.
+
+1. Open **Corporations** from the Game tab and tap **Add properties to MBS** on that corporation's card. **Create IPO** also lists the companies you run.
+2. Tick the properties to add. A property backing a loan can't go in until the loan is paid off or refinanced. A color group with buildings goes in whole: ticking one of its streets ticks the rest.
+3. If other players hold shares, choose what you get back:
+   - **New shares** (the usual choice). You get new shares at today's value per share, so the other holders' stakes keep their value. For example, MBS has 10 shares and is worth $1,200, so one share is worth $120. Illinois Ave ($240) gets you 2 new shares, and MBS then has 12. Shares are whole numbers, rounded down, and a corporation can't go over 12 shares. Any value the new shares don't cover goes to every shareholder, and the screen tells you how much the others gain before you confirm.
+   - **Nothing, it's a gift.** Every share rises in value, including the other holders'.
+4. Check **Before you confirm** for the corporation's value, your shares and your net-worth change, then tap **Add**. Nobody else has to agree.
+
+If you hold every share, the property simply moves into the corporation; your net worth doesn't change. New shares can't be priced while a corporation is worth $0 or less. You can't add properties while you owe an unpaid claim.
+
+To put a property into a corporation someone else runs, offer it to them in a trade (see **Trading a Property for Shares** in section 12).
+
 ### Selling Shares
 
 Nobody can buy your shares without your agreement. Shares change hands only through a **trade offer** in the **Market** tab that the holder accepts: offer cash (or property) for someone's shares, or offer your own shares to someone.
@@ -315,7 +330,7 @@ Trades let two players exchange any combination of cash, properties, corporation
 5. Click **Propose Transaction** — the offer appears under **Pending Trade Offers**.
 6. The other involved player accepts to execute the transfer, or declines to reject it.
 
-Streets in a color group with buildings can't be checked: a built group can only change hands by an IPO of the whole group, whose shares can then be traded here.
+Streets in a color group with buildings can't be checked: a built group can only change hands by an IPO of the whole group (or by adding the whole group to a corporation you run), whose shares can then be traded here. A property backing a loan can't be traded, put into an IPO or added to a corporation until that loan is paid off or refinanced onto other properties.
 
 To send shares (or property) as a gift, propose a one-sided trade where the other player gives nothing; it moves once they accept. Shares of an insolvent corporation cannot be traded. Whoever gains a majority of a corporation's shares through a trade becomes its chairman.
 
