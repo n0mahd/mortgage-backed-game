@@ -229,3 +229,53 @@ test.describe('Trading — offer colors', () => {
         if (process.env.TRADE_COLORS_SHOT) await card.screenshot({ path: process.env.TRADE_COLORS_SHOT });
     });
 });
+
+test.describe('Trading — cash limit', () => {
+    test('each side shows its max cash and an offer above it cannot be proposed', async ({ page, request }) => {
+        const h = await apiJson(request, 'post', `${BASE_API}/auth/anonymous`);
+        const g = await apiJson(request, 'post', `${BASE_API}/auth/anonymous`);
+        const room = await apiJson(request, 'post', `${BASE_API}/rooms`, {
+            headers: { Authorization: `Bearer ${h.token}` },
+            data: { name: 'Trade Cash Room', player_name: 'Abdullah', max_players: 4 },
+        });
+        await apiJson(request, 'post', `${BASE_API}/rooms/${room.id}/join`, {
+            headers: { Authorization: `Bearer ${g.token}` },
+            data: { player_name: 'Claude' },
+        });
+        await apiJson(request, 'post', `${BASE_API}/games`, {
+            headers: { Authorization: `Bearer ${h.token}` },
+            data: {
+                room_id: room.id,
+                game_state: {
+                    currentPlayerIndex: 0,
+                    players: [playerState(h.user.id, 'Abdullah', { cash: 1234 }), playerState(g.user.id, 'Claude', { cash: -50 })],
+                    properties: [], corporations: [], debts: [], marketOffers: [], gameLog: [],
+                    lastDiceRoll: null, lastCardDrawn: null,
+                    settings: { passGoAmount: 200, startingCash: 1500 },
+                },
+            },
+        });
+
+        await page.setViewportSize({ width: 390, height: 844 });
+        await loginPage(page, h.token);
+        await page.goto(`${BASE}/game.html?room=${room.id}`);
+        await page.getByRole('button', { name: 'Market' }).click();
+
+        await expect(page.locator('label[for="player1Cash"]')).toHaveText('Cash (max $1,234)');
+        await expect(page.locator('label[for="player2Cash"]')).toHaveText('Cash (max $0)');
+
+        const cash = page.locator('#player1Cash');
+        const propose = page.locator('#executeTradeBtn');
+        await cash.fill('1234');
+        await expect(propose).toBeEnabled();
+        await cash.fill('1235');
+        await expect(propose).toBeDisabled();
+        await expect(cash).toHaveAttribute('aria-invalid', 'true');
+        await expect(page.locator('#player1CashMax')).toHaveClass(/is-over/);
+        if (process.env.TRADE_CASH_SHOT) await page.locator('#market .transaction-form').screenshot({ path: process.env.TRADE_CASH_SHOT });
+
+        await cash.fill('0');
+        await page.locator('#player2Cash').fill('1');
+        await expect(propose).toBeDisabled();
+    });
+});

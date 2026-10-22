@@ -2909,12 +2909,36 @@ function updateMarketActionState() {
     const player2Assets = document.querySelectorAll('#player2Assets input:checked').length + selectedTradeShares('player2Assets').length;
 
     const tradeHasOffer = player1Cash > 0 || player2Cash > 0 || player1Assets > 0 || player2Assets > 0;
-    const tradeValid = player1Id && player2Id && player1Id !== player2Id && [player1Id, player2Id].includes(currentUser.id) && tradeHasOffer;
+    const tradeCashCovered = ['player1', 'player2'].map(updateTradeCashLimit).every(Boolean);
+    const tradeValid = player1Id && player2Id && player1Id !== player2Id && [player1Id, player2Id].includes(currentUser.id)
+        && tradeHasOffer && tradeCashCovered;
     const paymentValid = fromPlayerId && toPlayerId && fromPlayerId !== toPlayerId && fromPlayerId === currentUser.id && paymentAmount > 0;
 
     if (tradeBtn) tradeBtn.disabled = !tradeValid;
     if (paymentBtn) paymentBtn.disabled = !paymentValid;
     renderTradePreview();
+}
+
+// The most cash a trade side's player can put in: what they hold, never below zero.
+function tradeCashMax(side) {
+    const userId = document.getElementById(`${side}Select`)?.value;
+    const player = currentGame?.game_state?.players?.find(p => p.userId === userId);
+    return Math.max(0, Number(player?.cash) || 0);
+}
+
+// Shows "(max $X)" next to a trade side's Cash and flags an amount above
+// what that player holds. Returns whether the amount is covered.
+function updateTradeCashLimit(side) {
+    const input = document.getElementById(`${side}Cash`);
+    const label = document.getElementById(`${side}CashMax`);
+    if (!input || !label) return true;
+    const max = tradeCashMax(side);
+    const covered = (parseFloat(input.value) || 0) <= max;
+    input.max = max;
+    label.textContent = `(max ${formatMoney(max)})`;
+    label.classList.toggle('is-over', !covered);
+    input.setAttribute('aria-invalid', String(!covered));
+    return covered;
 }
 
 function showMarketStatus(message, type = 'info') {
@@ -3123,6 +3147,12 @@ async function executeTransaction() {
     if (player1Cash <= 0 && player2Cash <= 0 && player1Assets.length === 0 && player2Assets.length === 0
         && player1Shares.length === 0 && player2Shares.length === 0) {
         showMarketStatus('Add cash, property, shares, or a Get Out of Jail Free card before proposing a trade.', 'error');
+        return;
+    }
+    const short = ['player1', 'player2'].find(side => terms[`${side}Cash`] > tradeCashMax(side));
+    if (short) {
+        const name = document.getElementById(`${short}Select`)?.selectedOptions[0]?.textContent || 'That player';
+        showMarketStatus(`${name} only has ${formatMoney(tradeCashMax(short))} in cash.`, 'error');
         return;
     }
 
