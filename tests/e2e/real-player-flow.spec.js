@@ -82,10 +82,10 @@ test.describe('thorough real-player UI game flow', () => {
             await shot(testInfo, pages.Alice, '12-alice-settles-partial-debt');
             await payOffDebt(pages.Alice);
 
-            await createIpo(pages.Alice, 'BRWN', 8, 'prop-0');
+            await createIpo(pages.Alice, 'BRWN', 'prop-0');
             await shot(testInfo, pages.Alice, '13-alice-creates-ipo');
 
-            await expectCorporationDetails(pages.Alice, 'BRWN', /Alice:\s*8 shares \(100\.0%\)/i);
+            await expectCorporationDetails(pages.Alice, 'BRWN', /Alice:\s*12,000 shares \(100\.0%\)/i);
             await expectCorporationDetails(pages.Alice, 'BRWN', /No treasury shares for sale/i);
             await issueCorporationDebt(pages.Alice, 'BRWN', 100);
             await shot(testInfo, pages.Alice, '13b-alice-issues-corporation-debt');
@@ -99,10 +99,10 @@ test.describe('thorough real-player UI game flow', () => {
                 corporations: {
                     BRWN: {
                         shareholders: [
-                            { name: 'Bob', shares: 3 },
-                            { name: 'Carol', shares: 3 },
+                            { name: 'Bob', shares: 4500 },
+                            { name: 'Carol', shares: 4500 },
                         ],
-                        availableShares: 2,
+                        availableShares: 3000,
                     },
                 },
             });
@@ -361,12 +361,12 @@ async function settleDebt(page, amount) {
     await expect(page.locator('#gameContent')).toContainText(/Debts/, { timeout: 10000 });
 }
 
-async function createIpo(page, ticker, shares, assetId) {
+// An IPO always creates 12,000 shares, all the founder's.
+async function createIpo(page, ticker, assetId) {
     await openTab(page, 'Game');
     await activeGameButton(page, 'open-ipo').click();
     await expect(page.locator('#ipoModal')).toBeVisible();
     await page.locator('#ipoTicker').fill(ticker);
-    await page.locator('#ipoShares').fill(String(shares));
     await page.locator(`#ipo-asset-${assetId}`).check();
     await clickAndWaitForGameVersion(page, page.locator('#create-ipo-btn'));
     await expect(page.locator('#gameContent')).toContainText(ticker, { timeout: 10000 });
@@ -404,7 +404,7 @@ async function proposeChairmanVote(page, ticker, candidateName) {
     await selectByVisibleText(card.locator('select[id^="chairmanVoteCandidate-"]'), candidateName);
     await clickAndWaitForGameVersion(page, card.getByRole('button', { name: /propose/i }));
     await expect(card).toContainText(candidateName, { timeout: 10000 });
-    await expect(card).toContainText(/3\/8 shares supporting/i, { timeout: 10000 });
+    await expect(card).toContainText(/4,500\/12,000 shares supporting/i, { timeout: 10000 });
     await page.locator('#corporationModal').getByRole('button', { name: /close/i }).click();
     await expect(page.locator('#corporationModal')).toBeHidden({ timeout: 10000 });
 }
