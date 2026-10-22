@@ -204,7 +204,7 @@ test.describe('thorough real-player UI game flow', () => {
             await expectPlayerState(pages.Alice, 'Alice', player => player.inJail === true && player.jailTurns === 1);
             await shot(testInfo, pages.Alice, '26-alice-jail-turn-without-doubles');
 
-            await openTab(pages.Alice, 'Log');
+            await openTab(pages.Alice, 'Recent events', 'log');
             await expect(pages.Alice.locator('#full-game-log')).toContainText(/purchased|paid|created IPO|issued debt/i, { timeout: 10000 });
             await expect(pages.Alice.locator('#full-game-log')).toContainText(/rent/i, { timeout: 10000 });
             await expect(pages.Alice.locator('#full-game-log')).toContainText(/Luxury Tax/i, { timeout: 10000 });
@@ -286,9 +286,9 @@ async function waitForGameLoaded(page) {
     await expect(page.locator('#gameContent')).toContainText(/Current Turn:/, { timeout: 15000 });
 }
 
-async function openTab(page, tabName) {
+async function openTab(page, tabName, sectionId = tabName.toLowerCase()) {
     await page.getByRole('button', { name: new RegExp(`^${tabName}$`, 'i') }).click();
-    await expect(page.locator(`#${tabName.toLowerCase()}`)).toHaveClass(/active/);
+    await expect(page.locator(`#${sectionId}`)).toHaveClass(/active/);
 }
 
 async function buyCurrentSquare(page, expectedText) {

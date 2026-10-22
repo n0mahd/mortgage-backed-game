@@ -47,7 +47,7 @@
             </button>
             <button class="nav-tab" data-section="log">
                 <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 6h12M8 12h12M8 18h12"/><circle cx="4" cy="6" r="0.6" fill="currentColor"/><circle cx="4" cy="12" r="0.6" fill="currentColor"/><circle cx="4" cy="18" r="0.6" fill="currentColor"/></svg>
-                <span>Log</span>
+                <span>Recent events</span>
             </button>
             <button class="nav-tab" data-section="board">
                 <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="3.5" width="17" height="17" rx="2"/><rect x="8" y="8" width="8" height="8" rx="1"/></svg>
@@ -92,7 +92,7 @@
                             <select id="player1Select"></select>
                         </div>
                         <div class="form-group">
-                            <label for="player1Cash">Cash</label>
+                            <label for="player1Cash">Cash <span class="field-max" id="player1CashMax"></span></label>
                             <input type="number" id="player1Cash" min="0" value="0" inputmode="decimal">
                         </div>
                         <div class="asset-list" id="player1Assets"></div>
@@ -108,7 +108,7 @@
                             <select id="player2Select"></select>
                         </div>
                         <div class="form-group">
-                            <label for="player2Cash">Cash</label>
+                            <label for="player2Cash">Cash <span class="field-max" id="player2CashMax"></span></label>
                             <input type="number" id="player2Cash" min="0" value="0" inputmode="decimal">
                         </div>
                         <div class="asset-list" id="player2Assets"></div>
@@ -139,9 +139,9 @@
                 <div id="market-status" class="market-status" role="status" aria-live="polite"></div>
             </div>
 
-            <!-- Log Section -->
+            <!-- Recent events Section -->
             <div class="section" id="log">
-                <h2>Log</h2>
+                <h2>Recent events</h2>
                 <p class="section-lede">Every move in this game, newest first.</p>
                 <div class="game-log" id="full-game-log">
                     <div class="loading">
@@ -367,6 +367,6 @@
     <script src="src/js/game/turn-end-outlook.js?v=1"></script>
     <script src="src/js/game/share-deals.js?v=1"></script>
     <script src="src/js/turn-notifications.js?v=1"></script>
-    <script src="src/js/game.js?v=29"></script>
+    <script src="src/js/game.js?v=30"></script>
 </body>
 </html>

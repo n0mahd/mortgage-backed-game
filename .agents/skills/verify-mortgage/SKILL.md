@@ -142,7 +142,7 @@ $S status           # the game's progress
 ```
 
 - **Missions.** At launch, each agent's brief gets its own share of the unreached pathways (never-reached ones first, from the ledger), matched to its persona: newbie gets People/Turn/Property/Jail/Host, trader gets Debt/Corporations/Market/Houses, breaker gets Refusals/Market/Property/Jail, auditor gets Rent/Houses/Bankruptcy. No two agents chase the same one. Agents are told that reaching every part of the game is the goal, not winning. They plan multi-turn setups, run `coverage --missing` every 4-5 turns, and try something new every turn. Combine with `--explore`, so the bot seats steer and stage too.
-- Personas rotate by seat: **newbie** (reads literally, reports confusion), **trader** (debt, IPOs, shares and trades every turn; checks the money), **breaker** (tries what the rules should refuse), **auditor** (checks every number against the Log). Choose with `--personas breaker,auditor`. Model `--agent-model` (default `claude-haiku-5-5`), `--agent-effort` (optional; never `max`).
+- Personas rotate by seat: **newbie** (reads literally, reports confusion), **trader** (debt, IPOs, shares and trades every turn; checks the money), **breaker** (tries what the rules should refuse), **auditor** (checks every number against Recent events). Choose with `--personas breaker,auditor`. Model `--agent-model` (default `claude-haiku-5-5`), `--agent-effort` (optional; never `max`).
 - **Agent cap**: the Pi allows 8 `claude` processes machine-wide (`pgrep -c -x claude`, every T3 thread counts). The launcher refuses anything that would pass it, before building the table. Use `--shared` (counts as 1), fewer agent seats, or the M60e for bigger all-agent games.
 - **Time and cost**: an agent turn takes about 4-8 calls and 30-90 s, and the game waits for it. Two all-agent players for 10 rounds is roughly 20-30 min. An 8-seat all-agent game for 20 rounds is 2+ hours, so give it to the M60e or use `--shared`. `agents-status` shows the actual cost per agent.
 - Output goes to `evidence/agents/`: `<name>.brief.md` (the exact prompt), `<name>.jsonl` (the full stream: every command and screen), and `<name>.review.md` (its final review). The agents' `note`s are findings in `report.md` with screenshots.
@@ -162,7 +162,7 @@ $S click 2 e6              # or by label: $S click 2 "Roll Dice"; prints the new
 $S fill 2 e9 120 && $S click 2 "Bid"
 $S select 2 e12 "Cleo"     # dropdowns by visible option text
 $S check 2 e14             # checkboxes (trade assets, collateral, IPO assets)
-$S tab 2 market            # game | market | log | board
+$S tab 2 market            # game | market | log (Recent events) | board
 $S shot 2 auction-on-phone # full-page PNG; open it with Read to judge the layout
 $S look 2 --full           # all screen text, not just the first 1800 chars
 ```

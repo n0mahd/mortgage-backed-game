@@ -77,7 +77,7 @@ The game screen has four tabs accessible via the top navigation bar:
 |-----|---------|
 | **Game** | Main action hub — player cards, turn status, action buttons |
 | **Market** | Execute trades and direct payments between players |
-| **Log** | Full timestamped history of every game event |
+| **Recent events** | Full timestamped history of every game event |
 | **Board** | Visual board — roll dice, move your token, buy houses/hotels |
 
 **Board** is where movement happens. **Game** is where you manage assets (buy property, create IPOs, manage debt). Most turns involve switching between the two.

@@ -143,7 +143,7 @@ function build(name, state, ctx) {
     const other = others[Math.floor((ctx.rand ? ctx.rand() : Math.random()) * others.length)];
     const result = fn(draft, { current, other, uncovered: ctx.uncovered || new Set() });
     if (!result) return null;
-    // Players see it in Recent Actions and the Log, so nobody mistakes a setup for a bug.
+    // Players see it in Recent actions and Recent events, so nobody mistakes a setup for a bug.
     result.state.gameLog = [...(result.state.gameLog || []), { timestamp: new Date().toISOString(), message: `Test setup: ${result.note}` }].slice(-100);
     const problem = rules.validateStateInvariants(rules.normalizeState(result.state));
     if (problem) throw new Error(`stage ${name} would break an invariant: ${problem}`);

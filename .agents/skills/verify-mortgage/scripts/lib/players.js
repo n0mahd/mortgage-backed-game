@@ -23,17 +23,17 @@ const PERSONAS = {
     trader: {
         title: 'aggressive financier',
         play: 'You play to win through finance. Every turn, look for a deal: issue debt against property, create an IPO, buy other players\' shares, propose trades (Market tab) to complete colour groups, then buy houses. Settle debt when you are rich.',
-        watch: 'Whether the money adds up: purchase prices, rent paid, interest charged at End Turn, share prices, trade cash. Check the Log tab against your cash. Any mismatch, or any finance screen that is hard to use on your device, is a finding.',
+        watch: 'Whether the money adds up: purchase prices, rent paid, interest charged at End Turn, share prices, trade cash. Check the Recent events tab against your cash. Any mismatch, or any finance screen that is hard to use on your device, is a finding.',
     },
     breaker: {
         title: 'QA tester trying to break the rules',
         play: 'You are a tester looking for holes. Within normal play, keep trying things the game should refuse: bids above your cash or below the current bid, zero, negative or fractional amounts, paying yourself, trading property you do not own, acting when it is not your turn, opening forms during an auction, pressing buttons twice, cancelling halfway through, leaving a form half-filled and switching tabs.',
-        watch: 'Anything the game allows that a fair game should not, error messages that do not say what is wrong, states you cannot get out of, and screens that stop matching the Log.',
+        watch: 'Anything the game allows that a fair game should not, error messages that do not say what is wrong, states you cannot get out of, and screens that stop matching Recent events.',
     },
     auditor: {
         title: 'careful accountant',
         play: 'You play steadily and conservatively: buy cheap property, keep a cash cushion, avoid debt unless you must.',
-        watch: 'Before and after each of your turns, compare your cash, properties and the Recent Actions/Log with what should have happened (GO salary $200, taxes, rent, card effects). Also check the other players\' cards for numbers that change without a log line. Report every discrepancy with the numbers.',
+        watch: 'Before and after each of your turns, compare your cash, properties and Recent actions and Recent events with what should have happened (GO salary $200, taxes, rent, card effects). Also check the other players\' cards for numbers that change without a log line. Report every discrepancy with the numbers.',
     },
 };
 const ROTATION = ['newbie', 'trader', 'breaker', 'auditor'];

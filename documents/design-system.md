@@ -85,7 +85,7 @@ Game screen (phone)
 ├──────────────────────────────┤
 │ [End Turn]  [ Roll Dice   ]  │ action dock (your turn only)
 ├──────────────────────────────┤
-│ Game  Market  Log  Board     │ tab bar
+│ Game Market Recent ev. Board │ tab bar
 └──────────────────────────────┘
 ```
 
@@ -155,6 +155,10 @@ offer, corporation).
 
 **Deed rows** (`.owned-property-row`). A 6px band in the property's color on the leading edge, then
 name, type and value, then chips: set progress (gold when complete), buildings, current rent.
+
+**Property dots** (`propertyDot(id)`, `.property-dot`). Everywhere else a property is named in a list
+(IPO, loan collateral and trade pickers, auction, corporation assets, loan details), a small square in its
+board color goes before the name so groups are recognisable at a glance.
 
 **Badges** (`.badge`, `.badge-gold`, `.badge-warning`, `.badge-danger`, `.badge-info`). Pills in sentence
 case.
