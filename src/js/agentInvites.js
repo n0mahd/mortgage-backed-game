@@ -18,8 +18,10 @@ const AgentInvites = (() => {
         document.getElementById('agent-invite-copy-btn').addEventListener('click', copyPrompt);
         document.getElementById('agent-invite-close-btn').addEventListener('click', closeModal);
         document.getElementById('agent-invite-list').addEventListener('click', event => {
-            const button = event.target.closest('[data-agent-seat-revoke]');
-            if (button) revokeInvite(button.dataset.agentSeatRevoke, button);
+            const rename = event.target.closest('[data-agent-seat-rename]');
+            if (rename) return renameInvite(rename.dataset.agentSeatRename, rename);
+            const revoke = event.target.closest('[data-agent-seat-revoke]');
+            if (revoke) revokeInvite(revoke.dataset.agentSeatRevoke, revoke);
         });
         return refresh();
     }
@@ -44,26 +46,29 @@ const AgentInvites = (() => {
         }
         list.innerHTML = seats.map((seat, index) => `
             <div class="agent-invite-row" data-agent-seat="${escapeHtml(seat.id)}">
-                <div>
-                    <strong>${escapeHtml(seat.label || `Agent ${index + 1}`)}</strong>
+                <div class="agent-invite-row-info">
+                    <strong>${escapeHtml(seat.player_name || seat.label || `Agent ${index + 1}`)}</strong>
                     <div class="agent-invite-status">
-                        ${seat.status === 'joined'
-                            ? `${STATUS_TEXT.joined} as ${escapeHtml(seat.player_name || 'an agent')}`
-                            : STATUS_TEXT.pending}
+                        ${seat.status === 'joined' ? STATUS_TEXT.joined : STATUS_TEXT.pending}
                     </div>
                 </div>
-                <button class="btn btn-secondary btn-sm" data-agent-seat-revoke="${escapeHtml(seat.id)}">Revoke</button>
+                <div class="agent-invite-row-actions">
+                    <button class="btn btn-secondary btn-sm" data-agent-seat-rename="${escapeHtml(seat.id)}">Rename</button>
+                    <button class="btn btn-secondary btn-sm" data-agent-seat-revoke="${escapeHtml(seat.id)}">Revoke</button>
+                </div>
             </div>
         `).join('');
     }
 
     async function createInvite() {
         const button = document.getElementById('agent-invite-create-btn');
+        const nameInput = document.getElementById('agent-invite-name');
         button.disabled = true;
         setStatus('');
         try {
-            const invite = await createAgentInvite(roomId);
-            showModal(invite.prompt);
+            const invite = await createAgentInvite(roomId, nameInput.value.trim());
+            nameInput.value = '';
+            showModal(invite);
             await refresh();
         } catch (error) {
             setStatus(error.message === 'Room is full'
@@ -71,6 +76,22 @@ const AgentInvites = (() => {
                 : `Could not create an invite: ${error.message}`);
         } finally {
             button.disabled = false;
+        }
+    }
+
+    // Names are fixed once the game starts, so this only works in the waiting room.
+    async function renameInvite(seatId, button) {
+        const seat = seats.find(item => item.id === seatId);
+        const current = seat ? seat.player_name || seat.label || '' : '';
+        const name = prompt('Name for this agent', current);
+        if (name === null || name.trim() === '' || name.trim() === current) return;
+        button.disabled = true;
+        try {
+            await renameAgentInvite(roomId, seatId, name.trim());
+            await refresh();
+        } catch (error) {
+            button.disabled = false;
+            setStatus(`Could not rename: ${error.message}`);
         }
     }
 
@@ -88,8 +109,9 @@ const AgentInvites = (() => {
         }
     }
 
-    function showModal(prompt) {
-        document.getElementById('agent-invite-prompt').value = prompt;
+    function showModal(invite) {
+        document.getElementById('agent-invite-mcp-url').textContent = invite.mcp_url;
+        document.getElementById('agent-invite-prompt').value = invite.prompt;
         document.getElementById('agent-invite-copy-btn').textContent = 'Copy invite';
         document.getElementById('agent-invite-modal').classList.add('active');
     }

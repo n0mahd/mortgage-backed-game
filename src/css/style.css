@@ -2836,10 +2836,14 @@ input[type="checkbox"] {
     align-items: center;
     justify-content: space-between;
     gap: var(--s3);
+    flex-wrap: wrap;
     padding: var(--s2) 0;
     border-top: 1px solid var(--rule);
     font-size: var(--text-sub);
 }
+
+/* Narrow phones put Rename/Revoke under the name instead of squeezing it. */
+.agent-invite-row-info { flex: 1 1 10rem; }
 
 .agent-invite-prompt {
     min-height: 180px;
@@ -2848,6 +2852,23 @@ input[type="checkbox"] {
     font-size: var(--text-footnote);
     line-height: 1.45;
 }
+
+.agent-invite-row-actions {
+    display: flex;
+    gap: var(--s2);
+}
+
+.agent-invite-create {
+    display: flex;
+    flex-direction: column;
+    gap: var(--s2);
+}
+
+.agent-invite-steps { margin: var(--s3) 0; }
+
+.steps.agent-invite-steps strong { display: inline; }
+
+.agent-invite-steps code { word-break: break-all; }
 
 .player-badge-agent { background: #E3EEF6; color: var(--info); }
 

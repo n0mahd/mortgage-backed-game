@@ -5,15 +5,26 @@
 // shown to the host once, only its SHA-256 hash is stored, it works for one
 // seat in one room, and the host can revoke it. Agents never get a player JWT,
 // so a key cannot be used anywhere but the MCP tools for its own seat.
+//
+// An invite's label is the agent's player name, chosen by the host. When it is
+// set it wins over the name the agent asks for in join_game, and the host can
+// change it until the game starts.
 
 const crypto = require('crypto');
 const { v4: uuidv4 } = require('uuid');
 const db = require('../db');
 const { notifyRoom } = require('./roomEvents');
-const { RoomError, getRoomWithMembers, createAnonymousUser, joinRoom, pendingAgentSeatCount } = require('./rooms');
+const {
+    RoomError,
+    getRoomWithMembers,
+    createAnonymousUser,
+    joinRoom,
+    pendingAgentSeatCount,
+    PLAYER_NAME_MAX,
+    sameName,
+} = require('./rooms');
 
 const KEY_PREFIX = 'mbagent_';
-const LABEL_MAX = 40;
 
 function hashKey(key) {
     return crypto.createHash('sha256').update(String(key)).digest('hex');
@@ -24,7 +35,7 @@ function generateKey() {
 }
 
 function cleanLabel(label) {
-    const text = String(label ?? '').replace(/\p{C}+/gu, ' ').trim().slice(0, LABEL_MAX);
+    const text = String(label ?? '').replace(/\p{C}+/gu, ' ').trim().slice(0, PLAYER_NAME_MAX);
     return text || null;
 }
 
@@ -33,6 +44,16 @@ function requireHostOfWaitingRoom(roomId, hostUserId) {
     if (!room) throw new RoomError(404, 'Room not found');
     if (room.host_id !== hostUserId) throw new RoomError(403, 'Only the host can manage agent invites');
     return room;
+}
+
+// Host-chosen names must not collide with another player or another invite.
+function requireFreeName(room, name, seat = null) {
+    const takenByMember = room.room_members.some(member =>
+        (!seat || member.user_id !== seat.user_id) && sameName(member.player_name, name));
+    const takenByInvite = db.prepare(`
+        SELECT label FROM agent_seats WHERE room_id = ? AND revoked_at IS NULL AND label IS NOT NULL AND id IS NOT ?
+    `).all(room.id, seat ? seat.id : null).some(row => sameName(row.label, name));
+    if (takenByMember || takenByInvite) throw new RoomError(400, `Another player is already called ${name}`);
 }
 
 function publicSeat(row) {
@@ -57,12 +78,15 @@ function createAgentSeat({ roomId, hostUserId, label }) {
         throw new RoomError(400, 'Room is full');
     }
 
+    const name = cleanLabel(label);
+    if (name) requireFreeName(room, name);
+
     const id = uuidv4();
     const key = generateKey();
     db.prepare(`
         INSERT INTO agent_seats (id, room_id, key_hash, label, created_by)
         VALUES (?, ?, ?, ?, ?)
-    `).run(id, room.id, hashKey(key), cleanLabel(label), hostUserId);
+    `).run(id, room.id, hashKey(key), name, hostUserId);
     return { seat: publicSeat(db.prepare(`SELECT * FROM agent_seats WHERE id = ?`).get(id)), key };
 }
 
@@ -71,6 +95,27 @@ function listAgentSeats({ roomId, hostUserId }) {
     return db.prepare(`
         SELECT * FROM agent_seats WHERE room_id = ? AND revoked_at IS NULL ORDER BY created_at ASC, rowid ASC
     `).all(roomId).map(publicSeat);
+}
+
+// Renames an agent before the game starts, whether or not it has joined yet.
+// Player names are copied into the game state at the start, so they are fixed
+// from then on.
+function renameAgentSeat(io, { roomId, seatId, hostUserId, name: rawName }) {
+    const room = requireHostOfWaitingRoom(roomId, hostUserId);
+    if (room.status !== 'waiting') throw new RoomError(400, 'Names are fixed once the game starts');
+    const seat = db.prepare(`SELECT * FROM agent_seats WHERE id = ? AND room_id = ? AND revoked_at IS NULL`).get(seatId, room.id);
+    if (!seat) throw new RoomError(404, 'Agent invite not found');
+    const name = cleanLabel(rawName);
+    if (!name) throw new RoomError(400, 'Enter a name');
+    requireFreeName(room, name, seat);
+
+    db.prepare(`UPDATE agent_seats SET label = ? WHERE id = ?`).run(name, seat.id);
+    if (seat.user_id) {
+        db.prepare(`UPDATE room_members SET player_name = ? WHERE room_id = ? AND user_id = ?`).run(name, room.id, seat.user_id);
+        io.to(`room:${room.id}`).emit('room:member_change', getRoomWithMembers(room.id));
+    }
+    notifyRoom(room.id);
+    return publicSeat(db.prepare(`SELECT * FROM agent_seats WHERE id = ?`).get(seat.id));
 }
 
 // Revoking disables the key at once. Before the game starts it also frees the
@@ -100,13 +145,14 @@ function claimAgentSeat(io, { key, playerName }) {
     const seat = findSeatByKey(key);
     if (!seat) throw new RoomError(401, 'Invalid or revoked agent key. Ask the host for a new invite.');
     if (seat.user_id) return { seat, alreadyJoined: true };
+    if (!seat.label && !playerName) throw new RoomError(400, 'Choose a player_name: the host did not name this seat.');
 
     // Link the seat before joining so the member_change broadcast already
     // marks this member as an agent.
     const user = createAnonymousUser();
     db.prepare(`UPDATE agent_seats SET user_id = ?, joined_at = datetime('now') WHERE id = ?`).run(user.id, seat.id);
     try {
-        joinRoom(io, { roomId: seat.room_id, userId: user.id, playerName, agentSeatId: seat.id });
+        joinRoom(io, { roomId: seat.room_id, userId: user.id, playerName: seat.label || playerName, agentSeatId: seat.id });
     } catch (err) {
         db.prepare(`UPDATE agent_seats SET user_id = NULL, joined_at = NULL WHERE id = ?`).run(seat.id);
         db.prepare(`DELETE FROM users WHERE id = ?`).run(user.id);
@@ -115,14 +161,18 @@ function claimAgentSeat(io, { key, playerName }) {
     return { seat: { ...seat, user_id: user.id }, alreadyJoined: false };
 }
 
-// Text the host pastes into the agent's chat.
-function agentInvitePrompt({ roomName, key, mcpUrl }) {
+// Text the host pastes into the agent's chat. It speaks to the agent only: the
+// connector setup is the host's job and the waiting room shows it to them.
+function agentInvitePrompt({ roomName, key, name }) {
     return [
-        `Join my Mortgage Backed Monopoly game "${roomName}" as a player.`,
+        `Join my Mortgage Backed Monopoly game "${roomName}" as a player${name ? `, playing as ${name}` : ''}.`,
         '',
-        `1. Connect the MCP server ${mcpUrl} (in the Claude app: Settings > Connectors > Add custom connector).`,
-        `2. Call join_game with agent_key ${key} and a player name you choose.`,
-        '3. Then call wait_for_turn in a loop and play your turns with take_action until the game ends. get_rules explains the game.',
+        name
+            ? `1. Call the Mortgage Backed join_game tool with agent_key ${key}.`
+            : `1. Call the Mortgage Backed join_game tool with agent_key ${key} and a player name you choose.`,
+        '2. Then call wait_for_turn in a loop and play your turns with take_action until the game ends. get_rules explains the game.',
+        '',
+        "If you don't have the Mortgage Backed tools, stop and tell me: I need to connect the Mortgage Backed connector in my settings and turn it on for this chat. You can't add it yourself.",
         '',
         'The agent key is your seat at the table: keep it private.',
     ].join('\n');
@@ -132,6 +182,7 @@ module.exports = {
     KEY_PREFIX,
     createAgentSeat,
     listAgentSeats,
+    renameAgentSeat,
     revokeAgentSeat,
     findSeatByKey,
     claimAgentSeat,

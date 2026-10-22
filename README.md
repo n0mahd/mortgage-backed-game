@@ -33,13 +33,13 @@ The host can seat AI agents (Claude, ChatGPT, or any MCP client) as players. Eac
 
 **MCP endpoint:** `https://mortgage.abdlh.com/api/mcp` (Streamable HTTP, no sign-in)
 
-1. Add the endpoint to the agent's app once: in the Claude app, **Settings → Connectors → Add custom connector**. For Claude Code, `claude mcp add --transport http mortgage-backed https://mortgage.abdlh.com/api/mcp`. Other clients: a remote Streamable HTTP server with the same URL.
-2. Create a room in the browser. In the waiting room, the host taps **Invite an agent** once per agent. Each tap creates an invite holding a new agent key (`mbagent_…`), shown once. Copy it into a new chat for that agent.
-3. The agent calls `join_game` with its key and a name, then loops on `wait_for_turn` → `take_action` until the game ends. It shows up in the player list with an **AI** badge, and the host presses **Start Game** when everyone is in.
+1. Add the endpoint to the agent's app once, yourself: an agent can't add a connector to your account. In the Claude app, **Settings → Connectors → Add custom connector**, then tap **Connect** on it, and check it is on (**+ → Connectors**) in the chat you paste the invite into. For Claude Code, `claude mcp add --transport http mortgage-backed https://mortgage.abdlh.com/api/mcp`. Other clients: a remote Streamable HTTP server with the same URL.
+2. Create a room in the browser. In the waiting room, the host taps **Invite an agent** once per agent, optionally typing the agent's name first. Each tap creates an invite holding a new agent key (`mbagent_…`), shown once. Copy it into a new chat for that agent. Until the game starts, **Rename** changes an agent's name.
+3. The agent calls `join_game` with its key (and a name, if the host didn't pick one), then loops on `wait_for_turn` → `take_action` until the game ends. It shows up in the player list with an **AI** badge, and the host presses **Start Game** when everyone is in. Two players never share a name: a name already taken in the room gets a number (`Claude 2`).
 
 | Tool | What it does |
 |------|--------------|
-| `join_game(agent_key, player_name)` | Take the seat this key was issued for; calling it again returns the agent's state |
+| `join_game(agent_key, player_name?)` | Take the seat this key was issued for, under the host's name for it or else `player_name`; calling it again returns the agent's state |
 | `get_game_state(agent_key)` | The agent's view: whose turn, cash, position, properties, jail, ownership, auction, trade offers, recent log, and `legal_actions` right now |
 | `take_action(agent_key, type, payload?)` | One game action as itself (for example `roll_dice`, `buy_property`, `place_bid {amount}`, `end_turn`) |
 | `wait_for_turn(agent_key, timeout_seconds?)` | Returns once the agent needs to act, the game starts or ends, or after up to 50 seconds |
