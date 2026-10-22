@@ -55,7 +55,11 @@ function attentionFor(state, userId) {
         const passed = (auction.passedPlayerIds || []).includes(userId);
         return !passed && auction.highBidderId !== userId ? 'auction_needs_you' : null;
     }
-    const offerForMe = (state.marketOffers || []).some(offer => offer.status === 'pending' && offer.recipientId === userId);
+    const offerForMe = (state.marketOffers || []).some(offer => offer.status === 'pending' && offer.recipientId === userId)
+        || (state.propertyOffers || []).some(offer => offer.status === 'pending'
+            && (offer.awaiting === 'offerer' ? offer.offererId === userId : runsCorp(state, offer.corpId, userId)))
+        || (state.corporations || []).some(corp => corp.rentPolicyVote && !corp.insolvent && sharesHeld(corp, userId) > 0
+            && !(corp.rentPolicyVote.supporterIds || []).includes(userId));
     if (offerForMe) return 'trade_offer_for_you';
     const current = state.players[state.currentPlayerIndex];
     if (current && current.userId === userId) return 'your_turn';
@@ -161,6 +165,13 @@ function summarizeGame({ room, members, game, userId }) {
             treasury_shares_for_sale: Number(corp.treasuryShares || 0),
             total_shares: corp.totalShares,
             cash: round(corp.cash),
+            rent_policy: corp.rentPolicy || 'reinvest',
+            rent_policy_locked_turns: Number(corp.rentPolicyLockedTurns || 0),
+            rent_policy_vote: corp.rentPolicyVote ? {
+                policy: corp.rentPolicyVote.policy,
+                proposed_by: clip(corp.rentPolicyVote.proposedByName),
+                you_agreed: (corp.rentPolicyVote.supporterIds || []).includes(userId),
+            } : null,
             assets: (corp.assets || []).map(asset => asset.id),
             shareholders: (corp.shareholders || []).map(holder => ({ name: clip(holder.name), shares: holder.shares })),
             open_chairman_votes: (corp.chairmanVotes || []).filter(vote => vote.status === 'open').map(vote => ({ id: vote.id, candidate: clip(vote.candidateName) })),
@@ -180,15 +191,30 @@ function summarizeGame({ room, members, game, userId }) {
                 proposed_by: clip(offer.proposedByName),
                 needs_your_answer: offer.recipientId === userId,
                 player1: clip(offer.player1Name),
+                player1_trades_for_corp: offer.player1CorpId || null,
                 player1_gives_cash: offer.player1Cash,
                 player1_gives_properties: offer.player1AssetIds,
                 player1_gives_shares: offer.player1Shares || [],
                 player1_properties_go_into_corp: offer.player1PropertiesToCorpId || null,
                 player2: clip(offer.player2Name),
+                player2_trades_for_corp: offer.player2CorpId || null,
                 player2_gives_cash: offer.player2Cash,
                 player2_gives_properties: offer.player2AssetIds,
                 player2_gives_shares: offer.player2Shares || [],
                 player2_properties_go_into_corp: offer.player2PropertiesToCorpId || null,
+                expires_at: offer.expiresAt,
+            })),
+        pending_property_offers: (state.propertyOffers || [])
+            .filter(offer => offer.status === 'pending')
+            .filter(offer => offer.offererId === userId || runsCorp(state, offer.corpId, userId))
+            .map(offer => ({
+                offer_id: offer.id,
+                offerer: clip(offer.offererName),
+                corporation: offer.ticker,
+                properties: offer.assetIds,
+                price: round(offer.price),
+                pay_with: offer.payWith,
+                needs_your_answer: offer.awaiting === 'offerer' ? offer.offererId === userId : runsCorp(state, offer.corpId, userId),
                 expires_at: offer.expiresAt,
             })),
         paused: state.paused ? { reason: clip(state.pause?.reason, LOG_LINE_MAX) } : null,
@@ -205,6 +231,13 @@ function sharesHeld(corp, userId) {
     return (corp.shareholders || [])
         .filter(holder => holder.userId === userId)
         .reduce((sum, holder) => sum + Number(holder.shares || 0), 0);
+}
+
+// The chairman or a majority holder answers a corporation's property offers.
+function runsCorp(state, corpId, userId) {
+    const corp = state.corporations.find(c => c.id === corpId);
+    if (!corp || corp.insolvent) return false;
+    return corp.chairmanId === userId || sharesHeld(corp, userId) > Number(corp.totalShares || 0) / 2;
 }
 
 function clip(value, max = NAME_MAX) {

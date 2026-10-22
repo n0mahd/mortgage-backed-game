@@ -2452,6 +2452,22 @@ input[type="checkbox"] {
 .governance-control label { flex-basis: 100%; font-size: var(--text-footnote); font-weight: 600; }
 .governance-control select { flex: 1; min-width: 0; }
 
+.corp-rent-policy,
+.corp-runner-tools,
+.corp-property-offers {
+    margin-top: var(--s4);
+    padding-top: var(--s3);
+    border-top: 1px solid var(--rule);
+}
+
+.corp-rent-policy p,
+.corp-runner-tools small,
+.corp-rent-policy small { font-size: var(--text-footnote); color: var(--ink-3); }
+
+.corp-property-offers .trade-offer-card { margin-top: var(--s2); }
+
+.counter-price-input { width: 96px !important; margin: 0 !important; }
+
 .chairman-vote-row {
     display: flex;
     align-items: center;
