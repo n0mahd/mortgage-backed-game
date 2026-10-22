@@ -54,6 +54,16 @@ function uniquePlayerName(members, name) {
     }
 }
 
+// Members and the host may watch a room and its game; only members hold seats.
+function canViewRoom(roomId, userId) {
+    if (!roomId || !userId) return false;
+    return !!db.prepare(`
+        SELECT 1 FROM rooms WHERE id = ? AND (host_id = ? OR EXISTS (
+            SELECT 1 FROM room_members WHERE room_members.room_id = rooms.id AND room_members.user_id = ?
+        ))
+    `).get(roomId, userId, userId);
+}
+
 function getRoomWithMembers(roomId) {
     const room = db.prepare(`SELECT * FROM rooms WHERE id = ?`).get(roomId);
     if (!room) return null;
@@ -70,8 +80,10 @@ function createAnonymousUser() {
     return { id: userId, email: null, is_anonymous: true };
 }
 
-function createRoom({ hostUserId, name, maxPlayers: rawMaxPlayers, playerName }) {
-    if (!name || !playerName) throw new RoomError(400, 'name and player_name required');
+// A spectating host takes no seat: only agents and invited people play, and the
+// host watches and keeps the host controls (see canViewRoom).
+function createRoom({ hostUserId, name, maxPlayers: rawMaxPlayers, playerName, spectate = false }) {
+    if (!name || (!spectate && !playerName)) throw new RoomError(400, 'name and player_name required');
 
     const roomId = uuidv4();
     const memberId = uuidv4();
@@ -86,10 +98,12 @@ function createRoom({ hostUserId, name, maxPlayers: rawMaxPlayers, playerName })
         VALUES (?, ?, ?, ?, ?)
     `).run(roomId, inviteCode, hostUserId, name, maxPlayers);
 
-    db.prepare(`
-        INSERT INTO room_members (id, room_id, user_id, player_name)
-        VALUES (?, ?, ?, ?)
-    `).run(memberId, roomId, hostUserId, playerName);
+    if (!spectate) {
+        db.prepare(`
+            INSERT INTO room_members (id, room_id, user_id, player_name)
+            VALUES (?, ?, ?, ?)
+        `).run(memberId, roomId, hostUserId, playerName);
+    }
 
     return getRoomWithMembers(roomId);
 }
@@ -145,6 +159,7 @@ module.exports = {
     pendingAgentSeatCount,
     PLAYER_NAME_MAX,
     sameName,
+    canViewRoom,
     getRoomWithMembers,
     getRoomByInviteCode,
     createAnonymousUser,
