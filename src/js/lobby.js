@@ -54,15 +54,24 @@ function closeModal(modalId) {
         document.getElementById('room-name').value = '';
         document.getElementById('max-players').value = '4';
         document.getElementById('host-player-name').value = '';
+        document.getElementById('host-spectate').checked = false;
+        syncSpectateField();
     }
+}
+
+// A watching host takes no seat, so there is no player name to ask for.
+function syncSpectateField() {
+    const spectate = document.getElementById('host-spectate').checked;
+    document.getElementById('host-player-name-group').hidden = spectate;
 }
 
 async function createRoom() {
     const roomName = document.getElementById('room-name').value.trim();
     const maxPlayers = Number(document.getElementById('max-players').value);
-    const playerName = document.getElementById('host-player-name').value.trim();
+    const spectate = document.getElementById('host-spectate').checked;
+    const playerName = spectate ? '' : document.getElementById('host-player-name').value.trim();
 
-    if (!roomName || !playerName) {
+    if (!roomName || (!spectate && !playerName)) {
         alert('Please fill in all fields');
         return;
     }
@@ -73,7 +82,7 @@ async function createRoom() {
     }
 
     try {
-        const room = await createNewRoom(roomName, maxPlayers, playerName);
+        const room = await createNewRoom(roomName, maxPlayers, playerName, { spectate });
         closeModal('createRoomModal');
 
         const me = await getCurrentUser();
@@ -133,6 +142,7 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('show-create-room-btn')?.addEventListener('click', showCreateRoomModal);
     document.getElementById('create-room-btn')?.addEventListener('click', createRoom);
     document.getElementById('cancel-create-room-btn')?.addEventListener('click', () => closeModal('createRoomModal'));
+    document.getElementById('host-spectate')?.addEventListener('change', syncSpectateField);
 
     document.getElementById('active-rooms-list')?.addEventListener('click', (event) => {
         const card = event.target.closest('.room-card[data-room-id]');

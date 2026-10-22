@@ -5,7 +5,7 @@ const { sendEmail } = require('../mailer');
 const { getConfig } = require('../config');
 const { createRateLimiter, getRequestActorKey } = require('../rateLimit');
 const { normalizeEmail, isValidEmail, normalizeInviteCode } = require('../normalizers');
-const { RoomError, createRoom, joinRoom, getRoomMembers } = require('../services/rooms');
+const { RoomError, createRoom, joinRoom, getRoomMembers, canViewRoom } = require('../services/rooms');
 const {
     createRejoinRequest,
     listApprovableRequests,
@@ -46,10 +46,6 @@ function attachRoomMembers(room, members = getRoomMembers(room.id)) {
     return { ...room, room_members: members };
 }
 
-function isRoomMember(roomId, userId) {
-    return !!db.prepare(`SELECT 1 FROM room_members WHERE room_id = ? AND user_id = ?`).get(roomId, userId);
-}
-
 function getRoomByInviteCode(code) {
     return db.prepare(`SELECT * FROM rooms WHERE invite_code = ?`).get(normalizeInviteCode(code));
 }
@@ -87,7 +83,7 @@ async function sendInviteCodeEmail({ senderUserId, email, inviteCode }) {
         throw new RoomError(403, 'Sign in with your email to send invites');
     }
     const room = getRoomByInviteCode(inviteCode);
-    if (!room || !db.prepare(`SELECT 1 FROM room_members WHERE room_id = ? AND user_id = ?`).get(room.id, senderUserId)) {
+    if (!room || !canViewRoom(room.id, senderUserId)) {
         throw new RoomError(404, 'Room not found');
     }
     if (!emailAllowed(`user:${senderUserId}`, recipient)) throw new RoomError(429, 'Too many emails. Try again later.');
@@ -137,9 +133,9 @@ async function sendForgotRoomCodes(email, requesterKey) {
 
 // POST /api/rooms — create room
 router.post('/', requireAuth, roomCreateRateLimit, (req, res) => {
-    const { name, max_players, player_name } = req.body;
+    const { name, max_players, player_name, spectate } = req.body;
     try {
-        res.json(createRoom({ hostUserId: req.userId, name, maxPlayers: max_players, playerName: player_name }));
+        res.json(createRoom({ hostUserId: req.userId, name, maxPlayers: max_players, playerName: player_name, spectate: spectate === true }));
     } catch (err) {
         if (err instanceof RoomError) return res.status(err.status).json({ error: err.message });
         throw err;
@@ -198,11 +194,15 @@ router.post('/rejoin-requests/:requestId/cancel', rejoinCollectRateLimit, (req, 
     }
 });
 
-// GET /api/rooms/mine — rooms the current user is in
+// GET /api/rooms/mine — rooms the current user is in or hosts (a spectating host has no seat)
 router.get('/mine', requireAuth, (req, res) => {
     const memberships = db.prepare(`
-        SELECT room_id FROM room_members WHERE user_id = ? ORDER BY joined_at DESC
-    `).all(req.userId);
+        SELECT room_id, joined_at AS at FROM room_members WHERE user_id = ?
+        UNION
+        SELECT id, created_at FROM rooms WHERE host_id = ?
+            AND NOT EXISTS (SELECT 1 FROM room_members WHERE room_members.room_id = rooms.id AND room_members.user_id = rooms.host_id)
+        ORDER BY at DESC
+    `).all(req.userId, req.userId);
 
     const rooms = memberships
         .map(m => getRoomWithMembers(m.room_id))
@@ -215,7 +215,7 @@ router.get('/mine', requireAuth, (req, res) => {
 router.get('/:id', requireAuth, (req, res) => {
     const room = getRoomWithMembers(req.params.id);
     if (!room) return res.status(404).json({ error: 'Room not found' });
-    if (!isRoomMember(room.id, req.userId)) return res.status(403).json({ error: 'Not a room member' });
+    if (!canViewRoom(room.id, req.userId)) return res.status(403).json({ error: 'Not a room member' });
     res.json(room);
 });
 
