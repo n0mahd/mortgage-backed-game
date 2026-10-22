@@ -114,16 +114,15 @@ describe('adding properties to an existing corporation', () => {
         expectRefused(() => add(mbsState(), 'alice', { assetIds: [MEDITERRANEAN], issueShares: true }), /less than one MBS share/);
     });
 
-    test('the 12-share cap limits how many new shares are issued', () => {
-        // 11 shares at ~$109: Illinois is worth 2, but only 1 more fits.
+    test('there is no 12-share cap: a contribution gets every share it is worth', () => {
+        // 11 shares at ~$109: Illinois ($240) is worth 2 new shares.
         const { state } = add(mbsState({ totalShares: 11, aliceShares: 8 }), 'alice', { assetIds: [ILLINOIS], issueShares: true });
-        expect(state.corporations[0].totalShares).toBe(12);
-        expect(sharesOf(state.corporations[0], 'alice')).toBe(9);
+        expect(state.corporations[0].totalShares).toBe(13);
+        expect(sharesOf(state.corporations[0], 'alice')).toBe(10);
     });
 
-    test('at 12 shares no new shares can be issued, but the property can still go in as a gift', () => {
+    test('a property can still go in as a gift that raises every share', () => {
         const state = mbsState({ totalShares: 12, aliceShares: 9 });
-        expectRefused(() => add(state, 'alice', { assetIds: [ILLINOIS], issueShares: true }), /most allowed/);
         const bobBefore = calculateNetWorth(state, 'bob');
         const { state: after } = add(state, 'alice', { assetIds: [ILLINOIS], issueShares: false });
         expect(after.corporations[0].totalShares).toBe(12);
@@ -193,8 +192,8 @@ describe('adding properties to an existing corporation', () => {
         const corp = state.corporations[0];
         ORANGE.forEach(id => expect(state.properties.find(p => p.id === id).ownerId).toBe(corp.id));
         expect(state.properties.find(p => p.id === ORANGE[0]).houses).toBe(2);
-        // $560 of land plus 2 houses at $100 is $760; at $120 a share that is 6, capped at 2.
-        expect(corp.totalShares).toBe(12);
+        // $560 of land plus 2 houses at $100 is $760; at $120 a share that is 6.
+        expect(corp.totalShares).toBe(16);
     });
 
     test('a player owing an unpaid claim cannot shelter property in a corporation', () => {
