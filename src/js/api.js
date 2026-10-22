@@ -342,10 +342,10 @@ function clearHotseatResume(inviteCode) {
     localStorage.setItem(HOTSEAT_RESUME_STORAGE_KEY, JSON.stringify(rooms));
 }
 
-async function createNewRoom(roomName, maxPlayers, playerName) {
+async function createNewRoom(roomName, maxPlayers, playerName, { spectate = false } = {}) {
     return apiFetch('/rooms', {
         method: 'POST',
-        body: JSON.stringify({ name: roomName, max_players: maxPlayers, player_name: playerName })
+        body: JSON.stringify({ name: roomName, max_players: maxPlayers, player_name: playerName, spectate })
     });
 }
 

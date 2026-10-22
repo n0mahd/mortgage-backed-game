@@ -38,12 +38,6 @@ function getRoom(roomId) {
     return db.prepare(`SELECT * FROM rooms WHERE id = ?`).get(roomId);
 }
 
-function isRoomMember(roomId, userId) {
-    return !!db.prepare(`
-        SELECT 1 FROM room_members WHERE room_id = ? AND user_id = ?
-    `).get(roomId, userId);
-}
-
 function insertEvents(gameId, actorUserId, events) {
     const stmt = db.prepare(`
         INSERT INTO game_events (id, game_id, player_id, event_type, event_data)
@@ -184,7 +178,6 @@ module.exports = {
     getGame,
     getGameByRoom,
     getRoom,
-    isRoomMember,
     startGameForRoom,
     applyGameAction,
     publishGameUpdate,

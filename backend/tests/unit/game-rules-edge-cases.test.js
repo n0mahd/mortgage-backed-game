@@ -1043,6 +1043,21 @@ describe('game rule edge cases', () => {
         })).toThrow('Refinance amount must exceed selected debt principal');
     });
 
+    test('a host without a seat can use host controls but nothing else', () => {
+        const state = makeState();
+
+        const paused = applyAction(state, 'watcher', { type: 'host_pause_game', payload: {} }, { hostId: 'watcher' });
+        expect(paused.state.paused).toBe(true);
+        expect(paused.state.pause.pausedByName).toBe('Host');
+        const ended = applyAction(paused.state, 'watcher', { type: 'host_end_game', payload: {} }, { hostId: 'watcher' });
+        expect(ended.state.ended).toBe(true);
+
+        expect(() => applyAction(state, 'watcher', { type: 'roll_dice', payload: {} }, { hostId: 'watcher' }))
+            .toThrow('Actor is not a player in this game');
+        expect(() => applyAction(state, 'stranger', { type: 'host_pause_game', payload: {} }, { hostId: 'watcher' }))
+            .toThrow('Actor is not a player in this game');
+    });
+
     test('host can pause and resume while normal actions are blocked', () => {
         const state = makeState();
         state.players[0].diceRolled = true;

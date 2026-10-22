@@ -261,10 +261,12 @@ function normalizeState(raw) {
 function applyAction(inputState, actorUserId, action, options = {}) {
     const state = normalizeState(inputState);
     const events = [];
-    const actor = state.players.find(player => player.userId === actorUserId);
+    const hostControlTypes = new Set(['host_end_game', 'host_pause_game', 'host_resume_game', 'host_cancel_auction', 'host_cancel_trade_offer']);
+    // A host who only watches (no seat) still runs the host controls.
+    const actor = state.players.find(player => player.userId === actorUserId)
+        || (options.hostId && options.hostId === actorUserId && hostControlTypes.has(action.type) ? { userId: actorUserId, name: 'Host' } : null);
     if (!actor) throw new GameRuleError(403, 'Actor is not a player in this game');
     if (state.ended && action.type !== 'host_end_game') throw new GameRuleError(400, 'Game has already ended');
-    const hostControlTypes = new Set(['host_end_game', 'host_pause_game', 'host_resume_game', 'host_cancel_auction', 'host_cancel_trade_offer']);
     if (actor.bankrupt && !hostControlTypes.has(action.type)) throw new GameRuleError(403, 'Bankrupt player cannot act');
     const pauseAllowedActionTypes = new Set(['host_pause_game', 'host_resume_game', 'host_end_game', 'host_cancel_auction', 'host_cancel_trade_offer']);
     if (state.paused && !pauseAllowedActionTypes.has(action.type)) throw new GameRuleError(400, 'Game is paused');

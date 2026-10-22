@@ -5,11 +5,11 @@ const { getConfig } = require('../config');
 const { createRateLimiter, getRequestActorKey } = require('../rateLimit');
 const {
     parseGame,
-    isRoomMember,
     startGameForRoom,
     applyGameAction,
     publishGameUpdate,
 } = require('../services/gameActions');
+const { canViewRoom } = require('../services/rooms');
 const {
     normalizeState,
     GameRuleError,
@@ -76,7 +76,7 @@ function validateStateShape(beforeState, afterState) {
 function requireMember(req, res, next) {
     const game = db.prepare(`SELECT * FROM games WHERE id = ?`).get(req.params.id);
     if (!game) return res.status(404).json({ error: 'Game not found' });
-    if (!isRoomMember(game.room_id, req.userId)) return res.status(403).json({ error: 'Not a room member' });
+    if (!canViewRoom(game.room_id, req.userId)) return res.status(403).json({ error: 'Not a room member' });
     next();
 }
 
@@ -100,7 +100,7 @@ router.post('/', requireAuth, (req, res) => {
 router.get('/by-room/:roomId', requireAuth, (req, res) => {
     const game = db.prepare(`SELECT * FROM games WHERE room_id = ?`).get(req.params.roomId);
     if (!game) return res.status(404).json({ error: 'Game not found' });
-    if (!isRoomMember(game.room_id, req.userId)) return res.status(403).json({ error: 'Not a room member' });
+    if (!canViewRoom(game.room_id, req.userId)) return res.status(403).json({ error: 'Not a room member' });
     res.json(parseGame(game));
 });
 
@@ -108,7 +108,7 @@ router.get('/by-room/:roomId', requireAuth, (req, res) => {
 router.get('/:id', requireAuth, (req, res) => {
     const game = db.prepare(`SELECT * FROM games WHERE id = ?`).get(req.params.id);
     if (!game) return res.status(404).json({ error: 'Game not found' });
-    if (!isRoomMember(game.room_id, req.userId)) return res.status(403).json({ error: 'Not a room member' });
+    if (!canViewRoom(game.room_id, req.userId)) return res.status(403).json({ error: 'Not a room member' });
     res.json(parseGame(game));
 });
 
@@ -145,7 +145,7 @@ router.patch('/:id/state', requireAuth, (req, res) => {
 
     const game = db.prepare(`SELECT * FROM games WHERE id = ?`).get(req.params.id);
     if (!game) return res.status(404).json({ error: 'Game not found' });
-    if (!isRoomMember(game.room_id, req.userId)) return res.status(403).json({ error: 'Not a room member' });
+    if (!canViewRoom(game.room_id, req.userId)) return res.status(403).json({ error: 'Not a room member' });
     const room = db.prepare(`SELECT * FROM rooms WHERE id = ?`).get(game.room_id);
     if (!room || room.host_id !== req.userId) return res.status(403).json({ error: 'Not the host' });
     if (game.state_version !== expected_version) {
