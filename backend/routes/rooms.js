@@ -13,7 +13,7 @@ const {
     collectRejoinRequest,
     cancelRejoinRequest,
 } = require('../services/rejoinRequests');
-const { createAgentSeat, listAgentSeats, revokeAgentSeat, agentInvitePrompt } = require('../services/agentSeats');
+const { createAgentSeat, listAgentSeats, renameAgentSeat, revokeAgentSeat, agentInvitePrompt } = require('../services/agentSeats');
 
 module.exports = (io) => {
 const router = express.Router();
@@ -257,13 +257,14 @@ router.post('/:id/join', requireAuth, (req, res) => {
 
 // Agent invites (host only). The key is in the create response only.
 
-// POST /api/rooms/:id/agent-seats — create an invite for one AI agent
+// POST /api/rooms/:id/agent-seats — create an invite for one AI agent. The
+// optional label is the agent's player name.
 router.post('/:id/agent-seats', requireAuth, (req, res) => {
     try {
         const { seat, key } = createAgentSeat({ roomId: req.params.id, hostUserId: req.userId, label: req.body?.label });
         const room = getRoomWithMembers(req.params.id);
         const mcpUrl = `${config.publicAppUrl}/api/mcp`;
-        res.status(201).json({ seat, key, mcp_url: mcpUrl, prompt: agentInvitePrompt({ roomName: room.name, key, mcpUrl }) });
+        res.status(201).json({ seat, key, mcp_url: mcpUrl, prompt: agentInvitePrompt({ roomName: room.name, key, name: seat.label }) });
     } catch (err) {
         sendRoomError(res, err);
     }
@@ -273,6 +274,15 @@ router.post('/:id/agent-seats', requireAuth, (req, res) => {
 router.get('/:id/agent-seats', requireAuth, (req, res) => {
     try {
         res.json(listAgentSeats({ roomId: req.params.id, hostUserId: req.userId }));
+    } catch (err) {
+        sendRoomError(res, err);
+    }
+});
+
+// PATCH /api/rooms/:id/agent-seats/:seatId — rename an agent before the game starts
+router.patch('/:id/agent-seats/:seatId', requireAuth, (req, res) => {
+    try {
+        res.json(renameAgentSeat(io, { roomId: req.params.id, seatId: req.params.seatId, hostUserId: req.userId, name: req.body?.label }));
     } catch (err) {
         sendRoomError(res, err);
     }

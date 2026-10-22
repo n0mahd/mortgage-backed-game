@@ -1,6 +1,7 @@
 // @ts-check
 // The host invites an AI agent from the waiting room, the agent joins over the
-// real MCP endpoint with the key from the invite, and the host can revoke it.
+// real MCP endpoint with the key from the invite, and the host can rename and
+// revoke it.
 const { test, expect } = require('@playwright/test');
 const { BASE, BASE_API, loginPage } = require('./helpers');
 
@@ -26,18 +27,25 @@ test.describe('Agent invites', () => {
         })).json();
     });
 
-    test('host invites an agent, the agent joins with its key, and the host revokes it', async ({ page, request }) => {
+    test('host names and invites an agent, the agent joins with its key, and the host renames and revokes it', async ({ page, request }) => {
         await loginPage(page, hostToken);
         await page.goto(`${BASE}/waiting.html?room=${room.id}`);
         await expect(page.locator('#agent-invites')).toBeVisible();
 
+        await page.locator('#agent-invite-name').fill('Claude A');
         await page.locator('#agent-invite-create-btn').click();
         const modal = page.locator('#agent-invite-modal');
         await expect(modal).toBeVisible();
+        // The host's steps and the agent's prompt are separate: setup is the host's job.
+        await expect(modal.getByRole('heading', { name: 'Your part' })).toBeVisible();
+        await expect(page.locator('#agent-invite-mcp-url')).toHaveText(/\/api\/mcp$/);
+        await expect(modal.locator('.agent-invite-steps')).toContainText('Connect');
+        await expect(modal.getByRole('textbox', { name: "The agent's part" })).toBeVisible();
         const prompt = await page.locator('#agent-invite-prompt').inputValue();
+        expect(prompt).toContain('playing as Claude A');
+        expect(prompt).not.toMatch(/Settings|Add custom connector/);
         const key = (prompt.match(/mbagent_[A-Za-z0-9_-]+/) || [])[0];
         expect(key).toBeTruthy();
-        expect(prompt).toContain('/api/mcp');
         expect(prompt).toContain('join_game');
 
         await page.locator('#agent-invite-copy-btn').click();
@@ -47,18 +55,28 @@ test.describe('Agent invites', () => {
         // The key does not stay in the page once the host is done with it.
         await expect(page.locator('#agent-invite-prompt')).toHaveValue('');
         expect(await page.locator('body').innerText()).not.toContain(key);
-        await expect(page.locator('#agent-invite-list')).toContainText('Waiting for the agent to join');
+        const inviteRow = page.locator('.agent-invite-row');
+        await expect(inviteRow.locator('strong')).toHaveText('Claude A');
+        await expect(inviteRow).toContainText('Waiting for the agent to join');
+        await expect(page.locator('#agent-invite-name')).toHaveValue('');
 
+        // The host's name wins over the one the agent picks.
         const joined = await mcpCall(request, 'join_game', { agent_key: key, player_name: 'Robo' });
         expect(joined.isError).toBe(false);
-        await expect(page.locator('#players-list')).toContainText('Robo');
+        await expect(page.locator('#players-list')).toContainText('Claude A');
+        await expect(page.locator('#players-list')).not.toContainText('Robo');
         await expect(page.locator('#players-list .player-badge-agent')).toHaveText('AI');
-        await expect(page.locator('#agent-invite-list')).toContainText('Joined as Robo');
+        await expect(inviteRow).toContainText('Joined');
         await expect(page.locator('#start-game-btn')).toBeEnabled();
+
+        page.once('dialog', dialog => dialog.accept('Claude B'));
+        await page.locator('[data-agent-seat-rename]').click();
+        await expect(page.locator('#players-list')).toContainText('Claude B');
+        await expect(inviteRow.locator('strong')).toHaveText('Claude B');
 
         page.once('dialog', dialog => dialog.accept());
         await page.locator('[data-agent-seat-revoke]').click();
-        await expect(page.locator('#players-list')).not.toContainText('Robo');
+        await expect(page.locator('#players-list')).not.toContainText('Claude B');
         await expect(page.locator('#agent-invite-list')).toBeEmpty();
         const revoked = await mcpCall(request, 'get_game_state', { agent_key: key });
         expect(revoked.isError).toBe(true);
