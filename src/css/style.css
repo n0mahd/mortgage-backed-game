@@ -1837,7 +1837,7 @@ input[type="checkbox"] {
     color: var(--ink-3);
 }
 
-.trade-asset-dot {
+.property-dot {
     display: inline-block;
     width: 10px;
     height: 10px;

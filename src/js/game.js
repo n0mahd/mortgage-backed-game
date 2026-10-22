@@ -427,7 +427,7 @@ function renderAuctionPanel(gameState) {
             <div class="auction-header">
                 <div>
                     <span class="auction-label">Property Auction</span>
-                    <h3>${escapeHtml(auction.propertyName || property?.name || 'Property')}</h3>
+                    <h3>${propertyDot(auction.propertyId)}${escapeHtml(auction.propertyName || property?.name || 'Property')}</h3>
                 </div>
                 <strong>${escapeHtml(status)}</strong>
             </div>
@@ -636,6 +636,13 @@ function getPropertyColorValue(color) {
     if (typeof PROP_COLORS !== 'undefined' && PROP_COLORS[color]) return PROP_COLORS[color];
     if (color && !color.includes(' ')) return color;
     return '#64748b';
+}
+
+// Small swatch in the property's board color, shown before its name wherever properties are listed.
+function propertyDot(propertyId) {
+    const property = currentGame?.game_state?.properties?.find(prop => prop.id === propertyId);
+    if (!property) return '';
+    return `<span class="property-dot" style="--property-color:${escapeAttr(getPropertyColorValue(property.color))};" aria-hidden="true"></span>`;
 }
 
 function getReadableTextColor(colorValue) {
@@ -934,7 +941,7 @@ function renderCorporationAssetSummary(corpId) {
     const corp = currentGame?.game_state?.corporations?.find(item => item.id === corpId);
     if (!corp || !Array.isArray(corp.assets) || corp.assets.length === 0) return '';
     const assets = corp.assets
-        .map(asset => escapeHtml(asset.name))
+        .map(asset => `${propertyDot(asset.id)}${escapeHtml(asset.name)}`)
         .join(', ');
     return `<span class="corp-assets-owned">Assets: ${assets}</span>`;
 }
@@ -1373,7 +1380,7 @@ async function openIPOModal() {
         return `
         <div class="asset-checkbox">
             <input type="checkbox" id="ipo-asset-${escapeAttr(p.id)}" value="${escapeAttr(p.id)}"${built ? ` data-built-group="${escapeAttr(p.color)}"` : ''}>
-            <label for="ipo-asset-${escapeAttr(p.id)}">${escapeHtml(p.name)} <span class="debt-detail">${formatMoney(p.value)}</span>${built ? ` <span class="debt-detail">Has buildings: goes in with the whole ${escapeHtml(p.color)} group</span>` : ''}</label>
+            <label for="ipo-asset-${escapeAttr(p.id)}">${propertyDot(p.id)}${escapeHtml(p.name)} <span class="debt-detail">${formatMoney(p.value)}</span>${built ? ` <span class="debt-detail">Has buildings: goes in with the whole ${escapeHtml(p.color)} group</span>` : ''}</label>
         </div>
     `;
     }).join('');
@@ -1497,7 +1504,7 @@ function renderCollateralAssetList(containerId, assets, selectedIds = new Set(),
         return `
         <div class="asset-checkbox${isPledged ? ' asset-locked' : ''}">
             <input type="checkbox" id="${escapeAttr(checkboxId)}" value="${escapeAttr(p.id)}"${checked}${isPledged ? ' disabled' : ''}>
-            <label for="${escapeAttr(checkboxId)}">${escapeHtml(p.name)} <span class="debt-detail">${formatMoney(collateralValueUi(p.id) || p.value || p.price || 0)}</span>${isPledged ? ' <span class="debt-detail">Already backs a loan</span>' : ''}</label>
+            <label for="${escapeAttr(checkboxId)}">${propertyDot(p.id)}${escapeHtml(p.name)} <span class="debt-detail">${formatMoney(collateralValueUi(p.id) || p.value || p.price || 0)}</span>${isPledged ? ' <span class="debt-detail">Already backs a loan</span>' : ''}</label>
         </div>
     `;
     }).join('');
@@ -1557,7 +1564,7 @@ function debtOptionLabel(debt, index) {
 function debtCollateralText(debt) {
     const collateral = Array.isArray(debt?.collateral) ? debt.collateral : [];
     if (!collateral.length) return '';
-    const names = collateral.map(asset => escapeHtml(asset.name || asset.id || 'Asset')).join(', ');
+    const names = collateral.map(asset => `${propertyDot(asset.id)}${escapeHtml(asset.name || asset.id || 'Asset')}`).join(', ');
     return `<span class="debt-detail">Backed by: ${names}</span>`;
 }
 
@@ -1785,7 +1792,7 @@ async function openCorporationModal() {
             ${isInsolvent ? '<p class="corp-status-warning">This corporation is closed after treasury insolvency. Properties returned to the Bank; shares, debt, and governance were wiped.</p>' : ''}
             <h4>Assets:</h4>
             <ul>
-                ${assets.map(a => `<li>${escapeHtml(a.name)} ($${Number(a.value || 0).toFixed(2)})</li>`).join('') || '<li>No assets</li>'}
+                ${assets.map(a => `<li>${propertyDot(a.id)}${escapeHtml(a.name)} ($${Number(a.value || 0).toFixed(2)})</li>`).join('') || '<li>No assets</li>'}
             </ul>
             <h4>Shareholders:</h4>
             <ul>
@@ -2694,7 +2701,7 @@ function updatePlayerAssets(playerNumber) {
         return `
         <div class="asset-checkbox${built ? ' asset-locked' : ''}">
             <input type="checkbox" id="${playerNumber}-asset-${escapeAttr(p.id)}" value="${escapeAttr(p.id)}"${built ? ' disabled' : ''}>
-            <label for="${playerNumber}-asset-${escapeAttr(p.id)}">${tradeAssetDot(p.id)}${escapeHtml(p.name)} <span class="debt-detail">${formatMoney(p.value)}</span>${built ? ` <span class="debt-detail">Can't be traded: the ${escapeHtml(p.color)} group has buildings. IPO the whole group and sell shares instead.</span>` : ''}</label>
+            <label for="${playerNumber}-asset-${escapeAttr(p.id)}">${propertyDot(p.id)}${escapeHtml(p.name)} <span class="debt-detail">${formatMoney(p.value)}</span>${built ? ` <span class="debt-detail">Can't be traded: the ${escapeHtml(p.color)} group has buildings. IPO the whole group and sell shares instead.</span>` : ''}</label>
         </div>
     `;
     }).join('');
@@ -3025,12 +3032,6 @@ function tradeSharesName(lot) {
     const corp = currentGame?.game_state?.corporations?.find(item => item.id === lot.corpId);
     const shares = Number(lot.shares || 0);
     return `${shares} ${corp ? corp.ticker : 'LLC'} share${shares === 1 ? '' : 's'}`;
-}
-
-function tradeAssetDot(assetId) {
-    const property = tradeAssetProperty(assetId);
-    if (!property) return '';
-    return `<span class="trade-asset-dot" style="--property-color:${escapeAttr(getPropertyColorValue(property.color))};" aria-hidden="true"></span>`;
 }
 
 function formatTradeOfferAge(createdAt) {
