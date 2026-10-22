@@ -85,7 +85,7 @@ Game screen (phone)
 ├──────────────────────────────┤
 │ [End Turn]  [ Roll Dice   ]  │ action dock (your turn only)
 ├──────────────────────────────┤
-│ Game  Market  Log  Board     │ tab bar
+│ Game Market Recent ev. Board │ tab bar
 └──────────────────────────────┘
 ```
 

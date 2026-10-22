@@ -784,6 +784,7 @@ input[type="checkbox"] {
     font-size: 0.6875rem;
     font-weight: 600;
     letter-spacing: 0.01em;
+    white-space: nowrap;
     cursor: pointer;
 }
 
