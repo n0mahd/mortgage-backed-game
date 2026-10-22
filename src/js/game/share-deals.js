@@ -234,7 +234,7 @@
     }
 
     // Mirrors the engine's contribution quote: whole new shares at the current
-    // value per share, rounded down, total capped at maxShares. options.price
+    // value per share, rounded to the nearest share, total capped at maxShares. options.price
     // overrides the book value (a property offer at a named price).
     function contributionQuote(gameState, corp, userId, propertyIds, options) {
         const value = propertyIds.reduce((sum, id) => sum + propertyValue(gameState, id), 0);
@@ -249,10 +249,10 @@
         } else if (netAssetValue <= 0) {
             quote.noSharesReason = `${corp.ticker} is worth $0 or less, so new shares can't be priced.`;
         } else {
-            quote.fairShares = Math.floor((price * totalShares) / netAssetValue + 1e-9);
+            quote.fairShares = Math.round((price * totalShares) / netAssetValue);
             quote.newShares = Math.min(quote.fairShares, room);
-            if (room === 0) quote.noSharesReason = `${corp.ticker} already has ${options.maxShares} shares, the most allowed.`;
-            else if (propertyIds.length && quote.fairShares === 0) quote.noSharesReason = `That's worth less than one ${corp.ticker} share (${perShare(netAssetValue / totalShares)}).`;
+            if (room === 0) quote.noSharesReason = `${corp.ticker} already has ${count(options.maxShares)} shares, the most allowed.`;
+            else if (propertyIds.length && quote.fairShares === 0) quote.noSharesReason = `That's worth less than half a ${corp.ticker} share (${perShare(netAssetValue / totalShares)}).`;
         }
         return quote;
     }
@@ -284,8 +284,10 @@
         const warnings = [];
         if (Math.round(netChange) < 0) {
             warnings.push(newShares > 0
-                ? `The other ${corp.ticker} holders gain ${money(-netChange)}: whole shares, rounded down, don't cover the full value.`
+                ? `The other ${corp.ticker} holders gain ${money(-netChange)}: shares are rounded to a whole number.`
                 : `The other ${corp.ticker} holders gain ${money(-netChange)}, since their shares rise in value too.`);
+        } else if (Math.round(netChange) > 0) {
+            warnings.push(`Rounding to a whole share gives you ${money(netChange)} more than the property's value, and the other ${corp.ticker} holders' stakes drop by as much.`);
         }
         return { sentences, rows, warnings, netChange, quote };
     }

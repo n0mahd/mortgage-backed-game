@@ -179,13 +179,14 @@ test('a player offers a property, the chairman counters and the offerer accepts'
     await expect(alex.page.locator('#send-property-offer-btn')).toBeDisabled();
     await alex.page.check('#propertyOfferAssets input[value="prop-15"]');
     const preview = alex.page.locator('#propertyOfferPreview');
-    // Book value $240 at $0.1125 a share: 2,133 new shares (rounded down).
+    // Book value $240 at $0.1125 a share: 2,133.3, so 2,133 new shares (nearest share).
     await expect(preview).toContainText('You give MBS Illinois Avenue for 2,133 new MBS shares.');
     await expect(preview).toContainText('Your net worth$0');
 
     await alex.page.check('input[name="propertyOfferBasis"][value="set"]');
     await alex.page.fill('#propertyOfferPriceInput', '300');
-    await expect(preview).toContainText('for 2,666 new MBS shares');
+    // $300 at $0.1125 a share is 2,666.7, so 2,667.
+    await expect(preview).toContainText('for 2,667 new MBS shares');
     await expect(preview).toContainText('Paying $60 over book value');
     await alex.page.click('#send-property-offer-btn');
     await expect(alex.page.locator('#propertyOfferModal')).not.toHaveClass(/active/);

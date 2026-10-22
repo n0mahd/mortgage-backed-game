@@ -50,10 +50,12 @@ function shareholderRentDue(rent, holderShares, totalShares) {
 }
 
 // New shares a price buys at the corporation's current value per share,
-// rounded down so existing holders never lose value to rounding.
+// rounded to the nearest whole share (half rounds up). Rounding can move up to
+// half a share's value between the buyer and the existing holders; the
+// previews say which way.
 function sharesForPrice(price, totalShares, netAssetValue) {
     if (!(netAssetValue > 0) || !(totalShares > 0) || !(price > 0)) return 0;
-    return Math.floor((Number(price) * Number(totalShares)) / Number(netAssetValue) + 1e-9);
+    return Math.round((Number(price) * Number(totalShares)) / Number(netAssetValue));
 }
 
 module.exports = {

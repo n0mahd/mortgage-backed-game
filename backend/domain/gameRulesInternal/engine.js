@@ -932,7 +932,7 @@ function createIPO(state, player, payload, events) {
     const requestedShares = payload.totalShares || payload.shares;
     const totalShares = requestedShares ? positiveInt(requestedShares, 'shares') : DEFAULT_CORPORATION_SHARES;
     if (!ticker) throw new GameRuleError(400, 'Ticker is required');
-    if (totalShares > DEFAULT_CORPORATION_SHARES) throw new GameRuleError(400, `Shares must be ${DEFAULT_CORPORATION_SHARES} or fewer`);
+    if (totalShares > DEFAULT_CORPORATION_SHARES) throw new GameRuleError(400, `Shares must be ${DEFAULT_CORPORATION_SHARES.toLocaleString('en-US')} or fewer`);
     if (state.corporations.some(c => c.ticker === ticker)) throw new GameRuleError(400, 'Ticker already exists');
     if (assetIds.length === 0) throw new GameRuleError(400, 'At least one asset is required');
     const assets = assetIds.map(id => {
@@ -978,9 +978,8 @@ function createIPO(state, player, payload, events) {
 
 // Whoever runs an LLC can put more of their own properties into it. If other
 // players hold shares, the runner can take new shares priced at the current
-// value per share, so the other stakes keep their value. Shares are whole
-// (rounded down) and the 12-share cap holds; value the new shares don't cover
-// is a gift to every shareholder.
+// value per share, so the other stakes keep their value. Shares are whole,
+// rounded to the nearest share, so stakes can move by up to half a share.
 function addToCorporation(state, player, payload, events) {
     const corp = state.corporations.find(c => c.id === payload.corpId);
     if (!corp) throw new GameRuleError(404, 'Corporation not found');
@@ -1023,7 +1022,7 @@ function addToCorporation(state, player, payload, events) {
 }
 
 // How many whole new shares a contribution is worth at the LLC's current value
-// per share, rounded down and kept within the share cap. The price defaults to
+// per share, rounded to the nearest share and kept within the share cap. The price defaults to
 // the properties' book value (price plus buildings); a property offer can name
 // another price. newShares is 0, with a reason, when shares can't or needn't
 // be issued.
@@ -1043,9 +1042,9 @@ function corporationContributionQuote(state, corp, userId, assetIds, price = nul
         quote.fairShares = sharesForPrice(agreedPrice, totalShares, netAssetValue);
         quote.newShares = Math.min(quote.fairShares, room);
         if (room === 0) {
-            quote.noSharesReason = `${corp.ticker} already has ${MAX_CORPORATION_SHARES} shares, the most allowed`;
+            quote.noSharesReason = `${corp.ticker} already has ${MAX_CORPORATION_SHARES.toLocaleString('en-US')} shares, the most allowed`;
         } else if (quote.fairShares === 0) {
-            quote.noSharesReason = `That is worth less than one ${corp.ticker} share`;
+            quote.noSharesReason = `That is worth less than half a ${corp.ticker} share`;
         }
     }
     return quote;

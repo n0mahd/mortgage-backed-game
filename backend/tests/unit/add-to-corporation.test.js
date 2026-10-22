@@ -2,7 +2,7 @@
 
 // Whoever runs an LLC can put more of their own properties into it. With other
 // shareholders, the runner can take whole new shares priced at the current
-// value per share (rounded down, 12 shares at most); otherwise the property is
+// value per share (rounded to the nearest share, 12,000 at most); otherwise the property is
 // a gift that raises every share's value.
 
 const {
@@ -58,9 +58,10 @@ function mbsState({ totalShares = 10, aliceShares = 7 } = {}) {
     let state = own(makeState(), [...MBS_ASSETS, ILLINOIS, KENTUCKY, MEDITERRANEAN], 'alice', 'Alice');
     state = applyAction(state, 'alice', {
         type: 'create_ipo',
-        payload: { ticker: 'MBS', totalShares, pricePerShare: 100, assetIds: MBS_ASSETS },
+        payload: { ticker: 'MBS', totalShares: 10, assetIds: MBS_ASSETS },
     }).state;
     const corp = state.corporations[0];
+    corp.totalShares = totalShares;
     const bobShares = totalShares - aliceShares;
     corp.shareholders = [{ userId: 'alice', name: 'Alice', shares: aliceShares }];
     if (bobShares > 0) corp.shareholders.push({ userId: 'bob', name: 'Bob', shares: bobShares });
@@ -102,33 +103,57 @@ describe('adding properties to an existing corporation', () => {
         expect(after.gameLog.map(entry => entry.message).join('\n')).toMatch(/Alice put Illinois Avenue into MBS and received 2 new shares \(MBS now has 12\)/);
     });
 
-    test('new shares are whole and rounded down', () => {
-        // $220 at $120 a share is 1.83, so 1 share.
+    test('new shares round up to the nearest whole share', () => {
+        // $220 at $120 a share is 1.83, so 2 shares.
         const { state } = add(mbsState(), 'alice', { assetIds: [KENTUCKY], issueShares: true });
-        expect(state.corporations[0].totalShares).toBe(11);
-        expect(Number.isInteger(sharesOf(state.corporations[0], 'alice'))).toBe(true);
+        expect(state.corporations[0].totalShares).toBe(12);
+        expect(sharesOf(state.corporations[0], 'alice')).toBe(9);
+    });
+
+    test('new shares round down to the nearest whole share', () => {
+        // 5 shares, so $240 a share.
+        const { state } = add(mbsState({ totalShares: 5, aliceShares: 3 }), 'alice', { assetIds: [ILLINOIS, MEDITERRANEAN], issueShares: true });
+        // $300 at $240 a share is 1.25, so 1 share.
+        expect(state.corporations[0].totalShares).toBe(6);
+        expect(sharesOf(state.corporations[0], 'alice')).toBe(4);
+    });
+
+    test('exactly half a share rounds up', () => {
+        // Mediterranean ($60) at $120 a share is 0.5, so 1 share.
+        const { state } = add(mbsState(), 'alice', { assetIds: [MEDITERRANEAN], issueShares: true });
         expect(sharesOf(state.corporations[0], 'alice')).toBe(8);
     });
 
-    test('a property worth less than one share gets no shares', () => {
-        expectRefused(() => add(mbsState(), 'alice', { assetIds: [MEDITERRANEAN], issueShares: true }), /less than one MBS share/);
+    test('a property worth less than half a share gets no shares, but can still go in as a gift', () => {
+        // 5 shares at $240: Mediterranean ($60) is a quarter of a share.
+        const state = mbsState({ totalShares: 5, aliceShares: 3 });
+        expectRefused(() => add(state, 'alice', { assetIds: [MEDITERRANEAN], issueShares: true }), /less than half a MBS share/);
+        const bobBefore = calculateNetWorth(state, 'bob');
+        const { state: after } = add(state, 'alice', { assetIds: [MEDITERRANEAN] });
+        expect(after.corporations[0].totalShares).toBe(5);
+        // Bob's 2 of 5 shares gain two fifths of $60.
+        expect(calculateNetWorth(after, 'bob') - bobBefore).toBeCloseTo(24);
     });
 
     test('there is no 12-share cap: a contribution gets every share it is worth', () => {
-        // 11 shares at ~$109: Illinois ($240) is worth 2 new shares.
+        // 11 shares at ~$109: Illinois ($240) is worth 2.2, so 2 new shares.
         const { state } = add(mbsState({ totalShares: 11, aliceShares: 8 }), 'alice', { assetIds: [ILLINOIS], issueShares: true });
         expect(state.corporations[0].totalShares).toBe(13);
         expect(sharesOf(state.corporations[0], 'alice')).toBe(10);
     });
 
-    test('a property can still go in as a gift that raises every share', () => {
-        const state = mbsState({ totalShares: 12, aliceShares: 9 });
-        const bobBefore = calculateNetWorth(state, 'bob');
-        const { state: after } = add(state, 'alice', { assetIds: [ILLINOIS], issueShares: false });
-        expect(after.corporations[0].totalShares).toBe(12);
-        expect(after.properties.find(p => p.id === ILLINOIS).ownerId).toBe(after.corporations[0].id);
-        // Bob's 3 of 12 shares gain a quarter of $240.
-        expect(calculateNetWorth(after, 'bob') - bobBefore).toBeCloseTo(60);
+    test('adding properties can grow a corporation to 1,000,000 shares', () => {
+        const { state } = add(mbsState({ totalShares: 999999, aliceShares: 900000 }), 'alice', { assetIds: [ILLINOIS], issueShares: true });
+        expect(state.corporations[0].totalShares).toBe(1000000);
+        expect(sharesOf(state.corporations[0], 'alice')).toBe(900001);
+        expectRefused(() => add(state, 'alice', { assetIds: [KENTUCKY], issueShares: true }), /1,000,000 shares, the most allowed/);
+    });
+
+    test('an IPO can issue up to 12,000 shares', () => {
+        const state = own(makeState(), [ILLINOIS, KENTUCKY], 'alice', 'Alice');
+        const ipo = (shares, id) => applyAction(state, 'alice', { type: 'create_ipo', payload: { ticker: 'BIG', totalShares: shares, assetIds: [id] } });
+        expect(ipo(12000, ILLINOIS).state.corporations[0].totalShares).toBe(12000);
+        expectRefused(() => ipo(12001, KENTUCKY), /12,000 or fewer/);
     });
 
     test('a sole owner just moves the property in; new shares are refused as meaningless', () => {
@@ -184,7 +209,7 @@ describe('adding properties to an existing corporation', () => {
         const corp = state.corporations[0];
         ORANGE.forEach(id => expect(state.properties.find(p => p.id === id).ownerId).toBe(corp.id));
         expect(state.properties.find(p => p.id === ORANGE[0]).houses).toBe(2);
-        // $560 of land plus 2 houses at $100 is $760; at $120 a share that is 6.
+        // $560 of land plus 2 houses at $100 is $760; at $120 a share that is 6.33, so 6.
         expect(corp.totalShares).toBe(16);
     });
 
@@ -201,8 +226,8 @@ describe('adding properties to an existing corporation', () => {
         own(state, ['prop-21'], 'bob', 'Bob');
         const { state: after } = add(state, 'bob', { assetIds: ['prop-21'], issueShares: true });
         const corp = after.corporations[0];
-        // $300 at $120 a share is 2.5, so 2 shares.
-        expect(sharesOf(corp, 'bob')).toBe(8);
+        // $300 at $120 a share is 2.5, so 3 shares.
+        expect(sharesOf(corp, 'bob')).toBe(9);
         expect(corp.chairmanId).toBe('alice');
     });
 });
