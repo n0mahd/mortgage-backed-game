@@ -155,7 +155,8 @@ test('a player offers a property, the chairman counters and the offerer accepts'
     await alex.page.click('#send-property-offer-btn');
     await expect(alex.page.locator('#propertyOfferModal')).not.toHaveClass(/active/);
 
-    // Sam sees it in the MBS card, with what it costs him, and counters.
+    // Sam's Corporations button flags it; the MBS card shows what it costs him.
+    await expect(sam.page.locator('[data-game-action="open-corporation"]').first()).toContainText('1 offer waiting for you', { timeout: 10000 });
     await sam.page.click('[data-game-action="open-corporation"]');
     const offerCard = sam.page.locator('.corp-property-offers .trade-offer-card');
     await expect(offerCard).toContainText('Alex → MBS: $300 in new shares', { timeout: 10000 });

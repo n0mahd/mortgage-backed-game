@@ -1077,7 +1077,7 @@ function renderActionButtons() {
             ${renderImprovePropertiesButton(gameState, currentPlayer, auctionOpen)}
             <button class="btn btn-secondary btn-sm" data-game-action="open-ipo" ${auctionOpen ? 'disabled' : ''}>Create IPO<small>Take properties public</small></button>
             <button class="btn btn-secondary btn-sm" data-game-action="open-debt" ${auctionOpen ? 'disabled' : ''}>Manage Debt<small>Borrow, repay, refinance</small></button>
-            <button class="btn btn-secondary btn-sm" data-game-action="open-corporation">Corporations<small>Shares and chairmen</small></button>
+            ${renderCorporationsButton()}
             ${buyTile}
         `)}
     `;
@@ -1098,16 +1098,23 @@ function buyUnavailableLabel(landing) {
     return 'No Property to Buy';
 }
 
+// Flags property offers waiting for this player (as offerer or chairman).
+function renderCorporationsButton() {
+    const waiting = CorporationDesk.offersAwaiting(currentUser.id).length;
+    const hint = waiting ? `${waiting} offer${waiting === 1 ? '' : 's'} waiting for you` : 'Shares and chairmen';
+    return `<button class="btn btn-secondary btn-sm${waiting ? ' is-featured' : ''}" data-game-action="open-corporation">Corporations<small>${hint}</small></button>`;
+}
+
 function renderNonTurnActions() {
     return renderMovesGrid(`
-        <button class="btn btn-secondary btn-sm" data-game-action="open-corporation">Corporations<small>Shares and chairmen</small></button>
+        ${renderCorporationsButton()}
         <button class="btn btn-secondary btn-sm" data-switch-section="market">Trade or pay<small>Opens the market</small></button>
     `);
 }
 
 function renderPausedActions() {
     return renderMovesGrid(`
-        <button class="btn btn-secondary btn-sm" data-game-action="open-corporation">Corporations<small>Shares and chairmen</small></button>
+        ${renderCorporationsButton()}
     `);
 }
 

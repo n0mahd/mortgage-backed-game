@@ -222,7 +222,10 @@ function normalizeState(raw) {
                 : null),
         }))
         : [];
-    state.propertyOffers = Array.isArray(state.propertyOffers) ? state.propertyOffers.slice(-50) : [];
+    // Keep every pending property offer and the most recent resolved ones.
+    const propertyOffers = Array.isArray(state.propertyOffers) ? state.propertyOffers : [];
+    const resolvedOffers = propertyOffers.filter(offer => offer.status !== 'pending').slice(-30);
+    state.propertyOffers = propertyOffers.filter(offer => offer.status === 'pending' || resolvedOffers.includes(offer));
     state.auction = normalizeAuction(state.auction);
     state.bankruptcyClaims = normalizeBankruptcyClaims(state.bankruptcyClaims);
     state.turnCashFlow = state.turnCashFlow && typeof state.turnCashFlow === 'object' ? state.turnCashFlow : {};
