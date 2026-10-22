@@ -75,26 +75,26 @@ test.describe('thorough real-player UI game flow', () => {
             await shot(testInfo, pages.Alice, '10-alice-buys-houses-on-brown');
 
             await openTab(pages.Alice, 'Game');
-            await issueDebt(pages.Alice, 300, 5);
-            await shot(testInfo, pages.Alice, '11-alice-issues-collateralized-debt');
+            await issueDebt(pages.Alice, 150, 5);
+            await shot(testInfo, pages.Alice, '11-alice-borrows-against-her-portfolio');
 
             await settleDebt(pages.Alice, 75);
             await shot(testInfo, pages.Alice, '12-alice-settles-partial-debt');
+            await payOffDebt(pages.Alice);
 
             await createIpo(pages.Alice, 'BRWN', 8, 50, 'prop-0');
             await shot(testInfo, pages.Alice, '13-alice-creates-ipo');
 
             await expectCorporationDetails(pages.Alice, 'BRWN', /Alice:\s*8 shares \(100\.0%\)/i);
-            await expectCorporationDetails(pages.Alice, 'BRWN', /Listed Shares:\s*8 \(8 founder, 0 treasury\)/i);
+            await expectCorporationDetails(pages.Alice, 'BRWN', /No treasury shares for sale/i);
             await issueCorporationDebt(pages.Alice, 'BRWN', 100);
             await shot(testInfo, pages.Alice, '13b-alice-issues-corporation-debt');
 
             await endTurnNoAssert(pages.Alice);
             await repairGameState(pages.Alice, { current: 'Bob', diceRolled: { Bob: false } });
             await reloadGamePages(pages, ['Bob']);
-            await buyShares(pages.Bob, 'BRWN', 2);
-            await shot(testInfo, pages.Bob, '14-bob-buys-ipo-shares-mobile');
-
+            // A founder's shares change hands only by an offer they accept, so the
+            // shareholders for the chairman vote are set up directly.
             await repairGameState(pages.Alice, {
                 corporations: {
                     BRWN: {
@@ -112,7 +112,10 @@ test.describe('thorough real-player UI game flow', () => {
             await expectCorporationDetails(pages.Carol, 'BRWN', /Chairman:\s*Bob/i);
             await shot(testInfo, pages.Carol, '14b-carol-supports-chairman-vote');
 
-            await tradeCashForProperty(pages.Bob, 'Bob', 'Alice', 120, 'prop-1');
+            // Brown went into BRWN with its houses; trade an unbuilt street instead.
+            await repairGameState(pages.Alice, { owners: { Alice: ['prop-3'] } });
+            await reloadGamePages(pages, ['Bob']);
+            await tradeCashForProperty(pages.Bob, 'Bob', 'Alice', 120, 'prop-3');
             await shot(testInfo, pages.Bob, '15-bob-trades-cash-for-property');
 
             await repairGameState(pages.Alice, {
@@ -144,7 +147,7 @@ test.describe('thorough real-player UI game flow', () => {
             await buyCurrentSquare(pages.Carol, 'Electric Company');
             await shot(testInfo, pages.Carol, '19-carol-buys-utility');
 
-            await issueDebt(pages.Carol, 150, 5);
+            await issueDebt(pages.Carol, 120, 5);
             await shot(testInfo, pages.Carol, '20-carol-issues-debt');
 
             await repairGameState(pages.Alice, {
@@ -218,7 +221,8 @@ test.describe('thorough real-player UI game flow', () => {
                 players: {
                     Alice: {
                         cash: 0,
-                        debts: [{ principal: 100, interestRate: 200, collateral: [], createdAt: new Date().toISOString() }],
+                        // A loan on its last turn: its whole balance is due at End Turn.
+                        debts: [{ principal: 100, interestRate: 200, termTurns: 5, turnsRemaining: 1, createdAt: new Date().toISOString() }],
                         inJail: false,
                         jailTurns: 0,
                     },
@@ -317,23 +321,42 @@ async function issueDebt(page, amount, rate) {
     await openTab(page, 'Game');
     await activeGameButton(page, 'open-debt').click();
     await expect(page.locator('#debtModal')).toBeVisible();
-    const collateral = page.locator('#collateralAssets input[type="checkbox"]').first();
-    if (await collateral.count()) await collateral.check();
+    await page.locator('#debtAction').selectOption('issue');
+    // Loans can total 90% of the book value of everything the player owns.
+    await expect(page.locator('#loanLimit')).toContainText(/You can borrow up to \$/);
     await page.locator('#loanAmount').fill(String(amount));
-    await expect(page.locator('#loanRateDisplay')).toContainText(`${rate}%`);
-    await expect(page.locator('#loanRate')).toHaveAttribute('type', 'hidden');
+    // The 10-turn term is picked by default, at the host's rate for it.
+    await expect(page.locator('#loanTerms input[value="10"]')).toBeChecked();
+    await expect(page.locator('#loanTerms')).toContainText(`10 turns at ${rate}% per turn`);
+    await expect(page.locator('#loanTerms')).toContainText(/a turn, .* in total/);
     await clickAndWaitForGameVersion(page, page.locator('#process-debt-btn'));
     await expect(page.locator('#debtModal')).toBeHidden({ timeout: 10000 });
-    await expect(page.locator('#gameContent')).toContainText(`${formatMoneyForUi(amount)} @ ${rate}%`, { timeout: 10000 });
-    await expect(page.locator('#gameContent')).toContainText(/Interest next turn:/, { timeout: 10000 });
+    await expect(page.locator('#gameContent')).toContainText(`${formatMoneyForUi(amount)} · 10 turns left`, { timeout: 10000 });
+    await expect(page.locator('#gameContent')).toContainText(/Autopay \$[\d,.]+ next turn/, { timeout: 10000 });
 }
 
+// Pays off the first loan from the Debt page.
+async function payOffDebt(page) {
+    await openTab(page, 'Game');
+    await activeGameButton(page, 'open-debt').click();
+    const loanCount = await page.locator('#loanList .loan-row').count();
+    await clickAndWaitForGameVersion(page, page.locator('#loanList .loan-row').first().locator('[data-loan-payoff]'));
+    await expect(page.locator('#loanList .loan-row')).toHaveCount(loanCount - 1, { timeout: 10000 });
+    await page.locator('[data-close-modal="debtModal"]').click();
+    await expect(page.locator('#debtModal')).toBeHidden({ timeout: 10000 });
+}
+
+// Pays part of the first loan from the Debt page, which stays open with the new balance.
 async function settleDebt(page, amount) {
     await openTab(page, 'Game');
     await activeGameButton(page, 'open-debt').click();
-    await page.locator('#debtAction').selectOption('settle');
-    await page.locator('#settlementAmount').fill(String(amount));
-    await clickAndWaitForGameVersion(page, page.locator('#process-debt-btn'));
+    await expect(page.locator('#debtAction')).toHaveValue('loans');
+    const loan = page.locator('#loanList .loan-row').first();
+    const before = await loan.locator('.loan-balance').textContent();
+    await loan.locator('input[type="number"]').fill(String(amount));
+    await clickAndWaitForGameVersion(page, loan.locator('[data-loan-pay]'));
+    await expect(page.locator('#loanList .loan-row').first().locator('.loan-balance')).not.toHaveText(before, { timeout: 10000 });
+    await page.locator('[data-close-modal="debtModal"]').click();
     await expect(page.locator('#debtModal')).toBeHidden({ timeout: 10000 });
     await expect(page.locator('#gameContent')).toContainText(/Debts/, { timeout: 10000 });
 }
@@ -366,13 +389,12 @@ async function issueCorporationDebt(page, ticker, amount) {
     await openTab(page, 'Game');
     await activeGameButton(page, 'open-debt').click();
     await expect(page.locator('#debtModal')).toBeVisible();
+    await page.locator('#debtAction').selectOption('issue');
     await selectByVisibleText(page.locator('#debtIssuer'), `${ticker} Corporation`);
-    const collateral = page.locator('#collateralAssets input[type="checkbox"]').first();
-    if (await collateral.count()) await collateral.check();
     await page.locator('#loanAmount').fill(String(amount));
     await clickAndWaitForGameVersion(page, page.locator('#process-debt-btn'));
     await expect(page.locator('#debtModal')).toBeHidden({ timeout: 10000 });
-    await expect(page.locator('#gameContent')).toContainText(new RegExp(`issued debt under ${ticker}`, 'i'), { timeout: 10000 });
+    await expect(page.locator('#gameContent')).toContainText(new RegExp(`borrowed for ${ticker}`, 'i'), { timeout: 10000 });
 }
 
 async function proposeChairmanVote(page, ticker, candidateName) {
@@ -397,17 +419,6 @@ async function supportChairmanVote(page, ticker) {
     await expect(card).toContainText(/Chairman:\s*Bob/i, { timeout: 10000 });
     await page.locator('#corporationModal').getByRole('button', { name: /close/i }).click();
     await expect(page.locator('#corporationModal')).toBeHidden({ timeout: 10000 });
-}
-
-async function buyShares(page, ticker, shares) {
-    await openTab(page, 'Game');
-    await activeGameButton(page, 'open-corporation').click();
-    await expect(page.locator('#corporationModal')).toBeVisible();
-    const card = page.locator('.corporation-card').filter({ hasText: ticker }).first();
-    await expect(card).toBeVisible({ timeout: 10000 });
-    await card.locator('input[type="number"]').fill(String(shares));
-    await clickAndWaitForGameVersion(page, card.getByRole('button', { name: /^buy$/i }));
-    await expect(page.locator('#gameContent')).toContainText(ticker, { timeout: 10000 });
 }
 
 async function rollAndPayRent(page, dice, ownerName) {

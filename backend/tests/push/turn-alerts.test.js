@@ -221,12 +221,14 @@ describe('alerts only go to players who are not looking at the game', () => {
         await new Promise(r => setTimeout(r, 100));
     }
 
+    // Doubles mean rolling again before End Turn, so roll until the turn can end
+    // (three doubles send the player to Jail, which ends the rolling).
     async function passTurn(from, game) {
-        await act(from, game, 'roll_dice', {});
-        let ended = await act(from, game, 'end_turn');
-        if (ended.status === 400) {
+        let ended;
+        for (let attempt = 0; attempt < 4; attempt++) {
             await act(from, game, 'roll_dice', {});
             ended = await act(from, game, 'end_turn');
+            if (ended.status !== 400) break;
         }
         expect(ended.status).toBe(200);
     }
