@@ -3314,7 +3314,20 @@ input[type="checkbox"] {
         align-items: start;
     }
 
-    .game-layout-main { position: sticky; top: calc(var(--topbar-h) + 64px); }
+    /* Sticky turn column scrolls on its own when taller than the window,
+       so its bottom is reachable without scrolling past every player */
+    .game-layout-main {
+        position: sticky;
+        top: calc(var(--topbar-h) + 64px);
+        max-height: calc(100vh - var(--topbar-h) - 64px - var(--s4));
+        max-height: calc(100dvh - var(--topbar-h) - 64px - var(--s4));
+        overflow-y: auto;
+        overscroll-behavior: contain;
+        scrollbar-width: thin;
+        /* Room for focus rings and card shadows the scroll box would clip */
+        margin: calc(var(--s1) * -1);
+        padding: var(--s1);
+    }
 
     .turn-dock {
         position: static;
