@@ -15,7 +15,7 @@
     <title>Game — Mortgage Backed Monopoly</title>
     <link rel="preload" href="src/assets/fonts/besley-latin.woff2" as="font" type="font/woff2" crossorigin>
     <link rel="stylesheet" href="src/css/tokens.css?v=2">
-    <link rel="stylesheet" href="src/css/style.css?v=23">
+    <link rel="stylesheet" href="src/css/style.css?v=24">
 </head>
 <body class="game-page">
     <div class="container">
@@ -91,6 +91,10 @@
                             <label for="player1Select">Player</label>
                             <select id="player1Select"></select>
                         </div>
+                        <div class="form-group" id="player1AsGroup" hidden>
+                            <label for="player1As">Trading as</label>
+                            <select id="player1As"></select>
+                        </div>
                         <div class="form-group">
                             <label for="player1Cash">Cash <span class="field-max" id="player1CashMax"></span></label>
                             <input type="number" id="player1Cash" min="0" value="0" inputmode="decimal">
@@ -106,6 +110,10 @@
                         <div class="form-group">
                             <label for="player2Select">Player</label>
                             <select id="player2Select"></select>
+                        </div>
+                        <div class="form-group" id="player2AsGroup" hidden>
+                            <label for="player2As">Trading as</label>
+                            <select id="player2As"></select>
                         </div>
                         <div class="form-group">
                             <label for="player2Cash">Cash <span class="field-max" id="player2CashMax"></span></label>
@@ -163,6 +171,7 @@
             <div class="modal-header">Buy Property</div>
             <div class="property-grid" id="availableProperties"></div>
             <p class="modal-hint">Buy it at list price, or let every player bid on it.</p>
+            <div class="trade-destination" id="buyForChoices" hidden></div>
             <div class="form-group sr-only">
                 <label>Price</label>
                 <div class="readonly-value" id="purchasePriceDisplay">$0.00</div>
@@ -183,21 +192,74 @@
                 <label>Ticker symbol</label>
                 <input type="text" id="ipoTicker" placeholder="e.g., PROP" autocapitalize="characters" autocomplete="off">
             </div>
-            <div class="form-group">
-                <label>Number of shares (1–12)</label>
-                <input type="number" inputmode="numeric" id="ipoShares" min="1" max="12" value="10">
-            </div>
-            <div class="form-group">
-                <label>Listing price per share</label>
-                <input type="number" inputmode="decimal" id="ipoPrice" min="0" step="0.01">
-            </div>
+            <p class="modal-hint">The company issues 12,000 shares and you hold all of them. 12,000 splits evenly: a half is 6,000, a third 4,000, a quarter 3,000, a sixth 2,000.</p>
             <div class="form-group">
                 <label>Properties to include</label>
                 <div class="asset-list" id="ipoAssets"></div>
             </div>
+            <div class="offer-property-for-shares" id="ipoExistingCorps" hidden></div>
             <div class="sheet-actions">
                 <button id="create-ipo-btn" class="btn btn-success">Create IPO</button>
                 <button class="btn btn-secondary" data-close-modal="ipoModal">Cancel</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal" id="addToCorpModal">
+        <div class="modal-content">
+            <div class="modal-header" id="addToCorpTitle">Add properties</div>
+            <p class="modal-hint" id="addToCorpHint"></p>
+            <div class="form-group">
+                <label>Properties to add</label>
+                <div class="asset-list" id="addToCorpAssets"></div>
+            </div>
+            <div class="trade-destination" id="addToCorpShares"></div>
+            <div class="trade-preview" id="addToCorpPreview" hidden></div>
+            <div class="sheet-actions">
+                <button id="add-to-corp-btn" class="btn btn-success" disabled>Add</button>
+                <button class="btn btn-secondary" data-close-modal="addToCorpModal">Cancel</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal" id="propertyOfferModal">
+        <div class="modal-content">
+            <div class="modal-header" id="propertyOfferTitle">Offer a property</div>
+            <p class="modal-hint" id="propertyOfferHint"></p>
+            <div class="form-group">
+                <label>Properties to offer</label>
+                <div class="asset-list" id="propertyOfferAssets"></div>
+            </div>
+            <div class="trade-destination" id="propertyOfferPrice">
+                <p class="trade-destination-title">At what price?</p>
+                <label class="trade-destination-option">
+                    <input type="radio" name="propertyOfferBasis" value="book" checked>
+                    <span><strong>Book value</strong><small>Price plus buildings. Fair to everyone: no holder gains or loses value.</small></span>
+                </label>
+                <label class="trade-destination-option">
+                    <input type="radio" name="propertyOfferBasis" value="set">
+                    <span><strong>Set my price</strong><small>You name it. The chairman accepts, declines or counters.</small></span>
+                </label>
+                <div class="form-group" id="propertyOfferPriceGroup" hidden>
+                    <label for="propertyOfferPriceInput">Your price</label>
+                    <input type="number" id="propertyOfferPriceInput" min="1" step="1" inputmode="decimal">
+                </div>
+            </div>
+            <div class="trade-destination" id="propertyOfferPayWith">
+                <p class="trade-destination-title">Paid with</p>
+                <label class="trade-destination-option">
+                    <input type="radio" name="propertyOfferPayWith" value="shares" checked>
+                    <span><strong>New shares</strong><small>Issued at today's value per share.</small></span>
+                </label>
+                <label class="trade-destination-option">
+                    <input type="radio" name="propertyOfferPayWith" value="cash">
+                    <span><strong>Treasury cash</strong><small id="propertyOfferCashNote">The company buys it outright.</small></span>
+                </label>
+            </div>
+            <div class="trade-preview" id="propertyOfferPreview" hidden></div>
+            <div class="sheet-actions">
+                <button id="send-property-offer-btn" class="btn btn-success" disabled>Send offer</button>
+                <button class="btn btn-secondary" data-close-modal="propertyOfferModal">Cancel</button>
             </div>
         </div>
     </div>
@@ -287,6 +349,10 @@
         <div class="modal-content">
             <div class="modal-header">Build houses and hotels</div>
             <p class="modal-hint">Add up to 4 houses per property. A fifth improvement swaps them for a hotel.</p>
+            <div class="form-group" id="houseBuildForGroup" hidden>
+                <label for="houseBuildFor">Build for</label>
+                <select id="houseBuildFor"></select>
+            </div>
             <div id="houseModalProperties"></div>
             <div id="houseModalTotal"></div>
             <div class="sheet-actions">
@@ -356,12 +422,13 @@
     <script src="src/js/ui.js?v=1"></script>
     <script src="src/js/rejoin-prompts.js?v=1"></script>
     <script src="src/js/board.js?v=10"></script>
-    <script src="src/js/game/action-dispatcher.js?v=2"></script>
+    <script src="src/js/game/action-dispatcher.js?v=4"></script>
     <script src="src/js/game/turn-alert.js?v=1"></script>
     <script src="src/js/game/turn-end-outlook.js?v=2"></script>
     <script src="src/js/game/loans.js?v=1"></script>
-    <script src="src/js/game/share-deals.js?v=1"></script>
+    <script src="src/js/game/share-deals.js?v=3"></script>
+    <script src="src/js/game/corporation-desk.js?v=2"></script>
     <script src="src/js/turn-notifications.js?v=1"></script>
-    <script src="src/js/game.js?v=33"></script>
+    <script src="src/js/game.js?v=35"></script>
 </body>
 </html>

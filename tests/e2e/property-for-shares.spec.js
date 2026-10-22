@@ -41,7 +41,6 @@ async function setupGame(request) {
                     chairmanId: samId,
                     chairmanName: 'Sam',
                     totalShares: 12,
-                    pricePerShare: 100,
                     assets: [{ id: 'prop-pa', name: 'Pennsylvania Ave', value: 320, color: 'Green' }],
                     shareholders: [{ userId: samId, name: 'Sam', shares: 12 }],
                     availableShares: 12,

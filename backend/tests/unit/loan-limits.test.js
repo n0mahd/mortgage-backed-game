@@ -85,7 +85,7 @@ describe('loan limits', () => {
     test('shares count at book value', () => {
         let { state } = applyAction(makeState(), 'alice', {
             type: 'create_ipo',
-            payload: { ticker: 'ALC', totalShares: 10, pricePerShare: 50, assetIds: [BOARDWALK] },
+            payload: { ticker: 'ALC', totalShares: 10, assetIds: [BOARDWALK] },
         });
         // Boardwalk now sits in ALC ($400 NAV, all of it Alice's shares) and Park Place is hers.
         expect(state.players[0].borrowing.bookValue).toBe(750);

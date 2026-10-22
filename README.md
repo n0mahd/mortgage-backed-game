@@ -98,7 +98,11 @@ Tap **Buy Property** after landing on an unowned property. Cash is deducted imme
 
 Requires owning at least one property.
 
-Tap **Create IPO** and select which properties to bundle into a corporation. Set a **ticker symbol**, **number of shares** (1–12, default 10), and **price per share**. The selected properties move out of your personal holdings into the corporation and you receive all of its shares. A color group with houses or hotels must go in whole. Nobody can buy your shares without your agreement: shares change hands through trade offers in the Market, and whoever gains a majority becomes chairman.
+Tap **Create IPO** and select which properties to bundle into a corporation. Set a **ticker symbol**; every corporation issues 12,000 shares (it splits evenly in halves, thirds, quarters and sixths) and there is no IPO price. The selected properties move out of your personal holdings into the corporation and you receive all of its shares. A color group with houses or hotels must go in whole. Nobody can buy your shares without your agreement: shares change hands through trade offers in the Market, and whoever gains a majority becomes chairman.
+
+If you already run a corporation, tap **Add properties to <ticker>** on its card in **Corporations** to move more properties into it. When other players hold shares, you can take whole new shares at today's value per share, so their stakes keep their value. Or you can give the property outright, which raises every share's value.
+
+The chairman also runs the corporation from its card: a **rent policy** (Reinvest keeps full rent in the treasury; Payout sends rent straight to shareholders, and a shareholder landing there pays only the part they don't own; the chairman changes it alone only before rolling, then it is locked for their next 5 turns unless every shareholder agrees), **dividends**, buying the property they land on and building houses from the treasury, and **Trading as** the corporation in the Market. Anyone else can **offer a property** to a corporation at book value or their own price, for new shares or treasury cash; the chairman accepts, declines or counters. See section 9 of `documents/game-rules.md`.
 
 ---
 
@@ -122,9 +126,9 @@ Tap **Manage Debt → Refinance Existing Debt**. Select one or more existing loa
 
 ### Buy Shares
 
-To buy shares a player holds, make them an offer in the **Market** tab; the shares move only if they accept. If bankruptcy returned shares to a corporation's treasury, tap **Corporations** during your turn to buy those at the corporation's price; that cash goes into the corporation treasury.
+To buy shares a player holds, make them an offer in the **Market** tab; the shares move only if they accept. If bankruptcy returned shares to a corporation's treasury, tap **Corporations** during your turn to buy those at the current share value (NAV, below); that cash goes into the corporation treasury.
 
-Player net worth values corporation stakes by net asset value, not the price per share: corporation-owned property value plus treasury cash minus corporation debt, divided by total shares. Share value is floored at $0 if the corporation's net asset value is negative.
+Player net worth values corporation stakes by net asset value: corporation-owned property value plus treasury cash minus corporation debt, divided by total shares. Share value is floored at $0 if the corporation's net asset value is negative.
 
 If a corporation can't repay a loan when it comes due, the corporation becomes insolvent. Its properties return to the bank, houses/hotels are cleared, corporation debts and shareholder positions are wiped, the chairman seat closes, and no further shares/debt/governance actions are available for that corporation.
 

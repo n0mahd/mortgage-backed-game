@@ -491,12 +491,29 @@ class Autoplay {
         await this.firstTime('ipo-modal', [seat], 'ipo-modal');
         const ticker = `${seat.name.slice(0, 3).toUpperCase()}${Math.floor(this.rand() * 90 + 10)}`;
         await seat.page.locator('#ipoTicker').fill(ticker);
-        await seat.page.locator('#ipoShares').fill(String(4 + Math.floor(this.rand() * 8)));
-        await seat.page.locator('#ipoPrice').fill(String(20 + Math.floor(this.rand() * 60)));
         const asset = seat.page.locator(`#ipo-asset-${props[0].id}`);
         if (await asset.count()) await asset.check();
         else await seat.page.locator('#ipoAssets input[type="checkbox"]').first().check();
         await this.act(seat, 'create IPO', () => seat.page.locator('#create-ipo-btn').click(), { allowRejection: true });
+        await this.closeModals(seat);
+    }
+
+    // Corporations → Add properties to <ticker>: tick the first free property and
+    // take new shares when they're on offer, otherwise give it.
+    async addToCorporation(seat, corp) {
+        await this.gameButton(seat, 'open-corporation').click();
+        await seat.page.locator('#corporationModal').waitFor({ state: 'visible' });
+        const open = seat.page.locator(`#corporationModal [data-game-action="open-add-to-corporation"][data-corp-id="${corp.id}"]`);
+        if (!(await this.usable(open))) return this.closeModals(seat);
+        await open.click();
+        await seat.page.locator('#addToCorpModal').waitFor({ state: 'visible' });
+        await this.firstTime('add-to-corp-modal', [seat], 'add-to-corp-modal');
+        const box = seat.page.locator('#addToCorpAssets input[type="checkbox"]:not(:disabled)').first();
+        if (!(await box.count())) return this.closeModals(seat);
+        await box.check();
+        const shares = seat.page.locator('#addToCorpShares input[value="shares"]');
+        if (await this.usable(shares)) await shares.check();
+        await this.act(seat, 'add property to corporation', () => seat.page.locator('#add-to-corp-btn').click(), { allowRejection: true });
         await this.closeModals(seat);
     }
 
@@ -521,7 +538,7 @@ class Autoplay {
         const me = state.players.find(p => p.userId === seat.userId);
         if (!holder || !me) return;
         const shares = Math.min(wanted, Number(holder.shares));
-        const cash = Math.min(Math.floor(Number(me.cash) * 0.5), Math.round(shares * Number(corp.pricePerShare || 50) * (0.8 + this.rand() * 0.6)));
+        const cash = Math.min(Math.floor(Number(me.cash) * 0.5), Math.round(shares * 50 * (0.8 + this.rand() * 0.6)));
         if (cash <= 0) return;
         await this.marketTab(seat);
         await seat.page.locator('#player1Select').selectOption({ value: seat.userId });
@@ -738,6 +755,8 @@ class Autoplay {
             if (!optionalDone.has('ipo') && (me.properties || []).length >= 2 && !(state.corporations || []).some(c => c.founderId === me.userId)) options.push(['ipo', 0.12]);
             const buyable = (state.corporations || []).filter(c => !c.insolvent && (Number(c.availableShares || 0) > 0 || (c.shareholders || []).some(h => h.userId !== me.userId && Number(h.shares) > 0)));
             if (!optionalDone.has('shares') && buyable.length && Number(me.cash) > 400) options.push(['shares', 0.25]);
+            const runCorps = (state.corporations || []).filter(c => !c.insolvent && c.chairmanId === seat.userId);
+            if (!optionalDone.has('addcorp') && runCorps.length && (me.properties || []).length) options.push(['addcorp', 0.15]);
             if (!optionalDone.has('trade')) options.push(['trade', 0.1]);
             if (!optionalDone.has('pay')) options.push(['pay', 0.02]);
             const host = this.seats[0];
@@ -767,6 +786,7 @@ class Autoplay {
                     if (kind === 'settle') await this.settleDebt(seat);
                     if (kind === 'ipo') await this.createIpo(seat, me);
                     if (kind === 'shares') await this.buyShares(seat, this.pick(buyable));
+                    if (kind === 'addcorp') await this.addToCorporation(seat, this.pick(runCorps));
                     if (kind === 'trade') await this.proposeTrade(seat, me, state);
                     if (kind === 'pay') await this.manualPayment(seat, state);
                     if (kind === 'pause') { this.resilienceDone.pause = true; await this.pauseAndResume(seat); }

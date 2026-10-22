@@ -83,6 +83,7 @@ const PATHWAYS = [
 
     // ----- corporations -----
     { id: 'corp.ipo', group: 'Corporations', label: 'Create an IPO', match: ev('ipo_created'), hint: 'Create IPO: ticker, shares, price, at least one property.' },
+    { id: 'corp.add-property', group: 'Corporations', label: 'Add properties to a corporation you run', match: ev('corporation_assets_added'), hint: 'Corporations → Add properties to <ticker> (chairman or majority holder, your turn).' },
     { id: 'corp.buy-shares', group: 'Corporations', label: 'Buy treasury shares', match: ev('share_purchase'), hint: 'Corporations → Buy treasury shares (only after a bankruptcy returned shares to a corporation).' },
     { id: 'corp.share-offer', group: 'Corporations', label: 'Offer to buy or sell shares in a trade', match: act('propose_trade', d => (d.player1Shares || []).length || (d.player2Shares || []).length), hint: 'Market: enter a number of shares on either side of a trade.' },
     { id: 'corp.majority-gained', group: 'Corporations', label: 'Gain a majority and become chairman automatically', match: ev('chairman_changed', d => d.method === 'majority-gained'), hint: 'Buy more than half of a corporation\'s shares by trade offers.' },

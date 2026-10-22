@@ -197,11 +197,9 @@ class Chaos {
             if (!(await bot.usable(bot.gameButton(seat, 'open-ipo')))) return;
             await bot.gameButton(seat, 'open-ipo').click();
             await p.locator('#ipoModal').waitFor({ state: 'visible' });
-            await p.locator('#ipoTicker').fill(bot.pick(['', 'A', 'TOOLONGTICKER', 'x-1', '😀']));
-            field = bot.pick(['#ipoShares', '#ipoPrice']);
-            await p.locator('#ipoShares').fill('4');
-            await p.locator('#ipoPrice').fill('25');
-            await p.locator(field).fill(junk.value);
+            // Every company has 1,000 shares, so the ticker is the only free-text field.
+            field = '#ipoTicker';
+            await p.locator(field).fill(bot.pick(['', 'A', 'TOOLONGTICKER', 'x-1', '😀', junk.value]));
             await p.locator('#ipoAssets input[type="checkbox"]').first().check().catch(() => {});
             await p.locator('#create-ipo-btn').click().catch(() => {});
         } else if (form === 'payment') {
