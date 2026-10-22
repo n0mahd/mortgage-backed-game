@@ -456,7 +456,6 @@ class Autoplay {
         await this.firstTime('ipo-modal', [seat], 'ipo-modal');
         const ticker = `${seat.name.slice(0, 3).toUpperCase()}${Math.floor(this.rand() * 90 + 10)}`;
         await seat.page.locator('#ipoTicker').fill(ticker);
-        await seat.page.locator('#ipoShares').fill(String(4 + Math.floor(this.rand() * 8)));
         const asset = seat.page.locator(`#ipo-asset-${props[0].id}`);
         if (await asset.count()) await asset.check();
         else await seat.page.locator('#ipoAssets input[type="checkbox"]').first().check();
