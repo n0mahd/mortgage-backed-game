@@ -74,7 +74,7 @@ Random play reaches common paths constantly and rare ones almost never. An 8-pla
 | Property | buy street/railroad/utility; auction start, bid, pass, won, no sale, host cancel, timeout |
 | Rent | plain street, double rent on a full group, houses, hotel, railroad, utility, rent you can't pay |
 | Houses | buy houses, build a hotel, repairs card with buildings |
-| Debt | personal, corporate, repay, refinance, interest (personal and corporate) |
+| Debt | personal, corporate, 5- and 15-turn terms, part payment, pay off, autopay off, unpaid interest, repaid at maturity, bankrupt at maturity, refinance, loan payments (personal and corporate) |
 | Corporations | IPO, buy shares, majority chairman change, vote proposed/supported/passed, chairman after bankruptcy, insolvency |
 | Market | propose, accept, decline, withdraw, host cancel, expire, property swap, jail-card trade, direct payment |
 | Bankruptcy | claim payment, claim settled, bankrupt to a player, to the bank, last player standing |
@@ -98,7 +98,8 @@ $S coverage --all-runs     # across every recorded game (ledger: /mnt/ssd/dev-da
 | `in-jail`, `in-jail-with-card`, `jail-third-turn` | the current player in Jail (with a card, or on the third turn) |
 | `monopoly`, `houses-built`, `hotel-built` | another player owns a full group (plain, 4 houses, hotels); the current player will land on it |
 | `near-bankrupt`, `broke-to-bank` | the current player has $40/$30 and lands on hotels or Income Tax; the bot survives the claim or goes bankrupt, whichever is unreached |
-| `insolvent-corporation` | the current player's corporation gets $400 debt and no cash, so End Turn interest makes it insolvent |
+| `insolvent-corporation` | the current player's corporation gets a $400 loan due at the next End Turn and no cash, so it becomes insolvent |
+| `loan-due`, `loan-default` | the current player gets a loan due in full at their next End Turn, with the cash to repay it ($300, autopay off) or without ($2,000 and $50 cash) |
 | `trade-expiry`, `auction-timeout` | offers or auctions time out after 3 s (restored once the pathway happens) |
 | `card:<id>` (32) | that card on top of its deck, and the player lands on that deck |
 
@@ -161,7 +162,7 @@ $S wait 2 --timeout 300    # blocks until you must act: your-turn | auction | tr
 $S click 2 e6              # or by label: $S click 2 "Roll Dice"; prints the new screen
 $S fill 2 e9 120 && $S click 2 "Bid"
 $S select 2 e12 "Cleo"     # dropdowns by visible option text
-$S check 2 e14             # checkboxes (trade assets, collateral, IPO assets)
+$S check 2 e14             # checkboxes (trade assets, IPO assets)
 $S tab 2 market            # game | market | log (Recent events) | board
 $S shot 2 auction-on-phone # full-page PNG; open it with Read to judge the layout
 $S look 2 --full           # all screen text, not just the first 1800 chars
@@ -217,7 +218,7 @@ When you report, give the run id, the git rev (`doctor`), the scenarios played (
 - **High, game rule**: an auction stays open when everyone else passed *before* the only bid. `placeAuctionBid` in `backend/domain/gameRulesInternal/engine.js` never calls `settleAuctionIfComplete`. No one has a Bid or Pass button, End Turn shows a disabled "Resolve Auction", and even after the 2-minute timeout the only control is the host's **Cancel Auction**, which throws away the winning bid. Reproduced by autoplay in 2-player games. The bot records it and cancels as host to keep going.
 - **High, game rule** (explore, property swap): a street with houses can be traded away, splitting the colour group while the houses stay. The receiver then put it into an IPO with its 4 houses. Classic rules require selling buildings first.
 - **High, money** (Haiku auditor): settling a debt for more than it owes takes the whole payment. `payDebt` subtracts it and deletes the debt at ≤ 0, so the excess vanishes.
-- **Design question, money** (Haiku trader, confirmed in code and `documents/game-rules.md` §10): each End Turn adds the interest to the principal *and* takes it from cash, so a player pays the interest and still owes it. Corporate debt does the same. It's documented, but likely unintended.
+- **Design question, money** (Haiku trader, confirmed in code and `documents/game-rules.md` §10): each End Turn adds the interest to the principal *and* takes it from cash, so a player pays the interest and still owes it. Corporate debt does the same. It's documented, but likely unintended. *Resolved by loan terms: 5/10/15-turn loans at the host's rates, autopay installments, the whole balance due at maturity.*
 - **Medium, rules/UX** (Haiku players): a loan of $5,000 against one $580 property, or with no collateral at all, is accepted (no loan-to-value limit). A sub-cent payment (12.555) shows $12.55 in the log but takes $12.56. A 1-share IPO lets anyone buy the founder's only share at list price and take the company, and the old chairman stays chairman with 0 shares. The landing card says "Owned by [BEN37]" (raw corporation ID). The board shows corporation-owned squares as unowned. The IPO share count defaults to 1.
 - **Medium, UI**: behind the Game Over dialog, the game screen still says "Your Turn!" / "It's your turn!" for the last current player (found by a Haiku player, confirmed in its screenshot).
 - **Medium, UX**: some refusals hide the server's reason. A blank ticker shows "Failed to create IPO" while the server said "Ticker is required", and a bad loan amount shows "Failed to issue debt" while the server said "amount must be positive". The app also logs every refusal with `console.error` (found by chaos).
@@ -242,4 +243,4 @@ When you report, give the run id, the git rev (`doctor`), the scenarios played (
 | `scripts/lib/agentmail.js` | Reads login codes and invites from the AgentMail inboxes. |
 | `scripts/lib/runs.js` | Run dirs, ports, evidence paths. |
 
-The bot relies on the game's stable hooks: `data-game-action="…"` buttons inside `#game.section.active`, modal ids (`#buyPropertyModal`, `#houseModal`, `#debtModal`, `#ipoModal`, `#corporationModal`, `#winnerModal`), `.modal.active`, Market ids (`#player1Select`, `#player2Select`, `#player1Cash`, `#player2-asset-<id>`, `#executeTradeBtn`, `#paymentToPlayer`, `#paymentAmount`, `#makePaymentBtn`, `#tradeOffersList`), `#auctionBidAmount`, the `currentGame`/`currentUser` globals, and `#gameContent .game-header h2` containing the current player's name. If a UI change renames any of these, update `lib/bot.js` in the same change. Backend code is loaded when a run starts, so restart the run (`down`, `up`) after backend or harness edits. Frontend files are served live.
+The bot relies on the game's stable hooks: `data-game-action="…"` buttons inside `#game.section.active`, modal ids (`#buyPropertyModal`, `#houseModal`, `#debtModal`, `#ipoModal`, `#corporationModal`, `#winnerModal`), the Debt page (`#debtAction` values `loans`/`issue`/`refinance`, `#loanTerms-<5|10|15>`, `#loanAutopay`, `#loanList .loan-row` with `[data-loan-autopay]`, `[data-loan-pay]`, `[data-loan-payoff]`), `.modal.active`, Market ids (`#player1Select`, `#player2Select`, `#player1Cash`, `#player2-asset-<id>`, `#executeTradeBtn`, `#paymentToPlayer`, `#paymentAmount`, `#makePaymentBtn`, `#tradeOffersList`), `#auctionBidAmount`, the `currentGame`/`currentUser` globals, and `#gameContent .game-header h2` containing the current player's name. If a UI change renames any of these, update `lib/bot.js` in the same change. Backend code is loaded when a run starts, so restart the run (`down`, `up`) after backend or harness edits. Frontend files are served live.

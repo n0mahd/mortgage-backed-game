@@ -107,8 +107,19 @@ const STAGES = {
         const corp = (s.corporations || []).find(c => c.chairmanId === current.userId && !c.insolvent);
         if (!corp) return null;
         corp.cash = 0;
-        corp.debts.push({ id: `debt-staged-${Date.now()}`, principal: 400, interestRate: 5, collateral: [], issueDate: new Date().toISOString(), issuerType: 'corporation' });
-        return { state: s, dice: {}, note: `${corp.ticker} (chaired by ${current.name}) given $400 debt and $0 cash; interest at End Turn should make it insolvent` };
+        corp.debts.push({ id: `debt-staged-${Date.now()}`, principal: 400, interestRate: 5, termTurns: 5, turnsRemaining: 1, autopay: true, issueDate: new Date().toISOString(), issuerType: 'corporation' });
+        return { state: s, dice: {}, note: `${corp.ticker} (chaired by ${current.name}) given a $400 loan due at the next End Turn and $0 cash, so it should become insolvent` };
+    },
+    // A personal loan on its last turn: 'loan-due' can be repaid, 'loan-default' can't.
+    'loan-due': (s, { current }) => {
+        current.cash = Math.max(Number(current.cash), 700);
+        current.debts.push({ id: `debt-staged-${Date.now()}`, principal: 300, interestRate: 5, termTurns: 5, turnsRemaining: 1, autopay: false, issueDate: new Date().toISOString(), issuerType: 'player' });
+        return { state: s, dice: {}, note: `${current.name} given a $300 loan (autopay off) due in full at their next End Turn, with the cash to repay it` };
+    },
+    'loan-default': (s, { current }) => {
+        current.cash = 50;
+        current.debts.push({ id: `debt-staged-${Date.now()}`, principal: 2000, interestRate: 5, termTurns: 5, turnsRemaining: 1, autopay: true, issueDate: new Date().toISOString(), issuerType: 'player' });
+        return { state: s, dice: {}, note: `${current.name} given a $2,000 loan due in full at their next End Turn and $50 cash, so End Turn should declare bankruptcy` };
     },
     'trade-expiry': s => {
         s.settings.tradeOfferTimeoutMs = 3000;

@@ -9,7 +9,7 @@
 Mortgage Backed Monopoly is a fully-digital, multiplayer parody of Monopoly layered with Wall Street financial mechanics. On top of buying properties and collecting rent, players can:
 
 - **IPO their properties** — bundle them into corporations, issue shares, and sell equity to other players
-- **Issue debt** — borrow cash at the room's debt rate, with compounding interest
+- **Borrow** — take loans against property on 5, 10 or 15-turn terms at the host's rates, with compounding interest on anything unpaid
 - **Trade freely** — swap cash, properties and corporation shares through the Market tab
 
 The game runs entirely in the browser; there are no physical components, no banker, and no manual bookkeeping. All state is shared in real time.
@@ -224,7 +224,7 @@ shareValue = max(0, corporation property value + treasury cash - corporation deb
 
 ### Corporation Insolvency
 
-If a corporation's treasury falls below $0 when corporate debt interest is charged, the corporation is closed as insolvent:
+If a corporation's treasury falls below $0 because a loan comes due that it can't repay, the corporation is closed as insolvent:
 
 - Corporation-owned properties return to the bank and any houses/hotels are cleared.
 - Corporation debts are wiped.
@@ -238,43 +238,64 @@ The Corporations modal shows an **Insolvent** badge and explains that assets, de
 
 ## 10. Debt & Interest
 
-Players can issue themselves debt at the room's debt rate — simulating leveraged buyouts, margin loans, or mortgage-backed instruments.
+Players can borrow against their properties — simulating leveraged buyouts, margin loans, or mortgage-backed instruments. Every loan has a term, and the whole balance is due when it ends, so a loan can't be carried forever.
 
-### Issuing Debt
+### Loan rates
 
-1. Go to the **Game** tab → **Manage Debt** → select **Issue New Debt**.
-2. Select the property to pledge as collateral, then enter the loan amount. You can borrow up to **90% of the pledged property's value** (its price plus any houses or hotels), so you always keep at least 10% equity. Every loan needs collateral, and a property can back only one loan at a time.
-3. Click **Confirm** — cash is added to your balance immediately.
+Before the game starts, the host sets an interest rate per turn for each loan term in the waiting room (defaults: **5 turns at 4%**, **10 turns at 5%**, **15 turns at 6%**; each between 0% and 25%). The rates are fixed for the rest of the game and shown at the top of the Debt page.
 
-A corporation's chairman can borrow for the corporation the same way, pledging the corporation's properties. Refinancing follows the same limit; the loans being replaced free up their collateral for the new loan.
+### Taking a loan
 
-### Interest Accrual
+1. Go to the **Game** tab → **Manage Debt** → **Take a new loan**.
+2. Enter the loan amount. No property is pledged: your loans are limited by your whole portfolio. All your loans together can reach **90% of the book value of what you own**, so you always keep at least 10% equity:
 
-Interest compounds **every time you end your turn**:
+   ```
+   book value = properties (price + houses/hotels) + shares (shares held × book value per share)
+   you can borrow = 90% of book value − what you already owe
+   ```
 
-```
-New principal = principal × (1 + interestRate / 100)
-Interest charged = new principal − old principal
-```
+   Cash doesn't count. The form shows how much you can still borrow.
+3. Pick a term: **5, 10 or 15 turns**. Each choice shows the payment per turn and the total you'd repay. A longer term means smaller payments but more interest overall.
+4. Leave **Autopay** on, or turn it off to pay when you like.
+5. Tap **Take loan**: the cash is added to your balance immediately.
 
-The interest charged is deducted from your cash at turn end, before bankruptcy is checked. This means a high-interest loan can spiral quickly.
+A corporation's chairman can borrow for the corporation the same way; its limit is 90% of the book value of the corporation's properties, less what it owes. The limit is checked only when a loan is taken (or refinanced): a portfolio that later loses value doesn't call in existing loans, but it does stop new ones.
 
-The default room debt rate is **5% per turn**.
+### Each turn
 
-### Repaying Debt
+Every time you end your turn, each of your loans:
 
-1. Go to **Manage Debt** → select **Settle Debt**.
-2. Choose the loan from the dropdown and enter a payment amount, or use **Full Amount** to fill the remaining principal.
-3. The payment reduces the principal. If the principal reaches $0 or below, the debt is fully cleared.
+1. Charges one turn of interest on its balance: `interest = balance × rate / 100`.
+2. With **autopay on**, takes the scheduled payment from your cash. The payment is the amount that pays the loan off exactly when its term ends, so it is recalculated each turn: skip a payment and later ones get bigger, pay extra and they get smaller. Autopay never takes more than the cash you have; whatever it can't take stays on the loan.
+3. With **autopay off**, takes nothing. The interest is added to the balance and earns interest itself from then on.
+4. Counts down one turn.
 
-Partial payments are allowed.
+### Maturity
 
-### Refinancing Debt
+On a loan's last turn the whole balance is due when you end your turn, with or without autopay. If your cash covers it, the loan is repaid. If it doesn't, you go **bankrupt** (see §11): your properties return to the bank. The turn screen warns you before you end a turn on which a loan comes due, so you can raise cash first by selling, trading or refinancing.
 
-1. Go to **Manage Debt** → select **Refinance Existing Debt**.
-2. Select one or more existing personal debts.
-3. Enter a new loan amount greater than the selected payoff total, then choose collateral properties.
-4. The selected debts are cleared, one new loan is created at the room's debt rate, and only the net cash above the payoff total is added to your balance.
+### The Debt page
+
+**Manage Debt → Your loans** lists each loan you can manage (your own and those of corporations you run) with its balance, term, turns left and next payment. For each loan you can:
+
+- switch **Autopay** on or off (any time, even when it isn't your turn: off your turn, open it from **Your Loans** in Moves);
+- **Pay an amount** of your choice;
+- **Pay off** the whole balance.
+
+Payments are made on your turn. Paying more than is owed only takes what is owed.
+
+### Refinancing
+
+1. Go to **Manage Debt** → **Refinance loans**.
+2. Select one or more of your loans.
+3. Enter a new loan amount greater than their combined balance and pick a term.
+4. The selected loans are paid off, one new loan is created on the new term at its rate, and only the net cash above the payoff is added to your balance. Refinancing follows the same 90% limit, with the loans being replaced not counted as owed.
+
+### Corporation loans
+
+A corporation's loans work the same way, paid from its treasury cash. They count down at the end of its chairman's turn (or, with the chair vacant, its majority holder's), once per round. A corporation that can't repay a loan when it comes due becomes insolvent.
+
+Loans taken before terms existed were given a 10-turn term with autopay on.
 
 ---
 
@@ -292,13 +313,13 @@ Bankruptcy is triggered automatically when your **cash drops below $0 at the end
 - Open chairman votes involving you are closed.
 - A liquidation summary appears after bankruptcy so players can see the cause, destination of assets, share movement, and debt cleanup.
 
-If you cannot afford rent owed to another player or corporation, you pay only the cash you actually have and the unpaid remainder is tracked as a claim. If you raise enough cash before ending the turn, End Turn pays the claim from your cash (after loan interest) and bankruptcy is avoided; there is no separate pay button, and the End Turn button shows the amount it will pay. If the claim is still unpaid when you end the turn:
+If you cannot afford rent owed to another player or corporation, you pay only the cash you actually have and the unpaid remainder is tracked as a claim. If you raise enough cash before ending the turn, End Turn pays the claim from your cash (after loan payments) and bankruptcy is avoided; there is no separate pay button, and the End Turn button shows the amount it will pay. If the claim is still unpaid when you end the turn:
 
 - Rent owed to a player transfers your directly owned properties and player-held corporation shares to that player.
 - Rent owed to a corporation transfers your directly owned properties to that corporation. Player-held shares return to their issuing corporation's treasury share pool.
 - Houses/hotels on transferred properties are removed.
 
-Bank, tax, card, jail bail, and interest bankruptcies return your directly owned properties to the bank and return player-held shares to their issuing corporation's treasury share pool. Bankruptcy is final. Corporation-owned properties and corporation debts stay with the corporation unless that corporation later becomes insolvent.
+Bank, tax, card, jail bail, and loan bankruptcies return your directly owned properties to the bank and return player-held shares to their issuing corporation's treasury share pool. Bankruptcy is final. Corporation-owned properties and corporation debts stay with the corporation unless that corporation later becomes insolvent.
 
 ---
 
@@ -414,6 +435,7 @@ Property value is recorded at purchase price plus houses/hotels. Corporation sha
 | Luxury Tax | $100 |
 | Jail bail (forced, turn 3) | $50 |
 | End Turn gate | Current player must roll first |
-| Interest timing | End of your turn |
+| Loan terms | 5, 10 or 15 turns; rates set by the host |
+| Loan payments | End of your turn (autopay), whole balance at maturity |
 | Bankruptcy trigger | Cash < $0 at turn end |
 | Win condition | Last solvent player OR host ends game |

@@ -401,7 +401,8 @@ select:disabled {
     color: var(--ink-3);
 }
 
-input[type="checkbox"] {
+input[type="checkbox"],
+input[type="radio"] {
     width: 22px;
     height: 22px;
     flex-shrink: 0;
@@ -505,6 +506,62 @@ input[type="checkbox"] {
 }
 
 .debt-flow-summary.debt-flow-warning { color: var(--danger); }
+
+/* Debt page: one card per loan, with autopay and payments */
+.loan-list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--s3);
+}
+
+.loan-row {
+    display: flex;
+    flex-direction: column;
+    gap: var(--s2);
+    padding: var(--s4);
+    border-radius: var(--r-group);
+    background: var(--note);
+    border: 1px solid var(--rule);
+}
+
+.loan-row.is-due { border-color: var(--danger); }
+
+.loan-row-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--s2);
+}
+
+.loan-balance {
+    font-family: var(--font-money);
+    font-weight: 700;
+    font-size: var(--text-title3);
+    font-variant-numeric: lining-nums proportional-nums;
+}
+
+.loan-row .debt-detail { margin-top: 0; }
+
+.loan-schedule {
+    font-size: var(--text-footnote);
+    color: var(--ink-2);
+}
+
+.loan-pay {
+    display: flex;
+    flex-direction: column;
+    gap: var(--s2);
+}
+
+.loan-pay .field-label { margin-bottom: 0; }
+
+.loan-rates {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: var(--s2);
+}
+
+.loan-rates .form-group { margin-bottom: 0; }
 
 /* ── 5. Feedback ───────────────────────────────────────────────── */
 

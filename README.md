@@ -102,27 +102,21 @@ Tap **Create IPO** and select which properties to bundle into a corporation. Set
 
 ---
 
-### Issue Debt (Mortgage-Backed Securities)
+### Take a Loan (Mortgage-Backed Securities)
 
-Tap **Manage Debt → Issue New Debt**. Pick the property to pledge and set a **loan amount** (you receive this cash immediately). You can borrow up to 90% of the pledged property's value (price plus buildings); every loan needs collateral and a property backs one loan at a time. The current game uses the room's debt rate, shown in the modal.
+Tap **Manage Debt → Take a new loan**. Set a **loan amount** (you receive this cash immediately) and choose a **term of 5, 10 or 15 turns**. Nothing is pledged: all your loans together can reach 90% of the book value of what you own (properties at price plus buildings, shares at book value per share), and the form shows how much you can still borrow. The host sets the interest rate for each term in the waiting room before the game starts (defaults 4%, 5% and 6% per turn).
 
-Interest accrues automatically every time you end your turn:
-
-```
-new principal = principal × (1 + interestRate / 100)
-```
-
-The difference is deducted from your cash. Default rate: **5% per turn**.
+Every time you end your turn a loan charges a turn of interest. With **autopay** on, it takes the payment that pays the loan off by the end of its term; with autopay off, nothing is taken and the unpaid interest is added to the balance, where it compounds. On the last turn the whole balance is due, and if you can't pay it you go bankrupt.
 
 ---
 
-### Settle Debt
+### Your Loans
 
-Tap **Manage Debt → Settle Existing Debt**. Select the debt and enter a payment amount, or use **Full Amount** to fill the remaining principal. Cash is deducted and the principal reduced; paying more than is owed only takes what is owed. Debt is removed when fully paid.
+**Manage Debt → Your loans** shows each loan's balance, turns left and next payment. Switch autopay on or off, pay any amount, or pay the loan off. Paying more than is owed only takes what is owed.
 
 ### Refinance Debt
 
-Tap **Manage Debt → Refinance Existing Debt**. Select one or more existing debts, set a larger new loan amount, and choose collateral. The selected debts are paid off, one new loan is created at the room's debt rate, and you receive only the net new cash above the payoff amount.
+Tap **Manage Debt → Refinance Existing Debt**. Select one or more existing loans, set a larger new loan amount and pick a term. The selected loans are paid off, one new loan is created on that term at its rate, and you receive only the net new cash above the payoff amount.
 
 ---
 
@@ -132,7 +126,7 @@ To buy shares a player holds, make them an offer in the **Market** tab; the shar
 
 Player net worth values corporation stakes by net asset value, not the price per share: corporation-owned property value plus treasury cash minus corporation debt, divided by total shares. Share value is floored at $0 if the corporation's net asset value is negative.
 
-If corporate debt interest pushes a corporation below $0 treasury cash, the corporation becomes insolvent. Its properties return to the bank, houses/hotels are cleared, corporation debts and shareholder positions are wiped, the chairman seat closes, and no further shares/debt/governance actions are available for that corporation.
+If a corporation can't repay a loan when it comes due, the corporation becomes insolvent. Its properties return to the bank, houses/hotels are cleared, corporation debts and shareholder positions are wiped, the chairman seat closes, and no further shares/debt/governance actions are available for that corporation.
 
 ---
 
@@ -164,7 +158,7 @@ Also in the **Market** tab under **Payment System**. Choose a recipient and amou
 
 Click **End Turn** after rolling and resolving your square. The UI disables End Turn until you roll, and the server rejects end-turn actions from an unrolled state. The app will automatically:
 
-1. Apply interest on all your outstanding debts
+1. Charge interest and take autopay payments on your loans (the whole balance of any loan on its last turn)
 2. Check for bankruptcy (cash below $0) — bankrupt players are skipped in future turns
 3. Pass the turn to the next active player
 
@@ -186,7 +180,7 @@ Highest net worth wins.
 
 ## Bankruptcy
 
-Falling below $0 cash or ending the turn with unpaid rent triggers final bankruptcy. Bankrupt players can no longer act, their turns are skipped, and pending trade offers involving them are canceled. If bankruptcy is caused by unpaid rent to a player, directly owned properties and player-held corporation shares transfer to that creditor with houses/hotels cleared. If rent is owed to a corporation, directly owned properties transfer to that corporation while player-held shares return to the issuing corporation's treasury share pool. Bank, tax, card, and interest bankruptcies return direct properties to the bank and return player-held shares to the issuing corporation's treasury share pool. Corporation-owned properties remain with the corporation unless the corporation itself becomes insolvent.
+Falling below $0 cash or ending the turn with unpaid rent triggers final bankruptcy. Bankrupt players can no longer act, their turns are skipped, and pending trade offers involving them are canceled. If bankruptcy is caused by unpaid rent to a player, directly owned properties and player-held corporation shares transfer to that creditor with houses/hotels cleared. If rent is owed to a corporation, directly owned properties transfer to that corporation while player-held shares return to the issuing corporation's treasury share pool. Bank, tax, card, and loan bankruptcies return direct properties to the bank and return player-held shares to the issuing corporation's treasury share pool. Corporation-owned properties remain with the corporation unless the corporation itself becomes insolvent.
 
 ---
 
@@ -194,7 +188,7 @@ Falling below $0 cash or ending the turn with unpaid rent triggers final bankrup
 
 - **Leverage early.** Issue debt while interest is manageable to buy more properties before others do.
 - **IPO fast.** Bundle your cheapest color groups to raise capital through share sales without giving up valuable assets.
-- **Watch the interest clock.** Every turn-end drains cash. Over-leveraging compounds quickly and is usually fatal.
+- **Watch the maturity clock.** Every loan comes due in full at the end of its term. Turning autopay off saves cash now but compounds the balance you'll owe later.
 - **Use the market tab.** Negotiate trades and package deals — the secondary market is where fortunes shift.
 
 ---

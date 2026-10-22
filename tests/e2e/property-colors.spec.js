@@ -9,7 +9,7 @@ const OWNED = [
     { id: 'prop-13', name: 'Kentucky Avenue', color: 'Red', price: 220, rent: [18, 90, 250, 700, 875, 1050] },
 ];
 
-test('the IPO and loan pickers show each property in its board color', async ({ browser, request }) => {
+test('the IPO picker shows each property in its board color', async ({ browser, request }) => {
     const alice = await apiJson(request, 'post', `${BASE_API}/auth/anonymous`);
     const bob = await apiJson(request, 'post', `${BASE_API}/auth/anonymous`);
     const room = await apiJson(request, 'post', `${BASE_API}/rooms`, {
@@ -53,9 +53,5 @@ test('the IPO and loan pickers show each property in its board color', async ({ 
     const colors = await ipoDots.evaluateAll(dots => dots.map(dot => getComputedStyle(dot).backgroundColor));
     expect(colors).toEqual(['rgb(233, 30, 140)', 'rgb(249, 124, 42)', 'rgb(231, 76, 60)']);
     await page.locator('#ipoModal .modal-content').screenshot({ path: test.info().outputPath('ipo-sheet.png') });
-
-    await page.click('[data-close-modal="ipoModal"]');
-    await page.click('[data-game-action="open-debt"]');
-    await expect(page.locator('#collateralAssets .property-dot')).toHaveCount(OWNED.length);
     await context.close();
 });

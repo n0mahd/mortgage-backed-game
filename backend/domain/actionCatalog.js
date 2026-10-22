@@ -20,9 +20,10 @@ const ACTIONS = [
     { type: 'buy_houses', category: 'assets', payload: { selections: { '<propertyId>': 'integer houses to add (total per property <= 5; 5th = hotel)' } }, description: 'Buy houses/hotels on properties where you own the complete color group. Your turn only.' },
     { type: 'create_ipo', category: 'assets', payload: { ticker: 'string, up to 8 letters/digits', totalShares: 'integer 1-12', pricePerShare: 'number > 0', assetIds: ['<propertyId you own>'] }, description: 'Bundle your properties into a corporation; you get all shares and they are listed for sale. Your turn only.' },
     { type: 'buy_shares', category: 'assets', payload: { corpId: '<corporation id>', shares: 'integer > 0' }, description: 'Buy treasury shares a corporation has for sale, at its price. Shares a player holds can only be bought with a propose_trade they accept. Your turn only.' },
-    { type: 'issue_debt', category: 'debt', payload: { amount: 'number > 0', collateralIds: ['<propertyId you own, not already backing a loan> (required; amount <= 90% of their value)'], issuerType: "'player' (default) or 'corporation'", corpId: '<corporation id, when issuerType is corporation>' }, description: 'Borrow cash at the room debt rate; interest compounds each time you end your turn. Your turn only.' },
-    { type: 'pay_debt', category: 'debt', payload: { debtId: '<your debt id>', amount: 'number > 0, <= your cash' }, description: 'Repay part or all of a debt. Your turn only.' },
-    { type: 'refinance_debt', category: 'debt', payload: { debtIds: ['<your debt id>'], amount: 'number > total principal of selected debts', collateralIds: ['<propertyId you own, not already backing a loan> (required; amount <= 90% of their value)'] }, description: 'Replace selected debts with one new loan; you receive the cash above the payoff. Your turn only.' },
+    { type: 'issue_debt', category: 'debt', payload: { amount: 'number > 0, <= you.borrowing.available (all your loans together may reach 90% of the book value of your properties and shares)', termTurns: '5, 10 (default) or 15: turns until the whole balance is due', autopay: 'boolean, default true: pay each installment from cash at the end of your turn', issuerType: "'player' (default) or 'corporation'", corpId: '<corporation id, when issuerType is corporation>' }, description: "Borrow cash at the host's rate for the chosen term. Each End Turn charges interest; autopay pays the installment that clears the loan on schedule; unpaid interest is added to the balance. The whole balance is due at the end of the last turn, and if you can't pay it you go bankrupt. Your turn only." },
+    { type: 'pay_debt', category: 'debt', payload: { debtId: '<your debt id>', amount: 'number > 0, <= your cash (more than the balance pays it off)', corpId: "<corporation id, for a loan of a corporation you run (optional)>" }, description: 'Repay part or all of a loan. Your turn only.' },
+    { type: 'set_debt_autopay', category: 'debt', payload: { debtId: '<your debt id>', autopay: 'boolean', corpId: "<corporation id, for a loan of a corporation you run (optional)>" }, description: 'Turn autopay on or off for a loan. Allowed any time.' },
+    { type: 'refinance_debt', category: 'debt', payload: { debtIds: ['<your debt id>'], amount: 'number > total balance of selected debts, within your borrowing limit (the replaced loans do not count)', termTurns: '5, 10 (default) or 15' }, description: 'Replace selected debts with one new loan on a fresh term; you receive the cash above the payoff. Your turn only.' },
     { type: 'propose_trade', category: 'market', payload: { player1Id: '<player id>', player2Id: '<player id>', player1Cash: 'number >= 0 paid by player1 to player2', player2Cash: 'number >= 0 paid by player2 to player1', player1AssetIds: ['<propertyId player1 gives>'], player2AssetIds: ['<propertyId player2 gives>'], player1Shares: [{ corpId: '<corporation id>', shares: 'integer > 0 player1 gives (optional)' }], player2Shares: [{ corpId: '<corporation id>', shares: 'integer > 0 player2 gives (optional)' }], player1PropertiesToCorpId: '<corporation id player2 runs: player1AssetIds properties go into it instead of to player2 (optional)>', player2PropertiesToCorpId: '<corporation id player1 runs: player2AssetIds properties go into it instead of to player1 (optional)>' }, description: 'Offer a trade of cash, properties and/or corporation shares; you must be player1 or player2. The other player must accept. A one-sided offer sends shares as a gift. To buy into an LLC with a property, give the property with *PropertiesToCorpId set to the LLC and ask for its shares. Allowed any time.' },
     { type: 'accept_trade', category: 'market', payload: { offerId: '<pending offer id>' }, description: 'Accept a pending trade offer made to you.' },
     { type: 'cancel_trade', category: 'market', payload: { offerId: '<pending offer id>' }, description: 'Cancel your own pending offer, or decline one made to you.' },
@@ -95,16 +96,13 @@ function buildCandidates(state, me, hostId) {
         });
     });
 
-    // Loans need collateral and stay within 90% of its value; offer the smallest
+    // Loans stay within 90% of the borrower's portfolio; offer the smallest
     // valid shape and let the dry run decide.
-    const pledged = new Set([...state.players.flatMap(p => p.debts || []), ...state.corporations.flatMap(c => c.debts || [])]
-        .flatMap(debt => (debt.collateral || []).map(item => item.id)));
-    const freeCollateral = state.properties.find(prop => prop.ownerId === me.userId && !pledged.has(prop.id));
-    if (freeCollateral) add('issue_debt', { amount: 1, collateralIds: [freeCollateral.id] });
+    add('issue_debt', { amount: 1 });
     (me.debts || []).forEach(debt => {
         add('pay_debt', { debtId: debt.id, amount: Math.min(Number(debt.principal || 0), Math.max(Number(me.cash || 0), 1)) });
-        const collateralIds = (debt.collateral || []).map(item => item.id);
-        add('refinance_debt', { debtIds: [debt.id], amount: Math.ceil(Number(debt.principal || 0)) + 1, collateralIds });
+        add('set_debt_autopay', { debtId: debt.id, autopay: debt.autopay === false });
+        add('refinance_debt', { debtIds: [debt.id], amount: Math.ceil(Number(debt.principal || 0)) + 1 });
     });
 
     others.forEach(other => {

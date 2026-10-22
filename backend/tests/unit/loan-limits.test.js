@@ -1,7 +1,8 @@
 'use strict';
 
-// Loans keep a 10% equity cushion: at most 90% of the pledged property's value
-// (list price plus buildings), and each property backs one loan at a time.
+// Loans keep a 10% equity cushion across the whole portfolio: all of a
+// borrower's loans together may reach 90% of the book value of what they own
+// (properties at price plus buildings, shares at book value). Nothing is pledged.
 
 const {
     MONOPOLY_PROPERTIES,
@@ -43,8 +44,8 @@ function own(state, ids, ownerId, ownerName) {
     ids.forEach(id => Object.assign(state.properties.find(p => p.id === id), { ownerId, ownerName }));
 }
 
-const borrow = (state, amount, collateralIds, actor = 'alice') =>
-    applyAction(state, actor, { type: 'issue_debt', payload: { amount, collateralIds } });
+const borrow = (state, amount, actor = 'alice') =>
+    applyAction(state, actor, { type: 'issue_debt', payload: { amount } });
 
 function refusedWith(fn, message) {
     let error = null;
@@ -54,74 +55,62 @@ function refusedWith(fn, message) {
 }
 
 describe('loan limits', () => {
-    test('a loan without collateral is refused', () => {
-        refusedWith(() => borrow(makeState(), 100, []), /needs collateral/);
+    test('a borrower who owns nothing cannot borrow', () => {
+        const state = makeState();
+        state.currentPlayerIndex = 1;
+        refusedWith(() => borrow(state, 100, 'bob'), /up to \$0\.00/);
     });
 
-    test('up to 90% of the collateral value can be borrowed, and no more', () => {
-        const { state } = borrow(makeState(), 360, [BOARDWALK]);
-        expect(state.players[0].debts[0].collateral).toEqual([{ id: BOARDWALK, name: 'Boardwalk', value: 400 }]);
-        refusedWith(() => borrow(makeState(), 360.01, [BOARDWALK]), /up to \$360\.00 against Boardwalk/);
-    });
-
-    test('several pledged properties add up', () => {
-        const { state } = borrow(makeState(), 675, [BOARDWALK, PARK_PLACE]);
+    test('loans can total 90% of the whole portfolio, no property pledged', () => {
+        // Boardwalk $400 + Park Place $350 = $750 of book value, so $675.
+        const { state } = borrow(makeState(), 675);
         expect(state.players[0].cash).toBe(2175);
+        expect(state.players[0].debts[0].collateral).toBeUndefined();
+        refusedWith(() => borrow(makeState(), 675.01), /up to \$675\.00: loans can total 90% of the \$750\.00 book value/);
     });
 
-    test('buildings count towards the collateral value', () => {
+    test('existing loans count against the limit', () => {
+        const { state } = borrow(makeState(), 500);
+        expect(state.players[0].borrowing).toEqual({ bookValue: 750, owed: 500, limit: 675, available: 175 });
+        refusedWith(() => borrow(state, 176), /up to \$175\.00.*less the \$500\.00 already owed/);
+        expect(() => borrow(state, 175)).not.toThrow();
+    });
+
+    test('buildings count towards the book value', () => {
         const state = makeState();
         state.properties.find(p => p.id === BOARDWALK).houses = 2; // + 2 x $200
-        expect(() => borrow(state, 720, [BOARDWALK])).not.toThrow();
+        expect(() => borrow(state, 1035)).not.toThrow();
     });
 
-    test('a property backs only one loan at a time', () => {
-        const { state } = borrow(makeState(), 100, [BOARDWALK]);
-        refusedWith(() => borrow(state, 100, [BOARDWALK]), /already backs another loan/);
-    });
-
-    test('a pledged property stays pledged after it changes hands', () => {
-        let { state } = borrow(makeState(), 100, [BOARDWALK]);
-        own(state, [BOARDWALK], 'bob', 'Bob');
-        state.currentPlayerIndex = 1;
-        refusedWith(() => borrow(state, 100, [BOARDWALK], 'bob'), /already backs another loan/);
-    });
-
-    test('a refinance may reuse the collateral of the loans it replaces', () => {
-        const { state } = borrow(makeState(), 100, [BOARDWALK]);
-        const debtId = state.players[0].debts[0].id;
-        const { state: after } = applyAction(state, 'alice', {
-            type: 'refinance_debt',
-            payload: { debtIds: [debtId], amount: 300, collateralIds: [BOARDWALK] },
-        });
-        expect(after.players[0].debts).toHaveLength(1);
-        expect(after.players[0].debts[0].principal).toBe(300);
-    });
-
-    test('a refinance above 90% of its collateral is refused', () => {
-        const { state } = borrow(makeState(), 100, [BOARDWALK]);
-        const debtId = state.players[0].debts[0].id;
-        refusedWith(() => applyAction(state, 'alice', {
-            type: 'refinance_debt',
-            payload: { debtIds: [debtId], amount: 400, collateralIds: [BOARDWALK] },
-        }), /up to \$360\.00/);
-    });
-
-    test('corporate loans follow the same limit against the corporation\'s property', () => {
+    test('shares count at book value', () => {
         let { state } = applyAction(makeState(), 'alice', {
             type: 'create_ipo',
             payload: { ticker: 'ALC', totalShares: 10, pricePerShare: 50, assetIds: [BOARDWALK] },
         });
-        const corpId = state.corporations[0].id;
-        const corporate = amount => applyAction(state, 'alice', {
-            type: 'issue_debt',
-            payload: { amount, issuerType: 'corporation', corpId, collateralIds: [BOARDWALK] },
+        // Boardwalk now sits in ALC ($400 NAV, all of it Alice's shares) and Park Place is hers.
+        expect(state.players[0].borrowing.bookValue).toBe(750);
+        state.corporations[0].cash = 100; // NAV $500
+        state = normalizeState(state);
+        expect(state.players[0].borrowing.bookValue).toBe(850);
+    });
+
+    test('a refinance does not count the loans it replaces', () => {
+        const { state } = borrow(makeState(), 600);
+        const debtId = state.players[0].debts[0].id;
+        const { state: after } = applyAction(state, 'alice', { type: 'refinance_debt', payload: { debtIds: [debtId], amount: 675 } });
+        expect(after.players[0].debts).toHaveLength(1);
+        expect(after.players[0].debts[0].principal).toBe(675);
+        refusedWith(() => applyAction(state, 'alice', { type: 'refinance_debt', payload: { debtIds: [debtId], amount: 676 } }), /up to \$675\.00/);
+    });
+
+    test("corporate loans are limited by the corporation's properties", () => {
+        const { state } = applyAction(makeState(), 'alice', {
+            type: 'create_ipo',
+            payload: { ticker: 'ALC', totalShares: 10, pricePerShare: 50, assetIds: [BOARDWALK] },
         });
-        refusedWith(() => corporate(361), /up to \$360\.00/);
+        const corpId = state.corporations[0].id;
+        const corporate = amount => applyAction(state, 'alice', { type: 'issue_debt', payload: { amount, issuerType: 'corporation', corpId } });
+        refusedWith(() => corporate(361), /up to \$360\.00.*the corporation's properties/);
         expect(corporate(360).state.corporations[0].cash).toBe(360);
-        refusedWith(() => applyAction(state, 'alice', {
-            type: 'issue_debt',
-            payload: { amount: 100, issuerType: 'corporation', corpId, collateralIds: [PARK_PLACE] },
-        }), /owned by the borrower/);
     });
 });

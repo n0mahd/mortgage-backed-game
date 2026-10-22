@@ -411,40 +411,75 @@ class Autoplay {
         await this.closeModals(seat);
     }
 
-    // Ticks the first free property in a collateral list and returns the loan the
-    // screen says it allows (loans are capped at 90% of collateral), or null.
-    async pledge(seat, containerId) {
-        const box = seat.page.locator(`#${containerId} input[type="checkbox"]:not([disabled])`).first();
-        if (!(await box.count())) return null;
-        await box.check();
-        const text = await seat.page.locator(`#${containerId}-limit`).innerText().catch(() => '');
+    // The borrowing limit the Debt page shows (#loanLimit or #refinanceLimit):
+    // loans can total 90% of the borrower's portfolio. Whole dollars, or null.
+    async borrowingLimit(seat, textId = 'loanLimit') {
+        const text = await seat.page.locator(`#${textId}`).innerText().catch(() => '');
         const limit = Number((/up to \$([\d,.]+)/.exec(text) || [])[1]?.replace(/,/g, ''));
-        return Number.isFinite(limit) && limit > 0 ? Math.floor(limit) : null;
+        return Number.isFinite(limit) ? Math.floor(limit) : null;
     }
 
-    async issueDebt(seat, amount, withCollateral = true) {
+    async issueDebt(seat, amount, withinLimit = true, opts = {}) {
         await this.gameButton(seat, 'open-debt').click();
         const modal = seat.page.locator('#debtModal');
         await modal.waitFor({ state: 'visible' });
         await this.firstTime('debt-modal', [seat], 'debt-modal');
         await seat.page.locator('#debtAction').selectOption('issue');
-        const limit = withCollateral ? await this.pledge(seat, 'collateralAssets') : null;
-        if (withCollateral && !limit) {
-            this.ctx.log(`    ${seat.name}: no free property to borrow against`);
+        const limit = withinLimit ? await this.borrowingLimit(seat) : null;
+        if (withinLimit && !limit) {
+            this.ctx.log(`    ${seat.name}: nothing left to borrow against`);
             return this.closeModals(seat);
         }
         await seat.page.locator('#loanAmount').fill(String(limit ? Math.min(amount, limit) : amount));
-        await this.act(seat, 'issue debt', () => seat.page.locator('#process-debt-btn').click(), { allowRejection: true });
+        await this.pickLoanTerm(seat, 'loanTerms', opts);
+        const autopay = opts.autopay ?? this.chance(0.8);
+        await seat.page.locator('#loanAutopay').setChecked(autopay);
+        await this.act(seat, `issue debt (autopay ${autopay ? 'on' : 'off'})`, () => seat.page.locator('#process-debt-btn').click(), { allowRejection: true });
         await this.closeModals(seat);
     }
 
-    async settleDebt(seat) {
+    // Picks a loan term (5, 10 or 15 turns) in a term list, at random unless given.
+    async pickLoanTerm(seat, containerId, opts = {}) {
+        const term = opts.term || this.pick([5, 10, 15]);
+        const radio = seat.page.locator(`#${containerId}-${term}`);
+        if (await radio.count()) await radio.check();
+        return term;
+    }
+
+    // The first loan row on the Debt page's "Your loans" view, or null.
+    async openLoans(seat) {
+        if (!(await this.usable(this.gameButton(seat, 'open-debt')))) return null;
         await this.gameButton(seat, 'open-debt').click();
         await seat.page.locator('#debtModal').waitFor({ state: 'visible' });
-        await seat.page.locator('#debtAction').selectOption('settle');
-        const full = seat.page.locator('#payFullDebtBtn');
-        if (await this.usable(full)) await full.click();
-        await this.act(seat, 'settle debt', () => seat.page.locator('#process-debt-btn').click(), { allowRejection: true });
+        await seat.page.locator('#debtAction').selectOption('loans');
+        await this.firstTime('loan-list', [seat], 'loan-list');
+        const row = seat.page.locator('#loanList .loan-row').first();
+        return (await row.count()) ? row : null;
+    }
+
+    // Pays the loan off if there is the cash, otherwise pays part of it.
+    async settleDebt(seat, { partial = false } = {}) {
+        const row = await this.openLoans(seat);
+        if (!row) return this.closeModals(seat);
+        const payoff = row.locator('[data-loan-payoff]');
+        if (!partial && await this.usable(payoff)) {
+            await this.act(seat, 'pay off a loan', () => payoff.click(), { allowRejection: true });
+        } else {
+            const balance = Number((await row.locator('.loan-balance').innerText()).replace(/[^\d.]/g, ''));
+            await row.locator('input[type="number"]').fill(String(Math.max(1, Math.floor(balance / 2))));
+            await this.act(seat, 'pay part of a loan', () => row.locator('[data-loan-pay]').click(), { allowRejection: true });
+        }
+        await this.closeModals(seat);
+    }
+
+    // Flips autopay on the first loan (allowed off-turn too).
+    async toggleAutopay(seat, on) {
+        const row = await this.openLoans(seat);
+        if (!row) return this.closeModals(seat);
+        const toggle = row.locator('[data-loan-autopay]');
+        if (await this.usable(toggle) && (await toggle.isChecked()) !== on) {
+            await this.act(seat, `turn autopay ${on ? 'on' : 'off'}`, () => toggle.setChecked(on), { allowRejection: true });
+        }
         await this.closeModals(seat);
     }
 

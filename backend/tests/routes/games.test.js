@@ -441,7 +441,7 @@ describe('POST /api/games/:id/actions', () => {
     });
 
     test('issue_debt uses fixed game interest rate instead of client payload', async () => {
-        // Loans need collateral (up to 90% of its value): Alice pledges Boardwalk.
+        // Loans can total 90% of the borrower's portfolio: Alice owns Boardwalk.
         const state = minimalGameState();
         state.properties = MONOPOLY_PROPERTIES.map((prop, i) => ({ ...prop, id: `prop-${i}`, ownerId: null, ownerName: null, houses: 0 }));
         Object.assign(state.properties.find(p => p.id === 'prop-26'), { ownerId: user1.id, ownerName: 'Alice' });
@@ -449,7 +449,7 @@ describe('POST /api/games/:id/actions', () => {
         const res = await request(app)
             .post(`/api/games/${gameId}/actions`)
             .set('Authorization', `Bearer ${user1.token}`)
-            .send(actionPayload('issue_debt', { amount: 100, interestRate: 99, collateralIds: ['prop-26'] }));
+            .send(actionPayload('issue_debt', { amount: 100, interestRate: 99 }));
 
         expect(res.status).toBe(200);
         expect(res.body.game.game_state.players[0].debts[0].interestRate).toBe(5);
@@ -483,7 +483,6 @@ describe('POST /api/games/:id/actions', () => {
                 interestRate: 99,
                 issuerType: 'corporation',
                 corpId: 'corp-1',
-                collateralIds: ['prop-0'],
             }));
 
         expect(res.status).toBe(200);

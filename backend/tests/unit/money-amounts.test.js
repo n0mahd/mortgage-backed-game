@@ -34,7 +34,7 @@ function player(userId, name) {
     };
 }
 
-// Loans need collateral: Alice owns Boardwalk ($400, so up to $360 of debt).
+// Loans are limited by the portfolio: Alice owns Boardwalk ($400, so up to $360 of debt).
 function withBoardwalk() {
     const state = makeState();
     Object.assign(state.properties.find(p => p.id === 'prop-26'), { ownerId: 'alice', ownerName: 'Alice' });
@@ -63,7 +63,7 @@ describe('money amounts', () => {
     });
 
     test('paying more than a debt owes takes only what is owed', () => {
-        let { state } = applyAction(withBoardwalk(), 'alice', { type: 'issue_debt', payload: { amount: 100, collateralIds: ['prop-26'] } });
+        let { state } = applyAction(withBoardwalk(), 'alice', { type: 'issue_debt', payload: { amount: 100 } });
         const debt = state.players[0].debts[0];
         ({ state } = applyAction(state, 'alice', { type: 'pay_debt', payload: { debtId: debt.id, amount: 150 } }));
         expect(state.players[0].debts).toHaveLength(0);
@@ -72,7 +72,7 @@ describe('money amounts', () => {
     });
 
     test('a partial repayment still reduces the debt by exactly that amount', () => {
-        let { state } = applyAction(withBoardwalk(), 'alice', { type: 'issue_debt', payload: { amount: 100, collateralIds: ['prop-26'] } });
+        let { state } = applyAction(withBoardwalk(), 'alice', { type: 'issue_debt', payload: { amount: 100 } });
         const debt = state.players[0].debts[0];
         ({ state } = applyAction(state, 'alice', { type: 'pay_debt', payload: { debtId: debt.id, amount: 40 } }));
         expect(state.players[0].debts[0].principal).toBe(60);
@@ -80,7 +80,7 @@ describe('money amounts', () => {
     });
 
     test('paying the shown payoff clears a debt whose interest left fractions of a cent', () => {
-        let { state } = applyAction(withBoardwalk(), 'alice', { type: 'issue_debt', payload: { amount: 100, collateralIds: ['prop-26'] } });
+        let { state } = applyAction(withBoardwalk(), 'alice', { type: 'issue_debt', payload: { amount: 100 } });
         state.players[0].debts[0].principal = 105.0000001;
         const debt = state.players[0].debts[0];
         ({ state } = applyAction(state, 'alice', { type: 'pay_debt', payload: { debtId: debt.id, amount: 105 } }));

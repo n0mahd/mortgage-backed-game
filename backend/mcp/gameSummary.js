@@ -108,6 +108,7 @@ function summarizeGame({ room, members, game, userId }) {
         state_version: game.state_version,
         room: roomSummary,
         current_turn: current ? { player: clip(current.name), player_id: current.userId, is_you: current.userId === userId } : null,
+        loan_rates_percent: state.settings?.loanRates || null,
         you: me ? {
             player_id: me.userId,
             name: clip(me.name),
@@ -121,7 +122,16 @@ function summarizeGame({ room, members, game, userId }) {
             has_get_out_of_jail_free_card: me.hasGetOutOfJailCard,
             bankrupt: me.bankrupt,
             properties: state.properties.filter(p => p.ownerId === me.userId).map(p => ({ id: p.id, name: p.name, color: p.color, houses: p.houses || 0 })),
-            debts: (me.debts || []).map(debt => ({ id: debt.id, principal: round(debt.principal), interest_rate_percent: debt.interestRate })),
+            debts: (me.debts || []).map(debt => ({
+                id: debt.id,
+                principal: round(debt.principal),
+                interest_rate_percent: debt.interestRate,
+                term_turns: debt.termTurns,
+                turns_remaining: debt.turnsRemaining,
+                next_payment: round(debt.nextPayment),
+                autopay: debt.autopay !== false,
+            })),
+            borrowing: me.borrowing ? { book_value: round(me.borrowing.bookValue), owed: round(me.borrowing.owed), available: round(me.borrowing.available) } : null,
             shares: state.corporations
                 .map(corp => ({ corp_id: corp.id, ticker: corp.ticker, shares: sharesHeld(corp, me.userId) }))
                 .filter(holding => holding.shares > 0),

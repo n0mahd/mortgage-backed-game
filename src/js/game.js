@@ -364,9 +364,9 @@ function renderPauseBanner(gameState) {
 function renderCashWarning(currentPlayer, isMyTurn) {
     if (!currentPlayer || currentPlayer.bankrupt) return '';
     const outlook = getTurnEndOutlook(currentGame.game_state, currentPlayer);
-    const { claim, unpaid, interest, cash, cashAfter } = outlook;
-    const shortfall = formatMoney(Math.abs(cashAfter));
-    const interestNote = interest > 0 ? ` after ${formatMoney(interest)} loan interest` : '';
+    const { claim, unpaid, loanPayments, maturing, cash, cashAfter } = outlook;
+    const shortfall = formatMoney(outlook.shortfall);
+    const loanNote = loanPayments > 0 ? `, then ${formatMoney(loanPayments)} in loan payments` : '';
     let message;
     let tone = 'danger';
 
@@ -376,7 +376,7 @@ function renderCashWarning(currentPlayer, isMyTurn) {
         if (outlook.settlesClaim) {
             tone = '';
             message = isMyTurn
-                ? `You owe ${owed} to ${creditor}. End Turn pays it from your cash${interestNote}, leaving you ${formatMoney(cashAfter)}.`
+                ? `You owe ${owed} to ${creditor}. End Turn pays it from your cash${loanNote}, leaving you ${formatMoney(cashAfter)}.`
                 : `${currentPlayer.name} owes ${owed} to ${creditor}. It will be paid from their cash when they end the turn.`;
         } else if (!outlook.creditorActive) {
             message = isMyTurn
@@ -389,12 +389,15 @@ function renderCashWarning(currentPlayer, isMyTurn) {
         }
     } else if (cash < 0) {
         message = isMyTurn
-            ? `You are ${formatMoney(-cash)} below zero. Raise ${shortfall}${interestNote} before ending your turn or End Turn will declare bankruptcy.`
+            ? `You are ${formatMoney(-cash)} below zero. Raise ${shortfall} before ending your turn or End Turn will declare bankruptcy.`
             : `${currentPlayer.name} is ${formatMoney(-cash)} below zero and must recover before ending the turn.`;
     } else if (cashAfter < 0) {
         message = isMyTurn
-            ? `${formatMoney(interest)} loan interest is due when you end your turn. Raise ${shortfall} more or End Turn will declare bankruptcy.`
-            : `${currentPlayer.name} can't cover their loan interest and must raise ${shortfall} before ending the turn.`;
+            ? `${formatMoney(maturing)} of loans come due when you end your turn. Raise ${shortfall} more or End Turn will declare bankruptcy.`
+            : `${currentPlayer.name} has ${formatMoney(maturing)} of loans coming due and must raise ${shortfall} before ending the turn.`;
+    } else if (maturing > 0 && isMyTurn) {
+        tone = '';
+        message = `End Turn repays ${formatMoney(maturing)} of loans that come due, leaving you ${formatMoney(cashAfter)}.`;
     } else {
         return '';
     }
@@ -830,8 +833,8 @@ function renderPlayerCard(player, isCurrentUser) {
                 <h4>Debts</h4>
                 ${player.debts.map(d => `
                     <div class="debt-badge">
-                        ${formatMoney(d.principal)} @ ${Number(d.interestRate || 0)}%
-                        <span>Interest next turn: ${formatMoney(interestPayment(d))}</span>
+                        ${formatMoney(d.principal)} · ${escapeHtml(LoanMath.loanStatus(d, { dueThisTurn: isPlayersTurn(player) }).turnsLabel)}
+                        <span>${escapeHtml(loanPaymentNote(d, isPlayersTurn(player)))}</span>
                     </div>
                 `).join('')}
             </div>
@@ -876,8 +879,13 @@ function getDebtTotal(debts) {
     return (debts || []).reduce((sum, debt) => sum + Number(debt.principal || 0), 0);
 }
 
-function interestPayment(debt) {
-    return Number(debt.principal || 0) * (Number(debt.interestRate || 0) / 100);
+// One line on what a loan does at the borrower's next End Turn.
+function loanPaymentNote(debt, dueThisTurn = false) {
+    const status = LoanMath.loanStatus(debt, { dueThisTurn });
+    if (status.dueInFull) return `${formatMoney(status.nextPayment)} due in full ${status.dueThisTurn ? 'at End Turn' : 'next turn'}`;
+    return status.autopay
+        ? `Autopay ${formatMoney(status.nextPayment)} next turn at ${Number(debt.interestRate || 0)}%`
+        : `Autopay off: ${formatMoney(status.interestNext)} interest added next turn`;
 }
 
 function getPlayerCorporationValue(player) {
@@ -1060,7 +1068,11 @@ function buyUnavailableLabel(landing) {
 }
 
 function renderNonTurnActions() {
+    const loansButton = getManagedLoans().length
+        ? '<button class="btn btn-secondary btn-sm" data-game-action="open-debt">Your Loans<small>Balances and autopay</small></button>'
+        : '';
     return renderMovesGrid(`
+        ${loansButton}
         <button class="btn btn-secondary btn-sm" data-game-action="open-corporation">Corporations<small>Shares and chairmen</small></button>
         <button class="btn btn-secondary btn-sm" data-switch-section="market">Trade or pay<small>Opens the market</small></button>
     `);
@@ -1117,13 +1129,23 @@ function formatLogEvent(type, data) {
         case 'chairman_vote_supported':
             return `${data.supporter} supported ${data.candidate} for ${data.ticker} chairman`;
         case 'debt_issued':
-            return `${data.actor ? `${data.actor} issued` : `${data.issuer} issued`} debt${data.actor ? ` under ${data.issuer}` : ''} of $${Number(data.amount).toFixed(2)} at ${data.interestRate}% interest`;
+            return `${data.actor ? `${data.actor} borrowed for ${data.issuer}` : `${data.issuer} borrowed`} $${Number(data.amount).toFixed(2)}${data.termTurns ? ` over ${data.termTurns} turns` : ''} at ${data.interestRate}% per turn`;
         case 'debt_payment':
-            return `${data.payer} paid $${Number(data.amount).toFixed(2)} towards their debt`;
+            return data.paidOff
+                ? `${data.payer} paid off a loan ($${Number(data.amount).toFixed(2)})`
+                : `${data.payer} paid $${Number(data.amount).toFixed(2)} towards a loan`;
         case 'debt_refinanced':
-            return `${data.borrower} refinanced ${data.refinancedDebtCount} debt(s) into $${Number(data.amount).toFixed(2)} at ${data.interestRate}% interest and received $${Number(data.netProceeds || 0).toFixed(2)} net cash`;
+            return `${data.borrower} refinanced ${data.refinancedDebtCount} debt(s) into $${Number(data.amount).toFixed(2)}${data.termTurns ? ` over ${data.termTurns} turns` : ''} at ${data.interestRate}% per turn and received $${Number(data.netProceeds || 0).toFixed(2)} net cash`;
+        case 'debt_autopay':
+            return `${data.borrower} turned autopay ${data.autopay ? 'on' : 'off'} for a loan`;
+        case 'loan_matured':
+            return data.repaid
+                ? `${data.borrower} repaid a loan in full at maturity ($${Number(data.amount).toFixed(2)})`
+                : `${data.borrower} couldn't repay a $${Number(data.amount).toFixed(2)} loan that came due`;
         case 'interest_accrual':
-            return `${data.player} was charged $${Number(data.interestCharged).toFixed(2)} in interest`;
+            return data.paid !== undefined
+                ? `${data.player} paid $${Number(data.paid).toFixed(2)} on loans (interest this turn: $${Number(data.interestCharged).toFixed(2)})`
+                : `${data.player} was charged $${Number(data.interestCharged).toFixed(2)} in interest`;
         case 'corporation_insolvent': {
             const propertyCount = Array.isArray(data.releasedProperties) ? data.releasedProperties.length : 0;
             const sharePositions = Array.isArray(data.wipedSharePositions) ? data.wipedSharePositions.length : 0;
@@ -1429,22 +1451,173 @@ async function createIPO() {
     }
 }
 
-// Open Debt Modal
-async function openDebtModal() {
-    document.getElementById('debtAction').value = 'issue';
-    const rate = Number(currentGame.game_state.settings?.interestRate || 5);
-    document.getElementById('loanRate').value = String(rate);
-    document.getElementById('loanRateDisplay').textContent = `${rate}% per turn`;
+// Debt page: your loans (balances, autopay, payments), new loans and refinancing.
+function openDebtModal() {
+    const isMyTurn = isCurrentUsersTurn();
+    const select = document.getElementById('debtAction');
+    select.querySelectorAll('option[value="issue"], option[value="refinance"]').forEach(option => {
+        option.disabled = !isMyTurn;
+    });
+    select.value = isMyTurn && !getManagedLoans().length ? 'issue' : 'loans';
+    const rates = LoanMath.loanRates(currentGame.game_state);
+    document.getElementById('loanRatesHint').textContent =
+        `Rates this game: ${LoanMath.LOAN_TERMS.map(term => `${term} turns at ${rates[term]}%`).join(', ')} per turn. Each payment includes interest; the whole balance is due when the term ends.`;
     document.getElementById('debtIssuer').innerHTML = debtIssuerOptionsHtml();
     document.getElementById('loanAmount').value = '';
-    document.getElementById('settlementAmount').value = '';
     document.getElementById('refinanceAmount').value = '';
-    renderDebtCollateralOptions();
-    renderSettleDebtOptions();
+    document.getElementById('loanAutopay').checked = true;
+    renderLoanList();
+    renderBorrowingLimit();
+    renderLoanTerms('loanTerms', 'loanAmount');
     renderRefinanceDebtOptions();
+    renderLoanTerms('refinanceTerms', 'refinanceAmount');
     toggleDebtForm();
 
     openModal('debtModal');
+}
+
+function isPlayersTurn(player) {
+    const gameState = currentGame.game_state;
+    return !!player && gameState.players[gameState.currentPlayerIndex]?.userId === player.userId;
+}
+
+function isCurrentUsersTurn() {
+    return isPlayersTurn({ userId: currentUser.id });
+}
+
+// Loans you can manage: your own, then those of corporations you run.
+function getManagedLoans() {
+    const own = getPersonalDebts().map(debt => ({ debt, corp: null }));
+    const corporate = getEligibleDebtCorporations()
+        .filter(corp => !corp.insolvent)
+        .flatMap(corp => (corp.debts || []).map(debt => ({ debt, corp })));
+    return [...own, ...corporate];
+}
+
+function renderLoanList() {
+    const container = document.getElementById('loanList');
+    if (!container) return;
+    const loans = getManagedLoans();
+    if (!loans.length) {
+        container.innerHTML = '<p class="empty-state">No loans. Choose "Take a new loan" to borrow against a property.</p>';
+        return;
+    }
+    const isMyTurn = isCurrentUsersTurn();
+    container.innerHTML = loans.map(({ debt, corp }) => renderLoanRow(debt, corp, isMyTurn)).join('');
+}
+
+function renderLoanRow(debt, corp, isMyTurn) {
+    // A corporation's loans count down on its chairman's turn.
+    const status = LoanMath.loanStatus(debt, { dueThisTurn: isMyTurn && (!corp || corp.chairmanId === currentUser.id) });
+    const cash = corp ? Number(corp.cash || 0) : Number(currentPlayerData?.cash || 0);
+    const borrower = corp ? `${corp.ticker} (corporation)` : 'Personal';
+    const autopayId = `loan-autopay-${debt.id}`;
+    const amountId = `loan-pay-${debt.id}`;
+    const ids = `data-debt-id="${escapeAttr(debt.id)}" data-corp-id="${escapeAttr(corp ? corp.id : '')}"`;
+    let schedule;
+    if (status.dueInFull) {
+        const when = status.dueThisTurn ? 'when you end this turn' : `at the end of ${corp ? 'the chairman\'s' : 'your'} next turn`;
+        schedule = `${formatMoney(status.nextPayment)} is due in full ${when}. If there isn't the cash, ${corp ? `${corp.ticker} becomes insolvent` : 'you go bankrupt'}.`;
+    } else if (status.autopay) {
+        schedule = `Autopay takes ${formatMoney(status.nextPayment)} at the end of ${corp ? 'the chairman\'s' : 'your'} turn.`;
+    } else {
+        schedule = `Autopay is off. Next scheduled payment ${formatMoney(status.nextPayment)}; anything unpaid adds ${formatMoney(status.interestNext)} interest to the balance.`;
+    }
+    const payDisabled = isMyTurn ? '' : ' disabled';
+    return `
+        <article class="loan-row${status.dueInFull ? ' is-due' : ''}" ${ids}>
+            <div class="loan-row-head">
+                <span class="loan-balance">${formatMoney(status.balance)}</span>
+                <span class="badge ${status.dueInFull ? 'badge-danger' : 'badge-info'}">${escapeHtml(status.turnsLabel)}</span>
+            </div>
+            <p class="debt-detail">${escapeHtml(borrower)} · ${escapeHtml(status.termLabel)}</p>
+            <p class="loan-schedule">${escapeHtml(schedule)}</p>
+            <div class="asset-list">
+                <div class="asset-checkbox">
+                    <input type="checkbox" role="switch" id="${escapeAttr(autopayId)}" data-loan-autopay ${ids}${status.autopay ? ' checked' : ''}${status.dueInFull ? ' disabled' : ''}>
+                    <label for="${escapeAttr(autopayId)}">Autopay</label>
+                </div>
+            </div>
+            <div class="loan-pay">
+                <label class="field-label" for="${escapeAttr(amountId)}">Pay an amount</label>
+                <div class="inline-action-row">
+                    <input type="number" inputmode="decimal" min="0" step="0.01" id="${escapeAttr(amountId)}" placeholder="Up to ${escapeAttr(formatMoney(Math.min(cash, status.balance)))}"${payDisabled}>
+                    <button type="button" class="btn btn-secondary btn-sm" data-loan-pay ${ids}${payDisabled}>Pay</button>
+                </div>
+                <button type="button" class="btn btn-success btn-sm btn-block" data-loan-payoff ${ids}${payDisabled || (cash < status.balance ? ' disabled' : '')}>Pay off ${formatMoney(status.balance)}</button>
+                ${isMyTurn ? (cash < status.balance ? `<p class="debt-detail">Paying off needs ${formatMoney(status.balance)}; ${corp ? `${corp.ticker} has` : 'you have'} ${formatMoney(cash)}.</p>` : '') : '<p class="debt-detail">You can make payments on your turn. Autopay can be changed any time.</p>'}
+            </div>
+        </article>
+    `;
+}
+
+function findManagedLoan(element) {
+    const debtId = element.dataset.debtId;
+    const corpId = element.dataset.corpId || null;
+    return getManagedLoans().find(item => item.debt.id === debtId && (item.corp ? item.corp.id : null) === corpId) || null;
+}
+
+async function handleLoanListClick(event) {
+    const button = event.target.closest('[data-loan-pay], [data-loan-payoff]');
+    if (!button) return;
+    const loan = findManagedLoan(button);
+    if (!loan) return;
+    let amount;
+    if (button.hasAttribute('data-loan-payoff')) {
+        amount = Number(loan.debt.principal || 0);
+    } else {
+        amount = parseFloat(document.getElementById(`loan-pay-${loan.debt.id}`).value);
+        if (!(amount > 0)) {
+            alert('Enter an amount to pay.');
+            return;
+        }
+    }
+    try {
+        await performGameAction('pay_debt', { debtId: loan.debt.id, corpId: loan.corp ? loan.corp.id : undefined, amount });
+        renderLoanList();
+    } catch (error) {
+        logActionError('Error paying loan:', error);
+        alert(error.message || 'Failed to pay the loan');
+    }
+}
+
+async function handleLoanAutopayChange(event) {
+    const input = event.target.closest('[data-loan-autopay]');
+    if (!input) return;
+    const loan = findManagedLoan(input);
+    if (!loan) return;
+    try {
+        await performGameAction('set_debt_autopay', { debtId: loan.debt.id, corpId: loan.corp ? loan.corp.id : undefined, autopay: input.checked });
+    } catch (error) {
+        logActionError('Error changing autopay:', error);
+        alert(error.message || 'Failed to change autopay');
+    }
+    renderLoanList();
+}
+
+// Term choices with what each costs at the amount typed: the payment each turn and the total.
+function renderLoanTerms(containerId, amountInputId) {
+    const container = document.getElementById(containerId);
+    const selected = container.querySelector('input:checked')?.value || '10';
+    const amount = parseFloat(document.getElementById(amountInputId).value);
+    const rates = LoanMath.loanRates(currentGame.game_state);
+    container.innerHTML = LoanMath.LOAN_TERMS.map(term => {
+        const id = `${containerId}-${term}`;
+        const quote = amount > 0 ? LoanMath.loanQuote(amount, rates[term], term) : null;
+        const detail = quote
+            ? `${formatMoney(quote.payment)} a turn, ${formatMoney(quote.total)} in total`
+            : 'Enter an amount to see the payments';
+        return `
+            <div class="asset-checkbox">
+                <input type="radio" name="${escapeAttr(containerId)}" id="${escapeAttr(id)}" value="${term}"${String(term) === selected ? ' checked' : ''}>
+                <label for="${escapeAttr(id)}">${term} turns at ${rates[term]}% per turn<span class="debt-detail">${escapeHtml(detail)}</span></label>
+            </div>
+        `;
+    }).join('');
+}
+
+function selectedLoanTerm(containerId) {
+    return Number(document.querySelector(`#${containerId} input:checked`)?.value || 10);
 }
 
 function debtIssuerOptionsHtml() {
@@ -1467,69 +1640,28 @@ function canManageCorporationDebtUi(corp, userId) {
     return corp.chairmanId === userId || hasMajoritySharesUi(corp, userId);
 }
 
-function renderDebtCollateralOptions() {
+// The borrowing limit the server worked out: all of a borrower's loans may reach
+// 90% of the book value of their properties and shares (a corporation: its properties).
+function selectedBorrower() {
     const issuer = document.getElementById('debtIssuer')?.value || 'player';
-    let assets = currentPlayerData.properties || [];
-    if (issuer.startsWith('corporation:')) {
-        const corpId = issuer.split(':')[1];
-        const corp = currentGame.game_state.corporations.find(item => item.id === corpId);
-        assets = corp ? (corp.assets || []) : [];
-    }
-
-    renderCollateralAssetList('collateralAssets', assets);
+    if (!issuer.startsWith('corporation:')) return { account: currentPlayerData, corp: null };
+    const corp = currentGame.game_state.corporations.find(item => item.id === issuer.split(':')[1]);
+    return { account: corp, corp };
 }
 
-// The server allows a loan of up to 90% of the pledged property's value (price
-// plus buildings), each property backing one loan; this shows that limit as you pick.
-const MAX_LOAN_TO_VALUE_UI = 0.9;
-
-function collateralValueUi(propertyId) {
-    const prop = currentGame.game_state.properties.find(p => p.id === propertyId);
-    if (!prop) return 0;
-    return Number(prop.price || 0) + Number(prop.houses || 0) * (HOUSE_COSTS[prop.color] || 0);
+function borrowingLimitText(account, corp, replacedOwed = 0) {
+    const borrowing = account?.borrowing;
+    if (!borrowing) return '';
+    const owed = Math.max(0, Number(borrowing.owed || 0) - replacedOwed);
+    const available = Math.max(0, Number(borrowing.limit || 0) - owed);
+    const whose = corp ? `${corp.ticker}'s properties` : 'your properties and shares';
+    const owing = owed > 0 ? `, less ${formatMoney(owed)} already owed` : '';
+    return `You can borrow up to ${formatMoney(available)}: 90% of the ${formatMoney(borrowing.bookValue)} book value of ${whose}${owing}.`;
 }
 
-function pledgedPropertyIdsUi(exceptDebtIds = new Set()) {
-    const state = currentGame.game_state;
-    const debts = [...state.players.flatMap(p => p.debts || []), ...(state.corporations || []).flatMap(c => c.debts || [])];
-    return new Set(debts.filter(debt => !exceptDebtIds.has(debt.id)).flatMap(debt => (debt.collateral || []).map(item => item.id)));
-}
-
-function renderCollateralAssetList(containerId, assets, selectedIds = new Set(), exceptDebtIds = new Set()) {
-    const pledged = pledgedPropertyIdsUi(exceptDebtIds);
-    const assetsHtml = assets.map(p => {
-        const checkboxId = `${containerId}-${p.id}`;
-        const isPledged = pledged.has(p.id);
-        const checked = selectedIds.has(p.id) && !isPledged ? ' checked' : '';
-        return `
-        <div class="asset-checkbox${isPledged ? ' asset-locked' : ''}">
-            <input type="checkbox" id="${escapeAttr(checkboxId)}" value="${escapeAttr(p.id)}"${checked}${isPledged ? ' disabled' : ''}>
-            <label for="${escapeAttr(checkboxId)}">${propertyDot(p.id)}${escapeHtml(p.name)} <span class="debt-detail">${formatMoney(collateralValueUi(p.id) || p.value || p.price || 0)}</span>${isPledged ? ' <span class="debt-detail">Already backs a loan</span>' : ''}</label>
-        </div>
-    `;
-    }).join('');
-
-    const container = document.getElementById(containerId);
-    container.innerHTML = (assetsHtml || '<p class="empty-state">No property to pledge. Loans need collateral.</p>')
-        + `<p class="debt-detail loan-limit" id="${escapeAttr(containerId)}-limit" aria-live="polite"></p>`;
-    const showLimit = () => {
-        const ids = Array.from(container.querySelectorAll('input:checked')).map(input => input.value);
-        const value = ids.reduce((sum, id) => sum + collateralValueUi(id), 0);
-        document.getElementById(`${containerId}-limit`).textContent = ids.length
-            ? `You can borrow up to ${formatMoney(Math.round(value * MAX_LOAN_TO_VALUE_UI * 100) / 100)} (90% of ${formatMoney(value)}).`
-            : 'Pick the property to pledge. You can borrow up to 90% of its value.';
-    };
-    container.addEventListener('change', showLimit);
-    showLimit();
-}
-
-function renderSettleDebtOptions() {
-    const debtsHtml = getPersonalDebts().map((debt, index) => `
-        <option value="${index}">${debtOptionLabel(debt, index)}</option>
-    `).join('');
-
-    document.getElementById('debtToSettle').innerHTML = debtsHtml || '<option value="">No debts to settle</option>';
-    updateSettlementFullAmountState();
+function renderBorrowingLimit() {
+    const { account, corp } = selectedBorrower();
+    document.getElementById('loanLimit').textContent = borrowingLimitText(account, corp);
 }
 
 function renderRefinanceDebtOptions() {
@@ -1539,13 +1671,11 @@ function renderRefinanceDebtOptions() {
             <input type="checkbox" id="refinance-debt-${index}" value="${index}" data-debt-id="${escapeAttr(debt.id || '')}">
             <label for="refinance-debt-${index}">
                 ${debtOptionLabel(debt, index)}
-                ${debtCollateralText(debt)}
             </label>
         </div>
     `).join('');
 
     document.getElementById('debtsToRefinance').innerHTML = debtsHtml || '<p class="empty-state">No debts to refinance</p>';
-    renderRefinanceCollateralOptions();
     updateRefinanceSummary();
 }
 
@@ -1558,14 +1688,8 @@ function debtPrincipal(debt) {
 }
 
 function debtOptionLabel(debt, index) {
-    return `Loan #${index + 1}: $${debtPrincipal(debt).toFixed(2)} @ ${Number(debt?.interestRate || 0)}%`;
-}
-
-function debtCollateralText(debt) {
-    const collateral = Array.isArray(debt?.collateral) ? debt.collateral : [];
-    if (!collateral.length) return '';
-    const names = collateral.map(asset => `${propertyDot(asset.id)}${escapeHtml(asset.name || asset.id || 'Asset')}`).join(', ');
-    return `<span class="debt-detail">Backed by: ${names}</span>`;
+    const status = LoanMath.loanStatus(debt);
+    return `Loan #${index + 1}: ${formatMoney(debtPrincipal(debt))}, ${escapeHtml(status.termLabel)}, ${escapeHtml(status.turnsLabel.toLowerCase())}`;
 }
 
 function getSelectedRefinanceDebtItems() {
@@ -1581,39 +1705,10 @@ function getRefinancePayoffAmount() {
         .reduce((sum, item) => sum + debtPrincipal(item.debt), 0);
 }
 
-function renderRefinanceCollateralOptions() {
-    const selectedCollateralIds = new Set();
-    const replacedDebtIds = new Set();
-    getSelectedRefinanceDebtItems().forEach(item => {
-        if (item.debt.id) replacedDebtIds.add(item.debt.id);
-        (Array.isArray(item.debt.collateral) ? item.debt.collateral : []).forEach(asset => {
-            if (asset?.id) selectedCollateralIds.add(asset.id);
-        });
-    });
-    // The loans being refinanced free their collateral for the new loan.
-    renderCollateralAssetList('refinanceCollateralAssets', currentPlayerData.properties || [], selectedCollateralIds, replacedDebtIds);
-}
-
-function updateSettlementFullAmountState() {
-    const debtIndex = parseInt(document.getElementById('debtToSettle').value, 10);
-    const debt = getPersonalDebts()[debtIndex];
-    const button = document.getElementById('payFullDebtBtn');
-    if (!button) return;
-    button.disabled = !debt;
-}
-
-function fillFullSettlementAmount() {
-    const debtIndex = parseInt(document.getElementById('debtToSettle').value, 10);
-    const debt = getPersonalDebts()[debtIndex];
-    if (!debt) return;
-    const input = document.getElementById('settlementAmount');
-    input.value = debtPrincipal(debt).toFixed(2);
-    input.focus();
-}
-
 function updateRefinanceSummary() {
     const summary = document.getElementById('refinanceSummary');
     if (!summary) return;
+    renderRefinanceLimit();
     const selectedCount = getSelectedRefinanceDebtItems().length;
     const payoffAmount = getRefinancePayoffAmount();
     const newLoanAmount = parseFloat(document.getElementById('refinanceAmount').value);
@@ -1629,12 +1724,20 @@ function updateRefinanceSummary() {
     summary.textContent = `Selected payoff: $${payoffAmount.toFixed(2)} | Net new cash: ${netText}`;
 }
 
+// The loans being refinanced don't count against the limit for the new one.
+function renderRefinanceLimit() {
+    document.getElementById('refinanceLimit').textContent = borrowingLimitText(currentPlayerData, null, getRefinancePayoffAmount());
+}
+
 function toggleDebtForm() {
     const action = document.getElementById('debtAction').value;
+    document.getElementById('loansView').style.display = action === 'loans' ? 'block' : 'none';
     document.getElementById('issueDebtForm').style.display = action === 'issue' ? 'block' : 'none';
-    document.getElementById('settleDebtForm').style.display = action === 'settle' ? 'block' : 'none';
     document.getElementById('refinanceDebtForm').style.display = action === 'refinance' ? 'block' : 'none';
-    if (action === 'settle') updateSettlementFullAmountState();
+    const processButton = document.getElementById('process-debt-btn');
+    processButton.style.display = action === 'loans' ? 'none' : '';
+    processButton.textContent = action === 'refinance' ? 'Refinance' : 'Take loan';
+    if (action === 'loans') renderLoanList();
     if (action === 'refinance') updateRefinanceSummary();
 }
 
@@ -1643,8 +1746,6 @@ async function processDebt() {
 
     if (action === 'issue') {
         await issueDebt();
-    } else if (action === 'settle') {
-        await settleDebt();
     } else if (action === 'refinance') {
         await refinanceDebt();
     }
@@ -1652,13 +1753,9 @@ async function processDebt() {
 
 async function issueDebt() {
     const loanAmount = parseFloat(document.getElementById('loanAmount').value);
-    const interestRate = Number(currentGame.game_state.settings?.interestRate || document.getElementById('loanRate').value || 5);
     const issuer = document.getElementById('debtIssuer').value || 'player';
     const issuerType = issuer.startsWith('corporation:') ? 'corporation' : 'player';
     const corpId = issuerType === 'corporation' ? issuer.split(':')[1] : null;
-
-    const selectedCollateral = Array.from(document.querySelectorAll('#collateralAssets input:checked'))
-        .map(cb => cb.value);
 
     if (!loanAmount) {
         alert('Please enter a loan amount');
@@ -1668,45 +1765,16 @@ async function issueDebt() {
     try {
         await performGameAction('issue_debt', {
             amount: loanAmount,
-            interestRate,
+            termTurns: selectedLoanTerm('loanTerms'),
+            autopay: document.getElementById('loanAutopay').checked,
             issuerType,
             corpId,
-            collateralIds: selectedCollateral,
         });
         closeModal('debtModal');
 
     } catch (error) {
         logActionError('Error issuing debt:', error);
         alert(error.message || 'Failed to issue debt');
-    }
-}
-
-async function settleDebt() {
-    const debtIndex = parseInt(document.getElementById('debtToSettle').value, 10);
-    const paymentAmount = parseFloat(document.getElementById('settlementAmount').value);
-
-    if (isNaN(debtIndex) || !paymentAmount) {
-        alert('Please select a debt and enter payment amount');
-        return;
-    }
-
-    if (currentPlayerData.cash < paymentAmount) {
-        alert('Insufficient funds');
-        return;
-    }
-
-    try {
-        const debt = currentPlayerData.debts[debtIndex];
-        await performGameAction('pay_debt', {
-            debtId: debt && debt.id,
-            debtIndex,
-            amount: paymentAmount,
-        });
-        closeModal('debtModal');
-
-    } catch (error) {
-        logActionError('Error settling debt:', error);
-        alert(error.message || 'Failed to settle debt');
     }
 }
 
@@ -1730,15 +1798,12 @@ async function refinanceDebt() {
         return;
     }
 
-    const selectedCollateral = Array.from(document.querySelectorAll('#refinanceCollateralAssets input:checked'))
-        .map(cb => cb.value);
-
     try {
         await performGameAction('refinance_debt', {
             amount: refinanceAmount,
+            termTurns: selectedLoanTerm('refinanceTerms'),
             debtIds: selectedItems.map(item => item.debt.id).filter(Boolean),
             debtIndexes: selectedItems.map(item => item.index),
-            collateralIds: selectedCollateral,
         });
         closeModal('debtModal');
 
@@ -1772,7 +1837,11 @@ async function openCorporationModal() {
             ? shareholders.map(s => `<li>${escapeHtml(s.name)}: ${s.shares} shares (${ownershipPercent(s.shares, corp.totalShares)}%)</li>`).join('')
             : '<li>No active shareholders</li>';
         const debtRows = debts.length
-            ? debts.map(d => `<li>$${Number(d.principal || 0).toFixed(2)} @ ${Number(d.interestRate || 0)}% (interest next turn: $${interestPayment(d).toFixed(2)})</li>`).join('')
+            ? debts.map(d => {
+                const dueThisTurn = gameState.players[gameState.currentPlayerIndex]?.userId === corp.chairmanId;
+                const status = LoanMath.loanStatus(d, { dueThisTurn });
+                return `<li>${formatMoney(d.principal)}, ${escapeHtml(status.termLabel)}: ${escapeHtml(status.turnsLabel.toLowerCase())}. ${escapeHtml(loanPaymentNote(d, dueThisTurn))}.</li>`;
+            }).join('')
             : '<li>No corporation debt</li>';
         const listingDetails = treasuryListedShares > 0
             ? `<p>Treasury shares for sale: ${treasuryListedShares} at ${formatMoney(pricePerShare)}</p>`
@@ -2407,11 +2476,12 @@ function bindStaticGameControls() {
     document.getElementById('start-auction-btn')?.addEventListener('click', startAuctionFromPurchase);
     document.getElementById('create-ipo-btn')?.addEventListener('click', createIPO);
     document.getElementById('debtAction')?.addEventListener('change', toggleDebtForm);
-    document.getElementById('debtIssuer')?.addEventListener('change', renderDebtCollateralOptions);
-    document.getElementById('debtToSettle')?.addEventListener('change', updateSettlementFullAmountState);
-    document.getElementById('payFullDebtBtn')?.addEventListener('click', fillFullSettlementAmount);
+    document.getElementById('debtIssuer')?.addEventListener('change', renderBorrowingLimit);
+    document.getElementById('loanList')?.addEventListener('click', handleLoanListClick);
+    document.getElementById('loanList')?.addEventListener('change', handleLoanAutopayChange);
+    document.getElementById('loanAmount')?.addEventListener('input', () => renderLoanTerms('loanTerms', 'loanAmount'));
+    document.getElementById('refinanceAmount')?.addEventListener('input', () => renderLoanTerms('refinanceTerms', 'refinanceAmount'));
     document.getElementById('debtsToRefinance')?.addEventListener('change', () => {
-        renderRefinanceCollateralOptions();
         updateRefinanceSummary();
     });
     document.getElementById('refinanceAmount')?.addEventListener('input', updateRefinanceSummary);

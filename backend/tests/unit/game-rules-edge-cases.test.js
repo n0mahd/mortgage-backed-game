@@ -820,10 +820,10 @@ describe('game rule edge cases', () => {
         )).toBe(true);
     });
 
-    test('debt-interest negative cash uses bank-return bankruptcy', () => {
+    test('a loan that comes due without the cash to repay it uses bank-return bankruptcy', () => {
         const state = makeState({
             players: [
-                makePlayer('alice', 'Alice', { cash: 0, diceRolled: true, debts: [{ id: 'debt-1', principal: 100, interestRate: 5 }] }),
+                makePlayer('alice', 'Alice', { cash: 0, diceRolled: true, debts: [{ id: 'debt-1', principal: 100, interestRate: 5, termTurns: 5, turnsRemaining: 1 }] }),
                 makePlayer('bob', 'Bob'),
                 makePlayer('carol', 'Carol'),
             ],
@@ -836,7 +836,7 @@ describe('game rule edge cases', () => {
         const releasedProperty = ended.state.properties.find(prop => prop.id === 'prop-0');
 
         expect(alice.bankrupt).toBe(true);
-        expect(alice.cash).toBe(-5);
+        expect(alice.cash).toBe(-105);
         expect(alice.debts).toEqual([]);
         expect(releasedProperty.ownerId).toBeNull();
         expect(releasedProperty.houses).toBe(0);
@@ -874,7 +874,7 @@ describe('game rule edge cases', () => {
                     { userId: 'bob', name: 'Bob', shares: 2 },
                     { userId: 'carol', name: 'Carol', shares: 1 },
                 ],
-                debts: [{ id: 'corp-debt-1', principal: 100, interestRate: 5, collateral: [], issuerType: 'corporation' }],
+                debts: [{ id: 'corp-debt-1', principal: 100, interestRate: 5, termTurns: 5, turnsRemaining: 1, issuerType: 'corporation' }],
                 cash: 1,
                 chairmanVotes: [{
                     id: 'vote-1',
@@ -913,13 +913,13 @@ describe('game rule edge cases', () => {
         expect(releasedProperty.ownerName).toBeNull();
         expect(releasedProperty.houses).toBe(0);
         expect(event.data.ticker).toBe('MBS');
-        expect(event.data.cashBeforeReset).toBe(-4);
+        // The loan came due: its whole $105 balance was taken from $1 of cash.
+        expect(event.data.cashBeforeReset).toBe(-104);
         expect(event.data.releasedProperties).toEqual([{ id: 'prop-0', name: 'Mediterranean Avenue' }]);
         expect(event.data.wipedSharePositions).toEqual([
             { userId: 'bob', name: 'Bob', shares: 2 },
             { userId: 'carol', name: 'Carol', shares: 1 },
         ]);
-        expect(event.data.clearedDebts[0].principal).toBe(105);
         expect(event.data.closedVotes).toBe(1);
     });
 
@@ -977,9 +977,9 @@ describe('game rule edge cases', () => {
         ownProperty(state, 'prop-26', 'alice', 'Alice');
         state.players[0].cash = 200;
         state.players[0].debts = [
-            { id: 'debt-1', principal: 100, interestRate: 8, collateral: [{ id: 'prop-0', name: 'Mediterranean Avenue', value: 60 }] },
-            { id: 'debt-2', principal: 50, interestRate: 10, collateral: [] },
-            { id: 'debt-3', principal: 25, interestRate: 5, collateral: [] },
+            { id: 'debt-1', principal: 100, interestRate: 8 },
+            { id: 'debt-2', principal: 50, interestRate: 10 },
+            { id: 'debt-3', principal: 25, interestRate: 5 },
         ];
 
         const result = applyAction(state, 'alice', {
@@ -987,8 +987,7 @@ describe('game rule edge cases', () => {
             payload: {
                 debtIds: ['debt-1', 'debt-2'],
                 amount: 200,
-                // The new loan needs collateral worth at least $200 / 0.9.
-                collateralIds: ['prop-26'],
+                // Alice owns Boardwalk, so her loans can reach $360 in total.
             },
         });
 
@@ -1000,7 +999,6 @@ describe('game rule edge cases', () => {
         const newDebt = alice.debts.find(debt => debt.refinancedFrom);
         expect(newDebt.principal).toBe(200);
         expect(newDebt.interestRate).toBe(5);
-        expect(newDebt.collateral).toEqual([{ id: 'prop-26', name: 'Boardwalk', value: 400 }]);
         expect(newDebt.refinancedFrom).toEqual([
             { id: 'debt-1', principal: 100, interestRate: 8 },
             { id: 'debt-2', principal: 50, interestRate: 10 },
@@ -1016,7 +1014,7 @@ describe('game rule edge cases', () => {
     test('refinance debt requires a larger loan than the selected payoff', () => {
         const state = makeState();
         state.players[0].debts = [
-            { id: 'debt-1', principal: 100, interestRate: 8, collateral: [] },
+            { id: 'debt-1', principal: 100, interestRate: 8 },
         ];
 
         expect(() => applyAction(state, 'alice', {

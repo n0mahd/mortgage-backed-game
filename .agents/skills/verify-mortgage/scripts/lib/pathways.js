@@ -69,9 +69,16 @@ const PATHWAYS = [
     // ----- debt -----
     { id: 'debt.issue', group: 'Debt', label: 'Issue personal debt', match: ev('debt_issued', d => !String(d.issuer).startsWith('[')), hint: 'Manage Debt → Issue New Debt.' },
     { id: 'debt.issue-corporate', group: 'Debt', label: 'Issue debt as a corporation', match: ev('debt_issued', d => String(d.issuer).startsWith('[')), hint: 'Manage Debt → Issuer: <your corporation>. Needs a corporation you chair.' },
-    { id: 'debt.pay', group: 'Debt', label: 'Repay debt', match: ev('debt_payment'), hint: 'Manage Debt → Settle Existing Debt.' },
-    { id: 'debt.refinance', group: 'Debt', label: 'Refinance debt', match: ev('debt_refinanced'), hint: 'Manage Debt → Refinance Existing Debt: pick debts, new amount above the payoff.' },
-    { id: 'debt.interest', group: 'Debt', label: 'Interest charged at end of turn', match: ev('interest_accrual', d => Number(d.interestCharged) > 0) },
+    { id: 'debt.term-short', group: 'Debt', label: 'Borrow on a 5-turn term', match: ev('debt_issued', d => Number(d.termTurns) === 5), hint: 'Manage Debt → Take a new loan → 5 turns.' },
+    { id: 'debt.term-long', group: 'Debt', label: 'Borrow on a 15-turn term', match: ev('debt_issued', d => Number(d.termTurns) === 15), hint: 'Manage Debt → Take a new loan → 15 turns.' },
+    { id: 'debt.pay', group: 'Debt', label: 'Pay part of a loan', match: ev('debt_payment', d => !d.paidOff), hint: 'Manage Debt → Your loans → Pay an amount.' },
+    { id: 'debt.payoff', group: 'Debt', label: 'Pay a loan off early', match: ev('debt_payment', d => d.paidOff), hint: 'Manage Debt → Your loans → Pay off.' },
+    { id: 'debt.autopay-off', group: 'Debt', label: 'Turn autopay off for a loan', match: ev('debt_autopay', d => d.autopay === false), hint: 'Manage Debt → Your loans → Autopay switch (works off-turn too).' },
+    { id: 'debt.refinance', group: 'Debt', label: 'Refinance debt', match: ev('debt_refinanced'), hint: 'Manage Debt → Refinance loans: pick loans, a term and a new amount above the payoff.' },
+    { id: 'debt.interest', group: 'Debt', label: 'Loan payment at end of turn', match: ev('interest_accrual', d => Number(d.interestCharged) > 0) },
+    { id: 'debt.unpaid-interest', group: 'Debt', label: 'Unpaid interest added to a loan (autopay off)', match: ev('interest_accrual', d => Number(d.unpaidInterest) > 0), hint: 'Turn autopay off, then end your turn.' },
+    { id: 'debt.matured-repaid', group: 'Debt', label: 'Repay a loan in full at maturity', match: ev('loan_matured', d => d.repaid), stage: 'loan-due' },
+    { id: 'debt.matured-default', group: 'Debt', label: "Go bankrupt on a loan you can't repay at maturity", match: ev('loan_matured', d => !d.repaid && !String(d.borrower).startsWith('[')), stage: 'loan-default' },
     { id: 'debt.corporate-interest', group: 'Debt', label: 'Corporation charged interest', match: ev('interest_accrual', d => String(d.player).startsWith('[') && Number(d.interestCharged) > 0) },
 
     // ----- corporations -----
@@ -109,7 +116,7 @@ const PATHWAYS = [
     // ----- refusals: the game must say no (counted when tried, applied or not) -----
     { id: 'refuse.bid-over-cash', group: 'Refusals', label: 'Try to bid more than your cash', match: act('place_bid', (d, s) => s.refused && /insufficient/i.test(s.error || '')), hint: 'In an auction, bid more cash than you have.' },
     { id: 'refuse.trade-built-group', group: 'Refusals', label: 'Try to trade a street from a colour group with buildings', match: act('propose_trade', (d, s) => s.refused && /buildings/i.test(s.error || '')), hint: 'Build houses, then offer one of that group\'s streets in the Market (the box should be greyed out; the rule: IPO the whole group instead).', stage: 'houses-built' },
-    { id: 'refuse.loan-over-limit', group: 'Refusals', label: 'Try to borrow more than 90% of the collateral', match: act('issue_debt', (d, s) => s.refused && /up to|needs collateral|already backs/i.test(s.error || '')), hint: 'Manage Debt: pledge a property and ask for more than the limit shown.' },
+    { id: 'refuse.loan-over-limit', group: 'Refusals', label: 'Try to borrow more than your portfolio allows', match: act('issue_debt', (d, s) => s.refused && /up to/i.test(s.error || '')), hint: 'Manage Debt → Take a new loan: ask for more than the limit shown.' },
     { id: 'refuse.force-buy-shares', group: 'Refusals', label: 'Try to buy a player\'s shares without an offer', match: act('buy_shares', (d, s) => s.refused), hint: 'Corporations: try to buy shares that a player holds.' },
     { id: 'refuse.pay-over-cash', group: 'Refusals', label: 'Try to pay a player more than your cash', match: act('manual_payment', (d, s) => s.refused && /insufficient/i.test(s.error || '')), hint: 'Market → Payment System: an amount above your cash.' },
     { id: 'refuse.junk-amount', group: 'Refusals', label: 'Submit a zero, negative or non-numeric amount', match: [act('issue_debt', (d, s) => s.refused && !(Number(d.amount) > 0)), act('manual_payment', (d, s) => s.refused && !(Number(d.amount) > 0)), act('place_bid', (d, s) => s.refused && !(Number(d.amount) > 0)), act('create_ipo', (d, s) => s.refused)], hint: 'Enter 0, -5 or text as an amount and submit.' },

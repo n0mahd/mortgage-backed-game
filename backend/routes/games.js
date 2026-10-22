@@ -87,9 +87,9 @@ router.get('/config', (_req, res) => {
 
 // POST /api/games — create a new game for a room
 router.post('/', requireAuth, (req, res) => {
-    const { room_id, game_state } = req.body;
+    const { room_id, game_state, settings } = req.body;
     try {
-        res.json(startGameForRoom(io, { roomId: room_id, actorUserId: req.userId, gameState: game_state }));
+        res.json(startGameForRoom(io, { roomId: room_id, actorUserId: req.userId, gameState: game_state, settings }));
     } catch (err) {
         if (err instanceof GameRuleError) return res.status(err.status).json({ error: err.message });
         throw err;

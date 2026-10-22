@@ -188,10 +188,11 @@ class Chaos {
             if (!(await bot.usable(bot.gameButton(seat, 'open-debt')))) return;
             await bot.gameButton(seat, 'open-debt').click();
             await p.locator('#debtModal').waitFor({ state: 'visible' });
-            await p.locator('#debtAction').selectOption(form === 'debt' ? 'issue' : 'settle');
-            field = form === 'debt' ? '#loanAmount' : '#settlementAmount';
-            await p.locator(field).fill(junk.value);
-            await p.locator('#process-debt-btn').click().catch(() => {});
+            await p.locator('#debtAction').selectOption(form === 'debt' ? 'issue' : 'loans');
+            field = form === 'debt' ? '#loanAmount' : '#loanList .loan-row input[type="number"]';
+            await p.locator(field).first().fill(junk.value);
+            const submit = form === 'debt' ? '#process-debt-btn' : '#loanList .loan-row [data-loan-pay]';
+            await p.locator(submit).first().click().catch(() => {});
         } else if (form === 'ipo') {
             if (!(await bot.usable(bot.gameButton(seat, 'open-ipo')))) return;
             await bot.gameButton(seat, 'open-ipo').click();

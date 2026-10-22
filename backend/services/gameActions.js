@@ -69,7 +69,7 @@ function publishGameUpdate(io, updatedGame) {
 
 // Create the game for a room (host only). Returns the parsed game. If a game
 // already exists for the room it is returned unchanged.
-function startGameForRoom(io, { roomId, actorUserId, gameState, minPlayers = 0 }) {
+function startGameForRoom(io, { roomId, actorUserId, gameState, settings, minPlayers = 0 }) {
     if (!roomId) throw new GameRuleError(400, 'room_id required');
 
     const room = getRoom(roomId);
@@ -84,7 +84,7 @@ function startGameForRoom(io, { roomId, actorUserId, gameState, minPlayers = 0 }
     if (roomMembers.length < minPlayers) {
         throw new GameRuleError(400, `Need at least ${minPlayers} players to start`);
     }
-    const initialState = normalizeState(gameState || createInitialGame(roomMembers));
+    const initialState = normalizeState(gameState || createInitialGame(roomMembers, { loanRates: settings?.loanRates }));
     try {
         db.exec('BEGIN');
         db.prepare(`

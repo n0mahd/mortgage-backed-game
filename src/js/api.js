@@ -529,7 +529,7 @@ async function revokeAgentInvite(roomId, seatId) {
     return apiFetch(`/rooms/${roomId}/agent-seats/${encodeURIComponent(seatId)}`, { method: 'DELETE' });
 }
 
-async function startGame(roomId) {
+async function startGame(roomId, settings = {}) {
     const user = await getCurrentUser();
     if (!user) throw new Error('Not authenticated');
 
@@ -538,7 +538,7 @@ async function startGame(roomId) {
 
     return apiFetch('/games', {
         method: 'POST',
-        body: JSON.stringify({ room_id: roomId })
+        body: JSON.stringify({ room_id: roomId, settings })
     });
 }
 

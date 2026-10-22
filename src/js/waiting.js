@@ -323,6 +323,11 @@ async function sendInviteEmail() {
     emailInput.value = '';
 }
 
+// The host's interest rate per loan term; the server checks the range.
+function readLoanRates() {
+    return Object.fromEntries([5, 10, 15].map(term => [term, document.getElementById(`loan-rate-${term}`).value]));
+}
+
 async function startGameFromLobby() {
     if (!isHost) {
         alert('Only the host can start the game');
@@ -340,7 +345,7 @@ async function startGameFromLobby() {
         startBtn.textContent = 'Starting game...';
 
         const activeRoomId = currentRoom.id;
-        await startGame(activeRoomId);
+        await startGame(activeRoomId, { loanRates: readLoanRates() });
 
         logActivity('Game started! Redirecting...');
 

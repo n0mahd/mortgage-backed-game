@@ -485,7 +485,7 @@ test.describe('Game mechanics — UI', () => {
         expect(fetched.game_state.properties[0].houses).toBe(0);
     });
 
-    async function seedCoveredClaimGame(request, { cash, debtPrincipal }) {
+    async function seedCoveredClaimGame(request, { cash, debtPrincipal, debtTerms = {} }) {
         const h = await (await request.post(`${BASE_API}/auth/anonymous`)).json();
         const g = await (await request.post(`${BASE_API}/auth/anonymous`)).json();
         const room = await (await request.post(`${BASE_API}/rooms`, {
@@ -496,7 +496,7 @@ test.describe('Game mechanics — UI', () => {
             headers: { Authorization: `Bearer ${g.token}` },
             data: { player_name: 'Bob' },
         });
-        const debt = { id: 'debt-test', principal: debtPrincipal, interestRate: 10, collateral: [], issueDate: new Date().toISOString(), issuerType: 'player' };
+        const debt = { id: 'debt-test', principal: debtPrincipal, interestRate: 10, issueDate: new Date().toISOString(), issuerType: 'player', ...debtTerms };
         const game = await (await request.post(`${BASE_API}/games`, {
             headers: { Authorization: `Bearer ${h.token}` },
             data: { room_id: room.id, game_state: {
@@ -541,7 +541,8 @@ test.describe('Game mechanics — UI', () => {
 
         const warning = page.locator('.turn-warning');
         await expect(warning).toContainText('You owe $173 to Bob', { timeout: 5000 });
-        await expect(warning).toContainText('after $50 loan interest, leaving you $777');
+        // The claim is paid first, then autopay takes the loan's $81.37 installment.
+        await expect(warning).toContainText('then $81.37 in loan payments, leaving you $745.63');
         await expect(warning).not.toHaveClass(/danger/);
         const endTurn = page.locator('.action-btn-end-turn');
         await expect(endTurn).toHaveText('Pay $173 & End Turn');
@@ -558,20 +559,21 @@ test.describe('Game mechanics — UI', () => {
         const alice = fetched.game_state.players.find(player => player.userId === h.user.id);
         const bob = fetched.game_state.players.find(player => player.userId === g.user.id);
         expect(alice.bankrupt).toBe(false);
-        expect(alice.cash).toBe(777);
+        expect(alice.cash).toBe(745.63);
         expect(bob.cash).toBe(1673);
         expect(fetched.game_state.bankruptcyClaims[h.user.id]).toBeUndefined();
         expect(fetched.game_state.currentPlayerIndex).toBe(1);
     });
 
-    test('loan interest that leaves too little for the claim still warns of bankruptcy', async ({ page, request }) => {
-        const { h, room } = await seedCoveredClaimGame(request, { cash: 1000, debtPrincipal: 9000 });
+    test('a loan coming due that leaves too little after the claim warns of bankruptcy', async ({ page, request }) => {
+        // $900 at 10% on its last turn: $990 due after the $173 claim leaves $827.
+        const { h, room } = await seedCoveredClaimGame(request, { cash: 1000, debtPrincipal: 900, debtTerms: { termTurns: 5, turnsRemaining: 1 } });
 
         await loginPage(page, h.token);
         await page.goto(`${BASE}/game.html?room=${room.id}`);
         await page.waitForLoadState('domcontentloaded');
 
-        await expect(page.locator('.turn-warning.danger')).toContainText('$173 unpaid to Bob. Raise $73 more', { timeout: 5000 });
+        await expect(page.locator('.turn-warning.danger')).toContainText('$173 unpaid to Bob. Raise $163 more', { timeout: 5000 });
         await expect(page.locator('.action-btn-end-turn')).toHaveText('Declare Bankruptcy');
     });
 
@@ -714,7 +716,7 @@ test.describe('Game mechanics — UI', () => {
                         { userId: g.user.id, name: 'Bob', shares: 2 },
                         { userId: c.user.id, name: 'Carol', shares: 1 },
                     ],
-                    debts: [{ id: 'corp-debt-1', principal: 100, interestRate: 5, collateral: [], issuerType: 'corporation' }],
+                    debts: [{ id: 'corp-debt-1', principal: 100, interestRate: 5, termTurns: 5, turnsRemaining: 1, issuerType: 'corporation' }],
                     cash: 1,
                     chairmanVotes: [{
                         id: 'vote-1',

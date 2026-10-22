@@ -157,7 +157,7 @@ offer, corporation).
 name, type and value, then chips: set progress (gold when complete), buildings, current rent.
 
 **Property dots** (`propertyDot(id)`, `.property-dot`). Everywhere else a property is named in a list
-(IPO, loan collateral and trade pickers, auction, corporation assets, loan details), a small square in its
+(IPO and trade pickers, auction, corporation assets, loan details), a small square in its
 board color goes before the name so groups are recognisable at a glance.
 
 **Badges** (`.badge`, `.badge-gold`, `.badge-warning`, `.badge-danger`, `.badge-info`). Pills in sentence

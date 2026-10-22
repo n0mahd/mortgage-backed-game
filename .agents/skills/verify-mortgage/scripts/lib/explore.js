@@ -119,8 +119,9 @@ class Explore {
         if (!done.has('jail-card-trade') && me.hasGetOutOfJailCard && this.wants('trade.jail-card')) out.push(['jail-card-trade', 0.8]);
         if (!done.has('pay') && this.wants('payment.manual')) out.push(['pay', 0.5]);
         if (!done.has('ipo') && (me.properties || []).length && this.wantsAny('corp.ipo', 'debt.issue-corporate', 'corp.insolvent')) out.push(['ipo', 0.5]);
-        if (!done.has('debt') && this.wantsAny('debt.issue', 'debt.interest', 'debt.pay', 'debt.refinance')) out.push(['debt', 0.6]);
-        if (!done.has('settle') && (me.debts || []).length && this.wants('debt.pay')) out.push(['settle', 0.7]);
+        if (!done.has('debt') && this.wantsAny('debt.issue', 'debt.interest', 'debt.pay', 'debt.refinance', 'debt.term-short', 'debt.term-long')) out.push(['debt', 0.6]);
+        if (!done.has('settle') && (me.debts || []).length && this.wantsAny('debt.pay', 'debt.payoff')) out.push(['settle', 0.7]);
+        if (!done.has('autopay') && (me.debts || []).some(d => d.autopay !== false) && this.wantsAny('debt.autopay-off', 'debt.unpaid-interest')) out.push(['autopay', 0.7]);
         if (!done.has('probe') && this.wantsAny('refuse.bid-over-cash', 'refuse.pay-over-cash', 'refuse.junk-amount', 'refuse.trade-not-owned')) out.push(['probe', 0.5]);
         if (!done.has('trade') && this.wantsAny('trade.propose', 'trade.accept', 'trade.decline', 'trade.withdraw', 'trade.host-cancel', 'trade.expire')) out.push(['trade', 0.35]);
         return out.filter(([, p]) => p > 0 && bot);
@@ -144,8 +145,12 @@ class Explore {
         if (kind === 'jail-card-trade') return this.jailCardTrade(seat, me, state);
         if (kind === 'pay') return bot.manualPayment(seat, state);
         if (kind === 'ipo') return bot.createIpo(seat, me);
-        if (kind === 'debt') return bot.issueDebt(seat, 100 + Math.floor(bot.rand() * 200), true);
-        if (kind === 'settle') return this.partialOrFullSettle(seat, me);
+        if (kind === 'debt') {
+            const term = this.wants('debt.term-short') ? 5 : (this.wants('debt.term-long') ? 15 : undefined);
+            return bot.issueDebt(seat, 100 + Math.floor(bot.rand() * 200), true, { term });
+        }
+        if (kind === 'settle') return bot.settleDebt(seat, { partial: !this.wants('debt.payoff') && bot.chance(0.5) });
+        if (kind === 'autopay') return bot.toggleAutopay(seat, false);
         if (kind === 'trade') return bot.proposeTrade(seat, me, state);
         if (kind === 'probe') return this.refusalProbe(seat, me, state);
         return null;
@@ -167,8 +172,11 @@ class Explore {
         if (!(await boxes.count())) return bot.closeModals(seat);
         await boxes.first().check();
         const principal = Math.ceil(Number(me.debts[0].principal || 0));
-        const limit = await bot.pledge(seat, 'refinanceCollateralAssets');
-        await seat.page.locator('#refinanceAmount').fill(String(limit ? Math.max(principal + 1, Math.min(limit, principal + 100)) : principal + 100));
+        const limit = await bot.borrowingLimit(seat, 'refinanceLimit');
+        // The new loan must exceed the payoff and stay within the borrowing limit.
+        if (!limit || limit <= principal) return bot.closeModals(seat);
+        await seat.page.locator('#refinanceAmount').fill(String(Math.min(limit, principal + 100)));
+        await bot.pickLoanTerm(seat, 'refinanceTerms');
         await bot.firstTime('refinance-form', [seat], 'refinance-form');
         await bot.act(seat, 'refinance debt', () => seat.page.locator('#process-debt-btn').click(), { allowRejection: true });
         await bot.closeModals(seat);
@@ -186,20 +194,11 @@ class Explore {
             return bot.closeModals(seat);
         }
         await issuer.selectOption({ label });
-        const limit = await bot.pledge(seat, 'collateralAssets');
+        const limit = await bot.borrowingLimit(seat);
         if (!limit) return bot.closeModals(seat);
         await seat.page.locator('#loanAmount').fill(String(Math.min(limit, 100 + Math.floor(bot.rand() * 200))));
+        await bot.pickLoanTerm(seat, 'loanTerms');
         await bot.act(seat, 'issue corporate debt', () => seat.page.locator('#process-debt-btn').click(), { allowRejection: true });
-        await bot.closeModals(seat);
-    }
-
-    async partialOrFullSettle(seat, me) {
-        const bot = this.bot;
-        if (!(await this.openDebt(seat, 'settle'))) return;
-        const partial = bot.chance(0.5);
-        if (partial) await seat.page.locator('#settlementAmount').fill(String(Math.max(1, Math.floor(Number(me.debts[0].principal || 2) / 2))));
-        else if (await bot.usable(seat.page.locator('#payFullDebtBtn'))) await seat.page.locator('#payFullDebtBtn').click();
-        await bot.act(seat, partial ? 'settle part of a debt' : 'settle debt', () => seat.page.locator('#process-debt-btn').click(), { allowRejection: true });
         await bot.closeModals(seat);
     }
 
@@ -358,19 +357,24 @@ class Explore {
             await seat.page.locator('#player1Select').selectOption({ value: me.userId });
             await seat.page.locator('#player2Select').selectOption({ value: bot.pick(others).userId });
             await seat.page.locator('#player1Cash').fill(String(cash + 1000));
+            // The form disables Propose for cash over your balance; that is the refusal.
+            if (!(await seat.page.locator('#executeTradeBtn').isEnabled())) {
+                this.ctx.log(`    ${seat.name}: probe: offer more cash than I have, blocked by the form`);
+                await seat.page.locator('#player1Cash').fill('0');
+                return;
+            }
             await bot.act(seat, 'probe: offer more cash than I have', () => seat.page.locator('#executeTradeBtn').click(), { allowRejection: true, allowNoChange: true });
         } else if (probe === 'loan-over-limit') {
             await bot.gameTab(seat);
             if (!(await this.openDebt(seat, 'issue'))) return;
-            const limit = await bot.pledge(seat, 'collateralAssets');
-            if (!limit) return bot.closeModals(seat);
+            const limit = await bot.borrowingLimit(seat);
+            if (limit === null) return bot.closeModals(seat);
             await seat.page.locator('#loanAmount').fill(String(limit + 50));
-            await bot.act(seat, 'probe: borrow more than 90% of the collateral', () => seat.page.locator('#process-debt-btn').click(), { allowRejection: true, allowNoChange: true });
+            await bot.act(seat, 'probe: borrow more than the portfolio allows', () => seat.page.locator('#process-debt-btn').click(), { allowRejection: true, allowNoChange: true });
             await bot.closeModals(seat);
         } else {
             await bot.gameTab(seat);
             if (!(await this.openDebt(seat, 'issue'))) return;
-            await bot.pledge(seat, 'collateralAssets');
             await seat.page.locator('#loanAmount').fill(bot.pick(['-50', '0']));
             await bot.act(seat, 'probe: borrow a zero or negative amount', () => seat.page.locator('#process-debt-btn').click(), { allowRejection: true, allowNoChange: true });
             await bot.closeModals(seat);
