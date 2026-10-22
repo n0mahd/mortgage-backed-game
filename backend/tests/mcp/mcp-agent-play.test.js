@@ -159,7 +159,7 @@ describe('MCP agent play', () => {
         expect(invite.mcp_url).toBe('https://mortgage.abdlh.com/api/mcp');
         expect(invite.prompt).toContain(invite.key);
         expect(invite.prompt).toMatch(/join_game tool with agent_key \S+ and a player name you choose/);
-        expect(invite.prompt).toMatch(/connect the Mortgage Backed connector in my settings/);
+        expect(invite.prompt).toMatch(/ask me to turn on the Mortgage Backed connector for this chat/);
         expect(invite.seat).toMatchObject({ label: null, status: 'pending', player_name: null });
         // Only the hash is stored.
         const stored = db.prepare(`SELECT key_hash FROM agent_seats`).get();

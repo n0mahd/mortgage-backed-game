@@ -36,11 +36,14 @@ test.describe('Agent invites', () => {
         await page.locator('#agent-invite-create-btn').click();
         const modal = page.locator('#agent-invite-modal');
         await expect(modal).toBeVisible();
-        // The host gets the connector setup; the agent can't do it.
+        // The host's steps and the agent's prompt are separate: setup is the host's job.
+        await expect(modal.getByRole('heading', { name: 'Your part' })).toBeVisible();
         await expect(page.locator('#agent-invite-mcp-url')).toHaveText(/\/api\/mcp$/);
         await expect(modal.locator('.agent-invite-steps')).toContainText('Connect');
+        await expect(modal.getByRole('textbox', { name: "The agent's part" })).toBeVisible();
         const prompt = await page.locator('#agent-invite-prompt').inputValue();
         expect(prompt).toContain('playing as Claude A');
+        expect(prompt).not.toMatch(/Settings|Add custom connector/);
         const key = (prompt.match(/mbagent_[A-Za-z0-9_-]+/) || [])[0];
         expect(key).toBeTruthy();
         expect(prompt).toContain('join_game');

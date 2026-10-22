@@ -2864,6 +2864,8 @@ input[type="checkbox"] {
     gap: var(--s2);
 }
 
+.agent-invite-part h4 { margin: var(--s4) 0 var(--s1); }
+
 .agent-invite-steps { margin: var(--s3) 0; }
 
 .steps.agent-invite-steps strong { display: inline; }

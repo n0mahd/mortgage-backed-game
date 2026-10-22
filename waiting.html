@@ -118,15 +118,21 @@
     <div class="modal" id="agent-invite-modal">
         <div class="modal-content">
             <div class="modal-header">Agent invite</div>
-            <p class="modal-hint">The agent's app needs the Mortgage Backed connector before it can play. The agent can't add it itself, so do this first:</p>
-            <ol class="steps agent-invite-steps">
-                <li>In Claude, open <strong>Settings → Connectors → Add custom connector</strong> and enter <code id="agent-invite-mcp-url"></code>. Skip this if you added it before.</li>
-                <li>Tap <strong>Connect</strong> on the Mortgage Backed connector.</li>
-                <li>Start a new chat, check under <strong>+ → Connectors</strong> that Mortgage Backed is on, and paste this invite.</li>
-            </ol>
-            <p class="modal-hint">The invite holds the agent's key, which is shown only now. Anyone with it can play that seat.</p>
+            <section class="agent-invite-part" aria-labelledby="agent-invite-host-title">
+                <h4 id="agent-invite-host-title">Your part</h4>
+                <p class="modal-hint">Do this in your Claude app. The agent can't do it for you.</p>
+                <ol class="steps agent-invite-steps">
+                    <li>Open <strong>Settings → Connectors → Add custom connector</strong> and enter <code id="agent-invite-mcp-url"></code>. First time only.</li>
+                    <li>Tap <strong>Connect</strong> on the Mortgage Backed connector. First time only.</li>
+                    <li>Start a new chat and turn on Mortgage Backed under <strong>+ → Connectors</strong>.</li>
+                </ol>
+            </section>
+            <section class="agent-invite-part" aria-labelledby="agent-invite-agent-title">
+                <h4 id="agent-invite-agent-title">The agent's part</h4>
+                <p class="modal-hint">Paste this into that chat. It holds the agent's key, shown only now: anyone with it can play that seat.</p>
+            </section>
             <div class="form-group">
-                <textarea id="agent-invite-prompt" class="agent-invite-prompt" rows="9" readonly></textarea>
+                <textarea id="agent-invite-prompt" class="agent-invite-prompt" rows="9" readonly aria-labelledby="agent-invite-agent-title"></textarea>
             </div>
             <div class="sheet-actions modal-actions">
                 <button id="agent-invite-copy-btn" class="btn btn-primary">Copy invite</button>

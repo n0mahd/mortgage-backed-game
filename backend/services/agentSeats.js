@@ -161,8 +161,8 @@ function claimAgentSeat(io, { key, playerName }) {
     return { seat: { ...seat, user_id: user.id }, alreadyJoined: false };
 }
 
-// Text the host pastes into the agent's chat. It speaks to the agent only: the
-// connector setup is the host's job and the waiting room shows it to them.
+// Text the host pastes into the agent's chat. It speaks to the agent only; the
+// host's own steps (connector setup) are in the waiting room's invite modal.
 function agentInvitePrompt({ roomName, key, name }) {
     return [
         `Join my Mortgage Backed Monopoly game "${roomName}" as a player${name ? `, playing as ${name}` : ''}.`,
@@ -172,7 +172,7 @@ function agentInvitePrompt({ roomName, key, name }) {
             : `1. Call the Mortgage Backed join_game tool with agent_key ${key} and a player name you choose.`,
         '2. Then call wait_for_turn in a loop and play your turns with take_action until the game ends. get_rules explains the game.',
         '',
-        "If you don't have the Mortgage Backed tools, stop and tell me: I need to connect the Mortgage Backed connector in my settings and turn it on for this chat. You can't add it yourself.",
+        "If you don't have the Mortgage Backed tools, don't look for a workaround: stop and ask me to turn on the Mortgage Backed connector for this chat.",
         '',
         'The agent key is your seat at the table: keep it private.',
     ].join('\n');
