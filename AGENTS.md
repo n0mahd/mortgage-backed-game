@@ -40,7 +40,7 @@ Fast verification commands:
 - Do not put game-rule decisions in route handlers or frontend code; routes should authenticate, load/persist state, call the domain layer, record events, and broadcast.
 - Keep `backend/domain/gameRules.js` as the public game-rules import path. Internal game-rules modules are private implementation details.
 - Preserve the frontend's no-build model: classic scripts loaded from HTML, no bundler, no TypeScript migration, and no framework migration unless explicitly requested.
-- When changing game rules, update or add backend unit tests and update `documents/game-rules.md` or `README.md` when player-facing behavior changes.
+- When changing game rules, update or add backend unit tests, and in the same commit update every rule document that mentions the change: `documents/game-rules.md`, `README.md`, `backend/mcp/rules.js` and the descriptions in `backend/domain/actionCatalog.js`. Fix any of them you find out of date with the engine.
 - When changing frontend behavior, prefer focused helpers under `src/js/game/` while keeping `src/js/game.js` as the page entry point.
 - New UI uses the design system's existing classes and tokens: no inline styles or raw hex values. Turn actions go in `renderActionButtons()`, optional moves in the moves grid, and host-only controls in `renderHostPanel()`. Check 320, 375, and 390px widths; `tests/e2e/mobile-layout.spec.js` guards the phone layout.
 - Do not bypass `apiFetch` for app API calls unless there is a specific reason.

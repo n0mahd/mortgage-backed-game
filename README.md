@@ -98,7 +98,7 @@ Tap **Buy Property** after landing on an unowned property. Cash is deducted imme
 
 Requires owning at least one property.
 
-Tap **Create IPO** and select which properties to bundle into a corporation. Set a **ticker symbol**, **number of shares** (1–12, default 10), and **price per share**. The selected properties move out of your personal holdings into the corporation and you receive all of its shares. A color group with houses or hotels must go in whole. Nobody can buy your shares without your agreement: shares change hands through trade offers in the Market, and whoever gains a majority becomes chairman.
+Tap **Create IPO** and select which properties to bundle into a corporation. Set a **ticker symbol** and the **number of shares** (1–12, default 10); there is no IPO price. The selected properties move out of your personal holdings into the corporation and you receive all of its shares. A color group with houses or hotels must go in whole. Nobody can buy your shares without your agreement: shares change hands through trade offers in the Market, and whoever gains a majority becomes chairman.
 
 ---
 
@@ -128,9 +128,9 @@ Tap **Manage Debt → Refinance Existing Debt**. Select one or more existing deb
 
 ### Buy Shares
 
-To buy shares a player holds, make them an offer in the **Market** tab; the shares move only if they accept. If bankruptcy returned shares to a corporation's treasury, tap **Corporations** during your turn to buy those at the corporation's price; that cash goes into the corporation treasury.
+To buy shares a player holds, make them an offer in the **Market** tab; the shares move only if they accept. If bankruptcy returned shares to a corporation's treasury, tap **Corporations** during your turn to buy those at the current share value (NAV, below); that cash goes into the corporation treasury.
 
-Player net worth values corporation stakes by net asset value, not the price per share: corporation-owned property value plus treasury cash minus corporation debt, divided by total shares. Share value is floored at $0 if the corporation's net asset value is negative.
+Player net worth values corporation stakes by net asset value: corporation-owned property value plus treasury cash minus corporation debt, divided by total shares. Share value is floored at $0 if the corporation's net asset value is negative.
 
 If corporate debt interest pushes a corporation below $0 treasury cash, the corporation becomes insolvent. Its properties return to the bank, houses/hotels are cleared, corporation debts and shareholder positions are wiped, the chairman seat closes, and no further shares/debt/governance actions are available for that corporation.
 

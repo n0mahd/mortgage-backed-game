@@ -203,14 +203,14 @@ Any player may bundle one or more of their properties into a corporation and sel
 
 1. On your turn, go to the **Game** tab and click **Create IPO**.
 2. Select the properties to include as corporate assets. A color group with buildings must go in whole: ticking one of its streets ticks the rest.
-3. Set a **ticker symbol** (e.g., `MBS`), the **number of shares** to issue (default 10, at most 12), and the **price per share**.
+3. Set a **ticker symbol** (e.g., `MBS`) and the **number of shares** to issue (default 10, at most 12). There is no IPO price: what your shares are worth is set by the corporation's net asset value, and what someone pays for them is whatever you agree in a trade.
 4. Click **Create** — the selected properties transfer into the corporation and you receive all of its shares.
 
 ### Selling Shares
 
 Nobody can buy your shares without your agreement. Shares change hands only through a **trade offer** in the **Market** tab that the holder accepts: offer cash (or property) for someone's shares, or offer your own shares to someone.
 
-The one exception is the corporation's own **treasury shares**. If bankruptcy returns shares to the corporation, it sells them from the **Corporations** modal at its price per share, and the payment goes to the corporation treasury.
+The one exception is the corporation's own **treasury shares**. If bankruptcy returns shares to the corporation, it sells them from the **Corporations** modal at the current share value (net asset value per share, below), and the payment goes to the corporation treasury. A corporation whose shares are worth $0 cannot sell treasury shares.
 
 ### Founder and Chairman
 
@@ -218,7 +218,7 @@ The founder starts as chairman and holds 100% of the shares. Whoever **gains a m
 
 ### Corporation Value in Net Worth
 
-A player's stake in any corporation contributes `sharesOwned × shareValue` to their net worth at game end. Share value uses corporation net asset value, not the listing price:
+A player's stake in any corporation contributes `sharesOwned × shareValue` to their net worth at game end. Share value uses corporation net asset value:
 
 ```
 shareValue = max(0, corporation property value + treasury cash - corporation debt) / totalShares
@@ -230,7 +230,7 @@ If a corporation's treasury falls below $0 when corporate debt interest is charg
 
 - Corporation-owned properties return to the bank and any houses/hotels are cleared.
 - Corporation debts are wiped.
-- Shareholder positions are wiped, treasury shares become 0, and the price per share becomes $0.
+- Shareholder positions are wiped, and treasury shares become 0.
 - The chairman seat is cleared and open chairman votes are closed.
 - Insolvent corporations cannot collect rent, sell shares, issue debt, or use chairman governance controls.
 
@@ -402,7 +402,7 @@ Net Worth = Cash
           − Total outstanding debt principal
 ```
 
-Property value is recorded at purchase price plus houses/hotels. Corporation share value is based on the corporation's property value, treasury cash, and outstanding corporate debt; listing price is only the asking price for share purchases.
+Property value is recorded at purchase price plus houses/hotels. Corporation share value is based on the corporation's property value, treasury cash, and outstanding corporate debt.
 
 ---
 

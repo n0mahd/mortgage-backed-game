@@ -908,7 +908,7 @@ function getPlayerCorporationValue(player) {
 function getPlayerCorporationShareValue(playerCorp) {
     if (Number.isFinite(Number(playerCorp.shareValue))) return Number(playerCorp.shareValue);
     const corp = currentGame?.game_state?.corporations?.find(item => item.id === playerCorp.id);
-    return corp ? getCorporationShareValue(corp) : Number(playerCorp.pricePerShare || 0);
+    return corp ? getCorporationShareValue(corp) : 0;
 }
 
 function getCorporationAssetValue(corp) {
@@ -1121,7 +1121,7 @@ function formatLogEvent(type, data) {
         case 'property_purchase':
             return `${data.buyer} purchased ${data.property} for $${Number(data.price).toFixed(2)}`;
         case 'ipo_created':
-            return `${data.founder} created IPO ${data.ticker}: ${data.founderShares || data.shares} shares held by ${data.founder}, priced at $${Number(data.pricePerShare).toFixed(2)}/share`;
+            return `${data.founder} created IPO ${data.ticker}: ${data.founderShares || data.shares} shares held by ${data.founder}`;
         case 'share_purchase': {
             const founderShares = Number(data.founderShares || 0);
             const treasuryShares = Number(data.treasuryShares || 0);
@@ -1423,9 +1423,8 @@ async function openIPOModal() {
 async function createIPO() {
     const ticker = document.getElementById('ipoTicker').value.toUpperCase();
     const numShares = parseInt(document.getElementById('ipoShares').value);
-    const pricePerShare = parseFloat(document.getElementById('ipoPrice').value);
 
-    if (!ticker || !numShares || !pricePerShare) {
+    if (!ticker || !numShares) {
         alert('Please fill in all fields');
         return;
     }
@@ -1442,7 +1441,6 @@ async function createIPO() {
         await performGameAction('create_ipo', {
             ticker,
             totalShares: numShares,
-            pricePerShare,
             assetIds: selectedAssets.map(asset => asset.id),
         });
         closeModal('ipoModal');
@@ -1789,7 +1787,6 @@ async function openCorporationModal() {
         const governanceHtml = renderChairmanGovernance(corp);
         const canOfferProperty = !isInsolvent && !!corp.chairmanId && corp.chairmanId !== currentUser.id
             && (currentPlayerData?.properties || []).length > 0 && !currentPlayerData?.bankrupt;
-        const pricePerShare = Number(corp.pricePerShare || 0);
         const netAssetValue = getCorporationNetAssetValue(corp);
         const shareValue = getCorporationShareValue(corp);
         const shareholderRows = shareholders.length
@@ -1799,7 +1796,7 @@ async function openCorporationModal() {
             ? debts.map(d => `<li>$${Number(d.principal || 0).toFixed(2)} @ ${Number(d.interestRate || 0)}% (interest next turn: $${interestPayment(d).toFixed(2)})</li>`).join('')
             : '<li>No corporation debt</li>';
         const listingDetails = treasuryListedShares > 0
-            ? `<p>Treasury shares for sale: ${treasuryListedShares} at ${formatMoney(pricePerShare)}</p>`
+            ? `<p>Treasury shares for sale: ${treasuryListedShares} at ${formatMoney(shareValue)} each (NAV)</p>`
             : '<p>No treasury shares for sale. To buy shares a player holds, make them an offer in the Market.</p>';
         const buyLabel = 'Buy treasury shares';
 
@@ -1810,7 +1807,7 @@ async function openCorporationModal() {
             <p>Chairman: ${escapeHtml(isInsolvent ? 'Closed' : (corp.chairmanName || corp.founderName || 'Unassigned'))}</p>
             <p>Majority holder: ${escapeHtml(majorityHolderName(corp) || 'None')}</p>
             <p>Treasury Cash: $${Number(corp.cash || 0).toFixed(2)}</p>
-            <p>Total Shares: ${corp.totalShares} | Price: $${pricePerShare.toFixed(2)}/share | NAV: $${shareValue.toFixed(2)}/share</p>
+            <p>Total Shares: ${corp.totalShares} | NAV: $${shareValue.toFixed(2)}/share</p>
             <p>Net Asset Value: $${netAssetValue.toFixed(2)}</p>
             ${listingDetails}
             ${isInsolvent ? '<p class="corp-status-warning">This corporation is closed after treasury insolvency. Properties returned to the Bank; shares, debt, and governance were wiped.</p>' : ''}
@@ -1980,16 +1977,10 @@ async function buyShares(corpId) {
     }
 
     const numShares = parseInt(document.getElementById(`buyShares-${corpId}`).value);
-    const totalCost = numShares * Number(corp.pricePerShare || 0);
     const buyableShares = getBuyableListedShares(corp);
 
     if (!numShares || numShares < 1 || numShares > buyableShares) {
         alert(`Enter a valid number of shares (1-${buyableShares})`);
-        return;
-    }
-
-    if (currentPlayerData.cash < totalCost) {
-        alert(`Insufficient funds. Cost: $${totalCost.toFixed(2)}, You have: $${currentPlayerData.cash.toFixed(2)}`);
         return;
     }
 

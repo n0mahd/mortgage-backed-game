@@ -110,7 +110,7 @@ describe('loan limits', () => {
     test('corporate loans follow the same limit against the corporation\'s property', () => {
         let { state } = applyAction(makeState(), 'alice', {
             type: 'create_ipo',
-            payload: { ticker: 'ALC', totalShares: 10, pricePerShare: 50, assetIds: [BOARDWALK] },
+            payload: { ticker: 'ALC', totalShares: 10, assetIds: [BOARDWALK] },
         });
         const corpId = state.corporations[0].id;
         const corporate = amount => applyAction(state, 'alice', {

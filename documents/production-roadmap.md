@@ -30,6 +30,7 @@ This roadmap tracks what needs to be true before people can reliably play Mortga
 - Added a visible Bankrupt badge on player cards.
 - Added corporation insolvency: corporate interest can close an underfunded corporation, return corporation-owned properties to the bank, clear improvements, wipe debts/shares, close governance, and show an Insolvent state in the UI.
 - Reworked IPO ownership: founders now receive all shares at IPO creation, listed founder-share purchases pay the founder, bankruptcy-returned shares sit in treasury, and corporation stake value uses NAV instead of listing price.
+- Removed the IPO price per share: it no longer controlled any sale. Treasury shares now sell at the corporation's current NAV per share.
 - Fixed Jail edge cases: rolling doubles to leave Jail now consumes the turn roll, forced third-turn bail is logged as a bank payment, and bail-driven negative cash uses the normal bankruptcy warning path.
 - Added targeted bank-return bankruptcy coverage for tax, card-payment, Jail bail, and debt-interest negative-cash paths.
 - Added operational readiness basics: database hot-path indexes, a DB-backed health endpoint, and structured game-action audit logging with game/room/action/version metadata.
