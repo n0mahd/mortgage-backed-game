@@ -40,7 +40,7 @@ Production database: SQLite on the M60e at `/mnt/ssd/projects/mortgage-backed/ba
 | `[game_action]` audit line (`backend/audit.js`) | game, room, `actorUserId`, action type, versions | Pseudonymous user ID: a per-user activity trail | journald on the M60e (`journalctl -u mortgage-backend`) | journald default (unbounded until disk cap) |
 | Email send errors (`routes/auth.js`, `routes/rooms.js`) | `err.message` only; the mailer reports the provider's HTTP status, never its response body | No | journald | journald default |
 | MCP errors (`mcp/server.js`) | Error and stack for failed agent requests | No request bodies or tokens | journald | journald default |
-| OTP console log (`routes/auth.js:85`) | Email and code | Yes | Dev only: needs `LOG_OTPS=true` and is forced off when `isProduction()` | n/a in production |
+| OTP console log (`routes/auth.js`, send-otp) | Email and code | Yes | Dev only: needs `LOG_OTPS=true` and is forced off when `isProduction()` | n/a in production |
 | nginx access log | Client IP (from `CF-Connecting-IP`), path, user agent | IP address | M60e `/var/log/nginx` | Not verified (blind spot) |
 
 ## Client-side storage
