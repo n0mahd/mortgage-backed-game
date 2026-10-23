@@ -4,8 +4,8 @@ The visual and interaction rules for every screen of Mortgage Backed Monopoly. T
 brand rationale come from `documents/brand-book.md`; this page covers how they become UI.
 
 - Tokens: `src/css/tokens.css`. Load it before `src/css/style.css` on every page.
-- Components: `src/css/style.css` (one stylesheet for all pages; `landing.css` was retired).
-- Presentation helpers: `src/js/ui.js` (`formatMoney`, `playerInitials`, `renderDicePair`, `showToast`).
+- Components: `src/css/style.css` (one stylesheet for all pages).
+- Presentation helpers: `src/js/ui.js` (`formatMoney`, `playerInitials`, `renderDicePair`, `showToast`, `escapeHtml`, `copyText`).
 - Specimen: `design-system.html` renders every component against real tokens.
 - Turn alerts: `src/js/turn-notifications.js` (state and Web Push), `home-screen.html` with
   `src/js/home-screen.js` (Add to Home Screen handoff).

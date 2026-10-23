@@ -6,7 +6,7 @@ The project map, architecture rules, hosting and dev/prod rules are in AGENTS.md
 
 ## Keep the Rule Documents Up to Date
 
-The game's rules are written down in four places, and each one must match what `backend/domain/gameRulesInternal/engine.js` actually does:
+The game's rules are written down in four places, and each one must match what the rules engine (`backend/domain/gameRulesInternal/`) actually does:
 
 - `documents/game-rules.md`: the full player rulebook.
 - `README.md`: the player-facing summary of how to play.

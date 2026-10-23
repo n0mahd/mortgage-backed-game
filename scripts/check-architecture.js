@@ -15,6 +15,7 @@ const files = collectFiles(ROOT);
 
 checkPrivateGameRulesImports(files);
 checkClassicFrontendScripts(files);
+checkAgentGuidePaths();
 
 if (failures.length > 0) {
     console.error('Architecture checks failed:');
@@ -78,6 +79,21 @@ function checkClassicFrontendScripts(files) {
         let match;
         while ((match = moduleScriptPattern.exec(source)) !== null) {
             failures.push(`${relative(file)} uses a module script; keep the frontend no-build classic-script model`);
+        }
+    }
+}
+
+// AGENTS.md is the code map agents start from: every repo path it names in
+// backticks (anything with a slash, like `backend/auth.js` or `src/js/game/`)
+// must exist, so a moved or deleted file can't leave the map stale.
+function checkAgentGuidePaths() {
+    const guide = fs.readFileSync(path.join(ROOT, 'AGENTS.md'), 'utf8');
+    for (const [, ref] of guide.matchAll(/`([^`\s]+)`/g)) {
+        // Skip production paths, URL paths, git refs and the never-committed .env.
+        if (!ref.includes('/') || /[*:<>]|^\/|^origin\/|\.env$/.test(ref)) continue;
+        const candidates = [ref, `backend/${ref}`, `backend/domain/${ref}`, `src/js/${ref}`];
+        if (!candidates.some(candidate => fs.existsSync(path.join(ROOT, candidate)))) {
+            failures.push(`AGENTS.md names ${ref}, which does not exist; update the map`);
         }
     }
 }
