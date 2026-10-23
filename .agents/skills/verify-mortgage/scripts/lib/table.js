@@ -305,4 +305,4 @@ async function declineStrayRejoin(ctx, seat) {
     return true;
 }
 
-module.exports = { buildTable, transferDevice, rejoinAsGuest, declineStrayRejoin, NAMES };
+module.exports = { buildTable, transferDevice, rejoinAsGuest, declineStrayRejoin, NAMES, contextOptions, watchPage };
