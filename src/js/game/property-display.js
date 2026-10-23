@@ -219,7 +219,7 @@ function renderPlayerCard(player, isCurrentUser) {
                 ${player.debts.map(d => `
                     <div class="debt-badge">
                         ${formatMoney(d.principal)} · ${escapeHtml(LoanMath.loanStatus(d, { dueThisTurn: isPlayersTurn(player) }).turnsLabel)}
-                        <span>${escapeHtml(loanPaymentNote(d, isPlayersTurn(player)))}</span>
+                        <span>${escapeHtml(LoanMath.paymentNote(d, isPlayersTurn(player)))}</span>
                     </div>
                 `).join('')}
             </div>
