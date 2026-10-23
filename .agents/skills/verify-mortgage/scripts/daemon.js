@@ -265,17 +265,22 @@ async function look(seat, { full = false } = {}) {
 }
 
 async function mustAct(seat) {
-    return seat.page.evaluate(() => {
+    return seat.page.evaluate(notified => {
         if (typeof currentGame === 'undefined' || !currentGame || typeof currentUser === 'undefined' || !currentUser) return 'not-in-game';
         const state = currentGame.game_state;
         if (state.ended) return 'game-over';
         if (state.players[state.currentPlayerIndex]?.userId === currentUser.id && !state.paused) return 'your-turn';
         const a = state.auction;
         if (a && a.status === 'open' && a.highBidderId !== currentUser.id && !(a.passedPlayerIds || []).includes(currentUser.id)) return 'auction';
-        if ((state.marketOffers || []).some(o => o.status === 'pending' && [o.player1Id, o.player2Id].includes(currentUser.id) && o.proposedById !== currentUser.id)) return 'trade-offer';
+        const offers = (state.marketOffers || []).filter(o => o.status === 'pending' && [o.player1Id, o.player2Id].includes(currentUser.id) && o.proposedById !== currentUser.id && !notified.includes(o.id));
+        if (offers.length) return { reason: 'trade-offer', offerIds: offers.map(o => o.id) };
         return null;
-    }).catch(() => null);
+    }, [...(seat.notifiedOffers || [])]).then(r => (r && typeof r === 'object' ? r : { reason: r, offerIds: [] })).catch(() => ({ reason: null, offerIds: [] }));
 }
+
+// With several seats (a shared agent), the current player always has 'your-turn', so other
+// seats' auctions and new trade offers come first. Each trade offer is reported once per seat.
+const WAIT_PRIORITY = { 'game-over': 0, auction: 1, 'trade-offer': 2, 'your-turn': 3 };
 
 // ---------- commands ----------
 
@@ -389,11 +394,13 @@ const commands = {
         let hit = null;
         while (Date.now() < deadline && !hit) {
             for (const seat of seats) {
-                const reason = await mustAct(seat);
-                if (reason && reason !== 'not-in-game') { hit = { seat, reason }; break; }
+                const { reason, offerIds } = await mustAct(seat);
+                if (!reason || reason === 'not-in-game') continue;
+                if (!hit || WAIT_PRIORITY[reason] < WAIT_PRIORITY[hit.reason]) hit = { seat, reason, offerIds };
             }
             if (!hit) await new Promise(resolve => setTimeout(resolve, 1000));
         }
+        if (hit && hit.reason === 'trade-offer') hit.seat.notifiedOffers = new Set([...(hit.seat.notifiedOffers || []), ...hit.offerIds]);
         if (!hit) return { text: `wait: nothing to do yet for seat ${seats.map(s => s.index).join(',')} (${autoplay ? autoplay.status.current || '' : ''} is playing). Call wait again.` };
         await settle(hit.seat.page);
         return { text: `wait: seat ${hit.seat.index} ${hit.seat.name}: ${hit.reason}\n${await look(hit.seat)}` };

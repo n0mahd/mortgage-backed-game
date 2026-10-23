@@ -132,7 +132,10 @@ async function signInByEmail(ctx, seat) {
     await page.goto(ctx.webUrl + '/');
     await page.getByRole('link', { name: 'Create New Game' }).first().click();
     await page.waitForURL(/auth\.html/);
-    await page.locator('#email-input').fill(seat.email);
+    // Sign-in opens on username + password; the emailed code is one link away.
+    const emailInput = page.locator('#email-input');
+    if (!(await emailInput.isVisible())) await page.locator('a[data-auth-switch="email"]:visible').first().click();
+    await emailInput.fill(seat.email);
     const since = Date.now();
     await page.locator('#send-code-btn').click();
     const code = await readOtp(ctx, seat, since);

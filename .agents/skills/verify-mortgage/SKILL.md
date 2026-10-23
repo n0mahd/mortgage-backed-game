@@ -65,7 +65,7 @@ Each `play` blocks until done (`--timeout` seconds of polling; keep it under the
 
 ## Pathway coverage and explore mode (`--explore`, free)
 
-Random play reaches common paths constantly and rare ones almost never. An 8-player, 12-round chaos game reached 25 of 41 engine event types, with no bankruptcy, chairman vote, refinance, insolvency or jail card. So every report measures **pathway coverage**: 107 pathways in `lib/pathways.js`, detected from the authoritative `game_events` rows, the `game_actions` request log, refused actions seen in the browser, and harness-observed paths. Card and board data come from the public `backend/domain/gameRules.js`, so the map follows the engine.
+Random play reaches common paths constantly and rare ones almost never. An 8-player, 12-round chaos game reached 25 of 41 engine event types, with no bankruptcy, chairman vote, refinance, insolvency or jail card. So every report measures **pathway coverage**: 140 pathways in `lib/pathways.js`, detected from the authoritative `game_events` rows, the `game_actions` request log, refused actions seen in the browser, and harness-observed paths (including refusals the UI blocks before the server sees them, such as a greyed-out built-group street). Card and board data come from the public `backend/domain/gameRules.js`, so the map follows the engine.
 
 | Group | Covers |
 | --- | --- |
@@ -75,7 +75,8 @@ Random play reaches common paths constantly and rare ones almost never. An 8-pla
 | Rent | plain street, double rent on a full group, houses, hotel, railroad, utility, rent you can't pay |
 | Houses | buy houses, build a hotel, repairs card with buildings |
 | Debt | personal, corporate, 5- and 15-turn terms, part payment, pay off, autopay off, unpaid interest, repaid at maturity, bankrupt at maturity, refinance, loan payments (personal and corporate) |
-| Corporations | IPO, buy shares, majority chairman change, vote proposed/supported/passed, chairman after bankruptcy, insolvency |
+| Corporations | IPO, add property, buy treasury shares, share offers, majority chairman change, vote proposed/supported/passed, chairman after bankruptcy, insolvency |
+| Corporation desk | rent policy switched by the chairman; policy vote proposed, agreed, rejected, passed by everyone; Payout rent passed to shareholders and the shareholder's discount; rent into a Reinvest treasury; dividend; buying and building for the company; trading as the company; property-for-shares trade; property offers made, accepted for shares or cash, countered, declined, withdrawn, expired |
 | Market | propose, accept, decline, withdraw, host cancel, expire, property swap, jail-card trade, direct payment |
 | Bankruptcy | claim payment, claim settled, bankrupt to a player, to the bank, last player standing |
 | Host | pause/resume, end game |
@@ -100,10 +101,17 @@ $S coverage --all-runs     # across every recorded game (ledger: /mnt/ssd/dev-da
 | `near-bankrupt`, `broke-to-bank` | the current player has $40/$30 and lands on hotels or Income Tax; the bot survives the claim or goes bankrupt, whichever is unreached |
 | `insolvent-corporation` | the current player's corporation gets a $400 loan due at the next End Turn and no cash, so it becomes insolvent |
 | `loan-due`, `loan-default` | the current player gets a loan due in full at their next End Turn, with the cash to repay it ($300, autopay off) or without ($2,000 and $50 cash) |
-| `trade-expiry`, `auction-timeout` | offers or auctions time out after 3 s (restored once the pathway happens) |
+| `trade-expiry`, `auction-timeout` | offers or auctions time out after 3 s (restored once the pathway happens); bots leave offers unanswered while the short timeout is in effect |
+| `corporation-with-shareholders` | the current player chairs a company (their own, or a new one) with a $600 treasury and a street, and another player holds 40%: rent policy before the roll, dividends, chairman votes, Trade as |
+| `corporation-locked-policy` | the same with the rent policy locked for 3 turns, so a change needs every shareholder: Ask every shareholder, Agree, Reject |
+| `payout-corporation`, `reinvest-corporation` | another player's company owns a street in Payout (the current player holds 25%) or Reinvest; the current player lands on it |
+| `corporation-buys`, `corporation-group` | the current player's company has $1,000 and they will land on an unowned street (Who's buying?), or it owns the Brown group and $800 (Build houses for) |
+| `offer-to-corporation`, `property-offer-expiry` | another player chairs a company with $800 and the current player owns a street to offer it (the second also makes offers expire after 3 s) |
 | `card:<id>` (32) | that card on top of its deck, and the player lands on that deck |
 
-Bankruptcy stages wait for the last third of the game. Every stage is checked against the engine's own `validateStateInvariants` before it's sent, logged as `STAGED` in `steps.log`, and listed in the report. A finding that follows a stage came from a staged situation, so judge it with that in mind. `$S stage <name>` stages one by hand at the start of a turn.
+Bankruptcy stages wait for the last third of the game. A pathway naming a stage `lib/stages.js` doesn't have fails at load. Every stage is checked against the engine's own `validateStateInvariants` before it's sent, logged as `STAGED` in `steps.log`, and listed in the report. A finding that follows a stage came from a staged situation, so judge it with that in mind. `$S stage <name>` stages one by hand at the start of a turn.
+
+The chairman's desk is played through the corporation sheet (`src/js/game/corporation-desk.js`): the chairman switches the rent policy at the start of a turn before rolling, pays dividends, builds for the company and trades as it; holders propose a policy vote and every bot holder answers Agree or Reject; non-runners offer a property (book value or a set price, for shares or treasury cash) and the bot chairman accepts, counters or declines, the offerer answering a counter; the Buy sheet's **Who's buying?** picks the company. Votes and offers are answered off-turn, like trades.
 
 Explore mode also adds the engine's `validateStateInvariants` to the bot's invariant checks, and adds two resilience paths: a player moves to a new browser with **Play on another device**, and a guest rejoins from a new browser via **Continue as an existing player**.
 
@@ -243,17 +251,19 @@ Everything is in `test-output/verify-mortgage/<run>/` (gitignored; not `test-res
 
 When you report, give the run id, the git rev (`doctor`), the scenarios played (players, rounds, seed), and the high and medium findings with their shots. Say what was not covered (for example, email off, or no human seat). A bot-only run does not prove the UI is pleasant; it proves the flows work and stay in sync.
 
-## Findings so far (2026-10-21, `74cc680`)
+## Findings so far (2026-10-23, app at `f48348e`)
 
-- **High, game rule**: an auction stays open when everyone else passed *before* the only bid. `placeAuctionBid` in `backend/domain/gameRulesInternal/auctions.js` never calls `settleAuctionIfComplete`. No one has a Bid or Pass button, End Turn shows a disabled "Resolve Auction", and even after the 2-minute timeout the only control is the host's **Cancel Auction**, which throws away the winning bid. Reproduced by autoplay in 2-player games. The bot records it and cancels as host to keep going.
-- **High, game rule** (explore, property swap): a street with houses can be traded away, splitting the colour group while the houses stay. The receiver then put it into an IPO with its 4 houses. Classic rules require selling buildings first.
-- **High, money** (Haiku auditor): settling a debt for more than it owes takes the whole payment. `payDebt` subtracts it and deletes the debt at ≤ 0, so the excess vanishes.
-- **Design question, money** (Haiku trader, confirmed in code and `documents/game-rules.md` §10): each End Turn adds the interest to the principal *and* takes it from cash, so a player pays the interest and still owes it. Corporate debt does the same. It's documented, but likely unintended. *Resolved by loan terms: 5/10/15-turn loans at the host's rates, autopay installments, the whole balance due at maturity.*
-- **Medium, rules/UX** (Haiku players): a loan of $5,000 against one $580 property, or with no collateral at all, is accepted (no loan-to-value limit). A sub-cent payment (12.555) shows $12.55 in the log but takes $12.56. A 1-share IPO lets anyone buy the founder's only share at list price and take the company, and the old chairman stays chairman with 0 shares. The landing card says "Owned by [BEN37]" (raw corporation ID). The board shows corporation-owned squares as unowned. The IPO share count defaults to 1.
-- **Medium, UI**: behind the Game Over dialog, the game screen still says "Your Turn!" / "It's your turn!" for the last current player (found by a Haiku player, confirmed in its screenshot).
-- **Medium, UX**: some refusals hide the server's reason. A blank ticker shows "Failed to create IPO" while the server said "Ticker is required", and a bad loan amount shows "Failed to issue debt" while the server said "amount must be positive". The app also logs every refusal with `console.error` (found by chaos).
-- **Low, UX**: Escape and tapping outside never close a dialog. Haiku's newbie review also flags unexplained IPO/NAV/Market wording, loans shown as "Received this turn", and "Debts: $0.00 @ 5%" kept after repayment.
-- **Medium, UX**: a player who signed in by email and joins with a room code (the only join path) is silently made a guest (`/auth/me` → `is_anonymous: 1`). Their email no longer finds the game.
+From explore games with 2, 5 and 8 players × 20 rounds, a 5-player chaos game and a shared Haiku game (5 seats × 12 rounds). Every one was checked in the code or replayed; the harness false alarms these runs exposed are fixed in the harness.
+
+- **Medium, UX/money**: company loans get no End Turn warning. A treasury that can't cover its autopay silently adds unpaid interest, and a maturity it can't repay makes the company insolvent (properties to the Bank, every share wiped). `TurnEndOutlook.forPlayer` (`turn-end-outlook.js`) only reads the player's own loans; only the Debt sheet's loan row warns (Haiku trader).
+- **Medium, log**: a roll of doubles that lands on Go to Jail, or on a card that sends you to Jail, is logged "(doubles - roll again!)" though the turn is over. `rollDice` in `movement.js` writes that line before `processLanding` (Haiku newbie).
+- **Medium, UX**: a fractional share count in a trade (0.5) is silently dropped (`selectedTradeShares` in `market.js` floors it), so the offer becomes a one-sided gift. Gifts are allowed, but the form should refuse a fraction rather than drop it (Haiku breaker).
+- **Low, UX**: a trade offer whose property has since moved (into a company, say) stays pending until Accept is refused with the generic "Can only transfer owned property"; offers are only cancelled automatically on bankruptcy.
+- **Low, UI**: after paying a loan in the Debt sheet, switching it to "Take a new loan" shows the old borrowing limit until the sheet is reopened (`debt.js`: payment refreshes only the loan list).
+- **Low, wording** (Haiku): company creditors show as "[BENC]" in Recent events; a bid over your cash says only "Insufficient funds"; empty-amount refusals are worded two ways ("Please enter a loan amount", "The amount must be more than $0."); Market's "Payment completed" banner outlives the payment; Create IPO with no property shows an empty list with no reason; the turn panel's Debts omit company loans; Market's two "Player" selects don't say which side gives.
+- **Not bugs**: a loan payment above the balance pays off exactly the balance (by design, the rest stays in cash); amounts are rounded to cents everywhere (a bid of 1.005 is $1.00).
+
+Fixed since the 2026-10-21 list (checked in the code): the auction left open after the only bid, trading streets from a built group, overpaid debts vanishing, loans with no limit (now 90% of book value), sub-cent payments, 1-share IPOs (now 12,000 shares) and the 0-share chairman, raw corporation IDs on the landing card and board, "Your Turn!" behind Game Over, refusals hiding the server's reason, Escape and backdrop taps not closing dialogs, and email players becoming guests when joining by room code.
 
 ## Helpers
 
@@ -262,16 +272,16 @@ When you report, give the run id, the git rev (`doctor`), the scenarios played (
 | `scripts/verify-mortgage` | Entry point (bash → `cli.js`). |
 | `scripts/cli.js` | `up`/`down`/`list`/`doctor`/`logs`/`env`/`play`; forwards the rest to the daemon. |
 | `scripts/daemon.js` | One per run: backend child, static+API proxy (`scripts/dev-server.js`), Chromium, control API on `127.0.0.1:<ctl>`, findings and report. |
-| `scripts/lib/table.js` | Seats, page watchers, sign-in, room creation, invites, joining. |
-| `scripts/lib/bot.js` | Autoplay policy, sync/invariant/stuck checks, resilience tests. |
+| `scripts/lib/table.js` | Seats, page watchers, sign-in (switching to the emailed-code view), room creation, invites, joining. |
+| `scripts/lib/bot.js` | Autoplay policy, sync/invariant/stuck checks, resilience tests. `tradeParties` sets both Market sides and resets Trading as. |
 | `scripts/lib/view.js` | The `look` snapshot and ref/label resolution. |
 | `scripts/lib/chaos.js` | Chaos moves and their checks. |
 | `scripts/lib/pathways.js` | The pathway map and coverage detection. Add a pathway here when the engine gains an action, event or card effect. |
-| `scripts/lib/stages.js` | Staged setups (state repair + fixed dice). |
-| `scripts/lib/explore.js` | Coverage-guided decisions, staging policy, and the exploration-only UI actions. |
+| `scripts/lib/stages.js` | Staged setups (state repair + fixed dice), including companies with shareholders, policies, treasuries and properties for the chairman's desk. |
+| `scripts/lib/explore.js` | Coverage-guided decisions, staging policy, the exploration-only UI actions (including the chairman's desk, and answering policy votes and property offers off-turn), and refusal probes. |
 | `scripts/lib/players.js` | Haiku player personas, briefs, agent-cap check, launch, status. |
 | `scripts/lib/agentmail.js` | Reads login codes and invites from the AgentMail inboxes. |
 | `scripts/lib/runs.js` | Run dirs, ports, evidence paths. |
 | `scripts/lib/journeys.js` | App journeys: accounts, rooms, agents (MCP), hosting, resilience, turn alerts; their shared flows and the runner. |
 
-The bot relies on the game's stable hooks: `data-game-action="…"` buttons inside `#game.section.active`, modal ids (`#buyPropertyModal`, `#houseModal`, `#debtModal`, `#ipoModal`, `#corporationModal`, `#addToCorpModal` (`#addToCorpAssets`, `#addToCorpShares`, `#add-to-corp-btn`), `#winnerModal`), the Debt page (`#debtAction` values `loans`/`issue`/`refinance`, `#loanLimit`, `#refinanceLimit`, `#loanTerms-<5|10|15>`, `#loanAutopay`, `#loanList .loan-row` with `[data-loan-autopay]`, `[data-loan-pay]`, `[data-loan-payoff]`), `.modal.active`, Market ids (`#player1Select`, `#player2Select`, `#player1Cash`, `#player2-asset-<id>`, `#executeTradeBtn`, `#paymentToPlayer`, `#paymentAmount`, `#makePaymentBtn`, `#tradeOffersList`), `#auctionBidAmount`, the `currentGame`/`currentUser` globals, and `#gameContent .game-header h2` containing the current player's name. If a UI change renames any of these, update `lib/bot.js` in the same change. Backend code is loaded when a run starts, so restart the run (`down`, `up`) after backend or harness edits. Frontend files are served live.
+The bot relies on the game's stable hooks: `data-game-action="…"` buttons inside `#game.section.active`, modal ids (`#buyPropertyModal`, `#houseModal`, `#debtModal`, `#ipoModal`, `#corporationModal`, `#addToCorpModal` (`#addToCorpAssets`, `#addToCorpShares`, `#add-to-corp-btn`), `#winnerModal`), the Debt page (`#debtAction` values `loans`/`issue`/`refinance`, `#loanLimit`, `#refinanceLimit`, `#loanTerms-<5|10|15>`, `#loanAutopay`, `#loanList .loan-row` with `[data-loan-autopay]`, `[data-loan-pay]`, `[data-loan-payoff]`), `.modal.active`, Market ids (`#player1Select`, `#player2Select`, `#player1As`/`#player2As` (Trading as), `#player1Destination` radios, `#player1Cash`, `#player2-asset-<id>`, `.trade-share-input[data-corp-id]`, `#executeTradeBtn`, `#paymentToPlayer`, `#paymentAmount`, `#makePaymentBtn`, `#tradeOffersList`), the chairman's desk in `#corporationModal` (`data-game-action` `set-rent-policy`, `propose-rent-policy`, `vote-rent-policy` with `data-approve`, `pay-dividend` with `#dividend-<corpId>`, `build-for-corporation`, `trade-as-corporation`, `open-property-offer`, `offer-property-for-shares`, `respond-property-offer` with `data-response` and `#counter-<offerId>`, all with `data-corp-id` or `data-offer-id`), `#propertyOfferModal` (`#propertyOfferAssets`, radios `propertyOfferBasis` and `propertyOfferPayWith`, `#propertyOfferPriceInput`, `#send-property-offer-btn`), the Buy sheet's `#buyForChoices input[name="buyFor"]`, `#auctionBidAmount`, the `currentGame`/`currentUser` globals, and `#gameContent .game-header h2` containing the current player's name. If a UI change renames any of these, update `lib/bot.js` in the same change. Backend code is loaded when a run starts, so restart the run (`down`, `up`) after backend or harness edits. Frontend files are served live.

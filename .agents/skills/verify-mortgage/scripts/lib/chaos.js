@@ -163,7 +163,7 @@ class Chaos {
     async junkInput(seat, before) {
         const bot = this.bot;
         const me = before.state.players.find(p => p.userId === seat.userId);
-        const junk = bot.pick(JUNK);
+        let junk = bot.pick(JUNK);
         const forms = [];
         if (before.state.auction?.status === 'open') forms.push('bid');
         if (me.diceRolled || !me.inJail) forms.push('debt', 'payment', 'trade');
@@ -199,7 +199,11 @@ class Chaos {
             await p.locator('#ipoModal').waitFor({ state: 'visible' });
             // Every company has 1,000 shares, so the ticker is the only free-text field.
             field = '#ipoTicker';
-            await p.locator(field).fill(bot.pick(['', 'A', 'TOOLONGTICKER', 'x-1', '😀', junk.value]));
+            const ticker = bot.pick(['', 'A', 'TOOLONGTICKER', 'x-1', '😀', junk.value]);
+            await p.locator(field).fill(ticker);
+            // The engine keeps a ticker's letters and digits (up to 8), so "Infinity" is a fine ticker;
+            // only a ticker with none left is junk.
+            junk = { value: ticker, invalid: ticker.replace(/[^A-Za-z0-9]/g, '') === '' };
             await p.locator('#ipoAssets input[type="checkbox"]').first().check().catch(() => {});
             await p.locator('#create-ipo-btn').click().catch(() => {});
         } else if (form === 'payment') {
