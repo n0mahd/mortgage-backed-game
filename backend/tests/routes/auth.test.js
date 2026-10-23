@@ -323,7 +323,7 @@ describe('GET /api/auth/me', () => {
 
         expect(res.status).toBe(200);
         expect(res.body.email).toBeNull();
-        expect(res.body.is_anonymous).toBe(1);
+        expect(res.body.is_anonymous).toBe(true);
     });
 });
 

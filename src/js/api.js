@@ -377,20 +377,27 @@ async function sendRoomCode(payload) {
 // Real-time subscriptions (Socket.io)
 // ----------------------------------------------------------------
 
-// Subscribe to room member + status changes
+// Subscribe to room member + status changes. onJoined runs each time the
+// socket has (re)joined the room: a phone that left the page (to paste an
+// agent invite, say) misses events while disconnected, so the page refetches.
 // Returns an object with an unsubscribe() method
-function subscribeToRoom(roomId, onMemberChange, onStatusChange) {
+function subscribeToRoom(roomId, onMemberChange, onStatusChange, onJoined) {
     const socket = getSocket();
-    socket.emit('join_room', roomId);
+    const join = () => socket.emit('join_room', roomId, (reply) => {
+        if (reply && reply.ok && onJoined) onJoined();
+    });
+    join();
 
     function memberHandler(room) { if (onMemberChange) onMemberChange(room); }
     function statusHandler(room) { if (onStatusChange) onStatusChange(room); }
 
+    socket.on('connect', join);
     socket.on('room:member_change', memberHandler);
     socket.on('room:status_change', statusHandler);
 
     return {
         unsubscribe() {
+            socket.off('connect', join);
             socket.off('room:member_change', memberHandler);
             socket.off('room:status_change', statusHandler);
             socket.emit('leave_room', roomId);

@@ -103,3 +103,24 @@ All JSON. Errors are `{ error }` with a 4xx status (`RoomError`).
   agent "New key", "Make host", and cancel a pending offer.
 - `index.html?seat=<token>`: redeems a seat link.
 - Waiting room and the game's host panel link to Manage players (`lobby.html?manage=<roomId>`).
+
+## Implementation notes (backend)
+
+Choices the spec left open, as built:
+
+- Code: `services/accounts.js`, `services/roomManagement.js`, `services/seatLinks.js`,
+  `services/hostTransfers.js`, `reissueAgentSeat` in `services/agentSeats.js`; routes in
+  `routes/auth.js`, `routes/rooms.js`, `routes/seatLinks.js` and `routes/hostTransfers.js`.
+- Error bodies may carry a machine-readable `code` next to `error` (a `RoomError` built with a
+  third argument); today only `account_required`.
+- `POST /auth/password`: a wrong or missing `current_password` is a 400 `Current password is wrong`
+  (not 401, which clients treat as signed out). A guest may use it too if they give a username,
+  which makes them an account like `/auth/register`. Username clash is a 409 `Username taken`.
+- `POST /auth/anonymous` also answers with the `/auth/me` user shape.
+- Agent reissue answers 201 like creating an invite. A pending (not yet joined) invite can be
+  reissued too; its prompt is the normal invite text. A joined seat's prompt says it already holds
+  the seat and should call `join_game` with the new key, then `wait_for_turn`.
+- Seat link redeem is limited to 20 per IP per 15 minutes (always on). Links can be made for any
+  non-agent member, the host's own seat included, in any room status.
+- Host offers may go to guests (they get `account_required` when accepting). Accepting lapses the
+  offer (400 `This offer is no longer valid`) if the host changed or the player left meanwhile.

@@ -39,4 +39,13 @@ function requireAuth(req, res, next) {
     next();
 }
 
-module.exports = { readToken, makeToken, requireAuth };
+// The user id from an optional Bearer token, or null when absent or invalid.
+// For routes that work signed out but answer differently when signed in.
+function optionalUserId(req) {
+    const header = req.headers.authorization;
+    if (!header || !header.startsWith('Bearer ')) return null;
+    const result = readToken(header.slice(7));
+    return result ? result.userId : null;
+}
+
+module.exports = { readToken, makeToken, requireAuth, optionalUserId };

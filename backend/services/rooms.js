@@ -10,10 +10,13 @@ const db = require('../db');
 const { normalizeInviteCode } = require('../helpers');
 const { emitToRoom, notifyRoom } = require('./roomEvents');
 
+// code, when set, is a machine-readable reason sent along with the message
+// (for example 'account_required').
 class RoomError extends Error {
-    constructor(status, message) {
+    constructor(status, message, code = null) {
         super(message);
         this.status = status;
+        if (code) this.errorCode = code;
     }
 }
 
@@ -73,6 +76,14 @@ function getRoomWithMembers(roomId) {
     const room = getRoom(roomId);
     if (!room) return null;
     return { ...room, room_members: getRoomMembers(room.id) };
+}
+
+// The room with its members, if userId is its host; 404 or 403 otherwise.
+function requireRoomHost(roomId, userId) {
+    const room = getRoomWithMembers(roomId);
+    if (!room) throw new RoomError(404, 'Room not found');
+    if (room.host_id !== userId) throw new RoomError(403, 'Only the host can manage players');
+    return room;
 }
 
 function getRoomByInviteCode(code) {
@@ -167,6 +178,7 @@ module.exports = {
     canViewRoom,
     getRoom,
     getRoomWithMembers,
+    requireRoomHost,
     getRoomByInviteCode,
     createAnonymousUser,
     createRoom,
