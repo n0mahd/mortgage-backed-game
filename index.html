@@ -15,7 +15,7 @@
     <title>Mortgage Backed Monopoly — Play Monopoly like Wall Street</title>
     <link rel="preload" href="src/assets/fonts/besley-latin.woff2" as="font" type="font/woff2" crossorigin>
     <link rel="stylesheet" href="src/css/tokens.css?v=13">
-    <link rel="stylesheet" href="src/css/style.css?v=33">
+    <link rel="stylesheet" href="src/css/style.css?v=40">
 </head>
 <body class="landing-page">
 
@@ -29,8 +29,9 @@
                 <p id="signed-out-notice" class="signed-out-notice" hidden>
                     This browser isn't signed in to that game yet. On the device you've been playing on,
                     tap "Play on another device" and enter its code under "Other ways back in". You can also
-                    enter your room code, or <a href="auth.html">sign in with email</a> if you used one.
+                    enter your room code, or <a href="auth.html">sign in</a> if you have an account.
                 </p>
+                <p id="seat-link-status" class="hint" role="status" hidden></p>
                 <label class="resume-label" for="resume-code">Have a room code?</label>
                 <div class="input-row">
                     <input type="text" id="resume-code" class="code-input"
@@ -71,7 +72,7 @@
             </div>
 
             <div class="hero-cta">
-                <a href="auth.html" class="btn btn-gold btn-large">Create New Game</a>
+                <a href="auth.html?mode=register" class="btn btn-gold btn-large">Create New Game</a>
                 <a href="hotseat.html" class="btn btn-on-dark btn-large">Play on one phone</a>
             </div>
         </div>
@@ -114,12 +115,12 @@
         <section class="landing-section" id="how-it-works">
             <h2>How to start</h2>
             <ol class="steps">
-                <li><strong>Enter your email.</strong> We send a one-time code. No password.</li>
+                <li><strong>Create an account.</strong> A username and password, or just your email.</li>
                 <li><strong>Name your room.</strong> Pick a player limit and your in-game name.</li>
                 <li><strong>Share the code.</strong> Friends join from any phone, no account needed.</li>
                 <li><strong>Watch it collapse.</strong> Or don't. Either way it beats 2008.</li>
             </ol>
-            <a href="auth.html" class="btn btn-primary btn-large btn-block">Create New Game</a>
+            <a href="auth.html?mode=register" class="btn btn-primary btn-large btn-block">Create New Game</a>
         </section>
     </main>
 
@@ -129,8 +130,9 @@
         <p>Built with <a href="https://claude.ai/claude-code" target="_blank" rel="noopener">Claude Code</a>.</p>
     </footer>
 
-    <script src="src/js/api.js?v=15"></script>
+    <script src="src/js/api.js?v=20"></script>
     <script src="src/js/room-resume.js?v=1"></script>
     <script src="src/js/index.js?v=1"></script>
+    <script src="src/js/seat-link.js?v=1"></script>
 </body>
 </html>
