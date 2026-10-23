@@ -314,16 +314,6 @@ function transferTradeProperties(state, from, to, propertyIds, corpId) {
     log(state, `${from.name} put ${names} into ${corp.ticker}`);
 }
 
-function trade(state, actor, payload, events) {
-    const terms = getTradeTerms(state, payload);
-    const { player1, player2, player1Cash, player2Cash } = terms;
-    if (![player1.userId, player2.userId].includes(actor.userId)) throw new GameRuleError(403, 'Trade must involve acting player');
-    validateTradeTerms(state, terms);
-    applyTradeTransfer(state, terms, events);
-    events.push(makeEvent(actor, 'transaction', { player1: player1.name, player2: player2.name, player1Cash, player2Cash }));
-    log(state, `Transaction: ${player1.name} <-> ${player2.name}`);
-}
-
 function proposeTrade(state, actor, payload, events) {
     const terms = getTradeTerms(state, payload);
     const { player1, player2, player1Cash, player2Cash, player1AssetIds, player2AssetIds, player1Shares, player2Shares } = terms;
@@ -489,7 +479,6 @@ function manualPayment(state, actor, payload, events) {
 
 module.exports = {
     transferPropertiesToCorporation,
-    trade,
     proposeTrade,
     acceptTrade,
     cancelTrade,

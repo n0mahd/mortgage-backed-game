@@ -781,6 +781,13 @@ function bindStaticGameControls() {
 
     document.addEventListener('change', (event) => {
         if (event.target.closest('#player1Assets, #player2Assets, #player1Destination, #player2Destination')) {
+            // Shares trade whole: show the rounding instead of quietly dropping the part.
+            const shareInput = event.target.closest('.trade-share-input');
+            if (shareInput && shareInput.value !== '' && !Number.isInteger(Number(shareInput.value))) {
+                shareInput.value = String(Math.max(0, Math.floor(Number(shareInput.value) || 0)));
+                updateTradeSharePercent(shareInput);
+                showToast('Shares trade in whole numbers, so that was rounded down.');
+            }
             updateMarketActionState();
         }
     });

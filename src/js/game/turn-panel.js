@@ -83,6 +83,30 @@ function renderPauseBanner(gameState) {
 
 function renderCashWarning(currentPlayer, isMyTurn) {
     if (!currentPlayer || currentPlayer.bankrupt) return '';
+    return renderPersonalCashWarning(currentPlayer, isMyTurn) + (isMyTurn ? renderCompanyLoanWarnings(currentPlayer) : '');
+}
+
+// Corporations whose loans End Turn services for this chairman.
+function renderCompanyLoanWarnings(currentPlayer) {
+    return TurnEndOutlook.forCompanies(currentGame.game_state, currentPlayer).map(company => {
+        let message;
+        let tone = 'danger';
+        if (company.goesInsolvent) {
+            message = `${company.ticker} is ${formatMoney(-company.cashAfter)} short of the ${formatMoney(company.maturing)} of loans that come due when you end your turn. If it can't repay them it becomes insolvent and is closed.`;
+        } else if (company.shortAutopay) {
+            tone = '';
+            message = `${company.ticker} doesn't have the cash for its full loan payment. End Turn adds the rest to its loan as unpaid interest.`;
+        } else if (company.maturing > 0) {
+            tone = '';
+            message = `End Turn repays ${formatMoney(company.maturing)} of ${company.ticker}'s loans that come due, leaving it ${formatMoney(company.cashAfter)}.`;
+        } else {
+            return '';
+        }
+        return `<div class="turn-warning${tone ? ` ${tone}` : ''}">${escapeHtml(message)}</div>`;
+    }).join('');
+}
+
+function renderPersonalCashWarning(currentPlayer, isMyTurn) {
     const outlook = TurnEndOutlook.forPlayer(currentGame.game_state, currentPlayer);
     const { claim, unpaid, loanPayments, maturing, cash, cashAfter } = outlook;
     const shortfall = formatMoney(outlook.shortfall);

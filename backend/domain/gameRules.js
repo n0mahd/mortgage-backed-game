@@ -32,7 +32,7 @@ const {
     validateStateInvariants,
     validateRepairedState,
 } = require('./gameRulesInternal/state');
-const { applyAction } = require('./gameRulesInternal/applyAction');
+const { applyAction, ACTION_TYPES } = require('./gameRulesInternal/applyAction');
 
 module.exports = {
     MONOPOLY_PROPERTIES,
@@ -43,6 +43,7 @@ module.exports = {
     createInitialGame,
     normalizeState,
     applyAction,
+    ACTION_TYPES,
     calculateRent,
     calculateNetWorth,
     calculateCorporationShareValue,
