@@ -120,7 +120,7 @@ class Explore {
         if (!done.has('refinance') && (me.debts || []).length && this.wants('debt.refinance')) out.push(['refinance', 0.8]);
         if (!done.has('corp-debt') && myCorps.length && this.wants('debt.issue-corporate')) out.push(['corp-debt', 0.8]);
         if (!done.has('majority') && held.some(c => this.holds(c, me) * 2 > c.totalShares) && this.wants('corp.chairman-majority')) out.push(['majority', 0.8]);
-        if (!done.has('vote') && held.some(c => !(c.chairmanVotes || []).some(v => v.status === 'open')) && this.wantsAny('corp.vote-propose', 'corp.vote-passes')) out.push(['vote', 0.6]);
+        if (!done.has('vote') && held.some(c => !(c.chairmanVotes || []).some(v => v.status === 'open')) && this.wantsAny('corp.vote-propose', 'corp.vote-support', 'corp.vote-passes')) out.push(['vote', 0.6]);
         const forSale = (state.corporations || []).filter(c => !c.insolvent && (c.shareholders || []).some(h => h.userId !== me.userId && Number(h.shares) > 0));
         if (!done.has('stake') && forSale.length && Number(me.cash) > 300 && this.wantsAny('corp.vote-propose', 'corp.vote-passes', 'corp.chairman-majority', 'corp.majority-gained', 'corp.share-offer')) out.push(['stake', 0.7]);
         const mineOpen = (state.marketOffers || []).some(o => o.status === 'pending' && o.proposedById === me.userId);
@@ -512,7 +512,9 @@ class Explore {
 
     async proposeVote(seat, me, state) {
         const bot = this.bot;
-        const corp = state.corporations.find(c => !c.insolvent && this.holds(c, me) > 0 && !(c.chairmanVotes || []).some(v => v.status === 'open'));
+        // A majority holder's own vote passes at once; a minority holder's stays open for support.
+        const open = state.corporations.filter(c => !c.insolvent && this.holds(c, me) > 0 && !(c.chairmanVotes || []).some(v => v.status === 'open'));
+        const corp = open.find(c => this.holds(c, me) * 2 <= Number(c.totalShares)) || open[0];
         if (!corp) return;
         const modal = await this.openCorporations(seat);
         const select = seat.page.locator(`#chairmanVoteCandidate-${corp.id}`);
@@ -532,7 +534,7 @@ class Explore {
             for (const vote of (corp.chairmanVotes || []).filter(v => v.status === 'open')) {
                 const supporters = new Set((vote.supporters || []).map(s => s.userId));
                 const holder = (corp.shareholders || []).find(h => Number(h.shares) > 0 && !supporters.has(h.userId) && bot.seatById(h.userId) && !bot.seatById(h.userId).human);
-                if (!holder || !bot.chance(0.7)) continue;
+                if (!holder || !bot.chance(this.wants('corp.vote-support') ? 1 : 0.7)) continue;
                 const seat = bot.seatById(holder.userId);
                 await bot.gameTab(seat);
                 const modal = await this.openCorporations(seat);
