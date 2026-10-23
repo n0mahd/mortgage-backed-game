@@ -26,7 +26,7 @@
                 <p class="rejoin-prompt-hint"></p>
                 <p class="rejoin-prompt-warning" role="alert" hidden></p>
                 <p class="error-message rejoin-prompt-error"></p>
-                <div class="modal-actions">
+                <div class="sheet-actions modal-actions">
                     <button type="button" class="btn btn-secondary" data-decision="deny">Decline</button>
                     <button type="button" class="btn btn-primary" data-decision="approve">Approve</button>
                 </div>
