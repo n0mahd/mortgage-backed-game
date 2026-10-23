@@ -7,7 +7,7 @@ This is a no-build static frontend plus an Express, Socket.IO, and SQLite backen
 Start here:
 
 - Product/player rules: `README.md` and `documents/game-rules.md`.
-- Production and operational context: `SETUP.md`, `documents/production-roadmap.md`, and this file.
+- Production and operational context: `SETUP.md`, `documents/roadmap.md` (open decisions and remaining work), and this file.
 - Personal data, logs, client storage, third parties and open privacy/security findings: `documents/privacy.md`.
 - Backend entry point: `backend/server.js`.
 - Backend routes: `backend/routes/`.
@@ -15,7 +15,7 @@ Start here:
 - Loan terms, host rates and the per-turn payment schedule: `backend/domain/gameRulesInternal/loans.js` (pure math; `endTurn` in `engine.js` applies it). The Debt page quotes and words loans with `src/js/game/loans.js`, and `src/js/game/turn-end-outlook.js` mirrors End Turn's loan payments; keep the three in step.
 - Game persistence shared by HTTP routes and MCP (transaction, `state_version`, idempotency row, events, audit, Socket.IO broadcast): `backend/services/gameActions.js`. Room create/join and anonymous users: `backend/services/rooms.js`. Host-issued agent invites (one hashed key per seat, reservation, host-chosen names and renaming before the start, revocation, the invite text): `backend/services/agentSeats.js`. Who may see a room and its game (members, or a host watching without a seat) is `canViewRoom` in `services/rooms.js`; use it for read access, never a bare `room_members` lookup. Player names are unique per room (`uniquePlayerName` in `services/rooms.js`) and are copied into the game state at the start, so they can't change mid-game. In-process room change signal: `backend/services/roomEvents.js`.
 - MCP server for AI-agent players (`/api/mcp`, tools, agent state summary, rules text): `backend/mcp/`. Agents authenticate only with their seat's agent key and can act only as that seat; keep it that way (no room creation, room-code joins or host actions over MCP). Waiting-room invite UI: `src/js/agentInvites.js`. Player-facing action catalog and dry-run legal-action list: `backend/domain/actionCatalog.js`.
-- Frontend API and Socket.IO helpers: `src/js/api.js`.
+- Frontend API and Socket.IO helpers: `src/js/api.js` (`apiFetch` attaches the JWT kept in `localStorage` `auth_token`). Pages load the Socket.IO client from the backend at `/socket.io/socket.io.js`, not a CDN.
 - Game screen entry point: `src/js/game.js`, with focused helpers under `src/js/game/`. Running a corporation from the Corporations sheet (rent policy, dividends, property offers, build/trade as the company): `src/js/game/corporation-desk.js`; share-deal previews: `src/js/game/share-deals.js`.
 - Realtime sync: `subscribeToGame` in `src/js/api.js` emits on every room (re)join; `resyncGame` in `src/js/game.js` fetches missed updates on rejoin, `visibilitychange`, `online`, and a fallback poll. Game actions keep one `actionId` across network retries, relying on server idempotency in `game_actions`.
 - Turn alerts (Web Push): `backend/services/push.js` (subscriptions, VAPID sending, push-service host allowlist), `backend/services/turnAlerts.js` (who to alert when the turn changes, called from `services/gameActions.js`), `backend/services/presence.js` (players with the game on screen get no push), `backend/routes/push.js`. Client: `src/js/turn-notifications.js`, `/sw.js`, `/manifest.webmanifest`, and `home-screen.html` + `src/js/home-screen.js` for the iPhone Add to Home Screen handoff. Production needs `VAPID_PUBLIC_KEY`/`VAPID_PRIVATE_KEY` in `backend/.env`, and nginx must serve `/sw.js` and `/manifest.webmanifest` from the root.
@@ -90,10 +90,10 @@ When testing from the user's phone while they are on the go:
 
 Dev server commands:
 
-- Inspect `package.json` before choosing commands. The root package currently only defines Playwright test scripts; the backend package in `backend/package.json` defines `npm run start`.
+- Inspect `package.json` before choosing commands. The root package defines the static/architecture checks, the Playwright test scripts and `npm run dev:web`; the backend package in `backend/package.json` defines `npm run start`.
 - Production is on another machine, but still keep dev off ports `80` and `3010` so the Pi and the M60e layouts never get confused.
 - If backend testing is needed, run it on a separate dev-only port, for example: `PORT=3111 npm --prefix backend run start`.
-- Serve the web UI on the dedicated phone-facing dev port `3011`. If no project script has been added for static serving, use a simple dev-only static server bound to `0.0.0.0` and keep backend/API proxying pointed at the dev backend port, not `3010`.
+- Serve the web UI on the dedicated phone-facing dev port `3011` with `PORT=3011 DEV_BACKEND_ORIGIN=http://127.0.0.1:3111 npm run dev:web` (`scripts/dev-static-server.js`, built on `scripts/dev-server.js`; binds `0.0.0.0`). Keep backend/API proxying pointed at the dev backend port, not `3010`.
 - Keep dev game state and test data out of production paths; use a dev-only location such as `/mnt/ssd/dev-data/mortgage-backed`.
 
 When finishing any web change, tell the user:

@@ -32,57 +32,13 @@ The old purple/blue gradient read as "generic fintech SaaS." This palette reads 
 
 ---
 
-## Color System
+## Color
 
-### Design Principle
-Use greens with hierarchy: dark greens carry authority, mid greens carry interaction, light greens carry support. Gold appears sparingly for premium and warning moments. Red appears only for genuine danger states (bankruptcy, debt due). Never use the old purple tones.
+Green is money: forest green carries authority, emerald marks the next move, mint marks alternatives. Gold
+appears sparingly for costs and premium moments. Red appears only for money at risk (bankruptcy, rent due).
+Never use the old purple tones.
 
-### Primary Greens
-
-| Token | Hex | Usage |
-|---|---|---|
-| `--color-forest` | `#1B4332` | Deep authority green — headings, nav dominant, gradient end |
-| `--color-emerald` | `#2D6A4F` | Rich interactive green — primary buttons, active states |
-| `--color-jade` | `#40916C` | Mid-tone interactive — secondary buttons, borders, focus rings |
-| `--color-sage` | `#52B788` | Lighter support — hover tints, secondary elements |
-| `--color-mint` | `#74C69D` | Accent highlights |
-| `--color-pale` | `#B7E4C7` | Background tints, badge fills |
-| `--color-ghost` | `#D8F3DC` | Very light section backgrounds |
-| `--color-surface` | `#F0FBF4` | Page/card surface (replaces off-white) |
-
-### Gold Accents (Wall Street money)
-
-| Token | Hex | Usage |
-|---|---|---|
-| `--color-gold-dark` | `#92680A` | Premium text, icons, gradient start |
-| `--color-gold` | `#D4A017` | Warning states, "Chance" squares, highlights |
-| `--color-gold-pale` | `#FFF8DC` | Gold-tinted card backgrounds |
-
-### Neutrals
-
-| Token | Hex | Usage |
-|---|---|---|
-| `--color-ink` | `#0D1F2D` | Primary text (near-black with green undertone) |
-| `--color-slate` | `#374151` | Secondary text |
-| `--color-mist` | `#6B7280` | Tertiary / disabled text |
-| `--color-border` | `#D1FAE5` | Default borders (green-tinted) |
-| `--color-divider` | `#E5E7EB` | Dividers |
-| `--color-white` | `#FFFFFF` | Pure white |
-
-### Semantic Colors
-
-| Purpose | Color |
-|---|---|
-| Success | `--color-emerald` (`#2D6A4F`) |
-| Danger | `#DC2626` / `#B91C1C` (bankruptcy, rent due) |
-| Warning | `--color-gold` (`#D4A017`) |
-| Info | `#0EA5E9` (minimal — only for info badges) |
-
-### Surfaces
-
-Gradients are retired except the forest note used by the turn ticket, invite code, hotseat hand-off,
-and landing hero: `linear-gradient(160deg, #1B4332, #12301F)` under the `--guilloche` texture. The UI
-tokens (paper, note, ink, forest, emerald, gold, danger) are listed in `documents/design-system.md`.
+The colors themselves are tokens in `src/css/tokens.css`, described in `documents/design-system.md`.
 
 ---
 

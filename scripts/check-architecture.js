@@ -7,14 +7,8 @@ const path = require('path');
 const ROOT = path.resolve(__dirname, '..');
 const PRIVATE_GAME_RULES_DIR = path.join(ROOT, 'backend/domain/gameRulesInternal');
 const PUBLIC_GAME_RULES_ENTRY = path.join(ROOT, 'backend/domain/gameRules.js');
-const SKIPPED_DIRS = new Set([
-    '.git',
-    'node_modules',
-    'backend/node_modules',
-    'cli/node_modules',
-    'test-results',
-    'worktrees',
-]);
+// Any directory named node_modules is skipped too (see shouldSkipDir).
+const SKIPPED_DIRS = new Set(['.git', 'test-results', 'worktrees']);
 
 const failures = [];
 const files = collectFiles(ROOT);

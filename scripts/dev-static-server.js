@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-const { createStaticProxyServer } = require('./devServer');
+const { createStaticProxyServer } = require('./dev-server');
 
 const ROOT = process.cwd();
 const PORT = Number(process.env.PORT || 3011);

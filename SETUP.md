@@ -18,7 +18,7 @@ npm --prefix backend run start
 Serve the static frontend on the phone-facing dev port with dev API and Socket.IO proxying to `3111`:
 
 ```bash
-PORT=3011 DEV_BACKEND_ORIGIN=http://127.0.0.1:3111 node scripts/dev-static-server.js
+PORT=3011 DEV_BACKEND_ORIGIN=http://127.0.0.1:3111 npm run dev:web
 ```
 
 Phone test URLs:

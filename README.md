@@ -23,7 +23,7 @@ Mortgage Backed Monopoly is a browser-based multiplayer parody of Monopoly with 
 
 For hosting and database setup, see `SETUP.md`.
 
-For the production-readiness plan, see `documents/production-roadmap.md`.
+For open product decisions and remaining work, see `documents/roadmap.md`.
 
 ---
 
@@ -175,7 +175,7 @@ Click **End Turn** after rolling and resolving your square. The UI disables End 
 **Host-triggered end:** The host can click **End Game** at any time. The app ranks all players by net worth:
 
 ```
-Net Worth = Cash + Property Values + (Shares Owned × Share Price) − Outstanding Debt
+Net Worth = Cash + Property Values + (Shares Owned × Share Value at NAV) − Outstanding Debt
 ```
 
 Highest net worth wins.
