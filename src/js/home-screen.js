@@ -11,13 +11,6 @@
     const code = new URLSearchParams(window.location.search).get('code') || '';
     const standalone = window.matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
 
-    async function openActiveGame() {
-        const rooms = await getUserRooms();
-        const activeRoom = rooms.find(room => room.status === 'in_progress') || rooms.find(room => room.status === 'waiting');
-        if (activeRoom) navigateToRoom(activeRoom);
-        else window.location.href = 'lobby.html';
-    }
-
     function showSignInAgain(message) {
         document.getElementById('home-screen-launch-title').textContent = 'Sign in again';
         document.getElementById('home-screen-launch-text').textContent = message;

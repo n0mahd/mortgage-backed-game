@@ -1,8 +1,9 @@
 // Waiting room: the host's AI agent invites. Each invite seats one agent; its
 // key appears once, in the modal shown right after creating it, and is never
-// stored in the page or fetched again.
+// stored in the page or fetched again. Classic browser script, no build.
+(function (global) {
+    'use strict';
 
-const AgentInvites = (() => {
     let roomId = null;
     let seats = [];
 
@@ -122,26 +123,21 @@ const AgentInvites = (() => {
         document.getElementById('agent-invite-prompt').value = '';
     }
 
-    function copyPrompt() {
+    async function copyPrompt() {
         const textarea = document.getElementById('agent-invite-prompt');
         const button = document.getElementById('agent-invite-copy-btn');
-        const done = () => { button.textContent = 'Copied'; };
-        if (navigator.clipboard && navigator.clipboard.writeText) {
-            navigator.clipboard.writeText(textarea.value).then(done).catch(() => selectForManualCopy(textarea));
-        } else {
-            selectForManualCopy(textarea);
+        if (await copyText(textarea.value)) {
+            button.textContent = 'Copied';
+            return;
         }
-    }
-
-    function selectForManualCopy(textarea) {
         textarea.focus();
         textarea.select();
-        document.getElementById('agent-invite-copy-btn').textContent = 'Selected: copy it';
+        button.textContent = 'Selected: copy it';
     }
 
     function setStatus(message) {
         document.getElementById('agent-invite-status').textContent = message;
     }
 
-    return { mount, refresh };
-})();
+    global.AgentInvites = { mount, refresh };
+})(window);

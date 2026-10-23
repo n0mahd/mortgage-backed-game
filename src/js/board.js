@@ -72,8 +72,6 @@ const HOUSE_COSTS = {
     'Red': 150, 'Yellow': 150, 'Green': 200, 'Dark Blue': 200
 };
 
-const DIE_FACES = ['', '⚀', '⚁', '⚂', '⚃', '⚄', '⚅'];
-
 function getGridCoords(position) {
     if (position <= 10) {
         return { row: 11, col: position + 1 };         // Bottom row
@@ -106,7 +104,7 @@ function renderSquare(square, gameState, currentUserId, playerIndex) {
         const pIdx = gameState.players.indexOf(p);
         const color = PLAYER_COLORS[pIdx % PLAYER_COLORS.length];
         const initials = escapeHtml(p.name.substring(0, 2).toUpperCase());
-        const playerName = escapeAttr(p.name);
+        const playerName = escapeHtml(p.name);
         const isCurrent = p.userId === currentUserId;
         return `<div class="player-token${isCurrent ? ' current-user-token' : ''}" style="background:${color}" title="${playerName}">${initials}</div>`;
     }).join('');
@@ -132,7 +130,7 @@ function renderSquare(square, gameState, currentUserId, playerIndex) {
         if (prop && prop.ownerId) {
             const owner = describeOwner(gameState, prop.ownerId, prop.ownerName);
             const ownerColor = owner.playerIndex >= 0 ? PLAYER_COLORS[owner.playerIndex % PLAYER_COLORS.length] : '#888';
-            ownerDot = `<div class="owner-dot${owner.corporation ? ' owner-dot-corp' : ''}" style="background:${ownerColor}" title="Owned by ${escapeAttr(owner.label)}"></div>`;
+            ownerDot = `<div class="owner-dot${owner.corporation ? ' owner-dot-corp' : ''}" style="background:${ownerColor}" title="Owned by ${escapeHtml(owner.label)}"></div>`;
         }
     }
 
@@ -160,7 +158,7 @@ function renderSquare(square, gameState, currentUserId, playerIndex) {
     const displayName = square.name.length > 14
         ? square.name.substring(0, 13) + '…'
         : square.name;
-    const safeName = escapeAttr(square.name);
+    const safeName = escapeHtml(square.name);
     const safeDisplayName = escapeHtml(displayName);
 
     return `<div class="board-square ${edgeClass}${cornerClass} ${typeClass}"
@@ -190,7 +188,7 @@ function renderMobileTokens(players, gameState, currentUserId) {
             const pIdx = gameState.players.indexOf(p);
             const color = PLAYER_COLORS[pIdx % PLAYER_COLORS.length];
             const initials = escapeHtml(p.name.substring(0, 2).toUpperCase());
-            const label = escapeAttr(p.name);
+            const label = escapeHtml(p.name);
             return `<span class="mobile-player-token${p.userId === currentUserId ? ' is-you' : ''}"
                 style="--token-color:${color}" title="${label}">${initials}</span>`;
         }).join('')}
@@ -351,7 +349,7 @@ function renderBoard(gameState, currentUserId) {
     // Dice display
     const dice = gameState.lastDiceRoll;
     const diceHtml = `<div class="dice-area">
-               ${typeof renderDicePair === 'function' ? renderDicePair(dice) : ''}
+               ${renderDicePair(dice)}
                ${dice ? `<span>= ${dice[0] + dice[1]}</span>` : ''}
            </div>`;
 
@@ -384,10 +382,10 @@ function renderBoard(gameState, currentUserId) {
         </div>`;
     }).join('');
 
-    // Last card drawn
+    // Last card drawn (the engine stores its text as `card`; older saves used `text`)
     const lastCard = gameState.lastCardDrawn;
     const cardHtml = lastCard
-        ? `<div class="board-card-text">"${escapeHtml(lastCard.text)}"</div>`
+        ? `<div class="board-card-text">"${escapeHtml(lastCard.card || lastCard.text)}"</div>`
         : '';
 
     // Center panel
