@@ -1,6 +1,6 @@
 ---
 name: verify-mortgage
-description: Thoroughly verify Mortgage Backed Monopoly by playing whole multiplayer games through the real browser UI on a disposable dev instance. Builds a 2/5/8-player table (the first 3 seats sign in by email, with real login codes through AgentMail when started with `--email`; the rest join as guests on phone and desktop viewports). A scripted bot plays 20 rounds through the real buttons, checking sync, game-state invariants, errors and timing, and screenshots every key screen. An agent can take over any seat as an end user through a numbered text view (look/click), then review the UI. Use before claiming a game change works, after any change to game rules, the game screen, the lobby or sign-in, or when asked to playtest, find bugs or review the game's UI.
+description: Thoroughly verify Mortgage Backed Monopoly by playing whole multiplayer games through the real browser UI on a disposable dev instance. Builds a 2/5/8-player table (the first 3 seats sign in by email, with real login codes through AgentMail when started with `--email`; the rest join as guests on phone and desktop viewports). A scripted bot plays 20 rounds through the real buttons, checking sync, game-state invariants, errors and timing, and screenshots every key screen. An agent can take over any seat as an end user through a numbered text view (look/click), then review the UI. An app journeys suite (`journeys`) drives everything outside the board end to end: accounts, My games, rooms, AI agents over real MCP, hosting tools (seat links, host transfer), resilience and turn alerts. Use before claiming a game change works, after any change to game rules, the game screen, the lobby, sign-in, rooms, agents or hosting, or when asked to playtest, find bugs or review the game's UI.
 ---
 
 # Verify Mortgage Backed
@@ -152,6 +152,36 @@ $S status           # the game's progress
 - Measured (2026-10-21): 3 Haiku players (breaker, auditor, trader) plus 2 explore-bot seats, 5 players × 12 rounds, took 23 minutes. That was 92-143 tool calls and $0.44-$0.69 per agent, about $1.80 in total. They wrote 20 notes with screenshots, including 6 real money and rule bugs neither bot could judge.
 - Read the reviews critically. Haiku misreads screens sometimes, so confirm a reported bug in its `.jsonl` or with `look`/`state` before you call it a bug.
 
+## App journeys (`journeys`, free)
+
+Games test the board. `journeys` tests everything around it, the way people use it: 40 journeys, each in its own fresh browsers (separate contexts, phone 390x844 and desktop 1280x800, an iPhone UA where it matters), with its own accounts and rooms. Agents are real MCP clients: JSON-RPC `tools/call` to `/api/mcp`, no browser Origin, like an agent's connector. Each journey asserts what a person would see, screenshots the key screens, and ends as one pathway: **pass**, **finding** (passed, but something was recorded), **fail** (an assertion failed: a bug, or the harness; triage it) or **skip** (not verifiable headless; the reason is given).
+
+```bash
+$S journeys                          # all (~5 min on the Pi); blocks, then prints the table
+$S journeys --only accounts,agents.play-turns   # groups or ids
+$S journeys --list                   # ids, groups, what each covers
+$S journeys --detach && $S journeys-status --wait 590
+$S coverage --journeys               # which journeys ever passed, across recorded runs
+```
+
+| Group | Journeys |
+| --- | --- |
+| Accounts | register from the home page (mismatch, short name, taken name); log out and sign in by username; wrong password and unknown user; email code → Set password → sign in by email+password and by username; a guest plays, creates an account and keeps the game; `?next=` (same site honoured, other sites ignored); device transfer code typed on a laptop, single use, and as a link; signed-out game link; Forgot your room code |
+| My games | waiting and in-progress games listed and opened; archive, reload, unarchive (per user, game keeps running) |
+| Rooms | create as playing host (form refusals, waiting room) and as watching host; Copy Code, Send Invite, host loan rates reach the game; join by home page code (short code, pasted code, same name gets a number) and by invite link (bad code leaves no token); email player joins and stays an account; leave the waiting room, leaving refused after the start; host re-entering their own code; full room; rejoin as an existing player approved, declined and cancelled; hotseat: setup refusals, pass the phone, resume from home |
+| Agents | invite by name, join over MCP (host's name wins), rename, revoke joined and pending; agent joins while the host page is hidden with its socket cut, page shows Joined on return; host and agent play turns (`wait_for_turn` must wake, `take_action` shows live); agent-only game with a watching host (pause refuses agent moves, resume, end); New key mid-game (old key fails, new key resumes the same seat) |
+| Hosting | Manage players sheet (badges and tools per player, non-host refused, closes cleanly); guest seat link → fresh browser lands in the seat, single use; account seat link → sign in → game, reusable; Make host to a guest → create account → accept → controls move; the same on open game screens without reload; cancel and decline offers seen live; pause, resume, end |
+| Resilience | reload mid-turn; offline while the other player moves; two tabs of one player |
+| Turn alerts | alerts sheet (blocked, Turn on alerts, subscribe, off); iPhone Add to Home Screen handoff, icon launch, relaunch, expired code |
+
+Every new screen is also checked at 320, 375 and 390px (auth views, My games, create and set-password sheets, waiting room, join form, Manage sheet, agent invite and new-key sheets, home-screen page). Content past the right edge, including inside a fixed sheet, is a `layout` finding with a shot at the worst width.
+
+- Evidence: `journeys-<k>/NNN-<journey>-<person>-<what>.png` + `.txt`, with `FAIL` shots of every open browser when a journey fails. `report.md` has an **App journeys** table (✱ = never passed in any recorded run), and each journeys run is a `<run>/journeys-<k>` entry in the coverage ledger.
+- Journeys run one at a time and close their browsers when done, so a full pass stays small on the Pi. `journeys.js` is re-read on every `journeys` command; backend changes still need `down`/`up`. The run raises the dev backend's general auth and rejoin limits so repeated runs from one address don't trip them; the always-on per-account and per-code limits are untouched.
+- Mail is off: login codes come from the run DB, and Send Invite / Forgot code only check that the page answers. No `--email` needed.
+- Not verifiable headless: push delivery and the test alert. Headless Chromium refuses a push subscription (`Registration failed - permission denied`), so `push.turn-alerts` stops at the Turn on alerts step and reports skip. A real Home Screen install on an iPhone is emulated (`navigator.standalone`), not tested. Real clipboards are emulated by granting clipboard permission.
+- Adding one: a `{ id, group, label, run(j) }` entry in `lib/journeys.js`. Use the shared flows there (`register`, `createRoom`, `joinRoom`, `twoPlayerGame`, `takeTurn`, `agentTurn`, `copySeatLink`), `j.see`/`j.gone` (which say what was on screen when they time out), `j.layout`, `j.finding` for problems that shouldn't stop the journey, and `j.skip` for what can't be checked headless.
+
 ## Playing a seat yourself (end-user mode)
 
 This is how an agent sees the game as a person does. Mark one or more seats as human, and autoplay plays the rest and waits for you:
@@ -242,5 +272,6 @@ When you report, give the run id, the git rev (`doctor`), the scenarios played (
 | `scripts/lib/players.js` | Haiku player personas, briefs, agent-cap check, launch, status. |
 | `scripts/lib/agentmail.js` | Reads login codes and invites from the AgentMail inboxes. |
 | `scripts/lib/runs.js` | Run dirs, ports, evidence paths. |
+| `scripts/lib/journeys.js` | App journeys: accounts, rooms, agents (MCP), hosting, resilience, turn alerts; their shared flows and the runner. |
 
 The bot relies on the game's stable hooks: `data-game-action="…"` buttons inside `#game.section.active`, modal ids (`#buyPropertyModal`, `#houseModal`, `#debtModal`, `#ipoModal`, `#corporationModal`, `#addToCorpModal` (`#addToCorpAssets`, `#addToCorpShares`, `#add-to-corp-btn`), `#winnerModal`), the Debt page (`#debtAction` values `loans`/`issue`/`refinance`, `#loanLimit`, `#refinanceLimit`, `#loanTerms-<5|10|15>`, `#loanAutopay`, `#loanList .loan-row` with `[data-loan-autopay]`, `[data-loan-pay]`, `[data-loan-payoff]`), `.modal.active`, Market ids (`#player1Select`, `#player2Select`, `#player1Cash`, `#player2-asset-<id>`, `#executeTradeBtn`, `#paymentToPlayer`, `#paymentAmount`, `#makePaymentBtn`, `#tradeOffersList`), `#auctionBidAmount`, the `currentGame`/`currentUser` globals, and `#gameContent .game-header h2` containing the current player's name. If a UI change renames any of these, update `lib/bot.js` in the same change. Backend code is loaded when a run starts, so restart the run (`down`, `up`) after backend or harness edits. Frontend files are served live.
