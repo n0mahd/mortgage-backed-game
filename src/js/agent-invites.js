@@ -12,7 +12,9 @@
         joined: 'Joined',
     };
 
+    // Called on every room render; binds the controls only once.
     function mount(id) {
+        if (roomId === id) return refresh();
         roomId = id;
         document.getElementById('agent-invites').style.display = '';
         document.getElementById('agent-invite-create-btn').addEventListener('click', createInvite);
