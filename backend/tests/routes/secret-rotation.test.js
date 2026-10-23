@@ -99,8 +99,8 @@ test('a socket connecting with an old-secret token is handed a replacement', asy
     }
 });
 
-test('the MCP token check accepts old-secret tokens during the rotation too', () => {
-    const { verifyToken } = require('../../routes/auth');
+test('readToken accepts old-secret tokens during the rotation and marks them stale', () => {
+    const { readToken } = require('../../auth');
     const user = createUserFixture(db, { anonymous: true });
-    expect(verifyToken(oldToken(user))).toBe(user.id);
+    expect(readToken(oldToken(user))).toEqual({ userId: user.id, stale: true });
 });

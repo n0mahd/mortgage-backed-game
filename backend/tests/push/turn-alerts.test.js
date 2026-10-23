@@ -7,6 +7,8 @@
 process.env.DB_PATH = ':memory:';
 process.env.JWT_SECRET = 'test-secret';
 process.env.PUSH_ALLOW_LOCAL_ENDPOINTS = 'true';
+// Lets tests pin dice through payload.testDice, so turns never depend on luck.
+process.env.ALLOW_STATE_REPAIR = 'true';
 
 const crypto = require('crypto');
 const fs = require('fs');
@@ -95,6 +97,14 @@ async function act(user, game, type, payload = {}) {
         .send({ actionId: crypto.randomUUID(), type, payload, expectedVersion: latest.body.state_version });
 }
 
+// A roll of 3 every turn only ever lands on unowned streets, so End Turn always works.
+const ROLL_THREE = { testDice: [1, 2] };
+
+async function passTurn(user, game) {
+    expect((await act(user, game, 'roll_dice', ROLL_THREE)).status).toBe(200);
+    expect((await act(user, game, 'end_turn')).status).toBe(200);
+}
+
 async function subscribe(user, subscription) {
     return request(app).post('/api/push/subscriptions').set('Authorization', `Bearer ${user.token}`).send({ subscription });
 }
@@ -135,17 +145,12 @@ test('when Alice ends her turn, only Bob is alerted, with an encrypted, VAPID-si
     await subscribe(bob, fakeBrowserSubscription('bob-phone'));
     received = [];
 
-    expect((await act(alice, game, 'roll_dice', {})).status).toBe(200);
+    expect((await act(alice, game, 'roll_dice', ROLL_THREE)).status).toBe(200);
     await waitForPushes(0);
-    // Rolling doesn't change whose turn it is (unless doubles; then Alice still has it).
+    // Rolling doesn't change whose turn it is.
     expect(received).toEqual([]);
 
-    let ended = await act(alice, game, 'end_turn');
-    if (ended.status === 400) { // rolled doubles: roll again, then end
-        await act(alice, game, 'roll_dice', {});
-        ended = await act(alice, game, 'end_turn');
-    }
-    expect(ended.status).toBe(200);
+    expect((await act(alice, game, 'end_turn')).status).toBe(200);
     const pushes = await waitForPushes(1);
     expect(pushes.map(p => p.path)).toEqual(['/push/bob-phone']);
     expect(pushes[0].headers['content-encoding']).toBe('aes128gcm');
@@ -169,9 +174,7 @@ test('a subscription the push service reports as gone is deleted', async () => {
     const { alice, bob, game } = await startTwoPlayerGame();
     await subscribe(bob, fakeBrowserSubscription('bob-old-phone'));
     respondWith = 410;
-    await act(alice, game, 'roll_dice', { });
-    let ended = await act(alice, game, 'end_turn');
-    if (ended.status === 400) { await act(alice, game, 'roll_dice', {}); ended = await act(alice, game, 'end_turn'); }
+    await passTurn(alice, game);
     await waitForPushes(1);
     expect(db.prepare(`SELECT COUNT(*) AS n FROM push_subscriptions WHERE user_id = ?`).get(bob.id).n).toBe(0);
 });
@@ -180,10 +183,7 @@ test('a failing push service never breaks the game action', async () => {
     const { alice, bob, game } = await startTwoPlayerGame();
     await subscribe(bob, fakeBrowserSubscription('bob-phone'));
     respondWith = 500;
-    await act(alice, game, 'roll_dice', {});
-    let ended = await act(alice, game, 'end_turn');
-    if (ended.status === 400) { await act(alice, game, 'roll_dice', {}); ended = await act(alice, game, 'end_turn'); }
-    expect(ended.status).toBe(200);
+    await passTurn(alice, game);
 });
 
 test('players can turn alerts off for a device', async () => {
@@ -219,18 +219,6 @@ describe('alerts only go to players who are not looking at the game', () => {
     async function setVisible(socket, visible) {
         socket.emit('presence', { visible });
         await new Promise(r => setTimeout(r, 100));
-    }
-
-    // Doubles mean rolling again before End Turn, so roll until the turn can end
-    // (three doubles send the player to Jail, which ends the rolling).
-    async function passTurn(from, game) {
-        let ended;
-        for (let attempt = 0; attempt < 4; attempt++) {
-            await act(from, game, 'roll_dice', {});
-            ended = await act(from, game, 'end_turn');
-            if (ended.status !== 400) break;
-        }
-        expect(ended.status).toBe(200);
     }
 
     test('no push while the game is on screen; a push once it is hidden or closed', async () => {

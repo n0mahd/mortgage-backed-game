@@ -14,18 +14,11 @@
 const crypto = require('crypto');
 const { v4: uuidv4 } = require('uuid');
 const db = require('../db');
-const { RoomError, getRoomMembers, getRoomByInviteCode } = require('./rooms');
-const { makeToken } = require('../routes/auth');
+const { RoomError, getRoom, getRoomMembers, getRoomByInviteCode } = require('./rooms');
+const { makeToken } = require('../auth');
+const { sha256Hex, toSqliteDate } = require('../helpers');
 
 const REQUEST_TTL_MS = 10 * 60 * 1000;
-
-function hashSecret(secret) {
-    return crypto.createHash('sha256').update(String(secret || '')).digest('hex');
-}
-
-function toSqliteDate(date) {
-    return date.toISOString().replace('T', ' ').slice(0, 19);
-}
 
 function isClosedToNewMembers(room, members) {
     return room.status !== 'waiting' || members.length >= room.max_players;
@@ -45,7 +38,7 @@ function getSecretRequest(requestId, secret) {
     const request = db.prepare(`SELECT * FROM rejoin_requests WHERE id = ?`).get(requestId);
     if (!request) return null;
     const expected = Buffer.from(request.secret_hash, 'hex');
-    const actual = Buffer.from(hashSecret(secret), 'hex');
+    const actual = Buffer.from(sha256Hex(secret), 'hex');
     return crypto.timingSafeEqual(expected, actual) ? request : null;
 }
 
@@ -88,7 +81,7 @@ function createRejoinRequest({ inviteCode, memberId }) {
     db.prepare(`
         INSERT INTO rejoin_requests (id, room_id, member_id, secret_hash, expires_at)
         VALUES (?, ?, ?, ?, ?)
-    `).run(id, room.id, memberId || null, hashSecret(secret), toSqliteDate(expiresAt));
+    `).run(id, room.id, memberId || null, sha256Hex(secret), toSqliteDate(expiresAt));
 
     return { room, requestId: id, secret, expiresAt: expiresAt.toISOString() };
 }
@@ -103,7 +96,7 @@ function countOtherRecentRequests(request) {
 
 // Pending requests in a room that this user may approve.
 function listApprovableRequests(roomId, userId) {
-    const room = db.prepare(`SELECT * FROM rooms WHERE id = ?`).get(roomId);
+    const room = getRoom(roomId);
     if (!room) throw new RoomError(404, 'Room not found');
     const members = getRoomMembers(room.id);
     if (!members.some(member => member.user_id === userId)) throw new RoomError(403, 'Not a room member');
@@ -133,7 +126,7 @@ function decideRejoinRequest({ roomId, requestId, userId, approve }) {
     if (!request || request.room_id !== roomId || request.status !== 'pending') {
         throw new RoomError(404, 'That request has expired or was already answered');
     }
-    const room = db.prepare(`SELECT * FROM rooms WHERE id = ?`).get(roomId);
+    const room = getRoom(roomId);
     const members = getRoomMembers(roomId);
     if (!room || !canApprove(room, members, request, userId)) {
         throw new RoomError(403, 'You cannot answer this request');
@@ -161,7 +154,7 @@ function collectRejoinRequest({ requestId, secret }) {
     `).run(requestId);
     if (claimed.changes !== 1) return { status: 'collected' };
 
-    const room = db.prepare(`SELECT * FROM rooms WHERE id = ?`).get(request.room_id);
+    const room = getRoom(request.room_id);
     const members = getRoomMembers(request.room_id);
     const roomWithMembers = { ...room, room_members: members };
 

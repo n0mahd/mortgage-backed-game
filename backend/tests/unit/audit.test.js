@@ -3,7 +3,7 @@
 const {
     buildGameActionAuditRecord,
     logGameActionAudit,
-} = require('../../audit');
+} = require('../../services/audit');
 
 describe('game action audit logging', () => {
     test('builds a structured audit record with version transition metadata', () => {
