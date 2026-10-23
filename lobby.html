@@ -11,10 +11,10 @@
     <link rel="icon" type="image/png" sizes="32x32" href="src/assets/favicon-32.png?v=2">
     <link rel="apple-touch-icon" sizes="180x180" href="src/assets/apple-touch-icon.png?v=2">
     <link rel="manifest" href="/manifest.webmanifest">
-    <title>Your games — Mortgage Backed Monopoly</title>
+    <title>My games — Mortgage Backed Monopoly</title>
     <link rel="preload" href="src/assets/fonts/besley-latin.woff2" as="font" type="font/woff2" crossorigin>
     <link rel="stylesheet" href="src/css/tokens.css?v=13">
-    <link rel="stylesheet" href="src/css/style.css?v=33">
+    <link rel="stylesheet" href="src/css/style.css?v=40">
 </head>
 <body>
     <div class="container">
@@ -22,6 +22,7 @@
             <a class="app-bar-brand" href="index.html">Mortgage Backed Monopoly</a>
             <div class="user-info">
                 <span id="user-email"></span>
+                <a id="signin-link" class="btn btn-ghost btn-sm" href="auth.html?next=lobby.html" hidden>Sign in</a>
                 <button id="logout-btn" class="btn btn-ghost btn-sm">Log out</button>
             </div>
         </header>
@@ -29,8 +30,27 @@
         <div class="content">
             <div class="lobby-container">
                 <div class="page-title">
-                    <h1>Your games</h1>
+                    <h1>My games</h1>
                     <p>Pick up where you left off, or start a new room for your friends.</p>
+                </div>
+
+                <!-- Guests: invite them to keep their games with an account -->
+                <p id="guest-banner" class="account-banner" hidden>
+                    You're playing as a guest, so your games live only on this device.
+                    <a href="auth.html?mode=register&amp;next=lobby.html">Create an account</a> to keep them across devices.
+                </p>
+
+                <!-- Accounts: who is signed in, and a password for email accounts -->
+                <div id="account-summary" class="account-summary" hidden>
+                    <span>Signed in as <strong id="account-name"></strong></span>
+                    <button id="set-password-btn" class="btn btn-secondary btn-sm" hidden>Set password</button>
+                </div>
+
+                <!-- Host offers made to me: Accept or Decline -->
+                <div id="host-offers-section" class="rooms-section host-offers-section" hidden>
+                    <div class="section-heading"><h3>Host offers</h3></div>
+                    <div id="host-offers-list" class="rooms-list"></div>
+                    <div id="host-offers-error" class="error-message" role="alert"></div>
                 </div>
 
                 <div class="lobby-actions">
@@ -45,6 +65,11 @@
                             <p>Loading your games…</p>
                         </div>
                     </div>
+                </div>
+
+                <div class="rooms-section" id="archived-rooms-section" hidden>
+                    <div class="section-heading"><h3>Archived</h3><span>Only hidden from your list</span></div>
+                    <div id="archived-rooms-list" class="rooms-list"></div>
                 </div>
             </div>
         </div>
@@ -77,10 +102,72 @@
         </div>
     </div>
 
+    <!-- Set or change the account password (email accounts can add one) -->
+    <div class="modal" id="setPasswordModal">
+        <form class="modal-content" id="set-password-form" novalidate>
+            <div class="modal-header">Set password</div>
+            <p class="modal-hint">Then you can sign in with your username or email and this password.</p>
+            <div class="form-group">
+                <label for="set-password-username">Username (optional)</label>
+                <input type="text" id="set-password-username" autocomplete="username" autocapitalize="none" spellcheck="false" maxlength="24">
+            </div>
+            <div class="form-group">
+                <label for="set-password-new">New password</label>
+                <input type="password" id="set-password-new" autocomplete="new-password" minlength="8" maxlength="200" required>
+            </div>
+            <div class="form-group">
+                <label for="set-password-confirm">Confirm new password</label>
+                <input type="password" id="set-password-confirm" autocomplete="new-password" maxlength="200" required>
+            </div>
+            <div id="set-password-error" class="error-message" role="alert"></div>
+            <div class="sheet-actions">
+                <button type="submit" id="set-password-save-btn" class="btn btn-primary">Save Password</button>
+                <button type="button" id="set-password-cancel-btn" class="btn btn-secondary">Cancel</button>
+            </div>
+        </form>
+    </div>
+
+    <!-- Manage players (host only, src/js/manage-room.js) -->
+    <div class="modal" id="manageRoomModal">
+        <div class="modal-content">
+            <div class="modal-header">Manage players</div>
+            <p class="modal-hint" id="manage-room-name"></p>
+            <div id="manage-transfer" class="manage-transfer" hidden></div>
+            <div id="manage-player-list" class="manage-player-list">
+                <div class="loading"><div class="spinner"></div></div>
+            </div>
+            <div id="manage-room-status" class="market-status" role="status"></div>
+            <div id="manage-link-output" class="form-group manage-link-output" hidden>
+                <label for="manage-link-url">Seat link: copy it and send it to the player</label>
+                <input type="text" id="manage-link-url" readonly>
+            </div>
+            <div class="sheet-actions">
+                <button type="button" id="manage-room-close-btn" class="btn btn-secondary">Done</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- A new agent key, shown once (like the waiting room's agent invite) -->
+    <div class="modal" id="manageAgentKeyModal">
+        <div class="modal-content">
+            <div class="modal-header">New agent key</div>
+            <p class="modal-hint">The old key no longer works. Paste this into the agent's chat: it holds the new key, shown only now, and tells the agent it already has its seat.</p>
+            <p class="modal-hint">Connector address: <code id="manage-agent-key-mcp-url"></code></p>
+            <div class="form-group">
+                <textarea id="manage-agent-key-prompt" class="agent-invite-prompt" rows="9" readonly aria-label="Agent invite with the new key"></textarea>
+            </div>
+            <div class="sheet-actions modal-actions">
+                <button type="button" id="manage-agent-key-copy-btn" class="btn btn-primary">Copy invite</button>
+                <button type="button" id="manage-agent-key-close-btn" class="btn btn-secondary">Done</button>
+            </div>
+        </div>
+    </div>
+
     <script src="/socket.io/socket.io.js"></script>
-    <script src="src/js/api.js?v=15"></script>
+    <script src="src/js/api.js?v=20"></script>
     <script src="src/js/number-inputs.js?v=1"></script>
     <script src="src/js/ui.js?v=2"></script>
-    <script src="src/js/lobby.js?v=12"></script>
+    <script src="src/js/manage-room.js?v=1"></script>
+    <script src="src/js/lobby.js?v=20"></script>
 </body>
 </html>

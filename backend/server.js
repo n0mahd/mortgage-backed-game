@@ -36,6 +36,8 @@ app.use('/api/rooms', require('./routes/rooms'));
 app.use('/api/games', require('./routes/games'));
 app.use('/api/mcp', createMcpRouter());
 app.use('/api/push', require('./routes/push'));
+app.use('/api/seat-links', require('./routes/seatLinks'));
+app.use('/api/host-transfers', require('./routes/hostTransfers'));
 
 // Health check
 app.get('/api/health', (_req, res) => {
@@ -69,6 +71,7 @@ app.use((err, _req, res, _next) => {
     if (res.headersSent) return;
     const body = { error: status === 500 ? 'Internal server error' : err.message };
     if (status === 409 && err.stateVersion !== undefined) body.state_version = err.stateVersion;
+    if (status < 500 && typeof err.errorCode === 'string') body.code = err.errorCode;
     res.status(status).json(body);
 });
 

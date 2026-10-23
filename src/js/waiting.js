@@ -39,7 +39,26 @@ async function initWaitingRoom() {
     checkGameStatusById(roomId);
 }
 
+// A room code from someone already in the room (the host back from the home
+// page, a player on their own device) goes straight in, not to the guest form.
+// Saved hotseat players for this room keep their own resume choice.
+async function openRoomIfAlreadyIn() {
+    if (!getToken() || getHotseatResumeByCode(normalizedRoomCode)) return false;
+    try {
+        const [user, room] = await Promise.all([getCurrentUser(), getRoomByCode(normalizedRoomCode)]);
+        if (!user || !room) return false;
+        const isIn = room.host_id === user.id || room.room_members.some(member => member.user_id === user.id);
+        if (!isIn) return false;
+        clearHotseatSession();
+        navigateToRoom(room);
+        return true;
+    } catch {
+        return false;
+    }
+}
+
 async function showGuestJoinSection() {
+    if (await openRoomIfAlreadyIn()) return;
     document.getElementById('waiting-room-section').style.display = 'none';
     document.getElementById('guest-join-section').style.display = 'block';
     const leaveBtn = document.getElementById('leave-room-btn');
@@ -145,36 +164,72 @@ function isExpectedGuestJoinError(error) {
 
 async function loadRoomDataById(id) {
     try {
-        const room = await getRoomById(id);
-        currentRoom = room;
-
-        document.getElementById('room-name').textContent = room.name;
-        document.getElementById('invite-code').textContent = room.invite_code;
-        document.getElementById('player-count').textContent =
-            `${room.room_members.length}/${room.max_players} players`;
-
-        isHost = currentUser && room.host_id === currentUser.id;
-
-        if (isHost) {
-            document.getElementById('host-controls').style.display = 'block';
-            if (room.status === 'waiting') AgentInvites.mount(room.id);
-        }
-        // A host who only watches has no seat to leave.
-        const watching = isHost && !room.room_members.some(member => member.user_id === currentUser.id);
-        document.getElementById('spectator-help-text').hidden = !watching;
-
-        updateRoomStatus(room.status, room.room_members.length, room.max_players);
-        renderPlayers(room.room_members);
-        updateStartButtonState(room.room_members.length);
-
-        const leaveBtn = document.getElementById('leave-room-btn');
-        if (leaveBtn) leaveBtn.style.display = watching ? 'none' : '';
-
+        renderRoom(await getRoomById(id));
     } catch (error) {
         console.error('Error loading room:', error);
         alert('Error loading room: ' + error.message);
         window.location.href = 'index.html';
     }
+}
+
+function renderRoom(room) {
+    currentRoom = room;
+
+    document.getElementById('room-name').textContent = room.name;
+    document.getElementById('invite-code').textContent = room.invite_code;
+    document.getElementById('player-count').textContent =
+        `${room.room_members.length}/${room.max_players} players`;
+
+    isHost = currentUser && room.host_id === currentUser.id;
+
+    if (isHost) {
+        document.getElementById('host-controls').style.display = 'block';
+        if (room.status === 'waiting') AgentInvites.mount(room.id);
+    }
+    // A host who only watches has no seat to leave.
+    const watching = isHost && !room.room_members.some(member => member.user_id === currentUser.id);
+    document.getElementById('spectator-help-text').hidden = !watching;
+
+    updateRoomStatus(room.status, room.room_members.length, room.max_players);
+    renderPlayers(room.room_members);
+    updateStartButtonState(room.room_members.length);
+
+    const leaveBtn = document.getElementById('leave-room-btn');
+    if (leaveBtn) leaveBtn.style.display = watching ? 'none' : '';
+}
+
+// Socket events missed while the page was hidden or offline (a phone switching
+// apps to paste an agent invite) are caught up by refetching the room and the
+// agent invites: on every socket (re)join, when the page is shown again, and
+// on a slow poll as a last resort.
+const ROOM_RESYNC_POLL_MS = 15000;
+let roomResyncInFlight = null;
+
+function resyncRoom() {
+    if (!currentRoom || roomResyncInFlight) return roomResyncInFlight;
+    roomResyncInFlight = (async () => {
+        try {
+            const room = await getRoomById(currentRoom.id);
+            renderRoom(room);
+            if (isHost) await AgentInvites.refresh();
+            if (room.status === 'in_progress') navigateToGameRoom(room.id);
+        } catch (error) {
+            console.warn('Could not refresh the room:', error.message || error);
+        } finally {
+            roomResyncInFlight = null;
+        }
+    })();
+    return roomResyncInFlight;
+}
+
+function watchForMissedRoomUpdates() {
+    document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'visible') resyncRoom();
+    });
+    window.addEventListener('online', resyncRoom);
+    setInterval(() => {
+        if (document.visibilityState === 'visible') resyncRoom();
+    }, ROOM_RESYNC_POLL_MS);
 }
 
 function subscribeToRoomUpdatesById(id) {
@@ -196,8 +251,10 @@ function subscribeToRoomUpdatesById(id) {
                 logActivity('Game is starting!');
                 setTimeout(() => navigateToGameRoom(id), 1500);
             }
-        }
+        },
+        resyncRoom
     );
+    watchForMissedRoomUpdates();
 }
 
 function renderPlayers(members) {

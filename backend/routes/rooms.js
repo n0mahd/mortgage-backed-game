@@ -1,7 +1,8 @@
 'use strict';
 
-// Rooms: create, join, leave, look up, rejoin requests, agent invites, and
-// room-code emails. Rule and storage logic lives in services/; handlers only
+// Rooms: create, join, leave, look up, my games and archiving, rejoin
+// requests, agent invites, the host's Manage players tools (seat links, agent
+// re-invites, host transfer), and room-code emails. Rule and storage logic lives in services/; handlers only
 // authenticate, call a service, broadcast, and answer. Errors carrying a 4xx
 // status (RoomError) are answered by the error handler in server.js.
 
@@ -26,7 +27,17 @@ const {
     collectRejoinRequest,
     cancelRejoinRequest,
 } = require('../services/rejoinRequests');
-const { createAgentSeat, listAgentSeats, renameAgentSeat, revokeAgentSeat, agentInvitePrompt } = require('../services/agentSeats');
+const {
+    createAgentSeat,
+    listAgentSeats,
+    renameAgentSeat,
+    revokeAgentSeat,
+    reissueAgentSeat,
+    agentInvitePrompt,
+} = require('../services/agentSeats');
+const { listMyRooms, setArchived, leaveRoom, getManageView } = require('../services/roomManagement');
+const { createSeatLink } = require('../services/seatLinks');
+const { offerHostTransfer, cancelHostTransfer } = require('../services/hostTransfers');
 const { sendInviteCodeEmail, sendForgotRoomCodes } = require('../services/roomEmails');
 
 const router = express.Router();
@@ -77,21 +88,10 @@ router.post('/rejoin-requests/:requestId/cancel', rejoinCollectRateLimit, (req, 
     res.json({ ok: true });
 });
 
-// GET /api/rooms/mine — rooms the current user is in or hosts (a spectating host has no seat)
+// GET /api/rooms/mine — rooms the current user is in or hosts, with archived,
+// is_host and my_member_id
 router.get('/mine', requireAuth, (req, res) => {
-    const memberships = db.prepare(`
-        SELECT room_id, joined_at AS at FROM room_members WHERE user_id = ?
-        UNION
-        SELECT id, created_at FROM rooms WHERE host_id = ?
-            AND NOT EXISTS (SELECT 1 FROM room_members WHERE room_members.room_id = rooms.id AND room_members.user_id = rooms.host_id)
-        ORDER BY at DESC
-    `).all(req.userId, req.userId);
-
-    const rooms = memberships
-        .map(m => getRoomWithMembers(m.room_id))
-        .filter(Boolean);
-
-    res.json(rooms);
+    res.json(listMyRooms(req.userId));
 });
 
 // GET /api/rooms/:id
@@ -146,18 +146,61 @@ router.patch('/:id/agent-seats/:seatId', requireAuth, (req, res) => {
     res.json(renameAgentSeat({ roomId: req.params.id, seatId: req.params.seatId, hostUserId: req.userId, name: req.body?.label }));
 });
 
+// POST /api/rooms/:id/agent-seats/:seatId/reissue — a new key for the same
+// seat; the old key stops working.
+router.post('/:id/agent-seats/:seatId/reissue', requireAuth, (req, res) => {
+    const { seat, key, rejoining } = reissueAgentSeat({ roomId: req.params.id, seatId: req.params.seatId, hostUserId: req.userId });
+    const room = getRoomWithMembers(req.params.id);
+    const mcpUrl = `${config.publicAppUrl}/api/mcp`;
+    const prompt = agentInvitePrompt({ roomName: room.name, key, name: seat.player_name || seat.label, rejoining });
+    res.status(201).json({ seat, key, mcp_url: mcpUrl, prompt });
+});
+
 // DELETE /api/rooms/:id/agent-seats/:seatId — revoke an agent's key
 router.delete('/:id/agent-seats/:seatId', requireAuth, (req, res) => {
     res.json(revokeAgentSeat({ roomId: req.params.id, seatId: req.params.seatId, hostUserId: req.userId }));
 });
 
-// DELETE /api/rooms/:id/leave — leave room
+// DELETE /api/rooms/:id/leave — leave a room that has not started
 router.delete('/:id/leave', requireAuth, (req, res) => {
-    db.prepare(`
-        DELETE FROM room_members WHERE room_id = ? AND user_id = ?
-    `).run(req.params.id, req.userId);
-    const updatedRoom = getRoomWithMembers(req.params.id);
-    if (updatedRoom) emitToRoom(req.params.id, 'room:member_change', updatedRoom);
+    leaveRoom({ roomId: req.params.id, userId: req.userId });
+    res.json({ ok: true });
+});
+
+// POST/DELETE /api/rooms/:id/archive — hide or show a game in my own list
+router.post('/:id/archive', requireAuth, (req, res) => {
+    setArchived({ roomId: req.params.id, userId: req.userId, archived: true });
+    res.json({ ok: true });
+});
+
+router.delete('/:id/archive', requireAuth, (req, res) => {
+    setArchived({ roomId: req.params.id, userId: req.userId, archived: false });
+    res.json({ ok: true });
+});
+
+// Manage players (host only).
+
+// GET /api/rooms/:id/manage — members, agent invites and the pending host offer
+router.get('/:id/manage', requireAuth, (req, res) => {
+    res.json(getManageView({ roomId: req.params.id, userId: req.userId }));
+});
+
+// POST /api/rooms/:id/members/:memberId/link — a personal link back to one
+// player's seat; replaces that seat's older links.
+router.post('/:id/members/:memberId/link', requireAuth, (req, res) => {
+    const { token, expiresAt } = createSeatLink({ roomId: req.params.id, memberId: req.params.memberId, hostUserId: req.userId });
+    res.json({ url: `${config.publicAppUrl}/index.html?seat=${token}`, expires_at: expiresAt.toISOString() });
+});
+
+// POST /api/rooms/:id/host-transfer { member_id } — offer host rights
+router.post('/:id/host-transfer', requireAuth, (req, res) => {
+    const hostTransfer = offerHostTransfer({ roomId: req.params.id, hostUserId: req.userId, memberId: String(req.body?.member_id || '') });
+    res.json({ host_transfer: hostTransfer });
+});
+
+// DELETE /api/rooms/:id/host-transfer — cancel the pending offer
+router.delete('/:id/host-transfer', requireAuth, (req, res) => {
+    cancelHostTransfer({ roomId: req.params.id, hostUserId: req.userId });
     res.json({ ok: true });
 });
 

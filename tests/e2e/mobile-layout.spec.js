@@ -68,6 +68,8 @@ for (const phone of PHONES) {
                 expect(await horizontalOverflow(page), `${section} tab overflows`).toBeLessThanOrEqual(0);
             }
             for (const path of ['index.html', 'auth.html', 'hotseat.html', 'lobby.html', `waiting.html?code=${room.invite_code}`]) {
+                // A player in the room goes straight back in; the join form is for everyone else.
+                if (path.startsWith('waiting.html')) await page.evaluate(() => localStorage.removeItem('auth_token'));
                 await page.goto(`${BASE}/${path}`);
                 await page.waitForLoadState('domcontentloaded');
                 expect(await horizontalOverflow(page), `${path} overflows`).toBeLessThanOrEqual(0);

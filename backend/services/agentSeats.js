@@ -35,7 +35,9 @@ function cleanLabel(label) {
     return plainText(label, PLAYER_NAME_MAX) || null;
 }
 
-function requireHostOfWaitingRoom(roomId, hostUserId) {
+// Host only, in any room status: listing and revoking still work once the game
+// has started (the Manage players sheet uses them).
+function requireHost(roomId, hostUserId) {
     const room = getRoomWithMembers(roomId);
     if (!room) throw new RoomError(404, 'Room not found');
     if (room.host_id !== hostUserId) throw new RoomError(403, 'Only the host can manage agent invites');
@@ -68,7 +70,7 @@ function publicSeat(row) {
 
 // Returns { seat, key }. The key is never retrievable again.
 function createAgentSeat({ roomId, hostUserId, label }) {
-    const room = requireHostOfWaitingRoom(roomId, hostUserId);
+    const room = requireHost(roomId, hostUserId);
     if (room.status !== 'waiting') throw new RoomError(400, 'Game has already started');
     if (room.room_members.length + pendingAgentSeatCount(room.id) >= room.max_players) {
         throw new RoomError(400, 'Room is full');
@@ -87,7 +89,7 @@ function createAgentSeat({ roomId, hostUserId, label }) {
 }
 
 function listAgentSeats({ roomId, hostUserId }) {
-    requireHostOfWaitingRoom(roomId, hostUserId);
+    requireHost(roomId, hostUserId);
     return db.prepare(`
         SELECT * FROM agent_seats WHERE room_id = ? AND revoked_at IS NULL ORDER BY created_at ASC, rowid ASC
     `).all(roomId).map(publicSeat);
@@ -97,7 +99,7 @@ function listAgentSeats({ roomId, hostUserId }) {
 // Player names are copied into the game state at the start, so they are fixed
 // from then on.
 function renameAgentSeat({ roomId, seatId, hostUserId, name: rawName }) {
-    const room = requireHostOfWaitingRoom(roomId, hostUserId);
+    const room = requireHost(roomId, hostUserId);
     if (room.status !== 'waiting') throw new RoomError(400, 'Names are fixed once the game starts');
     const seat = db.prepare(`SELECT * FROM agent_seats WHERE id = ? AND room_id = ? AND revoked_at IS NULL`).get(seatId, room.id);
     if (!seat) throw new RoomError(404, 'Agent invite not found');
@@ -117,7 +119,7 @@ function renameAgentSeat({ roomId, seatId, hostUserId, name: rawName }) {
 // Revoking disables the key at once. Before the game starts it also frees the
 // seat; after that the player stays in the game without anyone controlling it.
 function revokeAgentSeat({ roomId, seatId, hostUserId }) {
-    const room = requireHostOfWaitingRoom(roomId, hostUserId);
+    const room = requireHost(roomId, hostUserId);
     const seat = db.prepare(`SELECT * FROM agent_seats WHERE id = ? AND room_id = ? AND revoked_at IS NULL`).get(seatId, room.id);
     if (!seat) throw new RoomError(404, 'Agent invite not found');
 
@@ -128,6 +130,28 @@ function revokeAgentSeat({ roomId, seatId, hostUserId }) {
     }
     notifyRoom(room.id);
     return publicSeat(db.prepare(`SELECT * FROM agent_seats WHERE id = ?`).get(seat.id));
+}
+
+// A fresh key for an existing seat: the old key stops working and a new
+// agent_seats row takes over the same seat (same user id, name and join time).
+// For an agent that lost its key or chat. Not once the game is completed.
+function reissueAgentSeat({ roomId, seatId, hostUserId }) {
+    const room = requireHost(roomId, hostUserId);
+    if (room.status === 'completed') throw new RoomError(400, 'The game is over');
+    const key = generateKey();
+    const id = uuidv4();
+    const seat = db.withTransaction(() => {
+        const old = db.prepare(`SELECT * FROM agent_seats WHERE id = ? AND room_id = ? AND revoked_at IS NULL`).get(seatId, room.id);
+        if (!old) throw new RoomError(404, 'Agent invite not found');
+        db.prepare(`UPDATE agent_seats SET revoked_at = datetime('now') WHERE id = ?`).run(old.id);
+        db.prepare(`
+            INSERT INTO agent_seats (id, room_id, key_hash, label, created_by, user_id, joined_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+        `).run(id, room.id, sha256Hex(key), old.label, hostUserId, old.user_id, old.joined_at);
+        return db.prepare(`SELECT * FROM agent_seats WHERE id = ?`).get(id);
+    });
+    notifyRoom(room.id);
+    return { seat: publicSeat(seat), key, rejoining: !!seat.user_id };
 }
 
 // The live seat for a key, or null for unknown or revoked keys.
@@ -159,7 +183,21 @@ function claimAgentSeat({ key, playerName }) {
 
 // Text the host pastes into the agent's chat. It speaks to the agent only; the
 // host's own steps (connector setup) are in the waiting room's invite modal.
-function agentInvitePrompt({ roomName, key, name }) {
+// rejoining: the seat is already taken (a reissued key), so the agent picks
+// up where it left off instead of joining as a new player.
+function agentInvitePrompt({ roomName, key, name, rejoining = false }) {
+    if (rejoining) {
+        return [
+            `You already have a seat in my Mortgage Backed Monopoly game "${roomName}"${name ? `, playing as ${name}` : ''}. I've given you a new agent key; the old one no longer works.`,
+            '',
+            `1. Call the Mortgage Backed join_game tool with agent_key ${key}. It returns your seat and the current game state.`,
+            '2. Then call wait_for_turn in a loop and play your turns with take_action until the game ends. get_rules explains the game.',
+            '',
+            "If you don't have the Mortgage Backed tools, don't look for a workaround: stop and ask me to turn on the Mortgage Backed connector for this chat.",
+            '',
+            'The agent key is your seat at the table: keep it private.',
+        ].join('\n');
+    }
     return [
         `Join my Mortgage Backed Monopoly game "${roomName}" as a player${name ? `, playing as ${name}` : ''}.`,
         '',
@@ -179,6 +217,7 @@ module.exports = {
     listAgentSeats,
     renameAgentSeat,
     revokeAgentSeat,
+    reissueAgentSeat,
     findSeatByKey,
     claimAgentSeat,
     agentInvitePrompt,

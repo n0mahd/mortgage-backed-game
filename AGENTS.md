@@ -16,7 +16,7 @@ Other docs: player rules in `documents/game-rules.md` and `README.md`, open deci
 - `server.js`: Express app, route mounting, the error handler, Socket.IO auth and `join_room`.
 - `config.js`: every environment variable, its default, and the production guards.
   `db.js`: the SQLite database and `db.withTransaction`. `migrations.js`: schema.
-- `auth.js`: player tokens (`readToken`, `makeToken`, `requireAuth`). With `JWT_SECRET_PREVIOUS` set,
+- `auth.js`: player tokens (`readToken`, `makeToken`, `requireAuth`, `optionalUserId`). With `JWT_SECRET_PREVIOUS` set,
   old-secret tokens still work and get a replacement (`X-Refreshed-Token` header,
   `auth:token_refreshed` socket event, `POST /api/auth/refresh-tokens`).
 - `helpers.js`: email/code normalizing, `plainText`, `sha256Hex`, `toSqliteDate`.
@@ -48,17 +48,27 @@ Other docs: player rules in `documents/game-rules.md` and `README.md`, open deci
   - `services/roomEvents.js`: `emitToRoom` (Socket.IO to a room's browsers) and `notifyRoom` (wakes
     MCP waits).
   - `services/agentSeats.js`: host-issued AI agent invites (one hashed key per seat, reservation,
-    host-chosen names and renaming before the start, revocation, the invite text).
+    host-chosen names and renaming before the start, revocation, reissuing a new key for a taken
+    seat, the invite text).
   - `services/rejoinRequests.js`: taking back a guest seat after losing the token, with another
     player's approval. Email players sign in with email instead.
+  - `services/accounts.js`: username/password accounts (scrypt hashes, register with in-place guest
+    upgrade, login by username or email, password changes) and `publicUser`, the user shape every
+    auth endpoint answers with. Decisions: `documents/accounts-and-game-management.md`.
+  - `services/roomManagement.js`: My games (`listMyRooms` with per-user archiving), leaving a room
+    (waiting rooms only) and the host's Manage players view. `services/seatLinks.js`: host-made
+    links back to one player's seat (hashed, 7 days, single use for guest seats).
+    `services/hostTransfers.js`: offering host rights; only `rooms.host_id` changes.
   - `services/roomEmails.js`, `services/mailer.js`: room-code emails through a Resend-compatible API.
   - `services/push.js` (subscriptions, VAPID, push-service host allowlist), `services/turnAlerts.js`
     (who to alert when the turn changes), `services/presence.js` (players with the game on screen
     get no push): Web Push turn alerts.
   - `services/audit.js`: one log line per game action.
-- `routes/`: HTTP only (authenticate, call a service, answer): `routes/auth.js` (email codes, guests,
-  one-time device transfer codes), `routes/rooms.js` (including rejoin requests), `routes/games.js`,
-  `routes/push.js`. Errors with a 4xx `status` (`RoomError`, `GameRuleError`) are answered by the
+- `routes/`: HTTP only (authenticate, call a service, answer): `routes/auth.js` (accounts, email
+  codes, guests, one-time device transfer codes), `routes/rooms.js` (including rejoin requests, My
+  games archiving and the host's Manage players tools), `routes/seatLinks.js` (`/api/seat-links`,
+  redeeming a seat link), `routes/hostTransfers.js` (`/api/host-transfers`, the offered player's
+  side), `routes/games.js`, `routes/push.js`. Errors with a 4xx `status` (`RoomError`, `GameRuleError`) are answered by the
   error handler in `server.js`.
 - `mcp/`: the MCP server for AI players at `/api/mcp` (`mcp/server.js` tools, `mcp/gameSummary.js`
   the agent's view of the game, `mcp/rules.js` rules text).
@@ -74,8 +84,12 @@ Other docs: player rules in `documents/game-rules.md` and `README.md`, open deci
   from the backend at `/socket.io/socket.io.js`, not a CDN. `src/js/ui.js`: DOM helpers
   (`escapeHtml`, `formatMoney`, dice, `showToast`, `copyText`, `showPageLoadError`).
   `src/js/number-inputs.js`: money and share-count inputs.
-- One script per page: `src/js/index.js`, `src/js/auth.js`, `src/js/lobby.js`, `src/js/waiting.js`
-  (with `src/js/agent-invites.js`), `src/js/hotseat.js`, `src/js/home-screen.js`.
+- One script per page: `src/js/index.js` (with `src/js/seat-link.js`, redeeming `?seat=` links),
+  `src/js/auth.js` (password sign-in, create an account, email codes, `?next=`), `src/js/lobby.js`
+  (My games: active and archived rooms, host offers, guest banner, set password; with
+  `src/js/manage-room.js`, the host's Manage players sheet), `src/js/waiting.js` (with
+  `src/js/agent-invites.js` and `src/js/manage-link.js`), `src/js/hotseat.js`, `src/js/home-screen.js`.
+  Accounts, seat links, host transfer and archiving: `documents/accounts-and-game-management.md`.
   `src/js/room-resume.js`: getting back into a room (resume options and `requestRoomRejoin`).
   `src/js/rejoin-prompts.js`: the approve/decline prompt shown to other players.
   `src/js/turn-notifications.js` with `sw.js` and `manifest.webmanifest`: Web Push in the browser.

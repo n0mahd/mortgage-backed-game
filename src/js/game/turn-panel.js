@@ -472,6 +472,7 @@ function renderHostPanel(gameState) {
                     : '<button class="btn btn-warning btn-sm" data-game-action="host-pause">Pause Game</button>'}
                 <button class="btn btn-danger btn-sm" data-game-action="host-end">End Game</button>
             </div>
+            <a class="quiet-link" href="lobby.html?manage=${encodeURIComponent(currentRoom ? currentRoom.id : '')}">Manage players</a>
         </section>
     `;
 }

@@ -1,6 +1,7 @@
 'use strict';
 
-// Sign-in: email codes, anonymous guests, device transfer codes, and token refresh.
+// Sign-in: username/password accounts, email codes, anonymous guests, device
+// transfer codes, and token refresh. Account logic is in services/accounts.js.
 
 const express = require('express');
 const crypto = require('crypto');
@@ -11,7 +12,8 @@ const { sendEmail } = require('../services/mailer');
 const { createRateLimiter, getRequestActorKey } = require('../rateLimit');
 const { normalizeEmail, isValidEmail, sha256Hex, toSqliteDate } = require('../helpers');
 const { createAnonymousUser } = require('../services/rooms');
-const { readToken, makeToken, requireAuth } = require('../auth');
+const { readToken, makeToken, requireAuth, optionalUserId } = require('../auth');
+const accounts = require('../services/accounts');
 
 const router = express.Router();
 const config = getConfig();
@@ -30,6 +32,46 @@ const FIFTEEN_MINUTES = 15 * 60 * 1000;
 const otpSendLimit = createRateLimiter({ name: 'otp_send', enabled: true, max: 5, windowMs: FIFTEEN_MINUTES });
 const otpVerifyLimit = createRateLimiter({ name: 'otp_verify', enabled: true, max: 10, windowMs: FIFTEEN_MINUTES });
 const transferRedeemLimit = createRateLimiter({ name: 'transfer_redeem', enabled: true, max: 10, windowMs: FIFTEEN_MINUTES });
+const loginLimit = createRateLimiter({ name: 'password_login', enabled: true, max: 10, windowMs: FIFTEEN_MINUTES });
+// Caps guesses at one account from many addresses.
+const loginAccountLimit = createRateLimiter({ name: 'password_login_account', enabled: true, max: 50, windowMs: FIFTEEN_MINUTES });
+
+// Express 4 does not catch rejected promises; hand them to the error handler.
+const asyncRoute = handler => (req, res, next) => Promise.resolve(handler(req, res, next)).catch(next);
+
+// POST /api/auth/register { username, password } — a new account, or the
+// signed-in guest upgraded in place (same user id, so their seats stay).
+router.post('/register', authRateLimit, asyncRoute(async (req, res) => {
+    const currentUserId = optionalUserId(req);
+    const user = await accounts.register({
+        currentUserId: currentUserId && accounts.getPublicUser(currentUserId) ? currentUserId : null,
+        username: req.body?.username,
+        password: req.body?.password,
+    });
+    res.json({ token: makeToken(user.id), user });
+}));
+
+// POST /api/auth/login { login, password } — login is a username or an email.
+router.post('/login', authRateLimit, asyncRoute(async (req, res) => {
+    const loginKey = String(req.body?.login ?? '').trim().toLowerCase().slice(0, 254);
+    if (!loginLimit.check(`${req.ip}:${loginKey}`).allowed || !loginAccountLimit.check(loginKey).allowed) {
+        return res.status(429).json({ error: 'Too many sign-in attempts. Try again later.' });
+    }
+    const user = await accounts.login({ login: req.body?.login, password: req.body?.password });
+    res.json({ token: makeToken(user.id), user });
+}));
+
+// POST /api/auth/password { username?, password, current_password? } — set or
+// change the password (and the username if given).
+router.post('/password', requireAuth, authRateLimit, asyncRoute(async (req, res) => {
+    const user = await accounts.setPassword({
+        userId: req.userId,
+        username: req.body?.username,
+        password: req.body?.password,
+        currentPassword: req.body?.current_password,
+    });
+    res.json({ user });
+}));
 
 // POST /api/auth/send-otp
 router.post('/send-otp', authRateLimit, async (req, res) => {
@@ -103,18 +145,18 @@ router.post('/verify-otp', authRateLimit, (req, res) => {
         user = db.prepare(`SELECT * FROM users WHERE id = ?`).get(userId);
     }
 
-    res.json({ token: makeToken(user.id), user: { id: user.id, email: user.email, is_anonymous: false } });
+    res.json({ token: makeToken(user.id), user: accounts.publicUser(user) });
 });
 
 // POST /api/auth/anonymous
 router.post('/anonymous', authRateLimit, (req, res) => {
     const user = createAnonymousUser();
-    res.json({ token: makeToken(user.id), user });
+    res.json({ token: makeToken(user.id), user: accounts.getPublicUser(user.id) });
 });
 
 // GET /api/auth/me
 router.get('/me', requireAuth, (req, res) => {
-    const user = db.prepare(`SELECT id, email, is_anonymous FROM users WHERE id = ?`).get(req.userId);
+    const user = accounts.getPublicUser(req.userId);
     if (!user) return res.status(404).json({ error: 'User not found' });
     res.json(user);
 });
@@ -164,9 +206,9 @@ router.post('/redeem-transfer', authRateLimit, (req, res) => {
     if (!record) return res.status(400).json({ error: 'That code is invalid or has expired' });
 
     db.prepare(`UPDATE device_transfer_codes SET used_at = datetime('now') WHERE code_hash = ?`).run(codeHash);
-    const user = db.prepare(`SELECT id, email, is_anonymous FROM users WHERE id = ?`).get(record.user_id);
+    const user = accounts.getPublicUser(record.user_id);
     if (!user) return res.status(404).json({ error: 'User not found' });
-    res.json({ token: makeToken(user.id), user: { ...user, is_anonymous: !!user.is_anonymous } });
+    res.json({ token: makeToken(user.id), user });
 });
 
 // POST /api/auth/refresh-tokens — swap saved same-device (hotseat) tokens

@@ -109,4 +109,35 @@ test.describe('Agent invites', () => {
         await expect(page.locator('#players-list')).toContainText('Guest');
         await expect(page.locator('#agent-invites')).toBeHidden();
     });
+
+    // A phone host switches apps to paste the invite, so the page misses the
+    // join event; it must catch up when the socket comes back.
+    test('an agent that joins while the host page is disconnected shows as joined after reconnecting', async ({ page, request }) => {
+        await loginPage(page, hostToken);
+        await page.goto(`${BASE}/waiting.html?room=${room.id}`);
+        await page.locator('#agent-invite-name').fill('Giskard');
+        await page.locator('#agent-invite-create-btn').click();
+        await expect(page.locator('#agent-invite-prompt')).toHaveValue(/mbagent_/);
+        const key = ((await page.locator('#agent-invite-prompt').inputValue()).match(/mbagent_[A-Za-z0-9_-]+/) || [])[0];
+        await page.locator('#agent-invite-close-btn').click();
+        const inviteRow = page.locator('.agent-invite-row');
+        await expect(inviteRow).toContainText('Waiting for the agent to join');
+
+        await page.evaluate(() => getSocket().disconnect());
+        const joined = await mcpCall(request, 'join_game', { agent_key: key });
+        expect(joined.isError, String(joined.body)).toBe(false);
+        await page.waitForTimeout(500);
+        await expect(inviteRow).toContainText('Waiting for the agent to join');
+
+        await page.evaluate(() => getSocket().connect());
+        await expect(inviteRow).toContainText('Joined');
+        await expect(page.locator('#players-list')).toContainText('Giskard');
+    });
+
+    test('the host entering their own room code goes straight back into the room', async ({ page }) => {
+        await loginPage(page, hostToken);
+        await page.goto(`${BASE}/waiting.html?code=${room.invite_code}`);
+        await expect(page).toHaveURL(new RegExp(`waiting\\.html\\?room=${room.id}`));
+        await expect(page.locator('#agent-invites')).toBeVisible();
+    });
 });

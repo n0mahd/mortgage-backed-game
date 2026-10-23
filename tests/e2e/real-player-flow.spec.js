@@ -248,7 +248,7 @@ test.describe('thorough real-player UI game flow', () => {
 });
 
 async function signInWithOtp(page, baseURL, email) {
-    await page.goto(`${baseURL}/auth.html`);
+    await page.goto(`${baseURL}/auth.html?mode=email`);
     await page.locator('#email-input').fill(email);
     await page.locator('#send-code-btn').click();
     await expect(page.locator('#code-input')).toBeVisible({ timeout: 10000 });
