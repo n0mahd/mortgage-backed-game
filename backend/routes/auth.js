@@ -33,6 +33,8 @@ const otpSendLimit = createRateLimiter({ name: 'otp_send', enabled: true, max: 5
 const otpVerifyLimit = createRateLimiter({ name: 'otp_verify', enabled: true, max: 10, windowMs: FIFTEEN_MINUTES });
 const transferRedeemLimit = createRateLimiter({ name: 'transfer_redeem', enabled: true, max: 10, windowMs: FIFTEEN_MINUTES });
 const loginLimit = createRateLimiter({ name: 'password_login', enabled: true, max: 10, windowMs: FIFTEEN_MINUTES });
+// Caps guesses at one account from many addresses.
+const loginAccountLimit = createRateLimiter({ name: 'password_login_account', enabled: true, max: 50, windowMs: FIFTEEN_MINUTES });
 
 // Express 4 does not catch rejected promises; hand them to the error handler.
 const asyncRoute = handler => (req, res, next) => Promise.resolve(handler(req, res, next)).catch(next);
@@ -52,7 +54,7 @@ router.post('/register', authRateLimit, asyncRoute(async (req, res) => {
 // POST /api/auth/login { login, password } — login is a username or an email.
 router.post('/login', authRateLimit, asyncRoute(async (req, res) => {
     const loginKey = String(req.body?.login ?? '').trim().toLowerCase().slice(0, 254);
-    if (!loginLimit.check(`${req.ip}:${loginKey}`).allowed) {
+    if (!loginLimit.check(`${req.ip}:${loginKey}`).allowed || !loginAccountLimit.check(loginKey).allowed) {
         return res.status(429).json({ error: 'Too many sign-in attempts. Try again later.' });
     }
     const user = await accounts.login({ login: req.body?.login, password: req.body?.password });
