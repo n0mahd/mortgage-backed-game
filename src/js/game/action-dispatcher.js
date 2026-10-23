@@ -1,7 +1,8 @@
 // Game screen action dispatcher.
 //
-// This file stays as a classic browser script. Handlers call functions exposed
-// by src/js/game.js at click time, keeping the page no-build and easy to split.
+// Buttons carry data-game-action; game.js routes their clicks here. Handlers call
+// top-level functions from src/js/game.js and src/js/game/*.js at click time.
+// Classic browser script, no build.
 (function (global) {
     'use strict';
 

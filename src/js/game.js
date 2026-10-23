@@ -1,4 +1,12 @@
-// Game Room JavaScript - Multiplayer Monopoly Game Logic
+// Game page entry point (game.html): shared page state, startup, realtime sync
+// and resync, rendering the Game tab and loading the Recent events log, sending
+// game actions, turn and host actions, hotseat hand-over, winner and liquidation
+// sheets, sheets and tabs, and the few helpers several sheets share
+// (secondsUntil, groupHasBuildingsUi, isPlayersTurn).
+// Feature code lives in src/js/game/ and is loaded before this file; all game
+// page scripts share one global scope, so the state below is plain top-level
+// `let` (e2e tests read currentGame and gameChannel by name) and handlers that
+// action-dispatcher.js calls stay top-level functions.
 
 let currentGame = null;
 let currentRoom = null;
@@ -325,7 +333,26 @@ function isCurrentUsersTurn() {
     return isPlayersTurn({ userId: currentUser.id });
 }
 
-// End turn
+// Turn actions: roll, get out of Jail, end the turn.
+async function rollDiceAndMove() {
+    if (!currentGame || !currentUser) return;
+    // Tests set window.__E2E_NEXT_DICE to choose the roll.
+    const payload = Array.isArray(window.__E2E_NEXT_DICE)
+        ? { testDice: window.__E2E_NEXT_DICE.splice(0, 2) }
+        : {};
+    await submitGameAction('roll_dice', payload, { errorText: 'Failed to roll dice' });
+}
+
+async function payJailFine() {
+    if (!currentGame || !currentUser) return;
+    await submitGameAction('pay_jail_fine', {}, { errorText: 'Failed to pay Jail fine' });
+}
+
+async function useJailCard() {
+    if (!currentGame || !currentUser) return;
+    await submitGameAction('use_get_out_of_jail_card', {}, { errorText: 'Failed to use Jail card' });
+}
+
 async function endTurn() {
     const beforeUserId = currentUser.id;
     await submitGameAction('end_turn', {}, {
@@ -657,7 +684,7 @@ function switchToGameTab() {
     if (gameTabBtn) gameTabBtn.click();
 }
 
-// Set up UI listeners for Market section
+// Wire up the page's static controls once the game has loaded.
 function setupUIListeners() {
     bindStaticGameControls();
     // Populate player dropdowns
@@ -767,36 +794,10 @@ function bindStaticGameControls() {
     document.getElementById('share-move-device-btn')?.addEventListener('click', shareMoveDeviceLink);
 }
 
-// ============================================================
-// BOARD TAB FUNCTIONS
-// ============================================================
-
 // Render / refresh the Board tab content
 function renderBoardTab() {
     const el = document.getElementById('boardContent');
     if (!el || !currentGame || !currentUser) return;
     el.innerHTML = renderBoard(currentGame.game_state, currentUser.id);
     scaleBoardToFit();
-}
-
-// ---------------------------------------------------------------
-// Dice rolling and movement
-// ---------------------------------------------------------------
-async function rollDiceAndMove() {
-    if (!currentGame || !currentUser) return;
-    // Tests set window.__E2E_NEXT_DICE to choose the roll.
-    const payload = Array.isArray(window.__E2E_NEXT_DICE)
-        ? { testDice: window.__E2E_NEXT_DICE.splice(0, 2) }
-        : {};
-    await submitGameAction('roll_dice', payload, { errorText: 'Failed to roll dice' });
-}
-
-async function payJailFine() {
-    if (!currentGame || !currentUser) return;
-    await submitGameAction('pay_jail_fine', {}, { errorText: 'Failed to pay Jail fine' });
-}
-
-async function useJailCard() {
-    if (!currentGame || !currentUser) return;
-    await submitGameAction('use_get_out_of_jail_card', {}, { errorText: 'Failed to use Jail card' });
 }
