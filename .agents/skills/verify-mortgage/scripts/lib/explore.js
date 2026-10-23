@@ -207,7 +207,8 @@ class Explore {
 
     // At the start of the turn, before the roll: the only time the runner may switch the rent policy alone.
     async beforeRoll(seat, me, state) {
-        if (!this.wants('desk.rent-policy-set')) return false;
+        // Mirrors hasMovedThisTurn: doubles leave diceRolled false but set lastDiceRoll.
+        if (!this.wants('desk.rent-policy-set') || me.diceRolled || Array.isArray(state.lastDiceRoll)) return false;
         const corp = (state.corporations || []).find(c => this.runs(c, me) && !c.rentPolicyVote && !Number(c.rentPolicyLockedTurns || 0));
         if (!corp) return false;
         const bot = this.bot;
@@ -602,7 +603,8 @@ class Explore {
         await bot.marketTab(seat);
         await bot.tradeParties(seat, me.userId, target.userId);
         await seat.page.locator('#player1Cash').fill('0');
-        await seat.page.locator('#player2Cash').fill(String(20 + Math.floor(bot.rand() * 40)));
+        // Ask no more than they have; with nothing, the card goes as a gift.
+        await seat.page.locator('#player2Cash').fill(String(Math.max(0, Math.min(Math.floor(Number(target.cash)), 20 + Math.floor(bot.rand() * 40)))));
         const card = seat.page.locator('#player1-asset-get-out-of-jail-free');
         if (!(await card.count())) {
             this.ctx.finding({ severity: 'medium', category: 'ui', seat, title: 'Market does not offer my Get Out of Jail Free card as a trade asset', detail: '' });
@@ -610,6 +612,10 @@ class Explore {
             return bot.gameTab(seat);
         }
         await card.check();
+        if (!(await seat.page.locator('#executeTradeBtn').isEnabled())) {
+            this.ctx.log(`    ${seat.name}: jail card trade not proposable (the form says why)`);
+            return bot.gameTab(seat);
+        }
         await bot.act(seat, 'offer jail card in a trade', () => seat.page.locator('#executeTradeBtn').click(), { allowRejection: true });
         await bot.gameTab(seat);
     }
