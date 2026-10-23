@@ -177,6 +177,51 @@ function migrate(db) {
                 ON push_subscriptions (user_id, created_at DESC);
         `);
     });
+
+    // Username/password accounts, per-user archived games, seat links and host
+    // transfers. See documents/accounts-and-game-management.md.
+    apply(db, '008_accounts_and_game_management', () => {
+        const userColumns = db.prepare(`PRAGMA table_info(users)`).all().map(col => col.name);
+        for (const column of ['username', 'username_key', 'password_hash', 'password_updated_at']) {
+            if (!userColumns.includes(column)) db.exec(`ALTER TABLE users ADD COLUMN ${column} TEXT`);
+        }
+        db.exec(`
+            CREATE UNIQUE INDEX IF NOT EXISTS idx_users_username_key
+                ON users (username_key) WHERE username_key IS NOT NULL;
+
+            CREATE TABLE IF NOT EXISTS room_user_prefs (
+                room_id TEXT NOT NULL REFERENCES rooms(id) ON DELETE CASCADE,
+                user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                archived_at TEXT,
+                PRIMARY KEY (room_id, user_id)
+            );
+
+            CREATE TABLE IF NOT EXISTS seat_links (
+                id TEXT PRIMARY KEY,
+                room_id TEXT NOT NULL REFERENCES rooms(id) ON DELETE CASCADE,
+                member_id TEXT NOT NULL REFERENCES room_members(id) ON DELETE CASCADE,
+                token_hash TEXT NOT NULL UNIQUE,
+                created_by TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                expires_at TEXT NOT NULL,
+                used_at TEXT,
+                revoked_at TEXT,
+                created_at TEXT NOT NULL DEFAULT (datetime('now'))
+            );
+            CREATE INDEX IF NOT EXISTS idx_seat_links_member ON seat_links (member_id);
+
+            CREATE TABLE IF NOT EXISTS host_transfers (
+                id TEXT PRIMARY KEY,
+                room_id TEXT NOT NULL REFERENCES rooms(id) ON DELETE CASCADE,
+                from_user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                to_user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                status TEXT NOT NULL DEFAULT 'pending',
+                created_at TEXT NOT NULL DEFAULT (datetime('now')),
+                decided_at TEXT
+            );
+            CREATE INDEX IF NOT EXISTS idx_host_transfers_room_status ON host_transfers (room_id, status);
+            CREATE INDEX IF NOT EXISTS idx_host_transfers_to_status ON host_transfers (to_user_id, status);
+        `);
+    });
 }
 
 function apply(db, id, fn) {

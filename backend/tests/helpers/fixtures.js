@@ -9,6 +9,9 @@ const TEST_JWT_SECRET = 'test-secret';
 
 function resetTestDb(db) {
     db.exec(`
+        DELETE FROM host_transfers;
+        DELETE FROM seat_links;
+        DELETE FROM room_user_prefs;
         DELETE FROM game_actions;
         DELETE FROM game_events;
         DELETE FROM games;
