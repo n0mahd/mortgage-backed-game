@@ -15,6 +15,9 @@ const {
     sharesForPrice,
 } = require('./corporateFinance');
 const {
+    expiresAfter,
+    isExpired,
+    markResolved,
     hasMovedThisTurn,
     uniqueIds,
     makeEvent,
@@ -44,9 +47,7 @@ const {
 const { getBankruptcyClaim } = require('./bankruptcy');
 const { propertyBookValue } = require('./debt');
 const {
-    tradeOfferExpiryFrom,
     transferPropertiesToCorporation,
-    isTradeOfferExpired,
 } = require('./trades');
 
 // Whoever runs an LLC can put more of their own properties into it. If other
@@ -290,7 +291,7 @@ function offerPropertyToCorporation(state, player, payload, events) {
         payWith: terms.payWith,
         awaiting: 'corporation',
         createdAt: now.toISOString(),
-        expiresAt: tradeOfferExpiryFrom(state, now),
+        expiresAt: expiresAfter(state.settings.tradeOfferTimeoutMs, now),
     };
     state.propertyOffers.push(offer);
     events.push(makeEvent(player, 'property_offer_made', propertyOfferEventData(state, offer, player)));
@@ -322,7 +323,7 @@ function validatePropertyOffer(state, corp, offerer, assetIds, terms) {
 function findPendingPropertyOffer(state, offerId) {
     const offer = (state.propertyOffers || []).find(item => item.id === offerId && item.status === 'pending');
     if (!offer) throw new GameRuleError(404, 'Pending property offer not found');
-    if (isTradeOfferExpired(offer)) throw new GameRuleError(400, 'That property offer has expired');
+    if (isExpired(offer)) throw new GameRuleError(400, 'That property offer has expired');
     return offer;
 }
 
@@ -336,7 +337,7 @@ function respondPropertyOffer(state, actor, payload, events) {
     const response = String(payload.response || '');
     if (response === 'decline') {
         offer.status = isOfferer ? 'canceled' : 'declined';
-        resolvePropertyOffer(offer, actor);
+        markResolved(offer, actor);
         events.push(makeEvent(actor, 'property_offer_closed', { ...propertyOfferEventData(state, offer, actor), status: offer.status }));
         log(state, `${actor.name} ${isOfferer ? 'withdrew' : 'declined'} the offer of ${propertyNames(state, offer.assetIds)} to ${offer.ticker}`);
         return;
@@ -353,7 +354,7 @@ function respondPropertyOffer(state, actor, payload, events) {
         offer.priceBasis = 'set';
         offer.payWith = terms.payWith;
         offer.awaiting = isOfferer ? 'corporation' : 'offerer';
-        offer.expiresAt = tradeOfferExpiryFrom(state, new Date());
+        offer.expiresAt = expiresAfter(state.settings.tradeOfferTimeoutMs, new Date());
         events.push(makeEvent(actor, 'property_offer_countered', propertyOfferEventData(state, offer, actor)));
         log(state, `${actor.name} countered: ${propertyNames(state, offer.assetIds)} to ${offer.ticker} for $${offer.price.toFixed(2)} in ${offer.payWith === 'cash' ? 'treasury cash' : 'new shares'}`);
         return;
@@ -383,16 +384,10 @@ function acceptPropertyOffer(state, actor, offer, corp, offerer, events) {
     offer.price = quote.price;
     offer.newShares = newShares;
     offer.status = 'accepted';
-    resolvePropertyOffer(offer, actor);
+    markResolved(offer, actor);
     events.push(makeEvent(actor, 'property_offer_accepted', { ...propertyOfferEventData(state, offer, actor), newShares, totalShares: corp.totalShares }));
     const paidWith = newShares > 0 ? `${newShares} new shares` : `$${quote.price.toFixed(2)} from the treasury`;
     log(state, `${offer.ticker} took ${propertyNames(state, offer.assetIds)} from ${offerer.name} for ${paidWith}`);
-}
-
-function resolvePropertyOffer(offer, actor) {
-    offer.resolvedAt = new Date().toISOString();
-    offer.resolvedById = actor.userId;
-    offer.resolvedByName = actor.name;
 }
 
 function propertyOfferEventData(state, offer, actor) {
@@ -417,12 +412,12 @@ function expirePendingPropertyOffers(state, actor, events) {
         if (offer.status !== 'pending') return;
         const corp = state.corporations.find(c => c.id === offer.corpId);
         const offerer = state.players.find(p => p.userId === offer.offererId);
-        const reason = isTradeOfferExpired(offer) ? 'timeout'
+        const reason = isExpired(offer) ? 'timeout'
             : (!corp || corp.insolvent ? 'corporation_insolvent' : (!offerer || offerer.bankrupt ? 'bankruptcy' : null));
         if (!reason) return;
         offer.status = reason === 'timeout' ? 'expired' : 'canceled';
         offer.cancelReason = reason;
-        resolvePropertyOffer(offer, actor);
+        markResolved(offer, actor);
         events.push(makeEvent(actor, 'property_offer_closed', { ...propertyOfferEventData(state, offer, actor), status: offer.status, reason }));
     });
 }

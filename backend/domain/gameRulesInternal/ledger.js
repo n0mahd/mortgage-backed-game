@@ -42,12 +42,17 @@ function calculateRentForLanding(state, propertyId, diceTotal, options = {}) {
     return calculateRent(state, propertyId, diceTotal) * Number(options.rentMultiplier || 1);
 }
 
+// A property's value: list price plus what its houses cost.
+function propertyWorth(prop) {
+    return prop.price + (prop.houses || 0) * (HOUSE_COSTS[prop.color] || 0);
+}
+
 function calculateNetWorth(state, playerId) {
     const player = state.players.find(p => p.userId === playerId);
     if (!player) return 0;
     const propertyValue = state.properties
         .filter(p => p.ownerId === player.userId)
-        .reduce((sum, prop) => sum + prop.price + (prop.houses || 0) * (HOUSE_COSTS[prop.color] || 0), 0);
+        .reduce((sum, prop) => sum + propertyWorth(prop), 0);
     const corpValue = state.corporations.reduce((sum, corp) => {
         const holding = (corp.shareholders || []).find(s => s.userId === player.userId);
         return sum + ((holding ? holding.shares : 0) * calculateCorporationShareValue(state, corp));
@@ -62,7 +67,7 @@ function calculateCorporationAssetValue(state, corp) {
         .filter(prop => prop.ownerId === corp.id)
         .reduce((sum, prop) => {
             assetIds.delete(prop.id);
-            return sum + prop.price + (prop.houses || 0) * (HOUSE_COSTS[prop.color] || 0);
+            return sum + propertyWorth(prop);
         }, 0);
     const fallbackAssetValue = (corp.assets || [])
         .filter(asset => assetIds.has(asset.id))
@@ -150,6 +155,7 @@ function ownsCompleteGroup(state, userId, color) {
 }
 
 module.exports = {
+    propertyWorth,
     requireWholeBuiltGroups,
     calculateRent,
     calculateRentForLanding,

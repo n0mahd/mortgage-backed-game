@@ -36,7 +36,6 @@ function rollDice(state, player, events, options) {
         player.doubleCount += 1;
         if (player.doubleCount >= 3) {
             sendToJail(player);
-            player.diceRolled = true;
             log(state, `${player.name} rolled doubles 3 times - sent to Jail!`);
             events.push(makeEvent(player, 'dice_roll', { player: player.name, die1, die2, total, isDoubles, sentToJail: true }));
             return;
@@ -144,7 +143,6 @@ function processLanding(state, player, square, diceTotal, events, options = {}) 
     if (square.type === 'community_chest') drawCard(state, player, 'community_chest', events);
     if (square.type === 'go_to_jail') {
         sendToJail(player);
-        player.diceRolled = true;
         log(state, `${player.name} landed on Go to Jail!`);
     }
 }

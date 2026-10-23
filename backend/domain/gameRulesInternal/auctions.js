@@ -2,7 +2,16 @@
 
 const { v4: uuidv4 } = require('uuid');
 const { BOARD_SQUARES } = require('./board');
-const { hasMovedThisTurn, makeEvent, log, positiveNumber, GameRuleError } = require('./util');
+const {
+    expiresAfter,
+    isExpired,
+    markResolved,
+    hasMovedThisTurn,
+    makeEvent,
+    log,
+    positiveNumber,
+    GameRuleError,
+} = require('./util');
 const { recordCashFlow } = require('./ledger');
 
 function startAuction(state, player, events) {
@@ -28,7 +37,7 @@ function startAuction(state, player, events) {
         passedPlayerIds: [],
         createdAt,
         updatedAt: createdAt,
-        expiresAt: auctionExpiryFrom(state, now),
+        expiresAt: expiresAfter(state.settings.auctionTimeoutMs, now),
     };
     events.push(makeEvent(player, 'property_auction_started', {
         auctionId: state.auction.id,
@@ -53,7 +62,7 @@ function placeAuctionBid(state, actor, payload, events) {
     auction.highBidderName = actor.name;
     const now = new Date();
     auction.updatedAt = now.toISOString();
-    auction.expiresAt = auctionExpiryFrom(state, now);
+    auction.expiresAt = expiresAfter(state.settings.auctionTimeoutMs, now);
     events.push(makeEvent(actor, 'property_auction_bid', {
         auctionId: auction.id,
         property: auction.propertyName,
@@ -74,7 +83,7 @@ function passAuction(state, actor, events) {
         auction.passedPlayerIds.push(actor.userId);
         const now = new Date();
         auction.updatedAt = now.toISOString();
-        auction.expiresAt = auctionExpiryFrom(state, now);
+        auction.expiresAt = expiresAfter(state.settings.auctionTimeoutMs, now);
         events.push(makeEvent(actor, 'property_auction_passed', {
             auctionId: auction.id,
             property: auction.propertyName,
@@ -103,7 +112,7 @@ function settleAuctionIfComplete(state, actor, events) {
 
 function expireOpenAuctionIfNeeded(state, actor, events) {
     if (!state.auction || state.auction.status !== 'open') return false;
-    if (!isAuctionExpired(state.auction)) return false;
+    if (!isExpired(state.auction)) return false;
     if (state.auction.highBidderId) {
         closeAuctionSold(state, actor, events, 'timeout');
     } else {
@@ -112,24 +121,11 @@ function expireOpenAuctionIfNeeded(state, actor, events) {
     return true;
 }
 
-function isAuctionExpired(auction) {
-    if (!auction?.expiresAt) return false;
-    const expiresAt = new Date(auction.expiresAt).getTime();
-    return Number.isFinite(expiresAt) && expiresAt <= Date.now();
-}
-
-function auctionExpiryFrom(state, date = new Date()) {
-    const timeoutMs = Math.max(Number(state.settings?.auctionTimeoutMs || 0), 1000);
-    return new Date(date.getTime() + timeoutMs).toISOString();
-}
-
 function closeAuctionNoSale(state, actor, events, reason) {
     const auction = getOpenAuction(state);
     auction.status = 'no_sale';
     auction.closeReason = reason;
-    auction.resolvedAt = new Date().toISOString();
-    auction.resolvedById = actor.userId;
-    auction.resolvedByName = actor.name;
+    markResolved(auction, actor);
     events.push(makeEvent(actor, 'property_auction_no_sale', {
         auctionId: auction.id,
         property: auction.propertyName,
@@ -154,9 +150,7 @@ function closeAuctionSold(state, actor, events, reason) {
     recordCashFlow(state, winner.userId, null, amount);
     auction.status = 'sold';
     auction.closeReason = reason;
-    auction.resolvedAt = new Date().toISOString();
-    auction.resolvedById = actor.userId;
-    auction.resolvedByName = actor.name;
+    markResolved(auction, actor);
     auction.winnerId = winner.userId;
     auction.winnerName = winner.name;
     auction.finalBid = amount;
@@ -180,9 +174,7 @@ function hostCancelAuction(state, actor, events) {
     const auction = getOpenAuction(state);
     auction.status = 'canceled';
     auction.cancelReason = 'host';
-    auction.resolvedAt = new Date().toISOString();
-    auction.resolvedById = actor.userId;
-    auction.resolvedByName = actor.name;
+    markResolved(auction, actor);
     events.push(makeEvent(actor, 'property_auction_canceled', {
         auctionId: auction.id,
         property: auction.propertyName,

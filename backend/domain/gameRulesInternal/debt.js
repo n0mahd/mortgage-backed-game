@@ -11,7 +11,7 @@ const {
     calculateCorporationShareValue,
     recordCashFlow,
 } = require('./ledger');
-const { canManageCorporationDebt, hasMajorityShares } = require('./corporations');
+const { controlsCorporation, hasMajorityShares } = require('./corporations');
 
 // Lenders keep a 10% equity cushion across the whole portfolio: a borrower's
 // loans may total at most 90% of the book value of what they own. For a player
@@ -85,7 +85,7 @@ function issueDebt(state, player, payload, events) {
         const corp = state.corporations.find(c => c.id === payload.corpId);
         if (!corp) throw new GameRuleError(404, 'Corporation not found');
         if (corp.insolvent) throw new GameRuleError(400, 'Corporation is insolvent');
-        if (!canManageCorporationDebt(corp, player.userId)) {
+        if (!controlsCorporation(corp, player.userId)) {
             throw new GameRuleError(403, 'Only the chairman or controlling shareholder can issue corporation debt');
         }
         requireBorrowingCapacity(state, corp, amount);
@@ -191,7 +191,7 @@ function findBorrowerLoan(state, player, payload) {
     if (payload.corpId) {
         const corp = state.corporations.find(c => c.id === payload.corpId);
         if (!corp) throw new GameRuleError(404, 'Corporation not found');
-        if (!canManageCorporationDebt(corp, player.userId)) {
+        if (!controlsCorporation(corp, player.userId)) {
             throw new GameRuleError(403, 'Only the chairman or controlling shareholder can manage corporation debt');
         }
         const debt = corp.debts.find(d => d.id === payload.debtId);

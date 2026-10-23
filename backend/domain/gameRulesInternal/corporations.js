@@ -175,10 +175,6 @@ function removeCorporationAsset(corp, propertyId) {
     corp.assets = (corp.assets || []).filter(asset => asset.id !== propertyId);
 }
 
-function canManageCorporationDebt(corp, userId) {
-    return controlsCorporation(corp, userId);
-}
-
 // The chairman or a majority holder runs an LLC: they can manage its debt and
 // accept property into it.
 function controlsCorporation(corp, userId) {
@@ -497,7 +493,6 @@ module.exports = {
     distributeCorporationRent,
     buyPropertyForCorporation,
     removeCorporationAsset,
-    canManageCorporationDebt,
     controlsCorporation,
     changeChairman,
     proposeChairmanVote,
