@@ -20,6 +20,11 @@ Production database: SQLite on the M60e at `/mnt/ssd/projects/mortgage-backed/ba
 | Data | Where | Why | Who can see it | Retention | Deleted by |
 | --- | --- | --- | --- | --- | --- |
 | Email address | `users.email` (null for guests) | OTP sign-in, "forgot room code" email | Server only, never sent to other players or agents | Forever | Nothing (no account deletion) |
+| Username (free text, chosen by the player, optional) | `users.username`, with its lower-case copy `users.username_key` | Sign in with username and password | Server only; not shown to other players (they see the per-room player name) | Forever | Nothing (no account deletion) |
+| Password hash | `users.password_hash` (scrypt, random 16-byte salt per user) and `users.password_updated_at`. The password itself is never stored or logged | Sign in with username or email and password | Server only | Until changed (the old hash is overwritten) | Nothing (no account deletion) |
+| Archived games | `room_user_prefs` (room, user, when archived) | Hide a game from that player's own list | Server only; only that player's list changes | Forever | Cascades with the room or user |
+| Seat link | `seat_links` (room, seat, SHA-256 of the link token, who made it, expiry, used/revoked time). The token is only in the link the host copies | The host hands one player a way back into their seat | Server only; the host sees the link once | Rows are never deleted (expire after 7 days; a guest seat's link works once; a new link for the seat revokes older ones) | Cascades with the room or seat |
+| Host transfer offer | `host_transfers` (room, from and to user IDs, status, times) | The host offers host rights to a player, who accepts or declines | The host and the offered player | Forever | Cascades with the room or either user |
 | Invitee email address | Not stored; passed straight to the email provider | A signed-in room member emails a friend the room's code | Server and email provider | Not kept | n/a |
 | Email + login code | `otps` (`email`, `code` in plaintext) | 10-minute sign-in code | Server only | Until the next code is requested for that email; used rows are never deleted | `send-otp` for the same email |
 | Player name (free text, chosen per room) | `room_members.player_name`, copied into `games.game_state` | Shown to the room | Everyone in the room, and its host even when watching without a seat | Forever | Leaving the room deletes the member row, but not the copy in game state |
@@ -31,7 +36,7 @@ Production database: SQLite on the M60e at `/mnt/ssd/projects/mortgage-backed/ba
 | Game history | `game_events`, `game_actions.request_json`/`result_json` | Game log, idempotent retries | Room members and the room's host (events) | Forever | Nothing |
 | Push subscription (turn alerts) | `push_subscriptions`: the browser's push endpoint URL and its encryption keys, per user ID | Send "your turn" alerts to devices the player turned them on for | Server only | Until the player turns alerts off, the push service reports the device gone, or the player adds a sixth device (oldest dropped) | Turn off alerts; 404/410 from the push service |
 | Game-on-screen presence | In memory only: user ID to visible socket IDs | Skip turn alerts for players already looking at the game | Server only | While the page is open and visible | Page hidden, socket disconnect, process restart |
-| Rate-limit keys (IP, user ID, email sender and recipient) | In memory only | Abuse protection, including per-recipient email limits | Server only | Window length (15 to 60 minutes) | Process restart or window expiry |
+| Rate-limit keys (IP, user ID, email sender and recipient, typed login name) | In memory only | Abuse protection, including per-recipient email limits | Server only | Window length (15 to 60 minutes) | Process restart or window expiry |
 
 ## Logs
 
@@ -41,13 +46,13 @@ Production database: SQLite on the M60e at `/mnt/ssd/projects/mortgage-backed/ba
 | Email send errors (`routes/auth.js`, `routes/rooms.js`) | `err.message` only; the mailer reports the provider's HTTP status, never its response body | No | journald | journald default |
 | MCP errors (`mcp/server.js`) | Error and stack for failed agent requests | No request bodies or tokens | journald | journald default |
 | OTP console log (`routes/auth.js`, send-otp) | Email and code | Yes | Dev only: needs `LOG_OTPS=true` and is forced off when `isProduction()` | n/a in production |
-| nginx access log | Client IP (from `CF-Connecting-IP`), path, user agent | IP address | M60e `/var/log/nginx` | Not verified (blind spot) |
+| nginx access log | Client IP (from `CF-Connecting-IP`), path with query (so a seat link's `?seat=` token when the page is opened), user agent | IP address; seat link tokens (single use for guest seats, 7-day expiry; an account seat's link only leads to sign-in) | M60e `/var/log/nginx` | Not verified (blind spot) |
 
 ## Client-side storage
 
 | Key | Holds | Lifetime | Cleared on sign-out? |
 | --- | --- | --- | --- |
-| `localStorage.auth_token` | JWT for the current player (30 days in today's production config) | Until sign-out or expiry | Yes |
+| `localStorage.auth_token` | JWT for the current player (30 days in today's production config), whether a guest or an account (email or username and password) | Until sign-out or expiry | Yes |
 | `localStorage.mortgage_hotseat_resume_rooms` | Hotseat rooms and their players' tokens, so a shared device can resume | Until the hotseat game is cleared | No |
 | `sessionStorage.saved_tokens_refreshed` | Flag (`1`) so saved hotseat tokens are swapped for new-secret ones once per tab | Browser tab | Yes |
 | `sessionStorage.hotseat_tokens` | Tokens for each hotseat seat | Browser tab | Yes |
