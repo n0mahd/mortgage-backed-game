@@ -4,7 +4,7 @@
 //
 // Classic browser script. It renders HTML for openCorporationModal() and
 // handles its buttons, calling game.js globals (currentGame, currentUser,
-// performGameAction, escapeHtml, formatMoney, ...) at click time. The server
+// submitGameAction, escapeHtml, formatMoney, ...) at click time. The server
 // stays the authority; numbers here are previews.
 (function (global) {
     'use strict';
@@ -19,10 +19,6 @@
 
     function corpById(corpId) {
         return (state()?.corporations || []).find(corp => corp.id === corpId) || null;
-    }
-
-    function isInsolvent(corp) {
-        return !!corp.insolvent || corp.status === 'insolvent';
     }
 
     function policyOf(corp) {
@@ -49,10 +45,6 @@
         return global.escapeHtml(value);
     }
 
-    function sharesOf(corp, userId) {
-        return Number((corp.shareholders || []).find(h => h.userId === userId)?.shares || 0);
-    }
-
     function offerOptions(extra = {}) {
         return { netAssetValue: global.getCorporationNetAssetValue, maxShares: MAX_CORPORATION_SHARES, ...extra };
     }
@@ -60,11 +52,11 @@
     // ---- Rent policy ------------------------------------------------------
 
     function renderRentPolicy(corp) {
-        if (isInsolvent(corp)) return '';
+        if (global.ShareDeals.isInsolvent(corp)) return '';
         const policy = policyOf(corp);
         const runs = global.ShareDeals.runsCorporation(corp, me());
         const total = Number(corp.totalShares || 0);
-        const mine = sharesOf(corp, me());
+        const mine = global.ShareDeals.sharesHeld(corp, me());
         const pct = global.ShareDeals.percent(mine, total);
         const effect = policy === 'payout'
             ? (mine > 0
@@ -131,7 +123,7 @@
         const agreed = holders.filter(h => vote.supporterIds.includes(h.userId));
         const waiting = holders.filter(h => !vote.supporterIds.includes(h.userId));
         const nameOf = h => (h.userId === me() ? 'you' : h.name);
-        const canAnswer = sharesOf(corp, me()) > 0 && !vote.supporterIds.includes(me());
+        const canAnswer = global.ShareDeals.sharesHeld(corp, me()) > 0 && !vote.supporterIds.includes(me());
         return `
             <div class="chairman-vote-row">
                 <div>
@@ -147,39 +139,30 @@
     }
 
     async function proposeRentPolicy(corpId, policy) {
-        try {
-            await global.performGameAction('propose_rent_policy_change', { corpId, policy });
-            global.openCorporationModal();
-        } catch (error) {
-            global.logActionError('Error proposing rent policy change:', error);
-            alert(error.message || 'Failed to propose the change');
-        }
+        await global.submitGameAction('propose_rent_policy_change', { corpId, policy }, {
+            errorText: 'Failed to propose the change',
+            onSaved: () => global.openCorporationModal(),
+        });
     }
 
     async function voteRentPolicy(corpId, approve) {
-        try {
-            await global.performGameAction('vote_rent_policy_change', { corpId, approve });
-            global.openCorporationModal();
-        } catch (error) {
-            global.logActionError('Error voting on rent policy:', error);
-            alert(error.message || 'Failed to vote');
-        }
+        await global.submitGameAction('vote_rent_policy_change', { corpId, approve }, {
+            errorText: 'Failed to vote',
+            onSaved: () => global.openCorporationModal(),
+        });
     }
 
     async function setRentPolicy(corpId, policy) {
-        try {
-            await global.performGameAction('set_rent_policy', { corpId, policy });
-            global.openCorporationModal();
-        } catch (error) {
-            global.logActionError('Error changing rent policy:', error);
-            alert(error.message || 'Failed to change the rent policy');
-        }
+        await global.submitGameAction('set_rent_policy', { corpId, policy }, {
+            errorText: 'Failed to change the rent policy',
+            onSaved: () => global.openCorporationModal(),
+        });
     }
 
     // ---- The runner's tools -----------------------------------------------
 
     function renderRunnerTools(corp) {
-        if (isInsolvent(corp) || !global.ShareDeals.runsCorporation(corp, me())) return '';
+        if (global.ShareDeals.isInsolvent(corp) || !global.ShareDeals.runsCorporation(corp, me())) return '';
         const myTurn = isMyTurn();
         const cash = Number(corp.cash || 0);
         const ownsGroup = global.getCompleteGroupProperties(corp.id, state()).length > 0;
@@ -206,14 +189,13 @@
         const corp = corpById(corpId);
         const amount = Number(document.getElementById(`dividend-${corpId}`)?.value || 0);
         if (!corp || !(amount > 0)) return;
-        try {
-            await global.performGameAction('pay_dividend', { corpId, amount });
-            global.showToast(`${corp.ticker} paid a ${money(amount)} dividend.`);
-            global.openCorporationModal();
-        } catch (error) {
-            global.logActionError('Error paying dividend:', error);
-            alert(error.message || 'Failed to pay the dividend');
-        }
+        await global.submitGameAction('pay_dividend', { corpId, amount }, {
+            errorText: 'Failed to pay the dividend',
+            onSaved: () => {
+                global.showToast(`${corp.ticker} paid a ${money(amount)} dividend.`);
+                global.openCorporationModal();
+            },
+        });
     }
 
     function buildForCorporation(corpId) {
@@ -238,7 +220,7 @@
     }
 
     function renderOfferButton(corp) {
-        if (isInsolvent(corp) || !corp.chairmanId || global.ShareDeals.runsCorporation(corp, me())) return '';
+        if (global.ShareDeals.isInsolvent(corp) || !corp.chairmanId || global.ShareDeals.runsCorporation(corp, me())) return '';
         const mine = (currentPlayerData?.properties || []).length > 0 && !currentPlayerData?.bankrupt;
         if (!mine) return '';
         return `
@@ -300,13 +282,10 @@
             payload.price = Number(document.getElementById(`counter-${offerId}`)?.value || 0);
             if (!(payload.price > 0)) return;
         }
-        try {
-            await global.performGameAction('respond_property_offer', payload);
-            global.openCorporationModal();
-        } catch (error) {
-            global.logActionError('Error answering property offer:', error);
-            alert(error.message || 'Failed to answer the offer');
-        }
+        await global.submitGameAction('respond_property_offer', payload, {
+            errorText: 'Failed to answer the offer',
+            onSaved: () => global.openCorporationModal(),
+        });
     }
 
     let offerCorpId = null;
@@ -384,14 +363,13 @@
         if (!corp || !assetIds.length) return;
         const payload = { corpId: corp.id, assetIds, payWith };
         if (basis === 'set') payload.price = price;
-        try {
-            await global.performGameAction('offer_property_to_corporation', payload);
-            global.closeModal('propertyOfferModal');
-            global.showToast(`Offer sent to ${corp.chairmanName || corp.ticker}.`);
-        } catch (error) {
-            global.logActionError('Error offering property:', error);
-            alert(error.message || 'Failed to send the offer');
-        }
+        await global.submitGameAction('offer_property_to_corporation', payload, {
+            errorText: 'Failed to send the offer',
+            onSaved: () => {
+                global.closeModal('propertyOfferModal');
+                global.showToast(`Offer sent to ${corp.chairmanName || corp.ticker}.`);
+            },
+        });
     }
 
     function bind() {
@@ -403,8 +381,8 @@
     // Property offers and rent-policy votes someone needs to answer, for the
     // Corporations button.
     function offersAwaiting(userId) {
-        const votes = (state()?.corporations || []).filter(corp => corp.rentPolicyVote && !isInsolvent(corp)
-            && sharesOf(corp, userId) > 0 && !corp.rentPolicyVote.supporterIds.includes(userId));
+        const votes = (state()?.corporations || []).filter(corp => corp.rentPolicyVote && !global.ShareDeals.isInsolvent(corp)
+            && global.ShareDeals.sharesHeld(corp, userId) > 0 && !corp.rentPolicyVote.supporterIds.includes(userId));
         return [...votes, ...(state()?.propertyOffers || []).filter(offer => {
             if (offer.status !== 'pending') return false;
             if (offer.awaiting === 'offerer') return offer.offererId === userId;

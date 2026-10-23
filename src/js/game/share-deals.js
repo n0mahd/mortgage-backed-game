@@ -344,5 +344,5 @@
         return { sentences, rows, warnings, quote, newShares };
     }
 
-    global.ShareDeals = { summarize, summarizeContribution, summarizePropertyOffer, contributionQuote, corporationsRunBy, runsCorporation, percent, count, perShare };
+    global.ShareDeals = { summarize, summarizeContribution, summarizePropertyOffer, contributionQuote, corporationsRunBy, runsCorporation, sharesHeld, isInsolvent, percent, count, perShare };
 })(window);
