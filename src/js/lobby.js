@@ -22,9 +22,10 @@ async function initLobby() {
     renderAccount();
 
     // An offer made, cancelled or answered changes both lists.
-    getSocket().on('room:host_transfer', () => {
+    getSocket().on('room:host_transfer', event => {
         loadHostOffers();
         scheduleRoomsReload();
+        ManageRoom.refreshIfOpen(event && event.roomId);
     });
 
     await Promise.all([loadUserRooms(), loadHostOffers()]);

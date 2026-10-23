@@ -125,7 +125,7 @@ async function handleSendCode() {
     } catch (error) {
         errorEl.textContent = error.message || 'Failed to send code. Please try again.';
         setBusy(btn, false, 'Send Code', 'Sending...');
-        console.error('Send code error:', error);
+        if (!(error.status >= 400 && error.status < 500)) console.error('Send code error:', error);
     }
 }
 
@@ -155,7 +155,7 @@ async function handleVerifyCode() {
     } catch (error) {
         errorEl.textContent = error.message || 'Invalid or expired code. Please try again.';
         setBusy(btn, false, 'Verify Code', 'Verifying...');
-        console.error('Verify code error:', error);
+        if (!(error.status >= 400 && error.status < 500)) console.error('Verify code error:', error);
     }
 }
 
