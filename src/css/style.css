@@ -3354,6 +3354,19 @@ input[type="radio"] {
     margin-top: var(--s4);
 }
 
+.hero-signin {
+    margin-top: var(--s3);
+    font-size: var(--text-sub);
+    color: color-mix(in srgb, var(--mint-wash) 85%, transparent);
+}
+.hero-signin a {
+    display: inline-flex;
+    align-items: center;
+    min-height: var(--tap);
+    color: var(--on-dark);
+    font-weight: 650;
+}
+
 .landing-body {
     max-width: var(--page-max);
     margin: 0 auto;

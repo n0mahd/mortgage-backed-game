@@ -182,10 +182,9 @@ function renderRoom(room) {
 
     isHost = currentUser && room.host_id === currentUser.id;
 
-    if (isHost) {
-        document.getElementById('host-controls').style.display = 'block';
-        if (room.status === 'waiting') AgentInvites.mount(room.id);
-    }
+    // Host rights can move to another player (Manage players).
+    document.getElementById('host-controls').style.display = isHost ? 'block' : 'none';
+    if (isHost && room.status === 'waiting') AgentInvites.mount(room.id);
     // A host who only watches has no seat to leave.
     const watching = isHost && !room.room_members.some(member => member.user_id === currentUser.id);
     document.getElementById('spectator-help-text').hidden = !watching;
@@ -237,11 +236,7 @@ function subscribeToRoomUpdatesById(id) {
     roomSubscription = subscribeToRoom(
         id,
         async (room) => {
-            currentRoom = room;
-            renderPlayers(room.room_members);
-            document.getElementById('player-count').textContent =
-                `${room.room_members.length}/${room.max_players} players`;
-            updateStartButtonState(room.room_members.length);
+            renderRoom(room);
             if (isHost) AgentInvites.refresh();
             logActivity('Player list updated');
         },

@@ -90,11 +90,12 @@ describe('colour groups with buildings stay together', () => {
         expectRefused(() => applyAction(proposed, 'alice', { type: 'accept_trade', payload: { offerId: offer.id } }), /buildings/);
     });
 
-    test('the direct trade action refuses a built group too', () => {
+    // Trades only happen by offer and acceptance; the old one-sided action is gone.
+    test('the removed direct trade action is unknown', () => {
         expectRefused(() => applyAction(aliceBuiltOrange(), 'alice', {
             type: 'trade',
-            payload: { player1Id: 'alice', player2Id: 'bob', player1Cash: 0, player2Cash: 300, player1AssetIds: [ORANGE[0]], player2AssetIds: [] },
-        }), /buildings/);
+            payload: { player1Id: 'alice', player2Id: 'bob', player1Cash: 0, player2Cash: 300, player1AssetIds: [], player2AssetIds: [] },
+        }), /Unknown action type/);
     });
 
     test('a street in a built group cannot be traded into an LLC', () => {

@@ -254,7 +254,8 @@ class Autoplay {
     async handleOffers() {
         const { state } = this.server();
         if (state.marketOffers?.some(o => o.status === 'pending')) await this.restoreOffline();
-        const pending = (state.marketOffers || []).filter(o => o.status === 'pending');
+        // An offer past its expiry shows "expired" with no Accept/Decline; the next action clears it.
+        const pending = (state.marketOffers || []).filter(o => o.status === 'pending' && !(Date.parse(o.expiresAt) <= Date.now()));
         for (const offer of pending) {
             const recipientId = offer.proposedById === offer.player1Id ? offer.player2Id : offer.player1Id;
             const seat = this.seatById(recipientId);
@@ -264,7 +265,7 @@ class Autoplay {
             let accept = this.chance(0.55);
             if (this.explore?.wants('trade.decline') && !this.explore.wants('trade.accept')) accept = false;
             if (this.explore?.wantsAny('trade.accept', 'trade.property-swap', 'trade.jail-card') && !this.explore.wants('trade.decline')) accept = true;
-            if (this.explore?.wants('trade.expire') && this.explore.active?.name === 'trade-expiry') continue;
+            if (this.explore?.holdingOffersFor(state, 'trade.expire')) continue;
             const button = seat.page.locator(`#tradeOffersList [data-game-action="${accept ? 'accept-trade-offer' : 'cancel-trade-offer'}"][data-offer-id="${offer.id}"]`);
             if (await this.usable(button)) {
                 await this.act(seat, accept ? 'accept trade' : 'decline trade', () => button.click(), { allowRejection: true });
@@ -375,23 +376,32 @@ class Autoplay {
         await this.gameButton(seat, 'open-buy-property').click();
         await seat.page.locator('#buyPropertyModal').waitFor({ state: 'visible' });
         await this.firstTime('buy-modal', [seat], 'buy-property-modal');
+        // "Who's buying?": a company the player runs, when exploration wants that path.
+        const forCorp = this.explore?.wants('desk.buy-for-corp') && seat.page.locator('#buyForChoices input[name="buyFor"]:not([value=""]):not(:disabled)').first();
+        if (forCorp && await forCorp.count()) {
+            buy = true;
+            await forCorp.check();
+            await this.firstTime('buy-for-corp', [seat], 'buy-property-for-corporation');
+        }
         if (buy) {
-            await this.act(seat, 'buy property', () => seat.page.locator('#confirm-purchase-btn').click());
+            await this.act(seat, forCorp && await forCorp.count() ? 'buy property for a company' : 'buy property', () => seat.page.locator('#confirm-purchase-btn').click());
         } else {
             await this.act(seat, 'start auction', () => seat.page.locator('#start-auction-btn').click());
         }
         await this.closeModals(seat);
     }
 
-    async buyHouses(seat, me) {
-        await this.gameButton(seat, 'open-house').click();
+    // opts.opened: the House sheet is already open (Build houses for <ticker>); opts.cash: the builder's cash.
+    async buyHouses(seat, me, opts = {}) {
+        if (!opts.opened) await this.gameButton(seat, 'open-house').click();
+        const cash = opts.cash ?? Number(me.cash);
         const modal = seat.page.locator('#houseModal');
         await modal.waitFor({ state: 'visible' });
         await this.firstTime('house-modal', [seat], 'house-modal');
         const plus = modal.locator('[data-game-action="adjust-house"][data-delta="1"]');
         const n = await plus.count();
         const aimHotel = this.explore?.wantsAny('houses.hotel', 'rent.hotel');
-        const budget = Math.max(1, Math.min(aimHotel ? n * 5 : n * 2, Math.floor((Number(me.cash) - (aimHotel ? 50 : 200)) / 150)));
+        const budget = Math.max(1, Math.min(aimHotel ? n * 5 : n * 2, Math.floor((cash - (aimHotel ? 50 : 200)) / 150)));
         for (let i = 0; i < budget; i++) {
             const button = plus.nth(i % n);
             if (await button.isEnabled()) await button.click();
@@ -401,13 +411,13 @@ class Autoplay {
         for (let i = 0; i < n * 5; i++) {
             const total = await modal.locator('#houseModalTotal').innerText().catch(() => '');
             const cost = Number((/Total cost: \$([\d.]+)/.exec(total) || [])[1] || 0);
-            if (cost <= Number(me.cash) - 50) break;
+            if (cost <= cash - 50) break;
             const enabled = [];
             for (let j = 0; j < n; j++) if (await minus.nth(j).isEnabled()) enabled.push(j);
             if (!enabled.length) break;
             await minus.nth(enabled[enabled.length - 1]).click();
         }
-        await this.act(seat, 'buy houses', () => modal.locator('#confirm-house-purchase-btn').click(), { allowRejection: true });
+        await this.act(seat, opts.label || 'buy houses', () => modal.locator('#confirm-house-purchase-btn').click(), { allowRejection: true });
         await this.closeModals(seat);
     }
 
@@ -541,8 +551,7 @@ class Autoplay {
         const cash = Math.min(Math.floor(Number(me.cash) * 0.5), Math.round(shares * 50 * (0.8 + this.rand() * 0.6)));
         if (cash <= 0) return;
         await this.marketTab(seat);
-        await seat.page.locator('#player1Select').selectOption({ value: seat.userId });
-        await seat.page.locator('#player2Select').selectOption({ value: holder.userId });
+        await this.tradeParties(seat, seat.userId, holder.userId);
         await seat.page.locator('#player1Cash').fill(String(cash));
         await seat.page.locator('#player2Cash').fill('0');
         const sharesInput = seat.page.locator(`#player2-shares-${corp.id}`);
@@ -551,6 +560,17 @@ class Autoplay {
         await this.firstTime('share-offer', [seat], 'share-offer-form');
         await this.act(seat, `offer $${cash} for ${shares} ${corp.ticker} shares`, () => seat.page.locator('#executeTradeBtn').click(), { allowRejection: true });
         await this.gameTab(seat);
+    }
+
+    // Market: who trades with whom, each for themselves. "Trading as" keeps its last
+    // choice, so a personal trade after a company one must set it back to Yourself.
+    async tradeParties(seat, player1Id, player2Id) {
+        await seat.page.locator('#player1Select').selectOption({ value: player1Id });
+        await seat.page.locator('#player2Select').selectOption({ value: player2Id });
+        for (const side of ['player1', 'player2']) {
+            const as = seat.page.locator(`#${side}As`);
+            if (await as.isVisible().catch(() => false) && (await as.inputValue()) !== '') await as.selectOption('');
+        }
     }
 
     async proposeTrade(seat, me, state) {
@@ -565,8 +585,7 @@ class Autoplay {
         const offer = Math.min(Math.floor(Number(me.cash) * 0.4), Math.round(Number(wanted.value || 100) * (1 + this.rand() * 0.5)));
         if (offer <= 0) return;
         await this.marketTab(seat);
-        await seat.page.locator('#player1Select').selectOption({ value: me.userId });
-        await seat.page.locator('#player2Select').selectOption({ value: target.userId });
+        await this.tradeParties(seat, me.userId, target.userId);
         await seat.page.locator('#player1Cash').fill(String(offer));
         await seat.page.locator('#player2Cash').fill('0');
         // Streets in built colour groups are greyed out (they can't be traded): leave those.
@@ -683,6 +702,7 @@ class Autoplay {
             await this.handleOffers();
             if (this.explore) {
                 await this.explore.handleVotes();
+                await this.explore.handleCorpRequests();
                 await this.explore.hostCancelOffers();
             }
             let { state } = this.server();
@@ -722,6 +742,16 @@ class Autoplay {
                     if (Number(me.cash) > 200 && this.chance(0.5) && await this.usable(this.gameButton(seat, 'pay-jail-fine'))) {
                         await this.act(seat, 'pay jail fine', () => this.gameButton(seat, 'pay-jail-fine').click());
                         continue;
+                    }
+                }
+                // Only before the roll may a chairman switch the rent policy alone.
+                if (this.explore && !me.inJail && !optionalDone.has('before-roll')) {
+                    optionalDone.add('before-roll');
+                    try {
+                        if (await this.explore.beforeRoll(seat, me, state)) continue;
+                    } catch (err) {
+                        this.ctx.finding({ severity: 'low', category: 'harness', seat, title: 'Explore before-roll action failed', detail: String(err.message || err).split('\n')[0] });
+                        await this.closeModals(seat);
                     }
                 }
                 const roll = this.gameButton(seat, 'roll-dice');

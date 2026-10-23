@@ -90,9 +90,31 @@ const PATHWAYS = [
     { id: 'corp.chairman-majority', group: 'Corporations', label: 'Majority holder changes the chairman', match: ev('chairman_changed', d => d.method === 'majority'), hint: 'Corporations: as majority shareholder, change chairman.' },
     { id: 'corp.vote-propose', group: 'Corporations', label: 'Propose a chairman vote', match: ev('chairman_vote_proposed'), hint: 'Corporations: as a shareholder, Propose a chairman.' },
     { id: 'corp.vote-support', group: 'Corporations', label: 'Support a chairman vote', match: ev('chairman_vote_supported'), hint: 'Corporations: Support an open vote.' },
-    { id: 'corp.vote-passes', group: 'Corporations', label: 'Chairman elected by vote', match: ev('chairman_changed', d => d.method === 'vote'), stage: 'shared-corporation' },
+    { id: 'corp.vote-passes', group: 'Corporations', label: 'Chairman elected by vote', match: ev('chairman_changed', d => d.method === 'vote'), hint: 'A shareholder proposes themselves and holders with more than half the shares support it.', stage: 'corporation-with-shareholders' },
     { id: 'corp.chairman-after-bankruptcy', group: 'Corporations', label: 'Chairman replaced or vacated after bankruptcy', match: [ev('chairman_changed', d => d.method === 'bankruptcy'), ev('chairman_vacated')], stage: 'near-bankrupt' },
     { id: 'corp.insolvent', group: 'Corporations', label: 'A corporation becomes insolvent', match: ev('corporation_insolvent'), stage: 'insolvent-corporation' },
+
+    // ----- the chairman's desk: rent policy, dividends, spending the treasury, property offers -----
+    { id: 'desk.rent-policy-set', group: 'Corporation desk', label: 'Chairman switches the rent policy before rolling', match: ev('rent_policy_changed', d => d.method === 'chairman'), hint: 'Corporations → your company → Switch to Payout/Reinvest, at the start of your turn before you roll.', stage: 'corporation-with-shareholders' },
+    { id: 'desk.rent-vote-propose', group: 'Corporation desk', label: 'Ask every shareholder to switch the rent policy', match: ev('rent_policy_vote_proposed'), hint: 'Corporations → a company you hold shares in → Ask every shareholder to switch (the chairman sees it while the policy is locked).', stage: 'corporation-locked-policy' },
+    { id: 'desk.rent-vote-support', group: 'Corporation desk', label: 'Agree to a rent policy switch', match: ev('rent_policy_vote_supported'), hint: 'Corporations → an open rent policy vote → Agree.', stage: 'corporation-locked-policy' },
+    { id: 'desk.rent-vote-reject', group: 'Corporation desk', label: 'Reject a rent policy switch', match: ev('rent_policy_vote_rejected'), hint: 'Corporations → an open rent policy vote → Reject.', stage: 'corporation-locked-policy' },
+    { id: 'desk.rent-vote-passes', group: 'Corporation desk', label: 'Rent policy switched because every shareholder agreed', match: ev('rent_policy_changed', d => d.method === 'unanimous'), hint: 'Every shareholder agrees to an open rent policy vote.', stage: 'corporation-locked-policy' },
+    { id: 'desk.rent-distributed', group: 'Corporation desk', label: 'Payout company passes rent on to its shareholders', match: ev('rent_distributed'), hint: 'Land on a property of a company in Payout mode that has other shareholders.', stage: 'payout-corporation' },
+    { id: 'desk.payout-discount', group: 'Corporation desk', label: 'Shareholder pays only the part of the rent they do not own', match: ev('forced_payment', d => Number(d.fullRent) > Number(d.amountOwed)), hint: 'Hold shares in a Payout company and land on one of its properties.', stage: 'payout-corporation' },
+    { id: 'desk.rent-to-treasury', group: 'Corporation desk', label: 'Rent paid into a company treasury (Reinvest)', match: ev('forced_payment', d => /^Rent for /.test(d.reason || '') && String(d.to).startsWith('[') && !d.fullRent), hint: 'Land on a property a company owns.', stage: 'reinvest-corporation' },
+    { id: 'desk.dividend', group: 'Corporation desk', label: 'Chairman pays a dividend', match: ev('dividend_paid'), hint: 'Corporations → your company → Pay dividend (your turn, treasury cash).', stage: 'corporation-with-shareholders' },
+    { id: 'desk.buy-for-corp', group: 'Corporation desk', label: 'Buy a property for a company from its treasury', match: ev('property_purchase', d => String(d.buyer).startsWith('[')), hint: 'Chairman lands on an unowned property → Buy Property → Who\'s buying? <ticker>.', stage: 'corporation-buys' },
+    { id: 'desk.build-for-corp', group: 'Corporation desk', label: 'Build houses for a company from its treasury', match: ev('house_purchase', d => String(d.player).startsWith('[')), hint: 'Corporations → your company → Build houses for <ticker> (it must own a whole colour group).', stage: 'corporation-group' },
+    { id: 'desk.trade-as-corp', group: 'Corporation desk', label: 'Propose a trade as the company', match: act('propose_trade', d => d.player1CorpId || d.player2CorpId), hint: 'Corporations → your company → Trade as <ticker>, or Market → Trading as.', stage: 'corporation-with-shareholders' },
+    { id: 'desk.property-for-shares-trade', group: 'Corporation desk', label: 'Trade a property into a company for the chairman\'s shares', match: act('propose_trade', d => d.player1PropertiesToCorpId || d.player2PropertiesToCorpId), hint: 'Corporations → another player\'s company → Or trade it for the chairman\'s own shares: tick a property, Into <ticker>, ask for shares.', stage: 'offer-to-corporation' },
+    { id: 'desk.offer-made', group: 'Corporation desk', label: 'Offer a property to a company', match: ev('property_offer_made'), hint: 'Corporations → a company you don\'t run → Offer a property to <ticker>.', stage: 'offer-to-corporation' },
+    { id: 'desk.offer-accepted-shares', group: 'Corporation desk', label: 'Company takes an offered property for new shares', match: ev('property_offer_accepted', d => d.payWith !== 'cash'), hint: 'Offer paid with new shares; the chairman taps Accept.', stage: 'offer-to-corporation' },
+    { id: 'desk.offer-accepted-cash', group: 'Corporation desk', label: 'Company buys an offered property with treasury cash', match: ev('property_offer_accepted', d => d.payWith === 'cash'), hint: 'Offer paid with treasury cash; the chairman taps Accept.', stage: 'offer-to-corporation' },
+    { id: 'desk.offer-countered', group: 'Corporation desk', label: 'Counter a property offer with another price', match: ev('property_offer_countered'), hint: 'Chairman: Counter on a property offer (Corporations → Property offers).', stage: 'offer-to-corporation' },
+    { id: 'desk.offer-declined', group: 'Corporation desk', label: 'Chairman declines a property offer', match: ev('property_offer_closed', d => d.status === 'declined'), hint: 'Chairman: Decline on a property offer.', stage: 'offer-to-corporation' },
+    { id: 'desk.offer-withdrawn', group: 'Corporation desk', label: 'Offerer withdraws a property offer', match: ev('property_offer_closed', d => d.status === 'canceled' && !d.reason), hint: 'Offerer: Withdraw on your own property offer.', stage: 'offer-to-corporation' },
+    { id: 'desk.offer-expired', group: 'Corporation desk', label: 'Property offer expires (10 min)', match: ev('property_offer_closed', d => d.reason === 'timeout'), stage: 'property-offer-expiry' },
 
     // ----- market -----
     { id: 'trade.propose', group: 'Market', label: 'Propose a trade', match: ev('trade_offer_proposed') },
@@ -110,18 +132,18 @@ const PATHWAYS = [
     { id: 'bankrupt.claim-settled', group: 'Bankruptcy', label: 'Settle a bankruptcy claim and survive', match: ev('bankruptcy_claim_settled'), stage: 'near-bankrupt' },
     { id: 'bankrupt.to-player', group: 'Bankruptcy', label: 'Go bankrupt to another player', match: ev('bankruptcy_liquidation', d => d.assetDestinationType === 'player'), stage: 'near-bankrupt' },
     { id: 'bankrupt.to-bank', group: 'Bankruptcy', label: 'Go bankrupt to the bank', match: ev('bankruptcy_liquidation', d => d.assetDestinationType !== 'player'), stage: 'broke-to-bank' },
-    { id: 'end.last-player', group: 'Bankruptcy', label: 'Game ends with one player left', match: ev('game_ended', d => !/host/i.test(d.reason || '')), stage: 'last-two' },
+    { id: 'end.last-player', group: 'Bankruptcy', label: 'Game ends with one player left', match: ev('game_ended', d => !/host/i.test(d.reason || '')), stage: 'broke-to-bank', hint: 'With two players left, one goes bankrupt.' },
     { id: 'end.host', group: 'Host', label: 'Host ends the game', match: ev('game_ended', d => /host/i.test(d.reason || '')) },
     { id: 'host.pause', group: 'Host', label: 'Host pauses and resumes', match: [ev('game_paused'), ev('game_resumed')], all: true },
 
     // ----- refusals: the game must say no (counted when tried, applied or not) -----
     { id: 'refuse.bid-over-cash', group: 'Refusals', label: 'Try to bid more than your cash', match: act('place_bid', (d, s) => s.refused && /insufficient/i.test(s.error || '')), hint: 'In an auction, bid more cash than you have.' },
-    { id: 'refuse.trade-built-group', group: 'Refusals', label: 'Try to trade a street from a colour group with buildings', match: act('propose_trade', (d, s) => s.refused && /buildings/i.test(s.error || '')), hint: 'Build houses, then offer one of that group\'s streets in the Market (the box should be greyed out; the rule: IPO the whole group instead).', stage: 'houses-built' },
+    { id: 'refuse.trade-built-group', group: 'Refusals', label: 'Try to trade a street from a colour group with buildings', match: act('propose_trade', (d, s) => s.refused && /buildings/i.test(s.error || '')), uiAlso: true, hint: 'Build houses, then offer one of that group\'s streets in the Market (the box should be greyed out; the rule: IPO the whole group instead).', stage: 'houses-built' },
     { id: 'refuse.loan-over-limit', group: 'Refusals', label: 'Try to borrow more than your portfolio allows', match: act('issue_debt', (d, s) => s.refused && /up to/i.test(s.error || '')), hint: 'Manage Debt → Take a new loan: ask for more than the limit shown.' },
-    { id: 'refuse.force-buy-shares', group: 'Refusals', label: 'Try to buy a player\'s shares without an offer', match: act('buy_shares', (d, s) => s.refused), hint: 'Corporations: try to buy shares that a player holds.' },
+    { id: 'refuse.force-buy-shares', group: 'Refusals', label: 'Try to buy a player\'s shares without an offer', match: act('buy_shares', (d, s) => s.refused), uiAlso: true, hint: 'Corporations: try to buy shares that a player holds (the sheet should offer only treasury shares).' },
     { id: 'refuse.pay-over-cash', group: 'Refusals', label: 'Try to pay a player more than your cash', match: act('manual_payment', (d, s) => s.refused && /insufficient/i.test(s.error || '')), hint: 'Market → Payment System: an amount above your cash.' },
     { id: 'refuse.junk-amount', group: 'Refusals', label: 'Submit a zero, negative or non-numeric amount', match: [act('issue_debt', (d, s) => s.refused && !(Number(d.amount) > 0)), act('manual_payment', (d, s) => s.refused && !(Number(d.amount) > 0)), act('place_bid', (d, s) => s.refused && !(Number(d.amount) > 0)), act('create_ipo', (d, s) => s.refused)], hint: 'Enter 0, -5 or text as an amount and submit.' },
-    { id: 'refuse.trade-not-owned', group: 'Refusals', label: 'Propose a trade the rules refuse', match: act('propose_trade', (d, s) => s.refused), hint: 'Offer more cash than you have, or a trade with nothing in it.' },
+    { id: 'refuse.trade-not-owned', group: 'Refusals', label: 'Propose a trade the rules refuse', match: act('propose_trade', (d, s) => s.refused), uiAlso: true, hint: 'Offer more cash than you have, or a trade with nothing in it (the form should block it).' },
 
     // ----- people and devices (seen by the harness, not the engine) -----
     { id: 'ui.email-sign-in', group: 'People', label: 'Sign in with an emailed code', ui: true },
@@ -177,6 +199,8 @@ function coverage(events, state, uiMarks = new Set(), actions = []) {
         else {
             const counts = matchesAny(p.match, events, actions);
             hits = p.all ? Math.min(...counts) : counts.reduce((a, b) => a + b, 0);
+            // uiAlso: the UI may refuse it before the server sees it; the harness marks that it did.
+            if (p.uiAlso && uiMarks.has(p.id)) hits += 1;
         }
         return { id: p.id, group: p.group, label: p.label, hits, hint: p.hint || null, stage: p.stage || null };
     });

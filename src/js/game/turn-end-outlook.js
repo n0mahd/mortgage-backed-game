@@ -4,7 +4,10 @@
 // any unpaid claim is paid from cash first, then personal loans are serviced (serviceLoan in
 // loans.js: autopay takes each loan's nextPayment as far as cash allows, and a loan on its
 // last turn takes its whole balance), then the player goes bankrupt if cash is below zero or
-// the claim is still unpaid. Keep the two in step.
+// the claim is still unpaid. Then each corporation whose loans this player services
+// (loanServicerId in debt.js: the chairman, or the majority holder when the chair is
+// empty) is serviced the same way, and becomes insolvent if its cash ends below zero.
+// Keep the two in step.
 // Classic browser script, no build.
 (function (global) {
     'use strict';
@@ -23,6 +26,7 @@
         let remaining = cash;
         let paid = 0;
         let maturing = 0;
+        let shortAutopay = false;
         (debts || []).forEach(debt => {
             const due = Number(debt.nextPayment || 0);
             let payment = 0;
@@ -31,11 +35,39 @@
                 maturing += due;
             } else if (debt.autopay !== false) {
                 payment = Math.min(due, Math.max(0, remaining));
+                if (payment < due) shortAutopay = true;
             }
             remaining -= payment;
             paid += payment;
         });
-        return { paid, maturing };
+        return { paid, maturing, shortAutopay };
+    }
+
+    function servicesLoansOf(corp, userId) {
+        if (corp.chairmanId) return corp.chairmanId === userId;
+        const total = Number(corp.totalShares || 0);
+        return (corp.shareholders || []).some(holder => holder.userId === userId && Number(holder.shares || 0) * 2 > total);
+    }
+
+    // The corporations whose loans this player's End Turn services, with what happens to each.
+    function getCompanyOutlooks(gameState, player) {
+        if (!player) return [];
+        return (gameState?.corporations || [])
+            .filter(corp => !corp.insolvent && (corp.debts || []).length && servicesLoansOf(corp, player.userId))
+            .map(corp => {
+                const cash = Number(corp.cash || 0);
+                const loans = loanPaymentsAtTurnEnd(corp.debts, cash);
+                const cashAfter = cash - loans.paid;
+                return {
+                    ticker: corp.ticker,
+                    cash,
+                    cashAfter,
+                    maturing: loans.maturing,
+                    // Autopay can't cover a payment: the rest is added to the loan as unpaid interest.
+                    shortAutopay: loans.shortAutopay,
+                    goesInsolvent: cashAfter < 0,
+                };
+            });
     }
 
     function getTurnEndOutlook(gameState, player) {
@@ -68,5 +100,5 @@
         };
     }
 
-    global.TurnEndOutlook = { forPlayer: getTurnEndOutlook };
+    global.TurnEndOutlook = { forPlayer: getTurnEndOutlook, forCompanies: getCompanyOutlooks };
 })(window);

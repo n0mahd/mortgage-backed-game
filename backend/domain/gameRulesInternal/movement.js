@@ -69,10 +69,13 @@ function rollDice(state, player, events, options) {
     if (!isDoubles || wasInJail) player.diceRolled = true;
     if (wasInJail) player.doubleCount = 0;
     const square = BOARD_SQUARES[player.position];
-    const canRollAgain = isDoubles && !wasInJail;
-    log(state, `${player.name} rolled ${die1}+${die2}=${total} - moved to ${square.name}${canRollAgain ? ' (doubles - roll again!)' : ''}`);
+    const rollLine = `${player.name} rolled ${die1}+${die2}=${total} - moved to ${square.name}`;
+    log(state, rollLine);
+    const rollEntry = state.gameLog[state.gameLog.length - 1];
     events.push(makeEvent(player, 'dice_roll', { player: player.name, die1, die2, total, isDoubles, square: square.name, jailReleased: wasInJail }));
     processLanding(state, player, square, total, events);
+    // Doubles roll again, unless the landing (Go to Jail, a card) sent them to Jail.
+    if (isDoubles && !wasInJail && !player.inJail) rollEntry.message = `${rollLine} (doubles - roll again!)`;
 }
 
 function payJailFine(state, player, events) {

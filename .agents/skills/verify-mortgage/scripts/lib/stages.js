@@ -43,6 +43,56 @@ function free(state, ids) {
     });
 }
 
+const CORP_SHARES = 12000;
+
+// Gives `chair` a corporation (their own if they already chair one) with the
+// given shareholders, treasury, rent policy and properties. holders: [[player, shares]];
+// the chairman keeps the rest, so with under half given away they still run it.
+// props: ids that must be free (no corporation owns them); they move into it.
+function corporation(s, chair, { holders = [], cash = 600, policy = 'reinvest', locked = 0, props = [] } = {}) {
+    if (!free(s, props)) return null;
+    let corp = (s.corporations || []).find(c => c.chairmanId === chair.userId && !c.insolvent);
+    if (!corp) {
+        let ticker = `T${chair.name.replace(/[^A-Za-z]/g, '').slice(0, 3).toUpperCase()}`;
+        while (s.corporations.some(c => c.ticker === ticker)) ticker += 'X';
+        corp = {
+            id: `corp-staged-${Date.now()}`, ticker, name: `${ticker} Corporation`,
+            founderId: chair.userId, founderName: chair.name, chairmanId: chair.userId, chairmanName: chair.name,
+            totalShares: CORP_SHARES, assets: [], shareholders: [], availableShares: 0, treasuryShares: 0,
+            cash: 0, debts: [], chairmanVotes: [], rentPolicy: 'reinvest',
+        };
+        s.corporations.push(corp);
+    }
+    const given = holders.reduce((n, [, shares]) => n + shares, 0);
+    corp.totalShares = CORP_SHARES;
+    corp.treasuryShares = 0;
+    corp.availableShares = 0;
+    corp.shareholders = [{ userId: chair.userId, name: chair.name, shares: CORP_SHARES - given }, ...holders.map(([p, shares]) => ({ userId: p.userId, name: p.name, shares }))];
+    corp.cash = cash;
+    corp.debts = [];
+    corp.chairmanVotes = [];
+    corp.rentPolicy = policy;
+    corp.rentPolicyLockedTurns = locked;
+    corp.rentPolicyLockSkipsTurnOf = null;
+    corp.rentPolicyVote = null;
+    for (const id of props) {
+        const prop = s.properties.find(p => p.id === id);
+        for (const p of s.players) p.properties = (p.properties || []).filter(x => x.id !== id);
+        prop.ownerId = corp.id;
+        prop.ownerName = `[${corp.ticker}]`;
+        prop.houses = 0;
+        if (!corp.assets.some(a => (a.id || a) === id)) corp.assets.push({ id: prop.id, name: prop.name, value: prop.price, color: prop.color });
+    }
+    return corp;
+}
+
+// A street nobody owns and no stage is about to hand out, or null.
+function unownedStreet(s, avoid = []) {
+    const square = [1, 3, 6, 8, 9, 11, 13, 14, 16, 18, 19, 21, 23, 24, 26, 27, 29, 31, 32, 34, 37, 39]
+        .find(sq => !s.properties.find(p => p.id === BOARD[sq].propertyId).ownerId && !avoid.includes(BOARD[sq].propertyId));
+    return square === undefined ? null : { square, id: BOARD[square].propertyId };
+}
+
 function landOn(state, player, square, dice) {
     const route = routeTo(square);
     player.position = route.from;
@@ -125,6 +175,65 @@ const STAGES = {
         s.settings.tradeOfferTimeoutMs = 3000;
         return { state: s, dice: {}, note: 'trade offers now expire after 3s (restored once one expires)', restoreAfter: 'trade.expire', restore: st => { st.settings.tradeOfferTimeoutMs = 600000; } };
     },
+    // ----- the chairman's desk -----
+    // The current player chairs a company another player holds 40% of, with $600 and one street:
+    // rent policy (before the roll), dividends, chairman votes, trading as the company.
+    'corporation-with-shareholders': (s, { current, other }) => {
+        const street = unownedStreet(s);
+        if (!other || !street) return null;
+        const corp = corporation(s, current, { holders: [[other, 4800]], cash: 600, props: [street.id] });
+        return corp && { state: s, dice: {}, note: `${current.name} chairs ${corp.ticker} ($600 treasury, ${BOARD[street.square].name}); ${other.name} holds 40%` };
+    },
+    // As above with the rent policy locked for 3 turns, so changing it needs every shareholder.
+    'corporation-locked-policy': (s, { current, other }) => {
+        const street = unownedStreet(s);
+        if (!other || !street) return null;
+        const corp = corporation(s, current, { holders: [[other, 4800]], cash: 300, locked: 3, props: [street.id] });
+        return corp && { state: s, dice: {}, note: `${current.name} chairs ${corp.ticker}, rent policy locked for 3 turns; ${other.name} holds 40%` };
+    },
+    // Another player's Payout company, part-owned by the current player, who lands on its street.
+    'payout-corporation': (s, { current, other }) => {
+        const street = unownedStreet(s);
+        if (!other || !street) return null;
+        const corp = corporation(s, other, { holders: [[current, 3000]], cash: 200, policy: 'payout', props: [street.id] });
+        return corp && { state: s, dice: landOn(s, current, street.square), note: `${other.name}'s ${corp.ticker} is in Payout with ${BOARD[street.square].name}; ${current.name} holds 25% and will land on it` };
+    },
+    // Another player's Reinvest company; the current player lands on its street.
+    'reinvest-corporation': (s, { current, other }) => {
+        const street = unownedStreet(s);
+        if (!other || !street) return null;
+        const corp = corporation(s, other, { cash: 200, props: [street.id] });
+        return corp && { state: s, dice: landOn(s, current, street.square), note: `${other.name}'s ${corp.ticker} owns ${BOARD[street.square].name}; ${current.name} will land on it` };
+    },
+    // The current player chairs a company with $1,000 and will land on an unowned street.
+    'corporation-buys': (s, { current }) => {
+        const owned = unownedStreet(s);
+        const target = owned && unownedStreet(s, [owned.id]);
+        if (!target) return null;
+        const corp = corporation(s, current, { cash: 1000, props: [owned.id] });
+        return corp && { state: s, dice: landOn(s, current, target.square), note: `${current.name} chairs ${corp.ticker} ($1,000 treasury) and will land on unowned ${BOARD[target.square].name}` };
+    },
+    // The current player's company owns the whole Brown group and $800 to build with.
+    'corporation-group': (s, { current }) => {
+        const corp = corporation(s, current, { cash: 800, props: group('Brown') });
+        return corp && { state: s, dice: {}, note: `${current.name} chairs ${corp.ticker}, which owns the Brown group and $800` };
+    },
+    // Another player chairs a company with $800; the current player owns a free street to offer it.
+    'offer-to-corporation': (s, { current, other }) => {
+        const corpStreet = unownedStreet(s);
+        const mine = corpStreet && unownedStreet(s, [corpStreet.id]);
+        if (!other || !mine) return null;
+        const corp = corporation(s, other, { cash: 800, props: [corpStreet.id] });
+        if (!corp) return null;
+        assign(s, current, [mine.id], 0);
+        return { state: s, dice: {}, note: `${other.name} chairs ${corp.ticker} ($800 treasury); ${current.name} given ${BOARD[mine.square].name} to offer it` };
+    },
+    'property-offer-expiry': (s, ctx) => {
+        const result = STAGES['offer-to-corporation'](s, ctx);
+        if (!result) return null;
+        s.settings.tradeOfferTimeoutMs = 3000;
+        return { ...result, note: `${result.note}; offers now expire after 3s (restored once one expires)`, restoreAfter: 'desk.offer-expired', restore: st => { st.settings.tradeOfferTimeoutMs = 600000; } };
+    },
     'auction-timeout': (s, { current }) => {
         s.settings.auctionTimeoutMs = 3000;
         const target = [1, 3, 6, 8, 9, 11, 13, 14, 16, 18, 19, 21, 23, 24, 26, 27, 29, 31, 32, 34, 37, 39]
@@ -143,6 +252,13 @@ for (const [deck, cards, key, square] of [['chance', rules.CHANCE_CARDS, 'chance
             return { state: s, dice: landOn(s, current, square), note: `${card.id} put on top of ${deck}; ${current.name} will land on ${BOARD[square].name}` };
         };
     }
+}
+
+// Every stage a pathway names must exist; a typo would silently never stage.
+{
+    const { PATHWAYS } = require('./pathways');
+    const unknown = [...new Set(PATHWAYS.map(p => p.stage).filter(name => name && !STAGES[name]))];
+    if (unknown.length) throw new Error(`lib/pathways.js names stages lib/stages.js doesn't have: ${unknown.join(', ')}`);
 }
 
 function build(name, state, ctx) {

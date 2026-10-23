@@ -127,8 +127,11 @@ Other docs: player rules in `documents/game-rules.md` and `README.md`, open deci
 - `scripts/check-static-assets.js` (every referenced asset exists; a script or stylesheet has the same
   `?v=` on every page) and `scripts/check-architecture.js` (import boundaries, classic scripts only,
   and every path named in this file exists).
-- Whole-game verification through the real UI (2/5/8 players, 20 rounds, sync and state invariants,
-  screenshots, agent seats): the `verify-mortgage` skill, `.agents/skills/verify-mortgage/SKILL.md`.
+- Whole-app verification through the real UI: the `verify-mortgage` skill,
+  `.agents/skills/verify-mortgage/SKILL.md`. `play` runs whole games (2/5/8 players, 20 rounds, sync
+  and state invariants, coverage of every game pathway, screenshots, agent seats); `journeys` runs
+  every path outside the board (accounts, My games, rooms, hotseat, agents over MCP, hosting,
+  resilience) in fresh browsers.
   Its bot relies on the `data-game-action` buttons and modal/Market ids listed there; update
   `.agents/skills/verify-mortgage/scripts/lib/bot.js` when renaming them.
 
@@ -139,8 +142,9 @@ Other docs: player rules in `documents/game-rules.md` and `README.md`, open deci
   dev-only `repairGameState`, all in `services/gameActions.js`.
 - **Rules live in `backend/domain/`.** Not in routes, services, MCP or the frontend; the frontend may
   mirror a rule for display (say so in a comment, like `turn-end-outlook.js`, and keep the mirror in
-  step). A new action goes in the `ACTIONS` table in `applyAction.js`, in `actionCatalog.js`, and in
-  `mcp/rules.js` if agents should use it.
+  step). A new action goes in the `ACTIONS` table in `applyAction.js`, in `actionCatalog.js`
+  (`backend/tests/unit/action-catalog.test.js` fails if the two differ), and in `mcp/rules.js` if
+  agents should use it. Players change each other's holdings only through offers they accept.
 - **Keep the rule documents true.** Rules are written down in `documents/game-rules.md`, `README.md`,
   `backend/mcp/rules.js` and the descriptions in `backend/domain/actionCatalog.js`. A rule change needs
   backend tests and an update to every one of them that mentions it, in the same commit; fix any you

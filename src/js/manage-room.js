@@ -271,5 +271,10 @@
         status.classList.toggle('error', isError);
     }
 
-    global.ManageRoom = { open, close };
+    // A room event (offer answered elsewhere, player joined) for the open sheet.
+    function refreshIfOpen(id) {
+        if (roomId && (!id || String(id) === String(roomId))) refresh();
+    }
+
+    global.ManageRoom = { open, close, refreshIfOpen };
 })(window);

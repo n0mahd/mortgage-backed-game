@@ -15,6 +15,7 @@ const { buildTable } = require('./lib/table');
 const { Autoplay } = require('./lib/bot');
 const pathways = require('./lib/pathways');
 const stages = require('./lib/stages');
+let journeysLib = require('./lib/journeys');
 
 const runId = process.argv[2];
 const run = runs.readRun(runId);
@@ -41,6 +42,9 @@ const api4xx = new Map();
 let uiMarks = new Set();
 let refusedActions = [];
 let stagesApplied = [];
+// App journeys (lib/journeys.js): one run at a time, results kept for the report.
+let journeyRun = null;
+let journeyCount = 0;
 
 // Evidence writes recreate their folder, so a deleted folder can't crash a run.
 function appendEvidence(file, text) {
@@ -108,6 +112,7 @@ async function shot(seat, name) {
 
 const ctx = {
     run,
+    evidenceDir: evidence,
     get webUrl() { return `http://127.0.0.1:${run.ports.web}`; },
     get browser() { return browser; },
     log,
@@ -128,7 +133,7 @@ const ctx = {
             refusedActions.push(entry);
             res.json().then(j => { entry.error = j.error || ''; }).catch(() => {});
         }
-        if (res.status() === 409) finding({ severity: 'low', category: 'api-409', title: 'Actions hit a version conflict (409); the player is asked to retry', detail: key });
+        if (res.status() === 409 && url.endsWith('/actions')) finding({ severity: 'low', category: 'api-409', title: 'Actions hit a version conflict (409); the player is asked to retry', detail: key });
     },
     markUi(id) {
         if (!uiMarks.has(id)) log(`  pathway: ${id}`);
@@ -181,6 +186,9 @@ async function startBackend() {
         LOG_OTPS: 'true',
         ACTION_AUDIT_LOG: 'true',
         ROOM_CREATE_RATE_LIMIT_MAX: '200',
+        // Journeys make many accounts and guests from one address.
+        AUTH_RATE_LIMIT_MAX: '2000',
+        REJOIN_REQUEST_RATE_LIMIT_MAX: '200',
         // Dev-only hooks used by staged setups: host state repair and per-roll test dice.
         ALLOW_STATE_REPAIR: 'true',
         // A throwaway push key pair, so the turn-alerts screen behaves as in production.
@@ -257,17 +265,22 @@ async function look(seat, { full = false } = {}) {
 }
 
 async function mustAct(seat) {
-    return seat.page.evaluate(() => {
+    return seat.page.evaluate(notified => {
         if (typeof currentGame === 'undefined' || !currentGame || typeof currentUser === 'undefined' || !currentUser) return 'not-in-game';
         const state = currentGame.game_state;
         if (state.ended) return 'game-over';
         if (state.players[state.currentPlayerIndex]?.userId === currentUser.id && !state.paused) return 'your-turn';
         const a = state.auction;
         if (a && a.status === 'open' && a.highBidderId !== currentUser.id && !(a.passedPlayerIds || []).includes(currentUser.id)) return 'auction';
-        if ((state.marketOffers || []).some(o => o.status === 'pending' && [o.player1Id, o.player2Id].includes(currentUser.id) && o.proposedById !== currentUser.id)) return 'trade-offer';
+        const offers = (state.marketOffers || []).filter(o => o.status === 'pending' && [o.player1Id, o.player2Id].includes(currentUser.id) && o.proposedById !== currentUser.id && !notified.includes(o.id));
+        if (offers.length) return { reason: 'trade-offer', offerIds: offers.map(o => o.id) };
         return null;
-    }).catch(() => null);
+    }, [...(seat.notifiedOffers || [])]).then(r => (r && typeof r === 'object' ? r : { reason: r, offerIds: [] })).catch(() => ({ reason: null, offerIds: [] }));
 }
+
+// With several seats (a shared agent), the current player always has 'your-turn', so other
+// seats' auctions and new trade offers come first. Each trade offer is reported once per seat.
+const WAIT_PRIORITY = { 'game-over': 0, auction: 1, 'trade-offer': 2, 'your-turn': 3 };
 
 // ---------- commands ----------
 
@@ -381,11 +394,13 @@ const commands = {
         let hit = null;
         while (Date.now() < deadline && !hit) {
             for (const seat of seats) {
-                const reason = await mustAct(seat);
-                if (reason && reason !== 'not-in-game') { hit = { seat, reason }; break; }
+                const { reason, offerIds } = await mustAct(seat);
+                if (!reason || reason === 'not-in-game') continue;
+                if (!hit || WAIT_PRIORITY[reason] < WAIT_PRIORITY[hit.reason]) hit = { seat, reason, offerIds };
             }
             if (!hit) await new Promise(resolve => setTimeout(resolve, 1000));
         }
+        if (hit && hit.reason === 'trade-offer') hit.seat.notifiedOffers = new Set([...(hit.seat.notifiedOffers || []), ...hit.offerIds]);
         if (!hit) return { text: `wait: nothing to do yet for seat ${seats.map(s => s.index).join(',')} (${autoplay ? autoplay.status.current || '' : ''} is playing). Call wait again.` };
         await settle(hit.seat.page);
         return { text: `wait: seat ${hit.seat.index} ${hit.seat.name}: ${hit.reason}\n${await look(hit.seat)}` };
@@ -423,6 +438,7 @@ const commands = {
 
     async stop() {
         if (autoplay) autoplay.stopRequested = true;
+        if (journeyRun) journeyRun.stopRequested = true;
         return { text: 'stop requested' };
     },
 
@@ -447,7 +463,8 @@ const commands = {
     },
 
     async coverage(args) {
-        if (!table) throw new Error('No table yet.');
+        if (args.journeys || (!table && journeyRun)) return { text: formatJourneyCoverage() };
+        if (!table) throw new Error('No table yet. (After a journeys run: coverage --journeys)');
         return { text: formatCoverage(currentCoverage(), { missingOnly: !!args.missing, ledger: !!args.allRuns }) };
     },
 
@@ -481,6 +498,43 @@ const commands = {
         const entry = finding({ severity: String(args.severity || 'low'), category: String(args.category || 'ux'), seat, title: String(args.title), detail: String(args.detail || '') });
         if (seat && args.shot !== false) entry.shots.push(path.relative(evidence, await shot(seat, `note-${entry.id}`)));
         return { text: `recorded ${entry.id}` };
+    },
+
+    // App journeys: starts them in the background; poll with journeysStatus.
+    async journeys(args) {
+        if (journeyRun && !journeyRun.done) throw new Error(`Journeys already running (${journeyRun.current || 'starting'}).`);
+        if (autoplayPromise && autoplay?.status.phase !== 'done') throw new Error('Autoplay is running; stop it first.');
+        // Journey code is re-read on every run, so harness edits need no restart (backend edits still do).
+        delete require.cache[require.resolve('./lib/journeys')];
+        journeysLib = require('./lib/journeys');
+        const selected = journeysLib.select(args.only);
+        journeyCount++;
+        const dir = path.join(evidence, `journeys-${journeyCount}`);
+        fs.mkdirSync(dir, { recursive: true });
+        journeyRun = { k: journeyCount, dir, results: [], current: null, done: false, startedAt: Date.now(), total: selected.length, stopRequested: false };
+        log(`== journeys ${journeyCount}: ${selected.length} (${args.only || 'all'}) ==`);
+        const status = journeyRun;
+        journeyRun.promise = journeysLib.runJourneys(ctx, { only: args.only, dir, status })
+            .catch(err => finding({ severity: 'high', category: 'harness', title: 'Journeys crashed', detail: String(err.stack || err).split('\n').slice(0, 3).join(' | ') }))
+            .then(() => {
+                status.done = true;
+                status.minutes = Math.round((Date.now() - status.startedAt) / 6000) / 10;
+                recordJourneyLedger(status);
+                writeReport();
+            });
+        return { text: `journeys ${journeyCount} started: ${selected.map(d => d.id).join(', ')}\nevidence ${path.relative(runs.REPO_ROOT, dir)}` };
+    },
+
+    async journeysStatus() {
+        if (!journeyRun) return { text: 'no journeys run yet', done: true };
+        const r = journeyRun;
+        const counts = r.results.reduce((acc, x) => { acc[x.status] = (acc[x.status] || 0) + 1; return acc; }, {});
+        const last = r.results[r.results.length - 1];
+        return {
+            done: r.done,
+            text: `journeys ${r.k}: ${r.results.length}/${r.total} done${r.current ? ` · now ${r.current}` : ''} · ${JSON.stringify(counts)} · ${Math.round((Date.now() - r.startedAt) / 1000)}s${last ? ` · last: ${last.id} ${last.status}` : ''}`,
+            report: r.done ? journeysLib.formatResults(r.results, { everPassed: journeyTotals() }) : null,
+        };
     },
 
     async shutdown() {
@@ -577,6 +631,35 @@ function ledgerTotals(ledger) {
     return totals;
 }
 
+// Journeys go in the same ledger, as `<run>/journeys-<k>` entries whose hits are journey ids.
+function recordJourneyLedger(status) {
+    const ledger = readLedger();
+    ledger.games[`${runId}/journeys-${status.k}`] = {
+        rev: run.gitRev, journeys: true, at: new Date().toISOString(),
+        hits: Object.fromEntries(status.results.filter(r => r.status === 'pass' || r.status === 'finding').map(r => [r.id, 1])),
+        results: Object.fromEntries(status.results.map(r => [r.id, r.status])),
+    };
+    fs.writeFileSync(LEDGER, JSON.stringify(ledger, null, 1));
+}
+
+function journeyTotals() {
+    const totals = {};
+    for (const entry of Object.values(readLedger().games)) if (entry.journeys) for (const id of Object.keys(entry.hits)) totals[id] = (totals[id] || 0) + 1;
+    return totals;
+}
+
+function formatJourneyCoverage() {
+    const totals = journeyTotals();
+    const latest = journeyRun ? Object.fromEntries(journeyRun.results.map(r => [r.id, r.status])) : {};
+    const lines = [`App journeys ever passed (all recorded runs): ${journeysLib.JOURNEYS.filter(d => totals[d.id]).length}/${journeysLib.JOURNEYS.length}`];
+    let group = null;
+    for (const d of journeysLib.JOURNEYS) {
+        if (d.group !== group) { group = d.group; lines.push(`${group}:`); }
+        lines.push(`  ${totals[d.id] ? 'ok' : '--'} ${d.id}${latest[d.id] ? ` (this run: ${latest[d.id]})` : ''}${totals[d.id] ? ` · passed in ${totals[d.id]} run(s)` : ' · never passed'}`);
+    }
+    return lines.join('\n');
+}
+
 function formatCoverage(cov, { missingOnly = false, ledger = false } = {}) {
     const lines = [];
     const hitCount = cov.filter(c => c.hits).length;
@@ -629,6 +712,10 @@ function writeReport() {
         } catch (err) {
             lines.push('', `(coverage failed: ${err.message})`);
         }
+    }
+    if (journeyRun) {
+        lines.push('', '## App journeys', '', `Run ${journeyRun.k}${journeyRun.done ? `, ${journeyRun.minutes} min` : ' (still running)'}; evidence in \`${path.relative(evidence, journeyRun.dir)}/\`.`, '');
+        lines.push(journeysLib.formatResults(journeyRun.results, { everPassed: journeyTotals() }));
     }
     lines.push('', `## Findings (${findings.length})`, '');
     if (!sorted.length) lines.push('None.');

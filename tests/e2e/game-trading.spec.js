@@ -44,6 +44,24 @@ async function setupTradingGame(request) {
     return { room, game, hostToken: h.token, guestToken: g.token, hostId: h.user.id, guestId: g.user.id };
 }
 
+// The proposer offers, the other player accepts: the only way a trade happens.
+async function proposeAndAccept(request, game, proposerToken, recipientToken, terms) {
+    const proposed = await request.post(`${BASE_API}/games/${game.id}/actions`, {
+        headers: { Authorization: `Bearer ${proposerToken}` },
+        data: { actionId: `e2e-propose-${Date.now()}`, type: 'propose_trade', payload: terms, expectedVersion: game.state_version },
+    });
+    expect(proposed.ok()).toBe(true);
+    const current = await (await request.get(`${BASE_API}/games/${game.id}`, {
+        headers: { Authorization: `Bearer ${recipientToken}` },
+    })).json();
+    const offer = current.game_state.marketOffers.find(o => o.status === 'pending');
+    const accepted = await request.post(`${BASE_API}/games/${game.id}/actions`, {
+        headers: { Authorization: `Bearer ${recipientToken}` },
+        data: { actionId: `e2e-accept-${Date.now()}`, type: 'accept_trade', payload: { offerId: offer.id }, expectedVersion: current.state_version },
+    });
+    expect(accepted.ok()).toBe(true);
+}
+
 test.describe('Trading — API state manipulation', () => {
     test('cash transfer between players persists correctly', async ({ request }) => {
         const { game, hostToken, hostId, guestId } = await setupTradingGame(request);
@@ -66,17 +84,9 @@ test.describe('Trading — API state manipulation', () => {
     });
 
     test('property transfer between players persists correctly', async ({ request }) => {
-        const { game, hostToken, hostId, guestId } = await setupTradingGame(request);
-
-        await request.post(`${BASE_API}/games/${game.id}/actions`, {
-            headers: { Authorization: `Bearer ${hostToken}` },
-            data: {
-                actionId: `e2e-trade-prop-${Date.now()}`,
-                type: 'trade',
-                payload: { player1Id: hostId, player2Id: guestId, player1Cash: 0, player2Cash: 0, player1AssetIds: ['prop-0'], player2AssetIds: [] },
-                expectedVersion: game.state_version,
-            },
-        });
+        const { game, hostToken, guestToken, hostId, guestId } = await setupTradingGame(request);
+        await proposeAndAccept(request, game, hostToken, guestToken,
+            { player1Id: hostId, player2Id: guestId, player1Cash: 0, player2Cash: 0, player1AssetIds: ['prop-0'], player2AssetIds: [] });
 
         const fetched = await (await request.get(`${BASE_API}/games/${game.id}`, {
             headers: { Authorization: `Bearer ${hostToken}` },
@@ -86,17 +96,9 @@ test.describe('Trading — API state manipulation', () => {
     });
 
     test('mutual exchange (cash + property) persists correctly', async ({ request }) => {
-        const { game, hostToken, hostId, guestId } = await setupTradingGame(request);
-
-        await request.post(`${BASE_API}/games/${game.id}/actions`, {
-            headers: { Authorization: `Bearer ${hostToken}` },
-            data: {
-                actionId: `e2e-trade-mutual-${Date.now()}`,
-                type: 'trade',
-                payload: { player1Id: hostId, player2Id: guestId, player1Cash: 0, player2Cash: 100, player1AssetIds: ['prop-0'], player2AssetIds: [] },
-                expectedVersion: game.state_version,
-            },
-        });
+        const { game, hostToken, guestToken, hostId, guestId } = await setupTradingGame(request);
+        await proposeAndAccept(request, game, hostToken, guestToken,
+            { player1Id: hostId, player2Id: guestId, player1Cash: 0, player2Cash: 100, player1AssetIds: ['prop-0'], player2AssetIds: [] });
 
         const fetched = await (await request.get(`${BASE_API}/games/${game.id}`, {
             headers: { Authorization: `Bearer ${hostToken}` },
@@ -104,6 +106,24 @@ test.describe('Trading — API state manipulation', () => {
         expect(fetched.game_state.players[0].cash).toBe(1600);
         expect(fetched.game_state.players[1].cash).toBe(1400);
         expect(fetched.game_state.properties[0].ownerId).toBe(guestId);
+    });
+
+    test('one player cannot move the other player\'s money without an accepted offer', async ({ request }) => {
+        const { game, hostToken, hostId, guestId } = await setupTradingGame(request);
+        const res = await request.post(`${BASE_API}/games/${game.id}/actions`, {
+            headers: { Authorization: `Bearer ${hostToken}` },
+            data: {
+                actionId: `e2e-trade-legacy-${Date.now()}`,
+                type: 'trade',
+                payload: { player1Id: hostId, player2Id: guestId, player1Cash: 0, player2Cash: 1000, player1AssetIds: [], player2AssetIds: [] },
+                expectedVersion: game.state_version,
+            },
+        });
+        expect(res.status()).toBe(400);
+        const fetched = await (await request.get(`${BASE_API}/games/${game.id}`, {
+            headers: { Authorization: `Bearer ${hostToken}` },
+        })).json();
+        expect(fetched.game_state.players[1].cash).toBe(1500);
     });
 });
 

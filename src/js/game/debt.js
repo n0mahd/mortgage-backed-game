@@ -276,6 +276,8 @@ function toggleDebtForm() {
     processButton.style.display = action === 'loans' ? 'none' : '';
     processButton.textContent = action === 'refinance' ? 'Refinance' : 'Take loan';
     if (action === 'loans') renderLoanList();
+    // Paying a loan off frees borrowing room; redraw it whenever the form opens.
+    if (action === 'issue') renderBorrowingLimit();
     if (action === 'refinance') updateRefinanceSummary();
 }
 

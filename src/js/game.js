@@ -127,6 +127,14 @@ async function loadGameData(roomId) {
         // Render game state
         renderGameState(gameState);
 
+        // A resumed or reloaded hotseat game starts on player 1's token; hand the
+        // device to whoever's turn it is.
+        const turnPlayer = gameState.players[gameState.currentPlayerIndex];
+        if (isHotseatMode && !gameState.ended && turnPlayer && turnPlayer.userId !== currentUser.id
+            && hotseatTokens.some(record => record.userId === turnPlayer.userId)) {
+            showHotseatInterstitial(turnPlayer.name);
+        }
+
         // Load game log
         await loadGameLog();
 
@@ -143,8 +151,11 @@ function setupRealtimeSubscriptions() {
     }, () => {
         reportPresence();
         resyncGame();
+        refreshRoomInfo();
     });
     RejoinPrompts.watch(currentRoom.id);
+    // Host rights can move to another player mid-game (Manage players).
+    getSocket().on('room:member_change', room => applyRoomUpdate(room));
 
     // Phones drop the socket when the screen locks or the browser goes to the
     // background, so catch up whenever the page comes back. The server also
@@ -169,6 +180,23 @@ function setupRealtimeSubscriptions() {
 
 function reportPresence(visible = document.visibilityState === 'visible') {
     getSocket().emit('presence', { visible });
+}
+
+// The room (its host above all) can change while the game is open.
+function applyRoomUpdate(room) {
+    if (!room || !currentRoom || room.id !== currentRoom.id) return;
+    const hostChanged = room.host_id !== currentRoom.host_id;
+    currentRoom = { ...currentRoom, ...room };
+    if (hostChanged && currentGame) renderGameState(currentGame.game_state);
+}
+
+async function refreshRoomInfo() {
+    if (!currentRoom) return;
+    try {
+        applyRoomUpdate(await getRoomById(currentRoom.id));
+    } catch (error) {
+        console.warn('Room refresh failed:', error);
+    }
 }
 
 // Fetch the latest game and apply it only if it is newer than what is shown.
@@ -753,6 +781,13 @@ function bindStaticGameControls() {
 
     document.addEventListener('change', (event) => {
         if (event.target.closest('#player1Assets, #player2Assets, #player1Destination, #player2Destination')) {
+            // Shares trade whole: show the rounding instead of quietly dropping the part.
+            const shareInput = event.target.closest('.trade-share-input');
+            if (shareInput && shareInput.value !== '' && !Number.isInteger(Number(shareInput.value))) {
+                shareInput.value = String(Math.max(0, Math.floor(Number(shareInput.value) || 0)));
+                updateTradeSharePercent(shareInput);
+                showToast('Shares trade in whole numbers, so that was rounded down.');
+            }
             updateMarketActionState();
         }
     });

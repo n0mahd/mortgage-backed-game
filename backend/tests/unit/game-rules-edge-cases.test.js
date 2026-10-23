@@ -1114,3 +1114,18 @@ describe('game rule edge cases', () => {
         expect(ended.events.some(event => event.type === 'game_ended')).toBe(true);
     });
 });
+
+describe('doubles wording in the log', () => {
+    test('doubles that land on Go to Jail do not say roll again', () => {
+        const state = makeState({ players: [makePlayer('alice', 'Alice', { position: 26 }), makePlayer('bob', 'Bob')] });
+        const result = applyAction(state, 'alice', { type: 'roll_dice', payload: {} }, { dice: [2, 2] });
+        expect(result.state.players[0].inJail).toBe(true);
+        expect(result.state.gameLog.some(entry => entry.message.includes('roll again'))).toBe(false);
+    });
+
+    test('ordinary doubles still say roll again', () => {
+        const state = makeState({ players: [makePlayer('alice', 'Alice', { position: 0 }), makePlayer('bob', 'Bob')] });
+        const result = applyAction(state, 'alice', { type: 'roll_dice', payload: {} }, { dice: [3, 3] });
+        expect(result.state.gameLog.some(entry => entry.message.includes('(doubles - roll again!)'))).toBe(true);
+    });
+});

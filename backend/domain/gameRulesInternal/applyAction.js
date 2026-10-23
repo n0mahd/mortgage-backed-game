@@ -25,7 +25,6 @@ const {
 } = require('./auctions');
 const { issueDebt, refinanceDebt, payDebt, setDebtAutopay } = require('./debt');
 const {
-    trade,
     proposeTrade,
     acceptTrade,
     cancelTrade,
@@ -83,7 +82,6 @@ const ACTIONS = {
     propose_trade: { run: c => proposeTrade(c.state, c.actor, c.payload, c.events) },
     accept_trade: { run: c => acceptTrade(c.state, c.actor, c.payload, c.events) },
     cancel_trade: { run: c => cancelTrade(c.state, c.actor, c.payload, c.events) },
-    trade: { run: c => trade(c.state, c.actor, c.payload, c.events) },
     manual_payment: { run: c => manualPayment(c.state, c.actor, c.payload, c.events) },
 
     host_cancel_auction: { host: true, run: c => hostCancelAuction(c.state, c.actor, c.events) },
@@ -157,6 +155,10 @@ function applyAction(inputState, actorUserId, action, options = {}) {
     return finish();
 }
 
+// Every action type the engine accepts; each must be in actionCatalog.js.
+const ACTION_TYPES = Object.freeze(Object.keys(ACTIONS));
+
 module.exports = {
     applyAction,
+    ACTION_TYPES,
 };

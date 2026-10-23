@@ -243,6 +243,38 @@ async function waitDone(run, timeoutSec) {
     console.log('(still running; poll again with: status --wait <seconds>)');
 }
 
+// App journeys (lib/journeys.js): accounts, rooms, agents, hosting and more
+// through the real UI. Blocks until done or --timeout seconds, like play.
+async function journeys(flags) {
+    if (flags.list) return console.log(require('./lib/journeys').list());
+    const run = currentRun();
+    const started = await send(run, 'journeys', { only: flags.only });
+    if (!started.ok) die(started.error);
+    console.log(started.text);
+    if (flags.detach) return console.log('Detached. Follow with: journeys-status [--wait 590]');
+    await waitJourneys(run, Number(flags.timeout || 590));
+}
+
+async function waitJourneys(run, timeoutSec) {
+    const deadline = Date.now() + timeoutSec * 1000;
+    let last = '';
+    for (;;) {
+        const status = await send(run, 'journeysStatus');
+        if (!status.ok) die(status.error);
+        const line = status.text.replace(/ · \d+s/, '');
+        if (line !== last) { console.log(status.text); last = line; }
+        if (status.done) {
+            if (status.report) console.log('\n' + status.report);
+            const report = await send(run, 'report');
+            console.log(`\n${report.text.split('\n')[0]}`);
+            return;
+        }
+        if (Date.now() >= deadline) break;
+        await new Promise(resolve => setTimeout(resolve, 5000));
+    }
+    console.log('(still running; poll again with: journeys-status --wait <seconds>)');
+}
+
 async function forward(cmd, positional, flags) {
     const run = currentRun();
     const args = { ...flags };
@@ -284,6 +316,8 @@ const HELP = `verify-mortgage <command>
   play ... --agents all|1,3 [--shared] [--personas newbie,trader,breaker,auditor] [--agent-model claude-haiku-5-5] [--agent-effort low]
   agents [all|1,3] [same agent flags]   start Haiku players on an existing table · agents-status
   coverage [--missing] [--all-runs]   pathways reached (this game, or every recorded game)
+  journeys [--only id,group,...] [--list] [--timeout 590] [--detach]   app journeys outside the board (accounts, rooms, agents, hosting, ...)
+  journeys-status [--wait SECONDS] · coverage --journeys
   stage <name>                        stage a situation now (three-doubles, in-jail, near-bankrupt, card:ch-7, ...)
   status [--wait SECONDS] | stop | report | findings [--severity high] | state | seats
   look <seat> [--full] | wait <seat> [--timeout 300] | human <seat> [--off]
@@ -308,6 +342,8 @@ const HELP = `verify-mortgage <command>
             return launchAgents(run, parseSeats(positional[0] || flags.seats || 'all', data.seats.length), flags);
         }
         case 'agents-status': return agentsStatus();
+        case 'journeys': return journeys(flags);
+        case 'journeys-status': return waitJourneys(currentRun(), Number(flags.wait || 0));
         case 'env': { const run = currentRun(); return console.log(`export VERIFY_RUN_ID=${run.runId}\nWEB_URL=http://127.0.0.1:${run.ports.web}\nTAILNET_URL=http://${TAILNET_IP}:${run.ports.web}\nDB_PATH=${run.dbPath}\nEVIDENCE=${runs.evidenceDir(run.runId)}`); }
         case undefined: case 'help': case '--help': return console.log(HELP);
         default: return forward(cmd, positional, flags);

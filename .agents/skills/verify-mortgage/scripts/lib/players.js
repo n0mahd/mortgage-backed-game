@@ -41,9 +41,9 @@ const ROTATION = ['newbie', 'trader', 'breaker', 'auditor'];
 // Which pathway groups each persona is best placed to reach.
 const AFFINITY = {
     newbie: ['People', 'Turn', 'Property', 'Jail', 'Host'],
-    trader: ['Debt', 'Corporations', 'Market', 'Houses'],
+    trader: ['Corporation desk', 'Corporations', 'Debt', 'Market', 'Houses'],
     breaker: ['Refusals', 'Market', 'Property', 'Jail'],
-    auditor: ['Rent', 'Houses', 'Bankruptcy', 'Turn'],
+    auditor: ['Rent', 'Corporation desk', 'Houses', 'Bankruptcy', 'Turn'],
 };
 
 // Splits unreached pathways between agent seats by persona, never-reached first,
