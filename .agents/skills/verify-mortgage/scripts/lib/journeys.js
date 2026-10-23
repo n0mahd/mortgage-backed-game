@@ -43,6 +43,17 @@ class Journey {
         this.watchCtx = Object.create(ctx);
         this.watchCtx.recordIssue = (seat, kind, detail) => {
             if (seat.expectIssues && seat.expectIssues.test(detail)) return;
+            // A fetch cut off because the person clicked on to another page is not a fault.
+            if (kind === 'console-error' && /TypeError: Failed to fetch/.test(detail) && !seat.deferred) {
+                const url = seat.page.url();
+                setTimeout(() => {
+                    if (seat.page.isClosed() || seat.page.url() !== url) { journey.log(`ignored a fetch cut off by navigation: ${detail.slice(0, 80)}`); return; }
+                    seat.deferred = true;
+                    journey.watchCtx.recordIssue(seat, kind, detail);
+                    seat.deferred = false;
+                }, 1500);
+                return;
+            }
             const entry = ctx.recordIssue(seat, kind, `[${def.id}] ${detail}`);
             journey.findings.push(`${kind}: ${String(detail).slice(0, 160)}`);
             return entry;
@@ -1943,11 +1954,14 @@ const JOURNEYS = [
             const other = mover === host ? guest : host;
             await gameTab(mover);
             await actWait(j, mover, button(mover, 'roll-dice'), 'roll dice');
-            const v = j.game(roomId).version;
+            const server = j.game(roomId);
+            const serverMe = server.state.players.find(x => x.userId === mover.userId);
             await mover.page.reload();
             await inGame(j, mover);
             const g = await pageGame(mover);
-            if (g.v !== v || !g.me.diceRolled) j.fail(`After reload: version ${g.v} (server ${v}), rolled ${g.me.diceRolled}`);
+            if (g.v !== server.version || g.me.position !== serverMe.position || g.me.diceRolled !== serverMe.diceRolled || Number(g.me.cash) !== Number(serverMe.cash)) {
+                j.fail(`After reload the screen disagrees with the server: version ${g.v}/${server.version}, square ${g.me.position}/${serverMe.position}, rolled ${g.me.diceRolled}/${serverMe.diceRolled}`);
+            }
             await takeTurn(j, mover, { others: [other] });
             await caughtUp(j, other, roomId);
             await j.shot(mover, 'after-reload-turn');
