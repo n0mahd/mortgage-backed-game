@@ -1,26 +1,21 @@
-const { devices } = require('@playwright/test');
-
-const baseURL = process.env.PLAYWRIGHT_BASE_URL || 'http://127.0.0.1:3011';
+// The real-player game: the main config, narrowed to real-player-flow.spec.js with
+// longer timeouts, one worker and failure traces. Run it through
+// `npm run test:e2e:real-game` (scripts/run-real-game-e2e.js).
+// PLAYWRIGHT_HEADLESS=0 shows the browser.
+const base = require('./playwright.config');
 
 module.exports = {
-    testDir: './tests/e2e',
+    ...base,
+    testIgnore: [],
     testMatch: ['real-player-flow.spec.js'],
     timeout: 180000,
-    retries: 0,
     workers: 1,
     use: {
-        baseURL,
+        ...base.use,
         headless: process.env.PLAYWRIGHT_HEADLESS !== '0',
-        viewport: { width: 1280, height: 720 },
         actionTimeout: 10000,
         navigationTimeout: 15000,
         trace: 'retain-on-failure',
         screenshot: 'only-on-failure',
     },
-    projects: [
-        {
-            name: 'chromium',
-            use: { ...devices['Desktop Chrome'] },
-        },
-    ],
 };

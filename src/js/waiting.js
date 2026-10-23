@@ -49,11 +49,11 @@ async function showGuestJoinSection() {
     if (codeInput) codeInput.value = normalizedRoomCode;
 
     const optionsEl = document.getElementById('hotseat-resume-options');
-    const hasLocalHotseatResume = renderHotseatResumeOptions(optionsEl, normalizedRoomCode);
+    const hasLocalHotseatResume = RoomResume.showSavedHotseat(optionsEl, normalizedRoomCode);
     if (!hasLocalHotseatResume) {
         try {
-            const room = await apiFetch(`/rooms/by-code/${normalizedRoomCode}`);
-            const hasExistingPlayerResume = renderExistingRoomMemberOptions(optionsEl, normalizedRoomCode, room);
+            const room = await getRoomByCode(normalizedRoomCode);
+            const hasExistingPlayerResume = RoomResume.showExistingMembers(optionsEl, normalizedRoomCode, room);
             setGuestJoinFormVisible(!hasExistingPlayerResume);
         } catch (err) {
             console.warn('Could not load room resume options:', err);
@@ -86,23 +86,22 @@ async function joinAsGuest() {
 
     if (!playerName) {
         errorEl.textContent = 'Please enter your player name';
-        errorEl.classList.add('active');
         return;
     }
 
-    errorEl.classList.remove('active');
+    errorEl.textContent = '';
     btn.disabled = true;
     btn.textContent = 'Joining...';
 
     try {
         // Someone signed in with email joins as themselves, so the game stays tied to
         // their account. Everyone else gets a fresh guest session, as before.
-        const existingUser = localStorage.getItem('auth_token') ? await getCurrentUser().catch(() => null) : null;
+        const existingUser = getToken() ? await getCurrentUser().catch(() => null) : null;
         if (existingUser && !existingUser.is_anonymous) {
             currentUser = existingUser;
         } else {
-            const anonData = await apiFetch('/auth/anonymous', { method: 'POST' });
-            localStorage.setItem('auth_token', anonData.token);
+            const anonData = await createGuestUser();
+            setToken(anonData.token);
             currentUser = anonData.user;
             createdAnonymousSession = true;
         }
@@ -118,7 +117,7 @@ async function joinAsGuest() {
         const emailDisplay = document.getElementById('user-email');
         if (emailDisplay) emailDisplay.textContent = playerName;
 
-        history.replaceState(null, '', `waiting.html?room=${room.id}`);
+        history.replaceState(null, '', `waiting.html?room=${encodeURIComponent(room.id)}`);
 
         await loadRoomDataById(room.id);
         subscribeToRoomUpdatesById(room.id);
@@ -126,7 +125,7 @@ async function joinAsGuest() {
 
     } catch (error) {
         if (createdAnonymousSession) {
-            localStorage.removeItem('auth_token');
+            clearToken();
             currentUser = null;
         }
         if (isExpectedGuestJoinError(error)) {
@@ -135,7 +134,6 @@ async function joinAsGuest() {
             console.error('Error joining room:', error);
         }
         errorEl.textContent = error.message || 'Could not join room. Check your code and try again.';
-        errorEl.classList.add('active');
         btn.disabled = false;
         btn.textContent = 'Join Game';
     }
@@ -196,9 +194,7 @@ function subscribeToRoomUpdatesById(id) {
             updateRoomStatus(room.status, room.room_members ? room.room_members.length : undefined, room.max_players);
             if (room.status === 'in_progress') {
                 logActivity('Game is starting!');
-                setTimeout(() => {
-                    window.location.href = `game.html?room=${id}`;
-                }, 1500);
+                setTimeout(() => navigateToGameRoom(id), 1500);
             }
         }
     );
@@ -256,48 +252,19 @@ function updateStartButtonState(playerCount) {
     }
 }
 
-function copyInviteCode(btn) {
+async function copyInviteCode(btn) {
     const code = document.getElementById('invite-code').textContent;
     const originalText = btn.textContent;
-
-    if (navigator.clipboard && navigator.clipboard.writeText) {
-        navigator.clipboard.writeText(code).then(() => {
-            showCopySuccess(btn, originalText);
-        }).catch(() => fallbackCopyToClipboard(code, btn, originalText));
-    } else {
-        fallbackCopyToClipboard(code, btn, originalText);
+    if (!await copyText(code)) {
+        alert('Code: ' + code + '\n\nPlease copy manually.');
+        return;
     }
-}
-
-function showCopySuccess(btn, originalText) {
     btn.textContent = 'Copied';
     btn.classList.add('is-done');
     setTimeout(() => {
         btn.textContent = originalText;
         btn.classList.remove('is-done');
     }, 2000);
-}
-
-function fallbackCopyToClipboard(text, btn, originalText) {
-    const textarea = document.createElement('textarea');
-    textarea.value = text;
-    textarea.style.position = 'fixed';
-    textarea.style.opacity = '0';
-    document.body.appendChild(textarea);
-    textarea.select();
-
-    try {
-        const successful = document.execCommand('copy');
-        if (successful) {
-            showCopySuccess(btn, originalText);
-        } else {
-            alert('Code: ' + text + '\n\nPlease copy manually.');
-        }
-    } catch (err) {
-        alert('Code: ' + text + '\n\nPlease copy manually.');
-    } finally {
-        document.body.removeChild(textarea);
-    }
 }
 
 async function sendInviteEmail() {
@@ -311,10 +278,7 @@ async function sendInviteEmail() {
     statusEl.classList.remove('is-success', 'is-error');
 
     try {
-        await apiFetch('/rooms/send-code', {
-            method: 'POST',
-            body: JSON.stringify({ email, inviteCode: currentRoom.invite_code })
-        });
+        await sendRoomCode({ email, inviteCode: currentRoom.invite_code });
     } catch (err) {
         statusEl.textContent = err.message || 'Could not send the invite.';
         statusEl.classList.add('is-error');
@@ -352,9 +316,7 @@ async function startGameFromLobby() {
 
         logActivity('Game started! Redirecting...');
 
-        setTimeout(() => {
-            window.location.href = `game.html?room=${activeRoomId}`;
-        }, 1000);
+        setTimeout(() => navigateToGameRoom(activeRoomId), 1000);
 
     } catch (error) {
         console.error('Error starting game:', error);
@@ -392,7 +354,7 @@ async function checkGameStatusById(id) {
     try {
         const game = await getGameByRoomId(id);
         if (game && currentRoom && currentRoom.status === 'in_progress') {
-            window.location.href = `game.html?room=${id}`;
+            navigateToGameRoom(id);
         }
     } catch (error) {
         console.error('Error checking game status:', error);
@@ -428,16 +390,6 @@ function bindWaitingRoomActions() {
     document.getElementById('send-invite-btn')?.addEventListener('click', sendInviteEmail);
 }
 
-if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', () => {
-        bindWaitingRoomActions();
-        initWaitingRoom();
-    });
-} else {
-    bindWaitingRoomActions();
-    initWaitingRoom();
-}
-
 // Native share sheet for the invite link, where the device supports it.
 function setupShareInvite() {
     const button = document.getElementById('share-invite-btn');
@@ -458,4 +410,8 @@ function setupShareInvite() {
     });
 }
 
-document.addEventListener('DOMContentLoaded', setupShareInvite);
+document.addEventListener('DOMContentLoaded', () => {
+    bindWaitingRoomActions();
+    setupShareInvite();
+    initWaitingRoom();
+});

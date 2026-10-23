@@ -215,7 +215,7 @@ When you report, give the run id, the git rev (`doctor`), the scenarios played (
 
 ## Findings so far (2026-10-21, `74cc680`)
 
-- **High, game rule**: an auction stays open when everyone else passed *before* the only bid. `placeAuctionBid` in `backend/domain/gameRulesInternal/engine.js` never calls `settleAuctionIfComplete`. No one has a Bid or Pass button, End Turn shows a disabled "Resolve Auction", and even after the 2-minute timeout the only control is the host's **Cancel Auction**, which throws away the winning bid. Reproduced by autoplay in 2-player games. The bot records it and cancels as host to keep going.
+- **High, game rule**: an auction stays open when everyone else passed *before* the only bid. `placeAuctionBid` in `backend/domain/gameRulesInternal/auctions.js` never calls `settleAuctionIfComplete`. No one has a Bid or Pass button, End Turn shows a disabled "Resolve Auction", and even after the 2-minute timeout the only control is the host's **Cancel Auction**, which throws away the winning bid. Reproduced by autoplay in 2-player games. The bot records it and cancels as host to keep going.
 - **High, game rule** (explore, property swap): a street with houses can be traded away, splitting the colour group while the houses stay. The receiver then put it into an IPO with its 4 houses. Classic rules require selling buildings first.
 - **High, money** (Haiku auditor): settling a debt for more than it owes takes the whole payment. `payDebt` subtracts it and deletes the debt at ≤ 0, so the excess vanishes.
 - **Design question, money** (Haiku trader, confirmed in code and `documents/game-rules.md` §10): each End Turn adds the interest to the principal *and* takes it from cash, so a player pays the interest and still owes it. Corporate debt does the same. It's documented, but likely unintended. *Resolved by loan terms: 5/10/15-turn loans at the host's rates, autopay installments, the whole balance due at maturity.*
@@ -231,7 +231,7 @@ When you report, give the run id, the git rev (`doctor`), the scenarios played (
 | --- | --- |
 | `scripts/verify-mortgage` | Entry point (bash → `cli.js`). |
 | `scripts/cli.js` | `up`/`down`/`list`/`doctor`/`logs`/`env`/`play`; forwards the rest to the daemon. |
-| `scripts/daemon.js` | One per run: backend child, static+API proxy (`scripts/devServer.js`), Chromium, control API on `127.0.0.1:<ctl>`, findings and report. |
+| `scripts/daemon.js` | One per run: backend child, static+API proxy (`scripts/dev-server.js`), Chromium, control API on `127.0.0.1:<ctl>`, findings and report. |
 | `scripts/lib/table.js` | Seats, page watchers, sign-in, room creation, invites, joining. |
 | `scripts/lib/bot.js` | Autoplay policy, sync/invariant/stuck checks, resilience tests. |
 | `scripts/lib/view.js` | The `look` snapshot and ref/label resolution. |

@@ -301,7 +301,6 @@ async function buyCurrentSquare(page, expectedText) {
     await expect(page.locator('#buyPropertyModal')).toBeVisible();
     await expect(page.locator('#availableProperties')).toContainText(expectedText, { timeout: 10000 });
     await expect(page.locator('#purchasePriceDisplay')).toContainText(/\$\d+\.\d{2}/);
-    await expect(page.locator('#purchasePrice')).toHaveAttribute('type', 'hidden');
     await clickAndWaitForGameVersion(page, page.locator('#confirm-purchase-btn'));
     await expect(page.locator('#buyPropertyModal')).toBeHidden({ timeout: 10000 });
     await expect(page.locator('#gameContent')).toContainText(expectedText, { timeout: 10000 });

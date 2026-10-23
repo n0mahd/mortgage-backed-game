@@ -1,6 +1,6 @@
-const { normalizeEmail, isValidEmail, normalizeInviteCode } = require('../../normalizers');
+const { normalizeEmail, isValidEmail, normalizeInviteCode } = require('../../helpers');
 
-describe('normalizers', () => {
+describe('helpers', () => {
     test('normalizes string emails and rejects non-string values', () => {
         expect(normalizeEmail('  User@Example.COM  ')).toBe('user@example.com');
         expect(normalizeEmail(null)).toBe('');

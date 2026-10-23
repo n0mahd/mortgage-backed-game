@@ -99,7 +99,7 @@ ul { padding-left: 1.1em; }
 .app-bar {
     position: sticky;
     top: 0;
-    z-index: 50;
+    z-index: var(--z-app-bar);
     display: flex;
     align-items: center;
     gap: var(--s2);
@@ -194,6 +194,12 @@ ul { padding-left: 1.1em; }
 
 .room-code-chip:empty { display: none; }
 
+/* Very narrow phones: the icons and the code chip leave the room name too little room. */
+@media (max-width: 359px) {
+    .app-bar-icon { width: 36px; }
+    .room-code-chip { padding: 5px 7px; letter-spacing: 0.08em; }
+}
+
 /* Large title block that opens each non-game screen */
 .page-title {
     padding: var(--s5) 0 var(--s4);
@@ -213,19 +219,6 @@ ul { padding-left: 1.1em; }
     font-size: var(--text-sub);
     max-width: 38ch;
 }
-
-/* Legacy header (kept for pages that still use it) */
-.header {
-    padding: var(--s6) 0 var(--s4);
-}
-
-.header h1 {
-    font-family: var(--font-money);
-    font-size: var(--text-title1);
-    color: var(--forest);
-}
-
-.header p { color: var(--ink-2); }
 
 .user-info {
     display: flex;
@@ -248,7 +241,7 @@ ul { padding-left: 1.1em; }
 
 .btn {
     --btn-bg: var(--emerald);
-    --btn-ink: #fff;
+    --btn-ink: var(--on-dark);
     --btn-press: var(--emerald-press);
     display: inline-flex;
     align-items: center;
@@ -288,7 +281,7 @@ ul { padding-left: 1.1em; }
 .btn-primary,
 .btn-success {
     --btn-bg: var(--emerald);
-    --btn-ink: #fff;
+    --btn-ink: var(--on-dark);
     --btn-press: var(--emerald-press);
 }
 
@@ -302,7 +295,7 @@ ul { padding-left: 1.1em; }
 /* Warning: gold-tinted, for costs and pauses */
 .btn-warning {
     --btn-bg: var(--gold-wash);
-    --btn-ink: #6B4D07;
+    --btn-ink: var(--gold-ink);
     --btn-press: #EEDFB4;
 }
 
@@ -320,14 +313,29 @@ ul { padding-left: 1.1em; }
     --btn-press: var(--mint-wash);
 }
 
+/* Gold and on-dark: only on forest backgrounds (landing hero, invite code, turn banner) */
+.btn-gold,
+.invite-code-display .btn,
+#turn-banner .btn {
+    --btn-bg: var(--gold-bright);
+    --btn-ink: var(--forest-deep);
+    --btn-press: var(--gold-press);
+}
+
+.btn-on-dark {
+    --btn-bg: rgba(255, 255, 255, 0.1);
+    --btn-ink: var(--on-dark);
+    --btn-press: rgba(255, 255, 255, 0.18);
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--mint-wash) 35%, transparent);
+}
+
 .btn-sm {
     min-height: var(--tap);
     padding: 0 var(--s4);
     font-size: var(--text-sub);
 }
 
-.btn-large,
-.btn-xl {
+.btn-large {
     min-height: var(--tap-primary);
     font-size: var(--text-body);
     padding: 0 var(--s6);
@@ -622,7 +630,7 @@ input[type="radio"] {
     top: calc(var(--safe-top) + var(--s2));
     left: 50%;
     transform: translateX(-50%);
-    z-index: 2000;
+    z-index: var(--z-toast);
     width: min(92vw, 420px);
     display: flex;
     flex-direction: column;
@@ -634,7 +642,7 @@ input[type="radio"] {
     padding: var(--s3) var(--s4);
     border-radius: var(--r-group);
     background: var(--forest-deep);
-    color: #fff;
+    color: var(--on-dark);
     font-size: var(--text-sub);
     font-weight: 500;
     box-shadow: var(--lift-toast);
@@ -674,7 +682,6 @@ input[type="radio"] {
     overflow: hidden;
 }
 
-.group-title,
 .section-heading {
     display: flex;
     align-items: baseline;
@@ -683,13 +690,11 @@ input[type="radio"] {
     margin: var(--s6) var(--s1) var(--s2);
 }
 
-.group-title h3,
 .section-heading h3 {
     font-size: var(--text-title3);
     font-weight: 700;
 }
 
-.group-title span,
 .section-heading span {
     font-size: var(--text-footnote);
     color: var(--ink-3);
@@ -711,9 +716,8 @@ input[type="radio"] {
 }
 
 .badge-danger { background: var(--danger-wash); color: var(--danger); }
-.badge-gold,
-.badge-warning { background: var(--gold-wash); color: var(--gold); }
-.badge-info { background: #E3EEF6; color: var(--info); }
+.badge-gold { background: var(--gold-wash); color: var(--gold); }
+.badge-info { background: var(--info-wash); color: var(--info); }
 
 .avatar {
     --token-color: var(--emerald);
@@ -725,7 +729,7 @@ input[type="radio"] {
     flex-shrink: 0;
     border-radius: 50%;
     background: var(--token-color);
-    color: #fff;
+    color: var(--on-dark);
     font-size: var(--text-caption);
     font-weight: 700;
     letter-spacing: 0.02em;
@@ -738,7 +742,7 @@ input[type="radio"] {
     display: none;
     position: fixed;
     inset: 0;
-    z-index: 1000;
+    z-index: var(--z-sheet);
     align-items: flex-end;
     justify-content: center;
     background: rgba(8, 24, 16, 0.48);
@@ -854,7 +858,7 @@ input[type="radio"] {
     left: 0;
     right: 0;
     bottom: 0;
-    z-index: 60;
+    z-index: var(--z-tab-bar);
     display: grid;
     grid-template-columns: repeat(4, 1fr);
     padding: 0 var(--s2) var(--safe-bottom);
@@ -874,7 +878,7 @@ input[type="radio"] {
     height: var(--tabbar-h);
     border: 0;
     background: none;
-    color: rgba(220, 239, 226, 0.62);
+    color: color-mix(in srgb, var(--mint-wash) 62%, transparent);
     font-size: 0.6875rem;
     font-weight: 600;
     letter-spacing: 0.01em;
@@ -892,7 +896,7 @@ input[type="radio"] {
     stroke-linejoin: round;
 }
 
-.nav-tab.active { color: #fff; }
+.nav-tab.active { color: var(--on-dark); }
 
 .nav-tab.active::before {
     content: '';
@@ -934,7 +938,7 @@ input[type="radio"] {
     transform: translateX(-50%);
     /* Under the app bar: at the bottom it would cover Accept/Decline and form buttons */
     top: calc(var(--topbar-h) + var(--safe-top) + var(--s2));
-    z-index: 55;
+    z-index: var(--z-turn-banner);
     align-items: center;
     gap: var(--s3);
     width: max-content;
@@ -942,7 +946,7 @@ input[type="radio"] {
     padding: 6px 6px 6px var(--s4);
     border-radius: var(--r-chip);
     background: var(--forest-deep);
-    color: #fff;
+    color: var(--on-dark);
     font-size: var(--text-sub);
     font-weight: 600;
     box-shadow: var(--lift-toast);
@@ -950,9 +954,6 @@ input[type="radio"] {
 }
 
 #turn-banner .btn {
-    --btn-bg: var(--gold-bright);
-    --btn-ink: var(--forest-deep);
-    --btn-press: #BF9014;
     min-height: 36px;
     border-radius: var(--r-chip);
     padding: 0 var(--s4);
@@ -966,8 +967,8 @@ input[type="radio"] {
     margin-top: var(--s2);
     padding: var(--s4) var(--s4) var(--s3);
     border-radius: var(--r-group);
-    background: var(--guilloche), linear-gradient(160deg, var(--forest) 0%, var(--forest-deep) 100%);
-    color: #fff;
+    background: var(--banknote);
+    color: var(--on-dark);
     overflow: hidden;
     isolation: isolate;
 }
@@ -1005,7 +1006,7 @@ input[type="radio"] {
     font-size: var(--text-title2);
     font-weight: 700;
     line-height: 1.1;
-    color: #fff;
+    color: var(--on-dark);
 }
 
 .ticket-status {
@@ -1026,7 +1027,7 @@ input[type="radio"] {
 .ticket-money-label {
     display: block;
     font-size: var(--text-caption);
-    color: rgba(220, 239, 226, 0.75);
+    color: color-mix(in srgb, var(--mint-wash) 75%, transparent);
 }
 
 .ticket-cash {
@@ -1037,7 +1038,7 @@ input[type="radio"] {
     line-height: 1;
     letter-spacing: -0.02em;
     font-variant-numeric: lining-nums proportional-nums;
-    color: #fff;
+    color: var(--on-dark);
 }
 
 .ticket-cash.is-negative { color: #FFB4A8; }
@@ -1045,7 +1046,7 @@ input[type="radio"] {
 .ticket-side {
     text-align: right;
     font-size: var(--text-footnote);
-    color: rgba(220, 239, 226, 0.85);
+    color: color-mix(in srgb, var(--mint-wash) 85%, transparent);
 }
 
 .ticket-side strong {
@@ -1053,7 +1054,7 @@ input[type="radio"] {
     font-family: var(--font-money);
     font-size: var(--text-title3);
     font-weight: 700;
-    color: #fff;
+    color: var(--on-dark);
     font-variant-numeric: lining-nums proportional-nums;
 }
 
@@ -1076,7 +1077,7 @@ input[type="radio"] {
     content: '';
     height: 4px;
     border-radius: 2px;
-    background: rgba(220, 239, 226, 0.22);
+    background: color-mix(in srgb, var(--mint-wash) 22%, transparent);
 }
 
 .turn-step.complete::before { background: var(--mint); }
@@ -1085,11 +1086,11 @@ input[type="radio"] {
 .turn-step span {
     font-size: var(--text-caption);
     font-weight: 650;
-    color: rgba(220, 239, 226, 0.6);
+    color: color-mix(in srgb, var(--mint-wash) 60%, transparent);
 }
 
 .turn-step.current span,
-.turn-step.complete span { color: #fff; }
+.turn-step.complete span { color: var(--on-dark); }
 
 .turn-step strong {
     display: none;
@@ -1219,7 +1220,7 @@ input[type="radio"] {
     padding: var(--s3) var(--s4);
     border-radius: var(--r-group);
     background: var(--gold-wash);
-    color: #6B4D07;
+    color: var(--gold-ink);
     font-size: var(--text-sub);
     font-weight: 500;
 }
@@ -1329,7 +1330,7 @@ input[type="radio"] {
     left: 0;
     right: 0;
     bottom: calc(var(--tabbar-h) + var(--safe-bottom));
-    z-index: 58;
+    z-index: var(--z-dock);
     padding: var(--s3) var(--s4);
     background: color-mix(in srgb, var(--paper) 94%, transparent);
     -webkit-backdrop-filter: blur(12px);
@@ -1371,12 +1372,6 @@ input[type="radio"] {
 .dock-row-choices > .btn {
     min-height: var(--tap);
     font-size: var(--text-sub);
-}
-
-.dock-note {
-    font-size: var(--text-caption);
-    color: var(--ink-3);
-    text-align: center;
 }
 
 .moves {
@@ -1717,13 +1712,6 @@ input[type="radio"] {
     white-space: nowrap;
 }
 
-.player-stat-sm.is-secondary {
-    font-family: var(--font-ui);
-    font-weight: 500;
-    font-size: var(--text-caption);
-    color: var(--ink-3);
-}
-
 .player-card-chevron {
     width: 20px;
     height: 20px;
@@ -2054,7 +2042,7 @@ input[type="radio"] {
     padding: var(--s2) var(--s3);
     border-radius: var(--r-control);
     background: var(--gold-wash);
-    color: #6B4D07;
+    color: var(--gold-ink);
     font-size: var(--text-footnote);
 }
 
@@ -2136,7 +2124,7 @@ input[type="radio"] {
     padding: var(--s3) var(--s4);
     border-radius: var(--r-group);
     background: var(--guilloche), var(--forest);
-    color: #fff;
+    color: var(--on-dark);
 }
 
 .mobile-board-turn .mobile-board-label { color: var(--mint); }
@@ -2252,7 +2240,7 @@ input[type="radio"] {
     height: 28px;
     border-radius: 50%;
     background: var(--token-color);
-    color: #fff;
+    color: var(--on-dark);
     font-size: 0.6875rem;
     font-weight: 700;
 }
@@ -2365,7 +2353,7 @@ input[type="radio"] {
     width: 14px;
     height: 14px;
     border-radius: 50%;
-    color: #fff;
+    color: var(--on-dark);
     font-size: 0.42rem;
     font-weight: 700;
 }
@@ -2383,7 +2371,7 @@ input[type="radio"] {
     height: 7px;
     border-radius: 1px;
     background: var(--danger);
-    color: #fff;
+    color: var(--on-dark);
     font-size: 0.38rem;
 }
 
@@ -2592,7 +2580,7 @@ input[type="radio"] {
     border-radius: var(--r-control);
     background: var(--mint-wash);
     color: var(--forest);
-    font-size: 1.25rem;
+    font-size: var(--text-title3);
     font-weight: 600;
     cursor: pointer;
 }
@@ -2765,9 +2753,7 @@ input[type="radio"] {
 }
 
 .room-status.waiting { background: var(--gold-wash); color: var(--gold); }
-.room-status.in_progress,
-.room-status.in-progress,
-.room-status.playing { background: var(--mint-wash); color: var(--forest); }
+.room-status.in_progress { background: var(--mint-wash); color: var(--forest); }
 
 .room-info {
     display: flex;
@@ -2810,8 +2796,8 @@ input[type="radio"] {
     position: relative;
     padding: var(--s5) var(--s4);
     border-radius: var(--r-group);
-    background: var(--guilloche), linear-gradient(160deg, var(--forest), var(--forest-deep));
-    color: #fff;
+    background: var(--banknote);
+    color: var(--on-dark);
     text-align: center;
     overflow: hidden;
 }
@@ -2833,18 +2819,15 @@ input[type="radio"] {
 
 .invite-code-large {
     margin: var(--s2) 0 var(--s4);
-    font-size: 2.75rem;
+    font-size: var(--text-display);
     font-weight: 800;
     letter-spacing: 0.16em;
-    color: #fff;
+    color: var(--on-dark);
 }
 
 .invite-code-display .btn {
     position: relative;
     z-index: 1;
-    --btn-bg: var(--gold-bright);
-    --btn-ink: var(--forest-deep);
-    --btn-press: #BF9014;
 }
 
 .players-section h3,
@@ -2991,7 +2974,7 @@ input[type="radio"] {
 
 .agent-invite-steps code { word-break: break-all; }
 
-.player-badge-agent { background: #E3EEF6; color: var(--info); }
+.player-badge-agent { background: var(--info-wash); color: var(--info); }
 
 .hotseat-resume-options {
     display: none;
@@ -3028,19 +3011,19 @@ input[type="radio"] {
 #hotseat-interstitial {
     position: fixed;
     inset: 0;
-    z-index: 3000;
+    z-index: var(--z-handoff);
     display: flex;
     align-items: center;
     justify-content: center;
     padding: var(--safe-top) var(--s5) var(--safe-bottom);
-    background: var(--guilloche), linear-gradient(170deg, var(--forest) 0%, var(--forest-deep) 100%);
+    background: var(--banknote);
 }
 
 .hotseat-inner {
     width: 100%;
     max-width: 420px;
     text-align: center;
-    color: #fff;
+    color: var(--on-dark);
 }
 
 .hotseat-icon { display: none; }
@@ -3064,7 +3047,7 @@ input[type="radio"] {
     font-size: var(--text-display);
     font-weight: 800;
     line-height: 1.05;
-    color: #fff;
+    color: var(--on-dark);
 }
 
 .hotseat-ready-btn {
@@ -3084,31 +3067,18 @@ input[type="radio"] {
 .hotseat-hint {
     margin-top: var(--s4);
     font-size: var(--text-footnote);
-    color: rgba(220, 239, 226, 0.6);
+    color: color-mix(in srgb, var(--mint-wash) 60%, transparent);
 }
 
-/* ── 17a. Landing page ───────────────────────────────────────── */
-
-.btn-gold {
-    --btn-bg: var(--gold-bright);
-    --btn-ink: var(--forest-deep);
-    --btn-press: #BF9014;
-}
-
-.btn-on-dark {
-    --btn-bg: rgba(255, 255, 255, 0.1);
-    --btn-ink: #fff;
-    --btn-press: rgba(255, 255, 255, 0.18);
-    box-shadow: inset 0 0 0 1px rgba(220, 239, 226, 0.35);
-}
+/* ── 17. Landing page ──────────────────────────────────────────── */
 
 .landing-page { background: var(--paper); }
 
 .landing-hero {
     position: relative;
     padding: calc(var(--safe-top) + var(--s8)) var(--s4) var(--s8);
-    background: var(--guilloche), linear-gradient(170deg, var(--forest) 0%, var(--forest-deep) 100%);
-    color: #fff;
+    background: var(--banknote);
+    color: var(--on-dark);
     overflow: hidden;
 }
 
@@ -3143,14 +3113,14 @@ input[type="radio"] {
     font-weight: 800;
     line-height: 1.02;
     letter-spacing: -0.02em;
-    color: #fff;
+    color: var(--on-dark);
     text-wrap: balance;
 }
 
 .landing-tagline {
     margin-top: var(--s3);
     font-size: var(--text-body);
-    color: rgba(220, 239, 226, 0.85);
+    color: color-mix(in srgb, var(--mint-wash) 85%, transparent);
 }
 
 .resume-card {
@@ -3238,7 +3208,7 @@ input[type="radio"] {
     padding: var(--s3);
     border-radius: var(--r-control);
     background: var(--gold-wash);
-    color: #6B4D07;
+    color: var(--gold-ink);
     font-size: var(--text-footnote);
 }
 
@@ -3295,7 +3265,7 @@ input[type="radio"] {
     padding: var(--s3) var(--s3) var(--s4);
     border-radius: 3px;
     background: var(--deed-color);
-    color: #fff;
+    color: var(--on-dark);
     text-align: center;
 }
 
@@ -3311,7 +3281,7 @@ input[type="radio"] {
     font-family: var(--font-money);
     font-size: var(--text-title3);
     font-weight: 800;
-    color: #fff;
+    color: var(--on-dark);
 }
 
 .deed-card dl { padding: var(--s3) var(--s3) var(--s1); }
@@ -3374,7 +3344,7 @@ input[type="radio"] {
     height: 28px;
     border-radius: 50%;
     background: var(--forest);
-    color: #fff;
+    color: var(--on-dark);
     font-family: var(--font-money);
     font-weight: 700;
     font-size: var(--text-footnote);
@@ -3396,108 +3366,10 @@ input[type="radio"] {
 .landing-footer .landing-wordmark { color: var(--forest); margin-bottom: var(--s2); }
 .landing-footer p + p { margin-top: var(--s1); }
 
-@media (min-width: 900px) {
-    .landing-hero { padding-top: calc(var(--safe-top) + 72px); padding-bottom: 72px; }
-    .hero-cta { flex-direction: row; }
-    .hero-cta .btn { flex: 1; }
-    .landing-body,
-    .landing-footer { max-width: var(--page-wide); }
-    .deed-cards { grid-template-columns: repeat(3, 1fr); }
-    #how-it-works .btn-block { width: auto; }
-}
-
-/* ── 17. Larger screens ────────────────────────────────────────── */
-
-@media (min-width: 900px) {
-    .game-page .container {
-        max-width: var(--page-wide);
-    }
-
-    /* Tab bar becomes a centered segmented control under the app bar */
-    .nav-tabs {
-        position: sticky;
-        top: calc(var(--topbar-h) + var(--safe-top));
-        bottom: auto;
-        left: auto;
-        right: auto;
-        z-index: 49;
-        width: max-content;
-        margin: var(--s2) auto var(--s3);
-        padding: 4px;
-        gap: 4px;
-        border-radius: var(--r-chip);
-        background: var(--forest);
-    }
-
-    .nav-tab {
-        flex-direction: row;
-        gap: var(--s2);
-        height: 40px;
-        padding: 0 var(--s5);
-        border-radius: var(--r-chip);
-        font-size: var(--text-footnote);
-    }
-
-    .nav-tab svg { width: 18px; height: 18px; }
-    .nav-tab.active { background: rgba(255, 255, 255, 0.14); }
-    .nav-tab.active::before { display: none; }
-    .nav-tab .tab-dot { top: 6px; left: auto; right: 10px; }
-
-    .game-page .container,
-    .game-page.is-my-turn .container { padding-bottom: var(--s10); }
-
-    #turn-banner { top: auto; bottom: var(--s6); }
-
-    /* Turn layout: ticket + actions left, players right */
-    #gameContent > .game-layout {
-        display: grid;
-        grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr);
-        gap: 0 var(--s6);
-        align-items: start;
-    }
-
-    /* Sticky turn column scrolls on its own when taller than the window,
-       so its bottom is reachable without scrolling past every player */
-    .game-layout-main {
-        position: sticky;
-        top: calc(var(--topbar-h) + 64px);
-        max-height: calc(100vh - var(--topbar-h) - 64px - var(--s4));
-        max-height: calc(100dvh - var(--topbar-h) - 64px - var(--s4));
-        overflow-y: auto;
-        overscroll-behavior: contain;
-        scrollbar-width: thin;
-        /* Room for focus rings and card shadows the scroll box would clip */
-        margin: calc(var(--s1) * -1);
-        padding: var(--s1);
-    }
-
-    .turn-dock {
-        position: static;
-        margin-top: var(--s3);
-        padding: 0;
-        background: none;
-        box-shadow: none;
-        -webkit-backdrop-filter: none;
-        backdrop-filter: none;
-    }
-
-    .moves-grid { grid-template-columns: repeat(3, 1fr); }
-
-    .transaction-form { flex-direction: row; align-items: stretch; }
-    .transaction-side { flex: 1; }
-    .trade-swap { margin: 0 calc(var(--s3) * -1); }
-
-    .mobile-board-view { display: none; }
-    .board-tab-wrapper {
-        display: block;
-        width: 100%;
-        overflow-x: auto;
-        padding: var(--s4) 0;
-    }
-}
+/* ── 18. Rejoin prompt, turn alerts, Add to Home Screen ────────── */
 
 /* Rejoin prompt: shown to players who may let someone back into their seat. */
-.rejoin-prompt { z-index: 1200; }
+.rejoin-prompt { z-index: var(--z-rejoin); }
 
 .rejoin-prompt-text {
     margin-bottom: var(--s2);
@@ -3523,10 +3395,8 @@ input[type="radio"] {
 
 .rejoin-waiting { color: var(--ink-3); }
 
-/* ==========================================================================
-   Turn alerts: the bell in the game app bar, its sheet, and the
-   Add to Home Screen page (home-screen.html)
-   ========================================================================== */
+/* Turn alerts: the bell in the game app bar, its sheet, and the
+   Add to Home Screen page (home-screen.html) */
 
 /* The bell fills in when alerts are on for this device. */
 .turn-alerts-btn.is-on svg path:first-child { fill: currentColor; }
@@ -3626,8 +3496,101 @@ input[type="radio"] {
 
 .home-screen-launch .btn { margin-top: var(--s4); width: 100%; }
 
-/* Very narrow phones: three app-bar icons leave the room name too little room. */
-@media (max-width: 359px) {
-    .app-bar-icon { width: 36px; }
-    .room-code-chip { padding: 5px 7px; letter-spacing: 0.08em; }
+/* ── 19. Larger screens ────────────────────────────────────────── */
+
+@media (min-width: 900px) {
+    .game-page .container {
+        max-width: var(--page-wide);
+    }
+
+    /* Tab bar becomes a centered segmented control under the app bar */
+    .nav-tabs {
+        position: sticky;
+        top: calc(var(--topbar-h) + var(--safe-top));
+        bottom: auto;
+        left: auto;
+        right: auto;
+        z-index: calc(var(--z-app-bar) - 1);
+        width: max-content;
+        margin: var(--s2) auto var(--s3);
+        padding: 4px;
+        gap: 4px;
+        border-radius: var(--r-chip);
+        background: var(--forest);
+    }
+
+    .nav-tab {
+        flex-direction: row;
+        gap: var(--s2);
+        height: 40px;
+        padding: 0 var(--s5);
+        border-radius: var(--r-chip);
+        font-size: var(--text-footnote);
+    }
+
+    .nav-tab svg { width: 18px; height: 18px; }
+    .nav-tab.active { background: rgba(255, 255, 255, 0.14); }
+    .nav-tab.active::before { display: none; }
+    .nav-tab .tab-dot { top: 6px; left: auto; right: 10px; }
+
+    .game-page .container,
+    .game-page.is-my-turn .container { padding-bottom: var(--s10); }
+
+    #turn-banner { top: auto; bottom: var(--s6); }
+
+    /* Turn layout: ticket + actions left, players right */
+    #gameContent > .game-layout {
+        display: grid;
+        grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr);
+        gap: 0 var(--s6);
+        align-items: start;
+    }
+
+    /* Sticky turn column scrolls on its own when taller than the window,
+       so its bottom is reachable without scrolling past every player */
+    .game-layout-main {
+        position: sticky;
+        top: calc(var(--topbar-h) + 64px);
+        max-height: calc(100vh - var(--topbar-h) - 64px - var(--s4));
+        max-height: calc(100dvh - var(--topbar-h) - 64px - var(--s4));
+        overflow-y: auto;
+        overscroll-behavior: contain;
+        scrollbar-width: thin;
+        /* Room for focus rings and card shadows the scroll box would clip */
+        margin: calc(var(--s1) * -1);
+        padding: var(--s1);
+    }
+
+    .turn-dock {
+        position: static;
+        margin-top: var(--s3);
+        padding: 0;
+        background: none;
+        box-shadow: none;
+        -webkit-backdrop-filter: none;
+        backdrop-filter: none;
+    }
+
+    .moves-grid { grid-template-columns: repeat(3, 1fr); }
+
+    .transaction-form { flex-direction: row; align-items: stretch; }
+    .transaction-side { flex: 1; }
+    .trade-swap { margin: 0 calc(var(--s3) * -1); }
+
+    .mobile-board-view { display: none; }
+    .board-tab-wrapper {
+        display: block;
+        width: 100%;
+        overflow-x: auto;
+        padding: var(--s4) 0;
+    }
+
+    /* Landing page */
+    .landing-hero { padding-top: calc(var(--safe-top) + 72px); padding-bottom: 72px; }
+    .hero-cta { flex-direction: row; }
+    .hero-cta .btn { flex: 1; }
+    .landing-body,
+    .landing-footer { max-width: var(--page-wide); }
+    .deed-cards { grid-template-columns: repeat(3, 1fr); }
+    #how-it-works .btn-block { width: auto; }
 }

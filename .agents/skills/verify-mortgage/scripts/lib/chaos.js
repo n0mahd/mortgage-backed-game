@@ -244,12 +244,19 @@ class Chaos {
         await bot.gameButton(seat, action).dblclick({ timeout: 3000 }).catch(() => {});
         await sleep(1500);
         const after = bot.server();
-        const active = before.state.players.filter(p => !p.bankrupt).length;
-        const advanced = (after.state.currentPlayerIndex - startIndex + before.state.players.length) % before.state.players.length;
         const rolls = newLogLines(before.state, after.state).length;
         this.ctx.log(`    chaos: ${seat.name} double-clicked ${action}: v${before.version} -> v${after.version}`);
-        if (action === 'end-turn' && advanced > 1 && active > 2) {
-            this.ctx.finding({ severity: 'high', category: 'chaos', seat, title: 'Double-clicking End Turn skipped a player', detail: `turn moved ${advanced} players on` });
+        // Bankrupt seats are skipped by design, so only a player still in the
+        // game being passed over counts as a skipped turn.
+        const players = after.state.players;
+        const passedOver = [];
+        for (let step = 1; step < players.length; step++) {
+            const index = (startIndex + step) % players.length;
+            if (index === after.state.currentPlayerIndex) break;
+            if (!players[index].bankrupt) passedOver.push(players[index].name);
+        }
+        if (action === 'end-turn' && !after.state.ended && after.state.currentPlayerIndex !== startIndex && passedOver.length > 0) {
+            this.ctx.finding({ severity: 'high', category: 'chaos', seat, title: 'Double-clicking End Turn skipped a player', detail: `turn passed over ${passedOver.join(', ')}` });
         }
         if (action === 'roll-dice' && extraRoll(before.state, after.state)) {
             this.ctx.finding({ severity: 'high', category: 'chaos', seat, title: 'Double-clicking Roll Dice rolled twice without doubles', detail: `v${before.version} -> v${after.version}, ${rolls} new log lines` });

@@ -13,8 +13,8 @@
     <link rel="manifest" href="/manifest.webmanifest">
     <title>Waiting room — Mortgage Backed Monopoly</title>
     <link rel="preload" href="src/assets/fonts/besley-latin.woff2" as="font" type="font/woff2" crossorigin>
-    <link rel="stylesheet" href="src/css/tokens.css?v=2">
-    <link rel="stylesheet" href="src/css/style.css?v=26">
+    <link rel="stylesheet" href="src/css/tokens.css?v=13">
+    <link rel="stylesheet" href="src/css/style.css?v=33">
 </head>
 <body>
     <div class="container">
@@ -103,7 +103,7 @@
                         </div>
                     </div>
 
-                    <!-- Invite AI agents: one invite per agent (src/js/agentInvites.js) -->
+                    <!-- Invite AI agents: one invite per agent (src/js/agent-invites.js) -->
                     <div class="agent-invites invite-email-panel" id="agent-invites" style="display: none;">
                         <h4>Invite AI agents</h4>
                         <p class="agent-invites-help">Each invite seats one agent and controls only that seat. Give each agent its own name so players can tell them apart.</p>
@@ -162,9 +162,11 @@
     </div>
 
     <script src="/socket.io/socket.io.js"></script>
-    <script src="src/js/api.js?v=11"></script>
-    <script src="src/js/rejoin-prompts.js?v=1"></script>
-    <script src="src/js/agentInvites.js?v=3"></script>
-    <script src="src/js/waiting.js?v=17"></script>
+    <script src="src/js/api.js?v=15"></script>
+    <script src="src/js/ui.js?v=2"></script>
+    <script src="src/js/room-resume.js?v=1"></script>
+    <script src="src/js/rejoin-prompts.js?v=2"></script>
+    <script src="src/js/agent-invites.js?v=1"></script>
+    <script src="src/js/waiting.js?v=22"></script>
 </body>
 </html>

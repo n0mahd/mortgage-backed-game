@@ -4,8 +4,8 @@
 
 const { expect } = require('@playwright/test');
 
-const BASE_API = process.env.API_BASE_URL || 'http://100.110.102.49:3111/api';
-const BASE_URL = process.env.BASE_URL || 'http://100.110.102.49:3011';
+const BASE_API = process.env.API_BASE_URL || 'http://127.0.0.1:3111/api';
+const BASE_URL = process.env.BASE_URL || 'http://127.0.0.1:3011';
 const BASE = BASE_URL;
 
 /**

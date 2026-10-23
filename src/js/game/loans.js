@@ -52,5 +52,15 @@
         };
     }
 
-    global.LoanMath = { LOAN_TERMS, loanRates, scheduledPayment, loanQuote, loanStatus };
+    // One line on what a loan does at the borrower's next End Turn.
+    function paymentNote(debt, dueThisTurn = false) {
+        const status = loanStatus(debt, { dueThisTurn });
+        const money = global.formatMoney;
+        if (status.dueInFull) return `${money(status.nextPayment)} due in full ${status.dueThisTurn ? 'at End Turn' : 'next turn'}`;
+        return status.autopay
+            ? `Autopay ${money(status.nextPayment)} next turn at ${Number(debt.interestRate || 0)}%`
+            : `Autopay off: ${money(status.interestNext)} interest added next turn`;
+    }
+
+    global.LoanMath = { LOAN_TERMS, loanRates, scheduledPayment, loanQuote, loanStatus, paymentNote };
 })(window);

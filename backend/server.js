@@ -1,3 +1,7 @@
+'use strict';
+
+// HTTP and Socket.IO server: mounts the API routes and authenticates sockets.
+
 const express = require('express');
 const http = require('http');
 const { Server } = require('socket.io');
@@ -6,34 +10,31 @@ const { getConfig, getCorsOptions } = require('./config');
 const db = require('./db');
 const presence = require('./services/presence');
 const { canViewRoom } = require('./services/rooms');
-const { router: authRouter, readToken, makeToken } = require('./routes/auth');
+const { setSocketServer } = require('./services/roomEvents');
+const { readToken, makeToken } = require('./auth');
+const { createMcpRouter } = require('./mcp/server');
 
 const config = getConfig();
-const PORT = config.port;
-const HOST = config.host;
 
 const app = express();
 const server = http.createServer(app);
 const io = new Server(server, {
     cors: getCorsOptions(config)
 });
+setSocketServer(io);
 
 if (config.trustProxy !== false) {
     app.set('trust proxy', config.trustProxy);
 }
 
-const roomsRouter = require('./routes/rooms')(io);
-const gamesRouter = require('./routes/games')(io);
-const { createMcpRouter } = require('./mcp/server');
-
 app.use(cors(getCorsOptions(config)));
 app.use(express.json({ limit: config.requestBodyLimit }));
 
 // Routes
-app.use('/api/auth', authRouter);
-app.use('/api/rooms', roomsRouter);
-app.use('/api/games', gamesRouter);
-app.use('/api/mcp', createMcpRouter(io));
+app.use('/api/auth', require('./routes/auth'));
+app.use('/api/rooms', require('./routes/rooms'));
+app.use('/api/games', require('./routes/games'));
+app.use('/api/mcp', createMcpRouter());
 app.use('/api/push', require('./routes/push'));
 
 // Health check
@@ -60,12 +61,15 @@ app.get('/api/health', (_req, res) => {
     }
 });
 
-// Errors never expose stacks or server paths to clients, whatever the env.
+// Errors with a 4xx status (RoomError, GameRuleError, bad JSON) answer with
+// their message; anything else is a 500. Never a stack or server path.
 app.use((err, _req, res, _next) => {
     const status = Number.isInteger(err.status) && err.status >= 400 && err.status < 500 ? err.status : 500;
     if (status === 500) console.error('Unhandled request error:', err.message);
     if (res.headersSent) return;
-    res.status(status).json({ error: status === 500 ? 'Internal server error' : err.message });
+    const body = { error: status === 500 ? 'Internal server error' : err.message };
+    if (status === 409 && err.stateVersion !== undefined) body.state_version = err.stateVersion;
+    res.status(status).json(body);
 });
 
 // ----------------------------------------------------------------
@@ -75,7 +79,7 @@ app.use((err, _req, res, _next) => {
 // Authenticate socket via token query param or auth header
 io.use((socket, next) => {
     const token = socket.handshake.auth?.token || socket.handshake.query?.token;
-    if (!token) return next(); // allow unauthenticated (read-only observer)
+    if (!token) return next(); // connects, but join_room refuses it
     const result = readToken(token);
     if (!result) return next(new Error('Invalid token'));
     socket.userId = result.userId;
@@ -119,8 +123,8 @@ io.on('connection', (socket) => {
 
 
 if (require.main === module) {
-    server.listen(PORT, HOST, () => {
-        console.log(`Mortgage Backed Game backend running env=${config.env} host=${HOST} port=${PORT} db=${config.dbPath}`);
+    server.listen(config.port, config.host, () => {
+        console.log(`Mortgage Backed Game backend running env=${config.env} host=${config.host} port=${config.port} db=${config.dbPath}`);
     });
 }
 

@@ -4,7 +4,7 @@
 //
 // Classic browser script. It renders HTML for openCorporationModal() and
 // handles its buttons, calling game.js globals (currentGame, currentUser,
-// performGameAction, escapeHtml, formatMoney, ...) at click time. The server
+// submitGameAction, escapeHtml, formatMoney, ...) at click time. The server
 // stays the authority; numbers here are previews.
 (function (global) {
     'use strict';
@@ -19,10 +19,6 @@
 
     function corpById(corpId) {
         return (state()?.corporations || []).find(corp => corp.id === corpId) || null;
-    }
-
-    function isInsolvent(corp) {
-        return !!corp.insolvent || corp.status === 'insolvent';
     }
 
     function policyOf(corp) {
@@ -49,14 +45,6 @@
         return global.escapeHtml(value);
     }
 
-    function attr(value) {
-        return global.escapeAttr(value);
-    }
-
-    function sharesOf(corp, userId) {
-        return Number((corp.shareholders || []).find(h => h.userId === userId)?.shares || 0);
-    }
-
     function offerOptions(extra = {}) {
         return { netAssetValue: global.getCorporationNetAssetValue, maxShares: MAX_CORPORATION_SHARES, ...extra };
     }
@@ -64,11 +52,11 @@
     // ---- Rent policy ------------------------------------------------------
 
     function renderRentPolicy(corp) {
-        if (isInsolvent(corp)) return '';
+        if (global.ShareDeals.isInsolvent(corp)) return '';
         const policy = policyOf(corp);
         const runs = global.ShareDeals.runsCorporation(corp, me());
         const total = Number(corp.totalShares || 0);
-        const mine = sharesOf(corp, me());
+        const mine = global.ShareDeals.sharesHeld(corp, me());
         const pct = global.ShareDeals.percent(mine, total);
         const effect = policy === 'payout'
             ? (mine > 0
@@ -96,7 +84,7 @@
                 ${debtWarning}
                 <div class="governance-control">
                     ${canSwitch || lockedTurns === 0
-                        ? `<button class="btn btn-primary btn-sm" data-game-action="set-rent-policy" data-corp-id="${attr(corp.id)}" data-policy="${other}"${canSwitch ? '' : ' disabled'}>Switch to ${otherLabel}</button>`
+                        ? `<button class="btn btn-primary btn-sm" data-game-action="set-rent-policy" data-corp-id="${esc(corp.id)}" data-policy="${other}"${canSwitch ? '' : ' disabled'}>Switch to ${otherLabel}</button>`
                         : ''}
                     ${mine > 0 && lockedTurns > 0 ? proposeButton(corp, other, otherLabel) : ''}
                 </div>
@@ -117,7 +105,7 @@
     }
 
     function proposeButton(corp, policy, label) {
-        return `<button class="btn btn-secondary btn-sm" data-game-action="propose-rent-policy" data-corp-id="${attr(corp.id)}" data-policy="${policy}">Ask every shareholder to switch to ${label}</button>`;
+        return `<button class="btn btn-secondary btn-sm" data-game-action="propose-rent-policy" data-corp-id="${esc(corp.id)}" data-policy="${policy}">Ask every shareholder to switch to ${label}</button>`;
     }
 
     // An open rent-policy vote: who agreed, who hasn't yet, and Agree / Reject
@@ -135,7 +123,7 @@
         const agreed = holders.filter(h => vote.supporterIds.includes(h.userId));
         const waiting = holders.filter(h => !vote.supporterIds.includes(h.userId));
         const nameOf = h => (h.userId === me() ? 'you' : h.name);
-        const canAnswer = sharesOf(corp, me()) > 0 && !vote.supporterIds.includes(me());
+        const canAnswer = global.ShareDeals.sharesHeld(corp, me()) > 0 && !vote.supporterIds.includes(me());
         return `
             <div class="chairman-vote-row">
                 <div>
@@ -143,47 +131,38 @@
                     <span>Proposed by ${esc(vote.proposedByName || 'a shareholder')}. Agreed: ${esc(agreed.map(nameOf).join(', ') || 'nobody yet')}. Waiting for: ${esc(waiting.map(nameOf).join(', '))}. It switches when everyone agrees; one no closes it.</span>
                 </div>
                 ${canAnswer ? `
-                    <button class="btn btn-primary btn-sm" data-game-action="vote-rent-policy" data-corp-id="${attr(corp.id)}" data-approve="true">Agree</button>
-                    <button class="btn btn-secondary btn-sm" data-game-action="vote-rent-policy" data-corp-id="${attr(corp.id)}" data-approve="false">Reject</button>
+                    <button class="btn btn-primary btn-sm" data-game-action="vote-rent-policy" data-corp-id="${esc(corp.id)}" data-approve="true">Agree</button>
+                    <button class="btn btn-secondary btn-sm" data-game-action="vote-rent-policy" data-corp-id="${esc(corp.id)}" data-approve="false">Reject</button>
                 ` : ''}
             </div>
         `;
     }
 
     async function proposeRentPolicy(corpId, policy) {
-        try {
-            await global.performGameAction('propose_rent_policy_change', { corpId, policy });
-            global.openCorporationModal();
-        } catch (error) {
-            global.logActionError('Error proposing rent policy change:', error);
-            alert(error.message || 'Failed to propose the change');
-        }
+        await global.submitGameAction('propose_rent_policy_change', { corpId, policy }, {
+            errorText: 'Failed to propose the change',
+            onSaved: () => global.openCorporationModal(),
+        });
     }
 
     async function voteRentPolicy(corpId, approve) {
-        try {
-            await global.performGameAction('vote_rent_policy_change', { corpId, approve });
-            global.openCorporationModal();
-        } catch (error) {
-            global.logActionError('Error voting on rent policy:', error);
-            alert(error.message || 'Failed to vote');
-        }
+        await global.submitGameAction('vote_rent_policy_change', { corpId, approve }, {
+            errorText: 'Failed to vote',
+            onSaved: () => global.openCorporationModal(),
+        });
     }
 
     async function setRentPolicy(corpId, policy) {
-        try {
-            await global.performGameAction('set_rent_policy', { corpId, policy });
-            global.openCorporationModal();
-        } catch (error) {
-            global.logActionError('Error changing rent policy:', error);
-            alert(error.message || 'Failed to change the rent policy');
-        }
+        await global.submitGameAction('set_rent_policy', { corpId, policy }, {
+            errorText: 'Failed to change the rent policy',
+            onSaved: () => global.openCorporationModal(),
+        });
     }
 
     // ---- The runner's tools -----------------------------------------------
 
     function renderRunnerTools(corp) {
-        if (isInsolvent(corp) || !global.ShareDeals.runsCorporation(corp, me())) return '';
+        if (global.ShareDeals.isInsolvent(corp) || !global.ShareDeals.runsCorporation(corp, me())) return '';
         const myTurn = isMyTurn();
         const cash = Number(corp.cash || 0);
         const ownsGroup = global.getCompleteGroupProperties(corp.id, state()).length > 0;
@@ -192,13 +171,13 @@
             <div class="corp-runner-tools">
                 <h4>Spend the treasury (${money(cash)})</h4>
                 <div class="buy-shares-form">
-                    <label for="dividend-${attr(corp.id)}">Pay a dividend, split by shares</label>
-                    <input type="number" inputmode="decimal" id="dividend-${attr(corp.id)}" min="1" max="${Math.floor(cash)}" value="${Math.floor(cash / 2) || ''}">
-                    <button class="btn btn-primary btn-sm" data-game-action="pay-dividend" data-corp-id="${attr(corp.id)}"${myTurn && cash >= 1 ? '' : ' disabled'}>Pay dividend</button>
+                    <label for="dividend-${esc(corp.id)}">Pay a dividend, split by shares</label>
+                    <input type="number" inputmode="decimal" id="dividend-${esc(corp.id)}" min="1" max="${Math.floor(cash)}" value="${Math.floor(cash / 2) || ''}">
+                    <button class="btn btn-primary btn-sm" data-game-action="pay-dividend" data-corp-id="${esc(corp.id)}"${myTurn && cash >= 1 ? '' : ' disabled'}>Pay dividend</button>
                 </div>
                 <div class="governance-control">
-                    <button class="btn btn-secondary btn-sm" data-game-action="build-for-corporation" data-corp-id="${attr(corp.id)}"${myTurn && ownsGroup ? '' : ' disabled'}>Build houses for ${esc(corp.ticker)}</button>
-                    <button class="btn btn-secondary btn-sm" data-game-action="trade-as-corporation" data-corp-id="${attr(corp.id)}">Trade as ${esc(corp.ticker)}</button>
+                    <button class="btn btn-secondary btn-sm" data-game-action="build-for-corporation" data-corp-id="${esc(corp.id)}"${myTurn && ownsGroup ? '' : ' disabled'}>Build houses for ${esc(corp.ticker)}</button>
+                    <button class="btn btn-secondary btn-sm" data-game-action="trade-as-corporation" data-corp-id="${esc(corp.id)}">Trade as ${esc(corp.ticker)}</button>
                 </div>
                 <small>${ownsGroup ? '' : `${esc(corp.ticker)} can build once it owns a whole colour group. `}To buy a property for ${esc(corp.ticker)}, land on it and choose ${esc(corp.ticker)} when you buy.</small>
                 ${turnNote}
@@ -210,14 +189,13 @@
         const corp = corpById(corpId);
         const amount = Number(document.getElementById(`dividend-${corpId}`)?.value || 0);
         if (!corp || !(amount > 0)) return;
-        try {
-            await global.performGameAction('pay_dividend', { corpId, amount });
-            global.showToast(`${corp.ticker} paid a ${money(amount)} dividend.`);
-            global.openCorporationModal();
-        } catch (error) {
-            global.logActionError('Error paying dividend:', error);
-            alert(error.message || 'Failed to pay the dividend');
-        }
+        await global.submitGameAction('pay_dividend', { corpId, amount }, {
+            errorText: 'Failed to pay the dividend',
+            onSaved: () => {
+                global.showToast(`${corp.ticker} paid a ${money(amount)} dividend.`);
+                global.openCorporationModal();
+            },
+        });
     }
 
     function buildForCorporation(corpId) {
@@ -242,14 +220,14 @@
     }
 
     function renderOfferButton(corp) {
-        if (isInsolvent(corp) || !corp.chairmanId || global.ShareDeals.runsCorporation(corp, me())) return '';
+        if (global.ShareDeals.isInsolvent(corp) || !corp.chairmanId || global.ShareDeals.runsCorporation(corp, me())) return '';
         const mine = (currentPlayerData?.properties || []).length > 0 && !currentPlayerData?.bankrupt;
         if (!mine) return '';
         return `
             <div class="offer-property-for-shares">
-                <button class="btn btn-success" data-game-action="open-property-offer" data-corp-id="${attr(corp.id)}">Offer a property to ${esc(corp.ticker)}</button>
+                <button class="btn btn-success" data-game-action="open-property-offer" data-corp-id="${esc(corp.id)}">Offer a property to ${esc(corp.ticker)}</button>
                 <small>At book value or your price, for new ${esc(corp.ticker)} shares or treasury cash. ${esc(corp.chairmanName || 'The chairman')} accepts, declines or counters.</small>
-                <button class="btn btn-secondary btn-sm" data-game-action="offer-property-for-shares" data-corp-id="${attr(corp.id)}">Or trade it for ${esc(corp.chairmanName || 'the chairman')}'s own shares</button>
+                <button class="btn btn-secondary btn-sm" data-game-action="offer-property-for-shares" data-corp-id="${esc(corp.id)}">Or trade it for ${esc(corp.chairmanName || 'the chairman')}'s own shares</button>
             </div>
         `;
     }
@@ -285,14 +263,14 @@
                 ${global.renderShareDealSummary(summary)}
                 ${canAnswer ? `
                     <div class="trade-offer-actions">
-                        <button class="btn btn-success btn-sm" data-game-action="respond-property-offer" data-offer-id="${attr(offer.id)}" data-response="accept">Accept</button>
-                        <input type="number" class="counter-price-input" id="counter-${attr(offer.id)}" min="1" step="1" inputmode="decimal" value="${Math.round(offer.price)}" aria-label="Counter price">
-                        <button class="btn btn-secondary btn-sm" data-game-action="respond-property-offer" data-offer-id="${attr(offer.id)}" data-response="counter">Counter</button>
-                        <button class="btn btn-secondary btn-sm" data-game-action="respond-property-offer" data-offer-id="${attr(offer.id)}" data-response="decline">${isOfferer ? 'Withdraw' : 'Decline'}</button>
+                        <button class="btn btn-success btn-sm" data-game-action="respond-property-offer" data-offer-id="${esc(offer.id)}" data-response="accept">Accept</button>
+                        <input type="number" class="counter-price-input" id="counter-${esc(offer.id)}" min="1" step="1" inputmode="decimal" value="${Math.round(offer.price)}" aria-label="Counter price">
+                        <button class="btn btn-secondary btn-sm" data-game-action="respond-property-offer" data-offer-id="${esc(offer.id)}" data-response="counter">Counter</button>
+                        <button class="btn btn-secondary btn-sm" data-game-action="respond-property-offer" data-offer-id="${esc(offer.id)}" data-response="decline">${isOfferer ? 'Withdraw' : 'Decline'}</button>
                     </div>
                 ` : `
                     <p class="empty-state">Waiting for ${esc(waitingOn)}.</p>
-                    ${isOfferer ? `<div class="trade-offer-actions"><button class="btn btn-secondary btn-sm" data-game-action="respond-property-offer" data-offer-id="${attr(offer.id)}" data-response="decline">Withdraw</button></div>` : ''}
+                    ${isOfferer ? `<div class="trade-offer-actions"><button class="btn btn-secondary btn-sm" data-game-action="respond-property-offer" data-offer-id="${esc(offer.id)}" data-response="decline">Withdraw</button></div>` : ''}
                 `}
             </div>
         `;
@@ -304,13 +282,10 @@
             payload.price = Number(document.getElementById(`counter-${offerId}`)?.value || 0);
             if (!(payload.price > 0)) return;
         }
-        try {
-            await global.performGameAction('respond_property_offer', payload);
-            global.openCorporationModal();
-        } catch (error) {
-            global.logActionError('Error answering property offer:', error);
-            alert(error.message || 'Failed to answer the offer');
-        }
+        await global.submitGameAction('respond_property_offer', payload, {
+            errorText: 'Failed to answer the offer',
+            onSaved: () => global.openCorporationModal(),
+        });
     }
 
     let offerCorpId = null;
@@ -329,8 +304,8 @@
             const note = built ? `Has buildings: goes with the whole ${p.color} group` : '';
             return `
                 <div class="asset-checkbox">
-                    <input type="checkbox" id="offer-asset-${attr(p.id)}" value="${attr(p.id)}"${built ? ` data-built-group="${attr(p.color)}"` : ''}>
-                    <label for="offer-asset-${attr(p.id)}">${global.propertyDot(p.id)}${esc(p.name)} <span class="debt-detail">${money(p.value)}</span>${note ? ` <span class="debt-detail">${esc(note)}</span>` : ''}</label>
+                    <input type="checkbox" id="offer-asset-${esc(p.id)}" value="${esc(p.id)}"${built ? ` data-built-group="${esc(p.color)}"` : ''}>
+                    <label for="offer-asset-${esc(p.id)}">${global.propertyDot(p.id)}${esc(p.name)} <span class="debt-detail">${money(p.value)}</span>${note ? ` <span class="debt-detail">${esc(note)}</span>` : ''}</label>
                 </div>
             `;
         }).join('') || '<p class="empty-state">You have no properties to offer.</p>';
@@ -388,14 +363,13 @@
         if (!corp || !assetIds.length) return;
         const payload = { corpId: corp.id, assetIds, payWith };
         if (basis === 'set') payload.price = price;
-        try {
-            await global.performGameAction('offer_property_to_corporation', payload);
-            global.closeModal('propertyOfferModal');
-            global.showToast(`Offer sent to ${corp.chairmanName || corp.ticker}.`);
-        } catch (error) {
-            global.logActionError('Error offering property:', error);
-            alert(error.message || 'Failed to send the offer');
-        }
+        await global.submitGameAction('offer_property_to_corporation', payload, {
+            errorText: 'Failed to send the offer',
+            onSaved: () => {
+                global.closeModal('propertyOfferModal');
+                global.showToast(`Offer sent to ${corp.chairmanName || corp.ticker}.`);
+            },
+        });
     }
 
     function bind() {
@@ -407,8 +381,8 @@
     // Property offers and rent-policy votes someone needs to answer, for the
     // Corporations button.
     function offersAwaiting(userId) {
-        const votes = (state()?.corporations || []).filter(corp => corp.rentPolicyVote && !isInsolvent(corp)
-            && sharesOf(corp, userId) > 0 && !corp.rentPolicyVote.supporterIds.includes(userId));
+        const votes = (state()?.corporations || []).filter(corp => corp.rentPolicyVote && !global.ShareDeals.isInsolvent(corp)
+            && global.ShareDeals.sharesHeld(corp, userId) > 0 && !corp.rentPolicyVote.supporterIds.includes(userId));
         return [...votes, ...(state()?.propertyOffers || []).filter(offer => {
             if (offer.status !== 'pending') return false;
             if (offer.awaiting === 'offerer') return offer.offererId === userId;

@@ -23,7 +23,6 @@ async function startHotseatGame() {
     const errorEl = document.getElementById('hotseat-error');
     const btn = document.getElementById('start-hotseat-btn');
     errorEl.textContent = '';
-    errorEl.classList.remove('active');
 
     const inputs = document.querySelectorAll('.player-name-input');
     const names = Array.from(inputs)
@@ -32,14 +31,12 @@ async function startHotseatGame() {
 
     if (names.length < 2) {
         errorEl.textContent = 'Enter at least 2 player names.';
-        errorEl.classList.add('active');
         return;
     }
 
     const uniqueNames = new Set(names.map(n => n.toLowerCase()));
     if (uniqueNames.size !== names.length) {
         errorEl.textContent = 'Each player must have a unique name.';
-        errorEl.classList.add('active');
         return;
     }
 
@@ -49,43 +46,32 @@ async function startHotseatGame() {
     try {
         const tokenRecords = [];
         for (const name of names) {
-            const data = await apiFetch('/auth/anonymous', { method: 'POST' });
+            const data = await createGuestUser();
             tokenRecords.push({ userId: data.user.id, token: data.token, name });
         }
 
-        localStorage.setItem('auth_token', tokenRecords[0].token);
+        setToken(tokenRecords[0].token);
 
-        const room = await apiFetch('/rooms', {
-            method: 'POST',
-            body: JSON.stringify({
-                name: `${names[0]}'s Local Game`,
-                player_name: names[0],
-                max_players: names.length
-            })
-        });
+        const room = await createNewRoom(`${names[0]}'s Local Game`, names.length, names[0]);
         const roomId = room.id;
 
         // Server-authoritative actions need every local player joined with their own token.
         for (let i = 1; i < tokenRecords.length; i++) {
-            localStorage.setItem('auth_token', tokenRecords[i].token);
-            await apiFetch(`/rooms/${roomId}/join`, {
-                method: 'POST',
-                body: JSON.stringify({ player_name: tokenRecords[i].name })
-            });
+            setToken(tokenRecords[i].token);
+            await joinRoom(roomId, tokenRecords[i].name);
         }
-        localStorage.setItem('auth_token', tokenRecords[0].token);
+        setToken(tokenRecords[0].token);
 
         await startGame(roomId);
 
-        sessionStorage.setItem('hotseat_tokens', JSON.stringify(tokenRecords));
+        setHotseatSession(tokenRecords);
         saveHotseatResume(room, tokenRecords);
 
-        window.location.href = `game.html?room=${roomId}`;
+        navigateToGameRoom(roomId);
 
     } catch (err) {
         console.error('Hotseat setup error:', err);
         errorEl.textContent = 'Setup failed: ' + err.message;
-        errorEl.classList.add('active');
         btn.disabled = false;
         btn.textContent = 'Start Local Game';
     }

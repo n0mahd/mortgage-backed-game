@@ -1,6 +1,6 @@
 // Turn-end outlook: what End Turn will do to the current player's cash.
 //
-// Display only. It mirrors the order in endTurn (backend/domain/gameRulesInternal/engine.js):
+// Display only. It mirrors the order in endTurn (backend/domain/gameRulesInternal/turns.js):
 // any unpaid claim is paid from cash first, then personal loans are serviced (serviceLoan in
 // loans.js: autopay takes each loan's nextPayment as far as cash allows, and a loan on its
 // last turn takes its whole balance), then the player goes bankrupt if cash is below zero or
@@ -68,5 +68,5 @@
         };
     }
 
-    global.getTurnEndOutlook = getTurnEndOutlook;
+    global.TurnEndOutlook = { forPlayer: getTurnEndOutlook };
 })(window);

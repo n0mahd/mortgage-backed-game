@@ -8,6 +8,7 @@
 
 const webpush = require('web-push');
 const db = require('../db');
+const { getConfig } = require('../config');
 
 // Only the browser vendors' push services. We send requests to whatever URL a
 // browser registers, so anything else would let a client aim the server at
@@ -25,9 +26,7 @@ let configured = null;
 
 function pushConfig() {
     if (configured !== null) return configured;
-    const publicKey = process.env.VAPID_PUBLIC_KEY;
-    const privateKey = process.env.VAPID_PRIVATE_KEY;
-    const subject = process.env.VAPID_SUBJECT || 'mailto:noreply@abdlh.com';
+    const { publicKey, privateKey, subject } = getConfig().vapid;
     if (!publicKey || !privateKey) {
         configured = { enabled: false };
     } else {
@@ -117,5 +116,4 @@ module.exports = {
     deleteSubscription,
     countSubscriptions,
     sendToUser,
-    isAllowedEndpoint,
 };

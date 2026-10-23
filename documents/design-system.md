@@ -4,8 +4,8 @@ The visual and interaction rules for every screen of Mortgage Backed Monopoly. T
 brand rationale come from `documents/brand-book.md`; this page covers how they become UI.
 
 - Tokens: `src/css/tokens.css`. Load it before `src/css/style.css` on every page.
-- Components: `src/css/style.css` (one stylesheet for all pages; `landing.css` was retired).
-- Presentation helpers: `src/js/ui.js` (`formatMoney`, `playerInitials`, `renderDicePair`, `showToast`).
+- Components: `src/css/style.css` (one stylesheet for all pages).
+- Presentation helpers: `src/js/ui.js` (`formatMoney`, `playerInitials`, `renderDicePair`, `showToast`, `escapeHtml`, `copyText`).
 - Specimen: `design-system.html` renders every component against real tokens.
 - Turn alerts: `src/js/turn-notifications.js` (state and Web Push), `home-screen.html` with
   `src/js/home-screen.js` (Add to Home Screen handoff).
@@ -35,6 +35,8 @@ quiet, native, and flat.
 | `--emerald` | `#2D6A4F` | Primary action |
 | `--mint-wash` | `#DCEFE2` | Secondary buttons, selected rows |
 | `--gold` / `--gold-bright` / `--gold-wash` | `#86600A` / `#D4A017` / `#F6EDD3` | Premium only: monopolies, jail card, auctions, current step |
+| `--gold-ink` / `--gold-press` | `#6B4D07` / `#BF9014` | Text on gold-wash surfaces / pressed gold buttons |
+| `--on-dark` | `#FFFFFF` | Text on forest, emerald, danger and player-color fills |
 | `--danger` / `--danger-wash` | `#B42318` / `#FBE7E4` | Bankruptcy, money owed, End Game |
 
 Rules:
@@ -141,9 +143,9 @@ Screen, the same page shows "Opening your game" while it signs in; if the code h
 "Sign in again" in ordinary text with a primary button to the home page. That's a next step, not money at
 risk, so it isn't red.
 
-**Turn ticket** (`.turn-ticket`). The signature element. Don't reuse the guilloché (`--guilloche`)
-elsewhere except the invite code, the hotseat hand-off, and the landing hero, which share its meaning:
-this is the money moment.
+**Turn ticket** (`.turn-ticket`). The signature element: `--banknote`, the guilloché (`--guilloche`)
+over the forest gradient. Don't reuse it elsewhere except the invite code, the hotseat hand-off, and the
+landing hero, which share its meaning: this is the money moment.
 
 **Sheets** (`.modal > .modal-content`). Bottom sheets on phones with a grabber, centered dialogs at 720px
 and up. Title in `.modal-header` (Besley), optional `.modal-hint`, actions in `.sheet-actions`, stacked
@@ -160,7 +162,7 @@ name, type and value, then chips: set progress (gold when complete), buildings, 
 (IPO and trade pickers, auction, corporation assets, loan details), a small square in its
 board color goes before the name so groups are recognisable at a glance.
 
-**Badges** (`.badge`, `.badge-gold`, `.badge-warning`, `.badge-danger`, `.badge-info`). Pills in sentence
+**Badges** (`.badge`, `.badge-gold`, `.badge-danger`, `.badge-info`). Pills in sentence
 case.
 
 **Feedback.** `showToast(message, tone)` for transient confirmations (top of screen, under the status
