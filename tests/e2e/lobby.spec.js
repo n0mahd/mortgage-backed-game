@@ -25,26 +25,24 @@ test.describe('Lobby', () => {
 
     test('"Create New Game" button or link is present', async ({ page }) => {
         await page.waitForLoadState('domcontentloaded');
-        const createBtn = page.locator('button, a').filter({ hasText: /create|new game/i }).first();
+        const createBtn = page.locator('#show-create-room-btn');
         await expect(createBtn).toBeVisible({ timeout: 5000 });
     });
 
     test('create room modal appears on button click', async ({ page }) => {
         await page.waitForLoadState('domcontentloaded');
-        const createBtn = page.locator('button, a').filter({ hasText: /create|new game/i }).first();
+        const createBtn = page.locator('#show-create-room-btn');
         await createBtn.click();
 
         // Modal or form should appear
-        await expect(
-            page.locator('dialog, [role="dialog"], .modal, form').first()
-        ).toBeVisible({ timeout: 5000 });
+        await expect(page.locator('#createRoomModal')).toBeVisible({ timeout: 5000 });
     });
 
     test('submitting create form creates a room and shows it in the list', async ({ page }) => {
         await page.waitForLoadState('domcontentloaded');
 
         // Open create modal
-        const createBtn = page.locator('button, a').filter({ hasText: /create|new game/i }).first();
+        const createBtn = page.locator('#show-create-room-btn');
         await createBtn.click();
 
         // Fill in name
