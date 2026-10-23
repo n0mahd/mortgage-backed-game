@@ -11,10 +11,10 @@
     <link rel="icon" type="image/png" sizes="32x32" href="src/assets/favicon-32.png?v=2">
     <link rel="apple-touch-icon" sizes="180x180" href="src/assets/apple-touch-icon.png?v=2">
     <link rel="manifest" href="/manifest.webmanifest">
-    <title>Create a game — Mortgage Backed Monopoly</title>
+    <title>Sign in — Mortgage Backed Monopoly</title>
     <link rel="preload" href="src/assets/fonts/besley-latin.woff2" as="font" type="font/woff2" crossorigin>
     <link rel="stylesheet" href="src/css/tokens.css?v=13">
-    <link rel="stylesheet" href="src/css/style.css?v=33">
+    <link rel="stylesheet" href="src/css/style.css?v=40">
 </head>
 <body>
     <div class="container">
@@ -24,11 +24,72 @@
 
         <div class="content auth-content">
             <div class="auth-container">
+                <p id="auth-reason" class="signed-out-notice" role="status" hidden></p>
 
-                <!-- Step 1: Email input -->
-                <div id="step-email">
+                <!-- Sign in with a username or email and a password (default) -->
+                <div id="view-signin" data-auth-view="signin">
                     <div class="page-title">
-                        <h1>Create a game</h1>
+                        <h1>Sign in</h1>
+                        <p>Use your username or email and your password.</p>
+                    </div>
+                    <p id="signin-guest-note" class="hint" hidden>
+                        You're playing as a guest on this device. Signing in to another account leaves those games here;
+                        <a href="#" data-auth-switch="register">create an account</a> instead to keep them.
+                    </p>
+                    <form id="signin-form" class="auth-card" novalidate>
+                        <div class="form-group">
+                            <label for="login-input">Username or email</label>
+                            <input type="text" id="login-input" autocomplete="username" autocapitalize="none" spellcheck="false" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="password-input">Password</label>
+                            <input type="password" id="password-input" autocomplete="current-password" required>
+                        </div>
+                        <div id="signin-error" class="error-message" role="alert"></div>
+                        <button type="submit" id="signin-btn" class="btn btn-primary">Sign In</button>
+                    </form>
+                    <div class="auth-switches">
+                        <a class="quiet-link" href="#" data-auth-switch="register">Create an account</a>
+                        <a class="quiet-link" href="#" data-auth-switch="email">Email me a code instead</a>
+                    </div>
+                </div>
+
+                <!-- Create an account: upgrades a guest in place -->
+                <div id="view-register" data-auth-view="register" hidden>
+                    <div class="page-title">
+                        <h1>Create an account</h1>
+                        <p>Pick a username and password to sign in on any device and keep your games.</p>
+                    </div>
+                    <p id="register-keeps-games" class="hint" hidden>Your current games stay with you.</p>
+                    <form id="register-form" class="auth-card" novalidate>
+                        <div class="form-group">
+                            <label for="register-username">Username</label>
+                            <input type="text" id="register-username" autocomplete="username" autocapitalize="none" spellcheck="false"
+                                   minlength="3" maxlength="24" pattern="[A-Za-z0-9_.\-]+" required aria-describedby="register-username-hint">
+                            <p id="register-username-hint" class="hint">3 to 24 letters, numbers, dots, dashes or underscores.</p>
+                        </div>
+                        <div class="form-group">
+                            <label for="register-password">Password</label>
+                            <input type="password" id="register-password" autocomplete="new-password" minlength="8" maxlength="200" required aria-describedby="register-password-hint">
+                            <p id="register-password-hint" class="hint">At least 8 characters.</p>
+                        </div>
+                        <div class="form-group">
+                            <label for="register-confirm">Confirm password</label>
+                            <input type="password" id="register-confirm" autocomplete="new-password" maxlength="200" required>
+                        </div>
+                        <div id="register-error" class="error-message" role="alert"></div>
+                        <button type="submit" id="register-btn" class="btn btn-primary">Create Account</button>
+                    </form>
+                    <div class="auth-switches">
+                        <a class="quiet-link" href="#" data-auth-switch="signin">I already have an account</a>
+                        <a class="quiet-link" href="#" data-auth-switch="email">Use my email instead</a>
+                    </div>
+                </div>
+
+                <!-- Email code, step 1: email input -->
+                <div id="step-email" data-auth-view="email" hidden>
+                    <div class="page-title">
+                        <h1>Sign in with email</h1>
                         <p>Enter your email and we'll send a 6-digit code. No password needed.</p>
                     </div>
                     <div class="auth-card">
@@ -39,11 +100,11 @@
                         <div id="email-error" class="error-message"></div>
                         <button id="send-code-btn" class="btn btn-primary">Send Code</button>
                     </div>
-                    <a class="quiet-link" href="index.html">Back to home</a>
+                    <a class="quiet-link" href="#" data-auth-switch="signin">Use a password instead</a>
                 </div>
 
-                <!-- Step 2: Code verification -->
-                <div id="step-code" style="display: none;">
+                <!-- Email code, step 2: code verification -->
+                <div id="step-code" data-auth-view="code" hidden>
                     <div class="page-title">
                         <h1>Check your email</h1>
                         <p>We sent a 6-digit code to <strong id="sent-to-email"></strong>.</p>
@@ -60,11 +121,12 @@
                     <a class="quiet-link" href="#" id="reset-email-link">Use a different email</a>
                 </div>
 
+                <a class="quiet-link" href="index.html">Back to home</a>
             </div>
         </div>
     </div>
 
-    <script src="src/js/api.js?v=15"></script>
-    <script src="src/js/auth.js?v=6"></script>
+    <script src="src/js/api.js?v=20"></script>
+    <script src="src/js/auth.js?v=10"></script>
 </body>
 </html>

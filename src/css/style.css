@@ -13,6 +13,9 @@
     box-sizing: border-box;
 }
 
+/* The hidden attribute always wins over a component's display. */
+[hidden] { display: none !important; }
+
 html {
     -webkit-text-size-adjust: 100%;
     text-size-adjust: 100%;
@@ -122,7 +125,15 @@ ul { padding-left: 1.1em; }
     text-decoration: none;
     padding: var(--s2);
     margin-right: auto;
+    /* Gives way to the controls beside it on narrow phones. */
+    flex-shrink: 100;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
+
+.user-info .btn { flex-shrink: 0; }
 
 .app-bar-back {
     display: inline-flex;
@@ -380,6 +391,7 @@ input[type="number"]::-webkit-outer-spin-button {
 
 input[type="text"],
 input[type="email"],
+input[type="password"],
 input[type="number"],
 input:not([type]),
 select,
@@ -2770,6 +2782,119 @@ input[type="radio"] {
     letter-spacing: 0.1em;
     color: var(--forest);
 }
+
+/* Auth: links between sign in, create an account and email codes */
+.auth-switches {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    column-gap: var(--s5);
+}
+
+/* My games: account line, the guest's invitation, card actions, host offers */
+.account-banner {
+    margin-bottom: var(--s3);
+    padding: var(--s3) var(--s4);
+    border-radius: var(--r-control);
+    background: var(--mint-wash);
+    color: var(--forest);
+    font-size: var(--text-footnote);
+}
+
+.account-banner a { color: inherit; font-weight: 650; }
+
+.account-summary {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--s2) var(--s3);
+    margin-bottom: var(--s3);
+    font-size: var(--text-sub);
+    color: var(--ink-2);
+}
+
+.account-summary strong { color: var(--ink); overflow-wrap: anywhere; }
+
+.room-card-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--s2);
+    margin-top: var(--s3);
+}
+
+.host-offer {
+    padding: var(--s4);
+    border-radius: var(--r-group);
+    background: var(--gold-wash);
+    border: 1px solid var(--rule);
+}
+
+.host-offer .room-info { color: var(--gold-ink); }
+
+.host-offers-section { margin-bottom: var(--s4); }
+
+/* Manage players sheet (host only, manage-room.js) */
+.manage-transfer {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--s2);
+    margin-bottom: var(--s3);
+    padding: var(--s3) var(--s4);
+    border-radius: var(--r-control);
+    background: var(--gold-wash);
+    color: var(--gold-ink);
+    font-size: var(--text-footnote);
+}
+
+.manage-player-list {
+    background: var(--note);
+    border-radius: var(--r-group);
+    border: 1px solid var(--rule);
+    overflow: hidden;
+}
+
+.manage-player-list > .empty-state { padding: var(--s4); }
+
+.manage-player-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--s2) var(--s3);
+    padding: var(--s3) var(--s4);
+    border-top: 1px solid var(--rule);
+    font-size: var(--text-sub);
+}
+
+.manage-player-row:first-child { border-top: 0; }
+
+/* Narrow phones put the buttons under the name instead of squeezing it. */
+.manage-player-info {
+    display: flex;
+    flex-direction: column;
+    gap: var(--s1);
+    flex: 1 1 9rem;
+    min-width: 0;
+}
+
+.manage-player-info strong { overflow-wrap: anywhere; }
+
+.manage-player-badges,
+.manage-player-actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--s1) var(--s2);
+}
+
+.manage-player-note {
+    font-size: var(--text-footnote);
+    color: var(--ink-3);
+}
+
+.manage-link-output { margin: var(--s3) 0 0; }
 
 /* Waiting room */
 .room-header-info {

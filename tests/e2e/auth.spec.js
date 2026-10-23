@@ -17,17 +17,21 @@ test.describe('Auth flow', () => {
         await expect(cta).toBeVisible();
     });
 
-    test('auth.html page shows email input field', async ({ page }) => {
+    test('auth.html signs in with a password by default and keeps the email code path', async ({ page }) => {
         await page.goto(`${BASE}/auth.html`);
-        await expect(page.locator('input[type="email"], input[name="email"], #email')).toBeVisible();
+        await expect(page.locator('#login-input')).toBeVisible();
+        await expect(page.locator('#password-input')).toBeVisible();
+        await expect(page.locator('#email-input')).toBeHidden();
+        await page.getByRole('link', { name: 'Email me a code instead' }).click();
+        await expect(page.locator('#email-input')).toBeVisible();
     });
 
     test('entering email and clicking send shows OTP input area', async ({ page }) => {
-        await page.goto(`${BASE}/auth.html`);
-        const emailInput = page.locator('input[type="email"], input[name="email"], #email').first();
+        await page.goto(`${BASE}/auth.html?mode=email`);
+        const emailInput = page.locator('#email-input');
         await emailInput.fill(uniqueEmail('otp'));
 
-        const sendBtn = page.locator('button[type="submit"], button').filter({ hasText: /send|code|continue/i }).first();
+        const sendBtn = page.locator('#send-code-btn');
         await sendBtn.click();
 
         // After sending OTP, expect either a code input or success message
@@ -49,18 +53,18 @@ test.describe('Auth flow', () => {
     });
 
     test('OTP verification with wrong code shows error message', async ({ page }) => {
-        await page.goto(`${BASE}/auth.html`);
-        const emailInput = page.locator('input[type="email"], input[name="email"], #email').first();
+        await page.goto(`${BASE}/auth.html?mode=email`);
+        const emailInput = page.locator('#email-input');
         await emailInput.fill(uniqueEmail('wrong-code'));
 
-        const sendBtn = page.locator('button').filter({ hasText: /send|code|continue/i }).first();
+        const sendBtn = page.locator('#send-code-btn');
         await sendBtn.click();
 
         const codeInput = page.locator('#code-input');
         await codeInput.waitFor({ timeout: 5000 });
         await codeInput.fill('000000');
 
-        const verifyBtn = page.locator('button').filter({ hasText: /verify|login|sign in|confirm/i }).first();
+        const verifyBtn = page.locator('#verify-code-btn');
         await verifyBtn.click();
 
         // Should show some error feedback

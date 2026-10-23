@@ -59,12 +59,15 @@ async function apiFetch(path, options = {}) {
     if (!res.ok) {
         const text = await res.text();
         let message = text || `HTTP ${res.status}`;
+        let code = null;
         try {
             const parsed = JSON.parse(text);
             message = parsed.error || message;
+            code = parsed.code || null;
         } catch {}
         const err = new Error(message);
         err.status = res.status;
+        err.code = code;
         err.responseText = text;
         throw err;
     }
@@ -439,6 +442,101 @@ async function redeemDeviceTransferCode(code) {
     setToken(data.token);
     clearHotseatSession();
     return data;
+}
+
+// ----------------------------------------------------------------
+// Accounts: username and password (documents/accounts-and-game-management.md).
+// Each returns { token, user } and stores the token.
+// ----------------------------------------------------------------
+
+// Sent with the current guest token, if any, so the server upgrades that
+// guest in place and every seat they hold stays theirs.
+async function registerAccount(username, password) {
+    const previous = getToken();
+    const data = await apiFetch('/auth/register', {
+        method: 'POST',
+        body: JSON.stringify({ username, password })
+    });
+    if (previous) replaceStoredToken(previous, data.token);
+    setToken(data.token);
+    return data;
+}
+
+// Signing in switches this browser to another user, so a same-device
+// session for the old one no longer applies.
+async function loginWithPassword(login, password) {
+    const data = await apiFetch('/auth/login', {
+        method: 'POST',
+        body: JSON.stringify({ login, password })
+    });
+    setToken(data.token);
+    clearHotseatSession();
+    return data;
+}
+
+// { password, username?, current_password? } -> { user }
+async function setAccountPassword(fields) {
+    return apiFetch('/auth/password', { method: 'POST', body: JSON.stringify(fields) });
+}
+
+// ----------------------------------------------------------------
+// My games: archive (per user), host tools, seat links, host offers
+// ----------------------------------------------------------------
+
+async function archiveRoom(roomId) {
+    return apiFetch(`/rooms/${encodeURIComponent(roomId)}/archive`, { method: 'POST' });
+}
+
+async function unarchiveRoom(roomId) {
+    return apiFetch(`/rooms/${encodeURIComponent(roomId)}/archive`, { method: 'DELETE' });
+}
+
+// Host only: { room, members, agent_seats, host_transfer }.
+async function getRoomManagement(roomId) {
+    return apiFetch(`/rooms/${encodeURIComponent(roomId)}/manage`);
+}
+
+// Host only: { url, expires_at }. A new link replaces the seat's older ones.
+async function createSeatLink(roomId, memberId) {
+    return apiFetch(`/rooms/${encodeURIComponent(roomId)}/members/${encodeURIComponent(memberId)}/link`, { method: 'POST' });
+}
+
+// Host only: revokes the agent's key and returns a new invite
+// ({ seat, key, mcp_url, prompt }) for the same seat.
+async function reissueAgentKey(roomId, seatId) {
+    return apiFetch(`/rooms/${encodeURIComponent(roomId)}/agent-seats/${encodeURIComponent(seatId)}/reissue`, { method: 'POST' });
+}
+
+async function offerHostTransfer(roomId, memberId) {
+    return apiFetch(`/rooms/${encodeURIComponent(roomId)}/host-transfer`, {
+        method: 'POST',
+        body: JSON.stringify({ member_id: memberId })
+    });
+}
+
+async function cancelHostTransfer(roomId) {
+    return apiFetch(`/rooms/${encodeURIComponent(roomId)}/host-transfer`, { method: 'DELETE' });
+}
+
+// No sign-in needed. Returns { token, user, room } for a guest seat,
+// { room } when already signed in as the seat, or
+// { requires_sign_in: true, room: { id, name } } for an account's seat.
+async function redeemSeatLink(token) {
+    return apiFetch('/seat-links/redeem', { method: 'POST', body: JSON.stringify({ token }) });
+}
+
+// Host offers made to the current user: [{ id, room_id, room_name, from_player_name, created_at }].
+async function getMyHostOffers() {
+    return apiFetch('/host-transfers/mine');
+}
+
+// Fails with status 403 and code 'account_required' for a guest.
+async function acceptHostOffer(offerId) {
+    return apiFetch(`/host-transfers/${encodeURIComponent(offerId)}/accept`, { method: 'POST' });
+}
+
+async function declineHostOffer(offerId) {
+    return apiFetch(`/host-transfers/${encodeURIComponent(offerId)}/decline`, { method: 'POST' });
 }
 
 refreshSavedTokens();
