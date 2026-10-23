@@ -326,8 +326,7 @@ ul { padding-left: 1.1em; }
     font-size: var(--text-sub);
 }
 
-.btn-large,
-.btn-xl {
+.btn-large {
     min-height: var(--tap-primary);
     font-size: var(--text-body);
     padding: 0 var(--s6);
@@ -674,7 +673,6 @@ input[type="radio"] {
     overflow: hidden;
 }
 
-.group-title,
 .section-heading {
     display: flex;
     align-items: baseline;
@@ -683,13 +681,11 @@ input[type="radio"] {
     margin: var(--s6) var(--s1) var(--s2);
 }
 
-.group-title h3,
 .section-heading h3 {
     font-size: var(--text-title3);
     font-weight: 700;
 }
 
-.group-title span,
 .section-heading span {
     font-size: var(--text-footnote);
     color: var(--ink-3);
@@ -711,8 +707,7 @@ input[type="radio"] {
 }
 
 .badge-danger { background: var(--danger-wash); color: var(--danger); }
-.badge-gold,
-.badge-warning { background: var(--gold-wash); color: var(--gold); }
+.badge-gold { background: var(--gold-wash); color: var(--gold); }
 .badge-info { background: #E3EEF6; color: var(--info); }
 
 .avatar {
@@ -1373,12 +1368,6 @@ input[type="radio"] {
     font-size: var(--text-sub);
 }
 
-.dock-note {
-    font-size: var(--text-caption);
-    color: var(--ink-3);
-    text-align: center;
-}
-
 .moves {
     margin-top: var(--s2);
 }
@@ -1715,13 +1704,6 @@ input[type="radio"] {
     font-weight: 700;
     font-variant-numeric: lining-nums proportional-nums;
     white-space: nowrap;
-}
-
-.player-stat-sm.is-secondary {
-    font-family: var(--font-ui);
-    font-weight: 500;
-    font-size: var(--text-caption);
-    color: var(--ink-3);
 }
 
 .player-card-chevron {
@@ -2765,9 +2747,7 @@ input[type="radio"] {
 }
 
 .room-status.waiting { background: var(--gold-wash); color: var(--gold); }
-.room-status.in_progress,
-.room-status.in-progress,
-.room-status.playing { background: var(--mint-wash); color: var(--forest); }
+.room-status.in_progress { background: var(--mint-wash); color: var(--forest); }
 
 .room-info {
     display: flex;
