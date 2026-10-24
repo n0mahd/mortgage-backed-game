@@ -299,3 +299,40 @@ test.describe('Trading — cash limit', () => {
         await expect(propose).toBeDisabled();
     });
 });
+
+test.describe('Trading — past transactions', () => {
+    test('shows whether each resolved offer was accepted or declined', async ({ page, request }) => {
+        const { room, game, hostToken, guestToken, hostId, guestId } = await setupTradingGame(request);
+        await proposeAndAccept(request, game, guestToken, hostToken, {
+            player1Id: guestId, player2Id: hostId, player1Cash: 25, player2Cash: 0, player1AssetIds: [], player2AssetIds: [],
+        });
+        const current = await apiJson(request, 'get', `${BASE_API}/games/${game.id}`, { headers: { Authorization: `Bearer ${guestToken}` } });
+        await apiJson(request, 'post', `${BASE_API}/games/${game.id}/actions`, {
+            headers: { Authorization: `Bearer ${guestToken}` },
+            data: {
+                actionId: `e2e-offer-decline-${Date.now()}`,
+                type: 'propose_trade',
+                payload: { player1Id: guestId, player2Id: hostId, player1Cash: 10, player2Cash: 0, player1AssetIds: [], player2AssetIds: ['prop-0'] },
+                expectedVersion: current.state_version,
+            },
+        });
+
+        await page.setViewportSize({ width: 390, height: 844 });
+        await loginPage(page, hostToken);
+        await page.goto(`${BASE}/game.html?room=${room.id}`);
+        await page.getByRole('button', { name: 'Market' }).click();
+        const past = page.locator('#pastTradesList .trade-history-card');
+        await expect(past).toHaveCount(1, { timeout: 5000 });
+        await expect(past.first()).toContainText('Accepted');
+        await expect(past.first()).toContainText('Alice accepted');
+
+        await page.locator('#tradeOffersList').getByRole('button', { name: 'Decline' }).click();
+        await expect(past).toHaveCount(2, { timeout: 5000 });
+        await expect(past.first().locator('.badge')).toHaveText('Declined');
+        await expect(past.first()).toContainText('Alice declined');
+        await expect(past.first()).toContainText('Mediterranean Ave');
+        await expect(past.nth(1).locator('.badge')).toHaveText('Accepted');
+        await expect(page.locator('#tradeOffersList')).toContainText('No pending trade offers');
+        if (process.env.PAST_TRADES_SHOT) await page.locator('#pastTradesList').screenshot({ path: process.env.PAST_TRADES_SHOT });
+    });
+});

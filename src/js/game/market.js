@@ -499,6 +499,7 @@ function renderTradeOffers() {
     const container = document.getElementById('tradeOffersList');
     if (!container || !currentGame) return;
     const offers = (currentGame.game_state.marketOffers || []).filter(offer => offer.status === 'pending');
+    renderPastTrades();
     if (offers.length === 0) {
         container.innerHTML = '<p class="empty-state">No pending trade offers</p>';
         return;
@@ -543,6 +544,69 @@ function renderTradeOffers() {
             </div>
         `;
     }).join('');
+}
+
+const PAST_TRADES_SHOWN = 8;
+
+// Resolved trade offers, newest first, each with how it ended.
+function renderPastTrades() {
+    const container = document.getElementById('pastTradesList');
+    if (!container || !currentGame) return;
+    const past = (currentGame.game_state.marketOffers || [])
+        .filter(offer => offer.status !== 'pending')
+        .sort((a, b) => String(b.resolvedAt || b.createdAt || '').localeCompare(String(a.resolvedAt || a.createdAt || '')));
+    if (past.length === 0) {
+        container.innerHTML = '<p class="empty-state">No past trades yet</p>';
+        return;
+    }
+    const shown = past.slice(0, PAST_TRADES_SHOWN);
+    container.innerHTML = shown.map(offer => {
+        const outcome = pastTradeOutcome(offer);
+        const when = offer.resolvedAt ? formatTimeAgo(offer.resolvedAt) : '';
+        return `
+            <div class="trade-offer-card trade-history-card">
+                <div class="trade-history-header">
+                    <strong>${escapeHtml(offer.proposedByName)} to ${escapeHtml(offer.recipientName)}</strong>
+                    <span class="badge${outcome.badgeClass ? ` ${outcome.badgeClass}` : ''}">${escapeHtml(outcome.label)}</span>
+                </div>
+                <div class="trade-offer-meta">
+                    <span>${escapeHtml(outcome.detail)}</span>
+                    ${when ? `<span>${escapeHtml(when)}</span>` : ''}
+                </div>
+                <div class="trade-offer-sides">
+                    <div>
+                        <h4>${escapeHtml(tradeSideName(offer, 'player1'))} gives</h4>
+                        ${renderTradeOfferSide(offer.player1Cash, offer.player1AssetIds, offer.player1Shares, offer.player1PropertiesToCorpId)}
+                    </div>
+                    <div>
+                        <h4>${escapeHtml(tradeSideName(offer, 'player2'))} gives</h4>
+                        ${renderTradeOfferSide(offer.player2Cash, offer.player2AssetIds, offer.player2Shares, offer.player2PropertiesToCorpId)}
+                    </div>
+                </div>
+            </div>
+        `;
+    }).join('') + (past.length > shown.length
+        ? `<p class="trade-history-more">Showing the ${shown.length} most recent of ${past.length} trades.</p>`
+        : '');
+}
+
+function pastTradeOutcome(offer) {
+    if (offer.status === 'accepted') {
+        return { label: 'Accepted', badgeClass: '', detail: `${offer.acceptedByName || offer.recipientName} accepted` };
+    }
+    if (offer.status === 'declined') {
+        return { label: 'Declined', badgeClass: 'badge-danger', detail: `${offer.resolvedByName || offer.recipientName} declined` };
+    }
+    if (offer.status === 'expired') {
+        return { label: 'Expired', badgeClass: 'badge-gold', detail: 'No answer in time' };
+    }
+    if (offer.cancelReason === 'host') {
+        return { label: 'Canceled', badgeClass: 'badge-info', detail: 'Canceled by the host' };
+    }
+    if (offer.cancelReason === 'bankruptcy') {
+        return { label: 'Canceled', badgeClass: 'badge-info', detail: `Canceled when ${offer.resolvedByName || 'a player'} went bankrupt` };
+    }
+    return { label: 'Canceled', badgeClass: 'badge-info', detail: `${offer.resolvedByName || offer.proposedByName} canceled` };
 }
 
 function tradeSideName(offer, side) {
