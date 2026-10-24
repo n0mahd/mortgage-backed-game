@@ -131,6 +131,17 @@ test('only browser push services are accepted as endpoints', async () => {
     process.env.PUSH_ALLOW_LOCAL_ENDPOINTS = 'false';
     expect((await subscribe(user, fakeBrowserSubscription('local'))).status).toBe(400);
     process.env.PUSH_ALLOW_LOCAL_ENDPOINTS = 'true';
+    // Production never accepts a local push service, even with the flag set.
+    const push = require('../../services/push');
+    process.env.APP_ENV = 'production';
+    process.env.CORS_ORIGINS = 'https://example.test';
+    try {
+        expect(push.validateSubscription(fakeBrowserSubscription('local-prod'))).toBeNull();
+        expect(() => require('../../config').getConfig()).toThrow(/PUSH_ALLOW_LOCAL_ENDPOINTS/);
+    } finally {
+        delete process.env.APP_ENV;
+        delete process.env.CORS_ORIGINS;
+    }
     expect((await subscribe(user, { endpoint: 'https://web.push.apple.com/QGx1', keys })).status).toBe(200);
 });
 

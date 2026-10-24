@@ -16,6 +16,8 @@ const { Autoplay } = require('./lib/bot');
 const pathways = require('./lib/pathways');
 const stages = require('./lib/stages');
 let journeysLib = require('./lib/journeys');
+const { startPushRelay } = require('./lib/push-relay');
+const { startMailSink } = require('./lib/mail-sink');
 
 const runId = process.argv[2];
 const run = runs.readRun(runId);
@@ -29,6 +31,11 @@ let backend = null;
 let webServer = null;
 let ctlServer = null;
 let browser = null;
+// A second Chromium in the new headless mode, only for people with turn alerts:
+// the default headless shell always denies notifications.
+let alertsBrowser = null;
+let pushRelay = null;
+let mailSink = null;
 let table = null;
 let tableCount = 0;
 let gameDir = evidence;
@@ -115,6 +122,9 @@ const ctx = {
     evidenceDir: evidence,
     get webUrl() { return `http://127.0.0.1:${run.ports.web}`; },
     get browser() { return browser; },
+    get pushRelay() { return pushRelay; },
+    get mailbox() { return mailSink; },
+    alertsBrowser: () => startAlertsBrowser(),
     log,
     sql,
     shot,
@@ -175,6 +185,8 @@ const ctx = {
 // ---------- servers ----------
 
 async function startBackend() {
+    pushRelay = await startPushRelay({ dir: runs.runDir(runId), appRoot: runs.APP_ROOT, log });
+    if (!run.email) mailSink = await startMailSink({ log });
     const env = {
         ...process.env,
         NODE_ENV: 'development',
@@ -196,11 +208,14 @@ async function startBackend() {
             const keys = require(path.join(runs.APP_ROOT, 'backend', 'node_modules', 'web-push')).generateVAPIDKeys();
             return { VAPID_PUBLIC_KEY: keys.publicKey, VAPID_PRIVATE_KEY: keys.privateKey, VAPID_SUBJECT: 'mailto:verify@example.test' };
         })(),
+        // The local push service (lib/push-relay.js): accepted and trusted only here.
+        PUSH_ALLOW_LOCAL_ENDPOINTS: 'true',
+        NODE_EXTRA_CA_CERTS: pushRelay.certFile,
         PUBLIC_APP_URL: `http://127.0.0.1:${run.ports.web}`,
-        // Mail: a dead local URL unless --email, so a repo backend/.env can never
-        // send real mail (an empty value would let .env fill it in).
-        USESEND_URL: run.email ? 'https://api.resend.com/emails' : 'http://127.0.0.1:9/disabled',
-        USESEND_API_KEY: run.email ? fs.readFileSync(run.resendKeyFile, 'utf8').trim() : 'verify-mail-disabled',
+        // Mail: the local mail sink (lib/mail-sink.js) unless --email, so a repo
+        // backend/.env can never send real mail (an empty value would let .env fill it in).
+        USESEND_URL: run.email ? 'https://api.resend.com/emails' : mailSink.url,
+        USESEND_API_KEY: run.email ? fs.readFileSync(run.resendKeyFile, 'utf8').trim() : mailSink.apiKey,
         SMTP_FROM: 'noreply@abdlh.com',
     };
     const out = fs.openSync(path.join(runs.runDir(runId), 'backend.log'), 'a');
@@ -236,6 +251,15 @@ async function startBrowser() {
         log(`bundled chromium failed (${err.message.split('\n')[0]}); trying /usr/bin/chromium`);
         browser = await chromium.launch({ ...opts, executablePath: '/usr/bin/chromium' });
     }
+}
+
+let alertsBrowserPromise = null;
+function startAlertsBrowser() {
+    if (!alertsBrowserPromise) {
+        const { chromium } = require(path.join(runs.REPO_ROOT, 'node_modules', '@playwright', 'test'));
+        alertsBrowserPromise = chromium.launch({ headless: !run.headed, channel: 'chromium' }).then(b => (alertsBrowser = b));
+    }
+    return alertsBrowserPromise;
 }
 
 // ---------- seat helpers ----------
@@ -680,7 +704,7 @@ function writeReport() {
     const summary = autoplay ? autoplay.summary() : null;
     const lines = [`# verify-mortgage report — run ${runId}`, ''];
     lines.push(`- git: ${run.gitRev}${run.dirty ? ' (dirty)' : ''}`);
-    lines.push(`- email: ${run.email ? 'real (Resend → AgentMail)' : 'off (OTP read from dev DB)'}`);
+    lines.push(`- email: ${run.email ? 'real (Resend → AgentMail)' : 'local mail sink (the real mailer, delivered to the harness)'}`);
     if (table) lines.push(`- game ${tableCount}: ${table.players} players, setup ${table.setupSeconds}s, seats: ${table.seats.map(s => `${s.name} (${s.kind}, ${s.device}${s.human ? ', human' : ''})`).join(', ')}`);
     if (summary) {
         lines.push(`- autoplay: seed ${summary.seed}, chaos ${summary.chaos ? summary.chaos.probability : 0}, rounds ${summary.roundsCompleted}/${summary.roundsTarget}, ${summary.turnsTotal} turns, ${summary.minutes} min, game ended: ${summary.ended}`);
@@ -760,6 +784,9 @@ async function shutdown(code) {
     try { if (autoplay) autoplay.stopRequested = true; } catch {}
     try { writeReport(); } catch {}
     try { if (browser) await browser.close(); } catch {}
+    try { if (alertsBrowser) await alertsBrowser.close(); } catch {}
+    try { if (pushRelay) await pushRelay.close(); } catch {}
+    try { if (mailSink) await mailSink.close(); } catch {}
     try { if (webServer) webServer.close(); } catch {}
     if (backend && backend.exitCode === null) {
         backend.kill('SIGTERM');
