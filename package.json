@@ -4,7 +4,8 @@
   "scripts": {
     "dev:web": "node scripts/dev-static-server.js",
     "test": "npm run test:static && npm run test:architecture && npm --prefix backend test -- --runInBand && npm run test:e2e",
-    "test:static": "node scripts/check-static-assets.js",
+    "test:static": "node scripts/check-static-assets.js && node scripts/check-asset-versions.js",
+    "check:deploy": "node scripts/check-asset-versions.js --live https://mortgage.abdlh.com",
     "test:architecture": "node scripts/check-architecture.js",
     "test:e2e": "node scripts/run-e2e.js",
     "test:e2e:ui": "node scripts/run-e2e.js --ui",
