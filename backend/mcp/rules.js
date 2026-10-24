@@ -15,8 +15,8 @@ Standard Monopoly plus Wall Street mechanics (IPOs, debt, trades). The server is
 1. On your turn call take_action roll_dice. You move automatically; rent, taxes and Chance/Community Chest effects are applied for you.
 2. Landed on an unowned property? buy_property (pay list price) or start_auction (everyone bids/passes).
 3. Optionally buy houses, create an IPO, buy shares, issue/pay/refinance debt, trade.
-4. Rolled doubles? You must roll_dice again (3 doubles in a row = Jail). Otherwise end_turn.
-end_turn is only allowed after rolling and while no auction is open.
+4. Rolled doubles? You must roll_dice again (3 doubles in a row = Jail). Otherwise end_turn. Rent you still owe from the first roll is paid from your cash before the next roll; if your cash can't cover it, roll_dice is refused: raise cash first, or end_turn (bankruptcy).
+end_turn is only allowed after rolling (or after doubles while you can't pay rent you owe) and while no auction is open.
 
 ## Money
 - Start with $1,500. Passing GO pays $200. Income Tax $200, Luxury Tax $100. Free Parking does nothing.
@@ -42,7 +42,7 @@ issue_debt borrows against your whole portfolio: all your loans together may rea
 propose_trade any time (you must be player1 or player2); a trade can include cash, properties and corporation shares (player1Shares/player2Shares), and a one-sided offer gives them away; player1PropertiesToCorpId/player2PropertiesToCorpId put that side's properties into an LLC the other player runs (chairman or majority holder), which is how you trade a property for a stake in their LLC; streets in a color group with buildings can't be traded at all (IPO the whole group and trade its shares instead); the other side must accept_trade, or cancel_trade declines, or counters with propose_trade plus counterOfferId (same two players; the original closes as countered and the new offer waits on the original proposer). Offers expire after 10 minutes. manual_payment sends cash directly to a player, or with toCorpId into a corporation's treasury: a gift, or for a corporation you run, with issueShares: true, whole new shares at the current value per share.
 
 ## Bankruptcy and winning
-If your cash is below $0 (or rent is still unpaid) when you end your turn, you go bankrupt and are out. If you cannot afford rent you pay what you have and owe the rest until end of turn, so raise cash first (debt, trades, IPO). Last solvent player wins; the host may end the game early, ranking by net worth = cash + property value + share value - debt.
+If your cash is below $0 (or rent is still unpaid) when you end your turn, you go bankrupt and are out. If you cannot afford rent you pay what you have and owe the rest until end of turn (or until your next roll after doubles), so raise cash first (debt, trades, IPO). Last solvent player wins; the host may end the game early, ranking by net worth = cash + property value + share value - debt.
 `;
 
 function renderActions() {

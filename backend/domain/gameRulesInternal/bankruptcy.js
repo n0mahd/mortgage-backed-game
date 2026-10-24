@@ -215,7 +215,16 @@ function payCreditorAvailableCash(state, debtor, creditor, amountOwed, reason, e
     return paidAmount;
 }
 
-function settleBankruptcyClaimAtTurnEnd(state, player, events) {
+// A claim rolling again can't pay in full: cash short of it, or the creditor out of the game.
+function claimBlocksRolling(state, player) {
+    const claim = getBankruptcyClaim(state, player.userId);
+    if (!claim) return false;
+    return Number(player.cash || 0) < Number(claim.unpaidAmount || 0) || !resolveBankruptcyCreditor(state, claim);
+}
+
+// Pays an unpaid claim from the player's cash, as far as it goes: at End Turn, and
+// before rolling again after doubles. Returns the claim if anything is still unpaid.
+function settleBankruptcyClaim(state, player, events) {
     const claim = getBankruptcyClaim(state, player.userId);
     if (!claim) return null;
     const creditor = resolveBankruptcyCreditor(state, claim);
@@ -286,6 +295,7 @@ module.exports = {
     getBankruptcyClaim,
     clearBankruptcyClaim,
     payCreditorAvailableCash,
-    settleBankruptcyClaimAtTurnEnd,
+    settleBankruptcyClaim,
+    claimBlocksRolling,
     normalizeBankruptcyClaims,
 };

@@ -9,12 +9,12 @@
 const { applyAction, GameRuleError } = require('./gameRules');
 
 const ACTIONS = [
-    { type: 'roll_dice', category: 'turn', payload: {}, description: 'Roll two dice and move. Your turn only; once per turn, again after doubles (three doubles = Jail). In Jail this rolls for doubles.' },
+    { type: 'roll_dice', category: 'turn', payload: {}, description: 'Roll two dice and move. Your turn only; once per turn, again after doubles (three doubles = Jail), paying any rent still owed from your cash first (refused if your cash cannot cover it). In Jail this rolls for doubles.' },
     { type: 'pay_jail_fine', category: 'turn', payload: {}, description: 'Pay $50 to leave Jail before rolling.' },
     { type: 'use_get_out_of_jail_card', category: 'turn', payload: {}, description: 'Use your Get Out of Jail Free card before rolling.' },
     { type: 'buy_property', category: 'turn', payload: { corpId: '<corporation id you run (optional): buy it for that corporation from its treasury>' }, description: 'Buy the unowned property you are standing on at its list price, yourself or for a corporation you run.' },
     { type: 'start_auction', category: 'turn', payload: {}, description: 'Decline to buy the unowned property you are standing on and auction it to all players (after rolling).' },
-    { type: 'end_turn', category: 'turn', payload: {}, description: 'End your turn (only after rolling). Debt interest is charged, then bankruptcy is checked if cash < 0 or rent is unpaid.' },
+    { type: 'end_turn', category: 'turn', payload: {}, description: 'End your turn (only after rolling, or after doubles while you cannot pay rent you owe). Debt interest is charged, then bankruptcy is checked if cash < 0 or rent is unpaid.' },
     { type: 'place_bid', category: 'auction', payload: { amount: 'number > current bid, <= your cash' }, description: 'Bid in the open auction.' },
     { type: 'pass_auction', category: 'auction', payload: {}, description: 'Pass in the open auction (the current high bidder cannot pass).' },
     { type: 'buy_houses', category: 'assets', payload: { selections: { '<propertyId>': 'integer houses to add (total per property <= 5; 5th = hotel)' }, corpId: '<corporation id you run (optional): build on its complete groups from its treasury>' }, description: 'Buy houses/hotels on properties where you (or the corporation you build for) own the complete color group. Your turn only.' },

@@ -6,17 +6,20 @@ const { resolveCorporationInsolvency } = require('./corporations');
 const {
     liquidateBankruptPlayer,
     clearBankruptcyClaim,
-    settleBankruptcyClaimAtTurnEnd,
+    claimBlocksRolling,
+    settleBankruptcyClaim,
 } = require('./bankruptcy');
 const { loanServicerId, serviceLoans } = require('./debt');
 const { cancelPendingTradeOffersForPlayer } = require('./trades');
 
 function endTurn(state, player, events) {
-    if (!player.diceRolled) throw new GameRuleError(400, 'Roll before ending turn');
+    // After doubles a player who can't pay this turn's rent can't roll again (rollDice), so
+    // End Turn is open to them, and declares bankruptcy.
+    if (!player.diceRolled && !claimBlocksRolling(state, player)) throw new GameRuleError(400, 'Roll before ending turn');
 
     // Rent owed is paid before loans, so autopay (which never takes more than the
     // cash left) can't turn a payable claim into a bankruptcy. A loan coming due can.
-    const bankruptcyClaim = settleBankruptcyClaimAtTurnEnd(state, player, events);
+    const bankruptcyClaim = settleBankruptcyClaim(state, player, events);
     serviceLoans(state, player, player, player.userId, player.name, events);
     state.corporations.forEach(corp => {
         if (corp.insolvent || loanServicerId(corp) !== player.userId) return;

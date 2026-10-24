@@ -485,7 +485,7 @@ test.describe('Game mechanics — UI', () => {
         expect(fetched.game_state.properties[0].houses).toBe(0);
     });
 
-    async function seedCoveredClaimGame(request, { cash, debtPrincipal, debtTerms = {} }) {
+    async function seedCoveredClaimGame(request, { cash, debtPrincipal, debtTerms = {}, diceRolled = true }) {
         const h = await (await request.post(`${BASE_API}/auth/anonymous`)).json();
         const g = await (await request.post(`${BASE_API}/auth/anonymous`)).json();
         const room = await (await request.post(`${BASE_API}/rooms`, {
@@ -502,7 +502,7 @@ test.describe('Game mechanics — UI', () => {
             data: { room_id: room.id, game_state: {
                 currentPlayerIndex: 0,
                 players: [
-                    playerState(h.user.id, 'Alice', { cash, position: 5, diceRolled: true, debts: [debt] }),
+                    playerState(h.user.id, 'Alice', { cash, position: 5, diceRolled, debts: [debt] }),
                     playerState(g.user.id, 'Bob', { cash: 1500 }),
                 ],
                 properties: [
@@ -563,6 +563,55 @@ test.describe('Game mechanics — UI', () => {
         expect(bob.cash).toBe(1673);
         expect(fetched.game_state.bankruptcyClaims[h.user.id]).toBeUndefined();
         expect(fetched.game_state.currentPlayerIndex).toBe(1);
+    });
+
+    // diceRolled false with lastDiceRoll set: the claim came from a doubles roll.
+    test('after doubles an unpaid claim that cash covers is paid by Roll Again', async ({ page, request }) => {
+        const { h, g, room, game } = await seedCoveredClaimGame(request, { cash: 1000, debtPrincipal: 500, diceRolled: false });
+
+        await loginPage(page, h.token);
+        await page.goto(`${BASE}/game.html?room=${room.id}`);
+        await page.waitForLoadState('domcontentloaded');
+
+        await expect(page.locator('.turn-warning')).toContainText('Roll Again pays it from your cash first, leaving you $827', { timeout: 5000 });
+        await expect(page.locator('.action-btn-end-turn')).toBeDisabled();
+        const roll = page.locator('.turn-dock [data-game-action="roll-dice"]');
+        await expect(roll).toHaveText('Pay $173 & Roll Again');
+
+        await Promise.all([
+            page.waitForResponse(response => response.url().includes(`/games/${game.id}/actions`) && response.status() === 200),
+            roll.click(),
+        ]);
+
+        const fetched = await (await request.get(`${BASE_API}/games/${game.id}`, {
+            headers: { Authorization: `Bearer ${h.token}` },
+        })).json();
+        expect(fetched.game_state.bankruptcyClaims[h.user.id]).toBeUndefined();
+        expect(fetched.game_state.players.find(player => player.userId === g.user.id).cash).toBeGreaterThanOrEqual(1673);
+        expect(fetched.game_state.players.find(player => player.userId === h.user.id).position).not.toBe(5);
+    });
+
+    test('after doubles an unpaid claim cash cannot cover blocks Roll Again and opens End Turn', async ({ page, request }) => {
+        const { h, room, game } = await seedCoveredClaimGame(request, { cash: 100, debtPrincipal: 500, diceRolled: false });
+
+        await loginPage(page, h.token);
+        await page.goto(`${BASE}/game.html?room=${room.id}`);
+        await page.waitForLoadState('domcontentloaded');
+
+        await expect(page.locator('.turn-warning.danger')).toContainText('Raise $73 more to pay it and roll again', { timeout: 5000 });
+        await expect(page.locator('.turn-dock [data-game-action="roll-dice"]')).toBeDisabled();
+        const endTurn = page.locator('.action-btn-end-turn');
+        await expect(endTurn).toHaveText('Declare Bankruptcy');
+        await expect(endTurn).toBeEnabled();
+
+        await Promise.all([
+            page.waitForResponse(response => response.url().includes(`/games/${game.id}/actions`) && response.status() === 200),
+            endTurn.click(),
+        ]);
+        const fetched = await (await request.get(`${BASE_API}/games/${game.id}`, {
+            headers: { Authorization: `Bearer ${h.token}` },
+        })).json();
+        expect(fetched.game_state.players.find(player => player.userId === h.user.id).bankrupt).toBe(true);
     });
 
     test('a loan coming due that leaves too little after the claim warns of bankruptcy', async ({ page, request }) => {

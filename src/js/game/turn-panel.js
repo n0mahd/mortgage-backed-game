@@ -117,7 +117,25 @@ function renderPersonalCashWarning(currentPlayer, isMyTurn) {
     if (claim) {
         const owed = formatMoney(unpaid);
         const creditor = claim.creditorName || 'the creditor';
-        if (outlook.settlesClaim) {
+        const { rollAgain } = getRollState(currentGame.game_state, currentPlayer);
+        if (rollAgain) {
+            // Doubles: the claim is paid before the next roll, not at End Turn.
+            const short = formatMoney(unpaid - cash);
+            if (!outlook.creditorActive) {
+                message = isMyTurn
+                    ? `You have ${owed} unpaid to ${creditor}, who is out of the game. You can't roll again; End Turn will declare bankruptcy.`
+                    : `${currentPlayer.name} has ${owed} unpaid to ${creditor}, who is out of the game.`;
+            } else if (cash >= unpaid) {
+                tone = '';
+                message = isMyTurn
+                    ? `You owe ${owed} to ${creditor}. Roll Again pays it from your cash first, leaving you ${formatMoney(cash - unpaid)}.`
+                    : `${currentPlayer.name} owes ${owed} to ${creditor}. It will be paid from their cash before they roll again.`;
+            } else {
+                message = isMyTurn
+                    ? `You owe ${owed} to ${creditor}. Raise ${short} more to pay it and roll again, or End Turn will declare bankruptcy.`
+                    : `${currentPlayer.name} owes ${owed} to ${creditor} and must raise ${short} more before rolling again.`;
+            }
+        } else if (outlook.settlesClaim) {
             tone = '';
             message = isMyTurn
                 ? `You owe ${owed} to ${creditor}. End Turn pays it from your cash${loanNote}, leaving you ${formatMoney(cashAfter)}.`
@@ -381,12 +399,19 @@ function renderActionButtons(landing) {
     const { hasRolled, rollAgain } = getRollState(gameState, currentPlayer);
     const turnEnd = TurnEndOutlook.forPlayer(gameState, currentPlayer);
     const owesMoney = turnEnd.goesBankrupt;
+    // Rent still owed after doubles is paid before rolling again (rollDice); a player who
+    // can't pay it may only End Turn, which declares bankruptcy.
+    const claimBeforeRoll = rollAgain && turnEnd.claim;
+    const rollBlocked = !!claimBeforeRoll && (!turnEnd.creditorActive || turnEnd.cash < turnEnd.unpaid);
+    const canEndTurn = hasRolled || rollBlocked;
     const endTurnLabel = owesMoney
         ? 'Declare Bankruptcy'
         : (turnEnd.settlesClaim ? `Pay ${formatMoney(turnEnd.unpaid)} & End Turn` : 'End Turn');
     const auctionOpen = gameState.auction?.status === 'open';
     const waitingForJailChoice = currentPlayer.inJail && !hasRolled;
-    const rollButtonLabel = waitingForJailChoice ? 'Roll for Doubles' : (rollAgain ? 'Roll Again' : 'Roll Dice');
+    const rollButtonLabel = waitingForJailChoice ? 'Roll for Doubles'
+        : (claimBeforeRoll && !rollBlocked ? `Pay ${formatMoney(turnEnd.unpaid)} & Roll Again` : (rollAgain ? 'Roll Again' : 'Roll Dice'));
+    const rollDisabled = rollBlocked ? 'disabled title="Pay what you owe before rolling again"' : '';
     const buyInDock = landing.canBuy && !auctionOpen;
 
     const jailChoiceButtons = waitingForJailChoice ? `
@@ -396,18 +421,18 @@ function renderActionButtons(landing) {
         </div>
     ` : '';
     const endTurnClass = owesMoney ? 'btn-danger' : (hasRolled && !buyInDock ? 'btn-success' : 'btn-secondary');
-    const endTurnDisabled = !hasRolled || auctionOpen
+    const endTurnDisabled = !canEndTurn || auctionOpen
         ? `disabled title="${auctionOpen ? 'Resolve auction before ending your turn' : 'Roll before ending your turn'}"`
         : '';
     // After doubles on an unowned property, Buy takes the primary slot and Roll Again
     // takes End Turn's, which stays unavailable until the final roll anyway.
-    const rollAgainButton = rollAgain && buyInDock
-        ? `<button class="btn btn-secondary" data-game-action="roll-dice">${rollButtonLabel}</button>`
+    const rollAgainButton = rollAgain && buyInDock && !rollBlocked
+        ? `<button class="btn btn-secondary" data-game-action="roll-dice">${escapeHtml(rollButtonLabel)}</button>`
         : '';
     const endTurnButton = rollAgainButton || `<button class="btn ${endTurnClass} action-btn-end-turn" data-game-action="end-turn" ${endTurnDisabled}>${escapeHtml(auctionOpen ? 'Resolve Auction' : endTurnLabel)}</button>`;
     const primaryButton = buyInDock
         ? `<button class="btn btn-success action-btn-buy" data-game-action="open-buy-property">Buy for ${formatMoney(landing.price)}</button>`
-        : (!hasRolled && !auctionOpen ? `<button class="btn btn-primary" data-game-action="roll-dice">${rollButtonLabel}</button>` : '');
+        : (!hasRolled && !auctionOpen ? `<button class="btn btn-primary" data-game-action="roll-dice" ${rollDisabled}>${escapeHtml(rollButtonLabel)}</button>` : '');
 
     const buyTile = buyInDock || (!hasRolled && !auctionOpen) ? '' : (auctionOpen
         ? '<button class="btn btn-secondary btn-sm action-btn-buy" disabled>Auction Open<small>Bid in the panel above</small></button>'
