@@ -285,7 +285,8 @@ function renderTradeFormMode(mode) {
         if (group) group.hidden = adding;
     });
     const button = document.getElementById('executeTradeBtn');
-    if (button) button.textContent = adding ? `Add to ${mode.corp.ticker}` : 'Propose Transaction';
+    if (button) button.textContent = adding ? `Add to ${mode.corp.ticker}` : (activeTradeCounter() ? 'Send Counteroffer' : 'Propose Transaction');
+    renderTradeCounterBanner();
     if (!adding) {
         // Both sides are you (you and a company you run): say why that can't work.
         if (mode.kind === 'invalid' && mode.one.player && mode.one.userId === mode.two.userId) {
@@ -417,6 +418,7 @@ function collectTradeTerms() {
         player2PropertiesToCorpId: selectedTradeDestination('player2'),
         player1CorpId: tradeSideCorp('player1')?.id || null,
         player2CorpId: tradeSideCorp('player2')?.id || null,
+        counterOfferId: activeTradeCounter()?.id || null,
     };
 }
 
@@ -494,7 +496,10 @@ function bindMarketTabs() {
     if (!tablist) return;
     tablist.addEventListener('click', event => {
         const tab = event.target.closest('[data-market-pane]');
-        if (tab) showMarketPane(tab.dataset.marketPane);
+        if (!tab) return;
+        // A message about one pane's last action doesn't belong on the next one.
+        if (tab.dataset.marketPane !== marketPane) showMarketStatus('');
+        showMarketPane(tab.dataset.marketPane);
     });
     tablist.addEventListener('keydown', event => {
         if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return;
@@ -671,6 +676,7 @@ function renderTradeOffers() {
     const container = document.getElementById('tradeOffersList');
     if (!container || !currentGame) return;
     const offers = pendingTradeOffers();
+    dropClosedTradeCounter();
     renderPastTrades();
     updateMarketTabs(offers);
     if (offers.length === 0) {
@@ -690,7 +696,7 @@ function renderTradeOffers() {
         return `
             <div class="trade-offer-card${expired ? ' trade-offer-expired' : ''}">
                 <div class="trade-offer-header">
-                    <strong>${escapeHtml(offer.proposedByName)} proposed a trade</strong>
+                    <strong>${escapeHtml(offer.proposedByName)} ${offer.counterToOfferId ? 'sent a counteroffer' : 'proposed a trade'}</strong>
                     <div class="trade-offer-meta">
                         <span>${escapeHtml(formatTradeOfferAge(offer.createdAt))}</span>
                         ${offer.expiresAt ? `<span>${escapeHtml(formatTradeOfferExpiry(offer.expiresAt))}</span>` : ''}
@@ -710,6 +716,7 @@ function renderTradeOffers() {
                 ${hasActions ? `
                     <div class="trade-offer-actions">
                         ${canAccept ? `<button class="btn btn-success btn-sm" data-game-action="accept-trade-offer" data-offer-id="${escapeHtml(offer.id)}">Accept</button>` : ''}
+                        ${canAccept ? `<button class="btn btn-secondary btn-sm" data-game-action="counter-trade-offer" data-offer-id="${escapeHtml(offer.id)}">Counter</button>` : ''}
                         ${canCancel ? `<button class="btn btn-secondary btn-sm" data-game-action="cancel-trade-offer" data-offer-id="${escapeHtml(offer.id)}">${expired ? 'Clear Expired' : (canAccept ? 'Decline' : 'Cancel')}</button>` : ''}
                         ${canHostCancel ? `<button class="btn btn-danger btn-sm" data-game-action="host-cancel-trade-offer" data-offer-id="${escapeHtml(offer.id)}">${expired ? 'Clear Expired' : 'Host Cancel'}</button>` : ''}
                     </div>
@@ -719,21 +726,32 @@ function renderTradeOffers() {
     }).join('');
 }
 
-const PAST_TRADES_SHOWN = 8;
+const PAST_TRADES_PAGE = 10;
+let pastTradesFilter = 'mine'; // 'mine', 'all', or a player's userId
+let pastTradesShown = PAST_TRADES_PAGE;
 
-// Resolved trade offers, newest first, each with how it ended.
+// Every resolved trade offer in the game, newest first, each with how it ended.
+// The filter picks your trades (the default), everyone's, or one player's.
 function renderPastTrades() {
     const container = document.getElementById('pastTradesList');
     if (!container || !currentGame) return;
+    const players = currentGame.game_state.players || [];
+    renderPastTradesFilter(players);
+    const involves = (offer, userId) => offer.player1Id === userId || offer.player2Id === userId;
     const past = (currentGame.game_state.marketOffers || [])
         .filter(offer => offer.status !== 'pending')
+        .filter(offer => pastTradesFilter === 'all' || involves(offer, pastTradesFilter === 'mine' ? currentUser.id : pastTradesFilter))
         .sort((a, b) => String(b.resolvedAt || b.createdAt || '').localeCompare(String(a.resolvedAt || a.createdAt || '')));
     if (past.length === 0) {
-        container.innerHTML = '<p class="empty-state">No past trades yet</p>';
+        const name = players.find(p => p.userId === pastTradesFilter)?.name;
+        const empty = pastTradesFilter === 'mine' ? "You haven't been in any finished trades yet."
+            : pastTradesFilter === 'all' ? 'No past trades yet.'
+            : `${name || 'This player'} hasn't been in any finished trades yet.`;
+        setPastTradesHtml(container, `<p class="empty-state">${escapeHtml(empty)}</p>`);
         return;
     }
-    const shown = past.slice(0, PAST_TRADES_SHOWN);
-    container.innerHTML = shown.map(offer => {
+    const shown = past.slice(0, pastTradesShown);
+    setPastTradesHtml(container, shown.map(offer => {
         const outcome = pastTradeOutcome(offer);
         const when = offer.resolvedAt ? formatTimeAgo(offer.resolvedAt) : '';
         return `
@@ -758,9 +776,47 @@ function renderPastTrades() {
                 </div>
             </div>
         `;
-    }).join('') + (past.length > shown.length
-        ? `<p class="trade-history-more">Showing the ${shown.length} most recent of ${past.length} trades.</p>`
-        : '');
+    }).join('') + (past.length > shown.length ? `
+        <div class="trade-history-more">
+            <p>Showing ${shown.length} of ${past.length} trades.</p>
+            <button type="button" class="btn btn-secondary btn-sm" data-game-action="show-more-past-trades">Show more</button>
+        </div>` : ''));
+}
+
+// Game updates re-render often; replacing an unchanged list would swallow a tap on Show more.
+function setPastTradesHtml(container, html) {
+    if (container.dataset.html === html) return;
+    container.innerHTML = html;
+    container.dataset.html = html;
+}
+
+function renderPastTradesFilter(players) {
+    const select = document.getElementById('pastTradesFilter');
+    if (!select) return;
+    if (pastTradesFilter !== 'mine' && pastTradesFilter !== 'all' && !players.some(p => p.userId === pastTradesFilter)) {
+        pastTradesFilter = 'mine';
+    }
+    const options = [['mine', 'Your trades'], ['all', 'Everyone'],
+        ...players.filter(p => p.userId !== currentUser.id).map(p => [p.userId, `${p.name}'s trades`])];
+    const html = options.map(([value, label]) => `<option value="${escapeHtml(value)}">${escapeHtml(label)}</option>`).join('');
+    if (select.dataset.html !== html) {
+        select.innerHTML = html;
+        select.dataset.html = html;
+    }
+    select.value = pastTradesFilter;
+    if (!select.dataset.bound) {
+        select.addEventListener('change', () => {
+            pastTradesFilter = select.value;
+            pastTradesShown = PAST_TRADES_PAGE;
+            renderPastTrades();
+        });
+        select.dataset.bound = 'true';
+    }
+}
+
+function showMorePastTrades() {
+    pastTradesShown += PAST_TRADES_PAGE;
+    renderPastTrades();
 }
 
 function pastTradeOutcome(offer) {
@@ -769,6 +825,9 @@ function pastTradeOutcome(offer) {
     }
     if (offer.status === 'declined') {
         return { label: 'Declined', badgeClass: 'badge-danger', detail: `${offer.resolvedByName || offer.recipientName} declined` };
+    }
+    if (offer.status === 'countered') {
+        return { label: 'Countered', badgeClass: 'badge-info', detail: `${offer.resolvedByName || offer.recipientName} countered` };
     }
     if (offer.status === 'expired') {
         return { label: 'Expired', badgeClass: 'badge-gold', detail: 'No answer in time' };
@@ -869,6 +928,89 @@ function showMarketError(message) {
     showMarketStatus(message, 'error');
 }
 
+// Countering: the trade form opens with an offer's terms, your side under You give.
+// Sending it closes the original as countered (propose_trade with counterOfferId).
+let tradeCounterOfferId = null;
+
+function tradeOfferById(offerId) {
+    return (currentGame?.game_state?.marketOffers || []).find(offer => offer.id === offerId) || null;
+}
+
+// The offer being countered, while the form is still between the same two players.
+function activeTradeCounter() {
+    const offer = tradeCounterOfferId ? tradeOfferById(tradeCounterOfferId) : null;
+    if (!offer || offer.status !== 'pending') return null;
+    const formPlayers = [tradeSide('player1').userId, tradeSide('player2').userId].sort().join('|');
+    return formPlayers === [offer.player1Id, offer.player2Id].sort().join('|') ? offer : null;
+}
+
+function counterTradeOffer(offerId) {
+    const offer = tradeOfferById(offerId);
+    if (!offer || offer.status !== 'pending') {
+        showMarketError('That offer is no longer open.');
+        return;
+    }
+    const mine = offer.player1Id === currentUser.id ? 'player1' : 'player2';
+    const theirs = otherTradeSide(mine);
+    const partyValue = side => (offer[`${side}CorpId`] ? MARKET_CORP_PREFIX + offer[`${side}CorpId`] : offer[`${side}Id`]);
+    setSelectValue(document.getElementById('player1Select'), partyValue(mine), currentUser.id);
+    setSelectValue(document.getElementById('player2Select'), partyValue(theirs), offer.proposedById);
+    ['player1', 'player2'].forEach(side => {
+        document.getElementById(`${side}Assets`).dataset.playerId = '';
+        document.getElementById(`${side}Destination`).dataset.receiverId = '';
+    });
+    updatePlayerAssets('player1');
+    updatePlayerAssets('player2');
+    [['player1', mine], ['player2', theirs]].forEach(([formSide, offerSide]) => {
+        document.getElementById(`${formSide}Cash`).value = Number(offer[`${offerSide}Cash`] || 0);
+        (offer[`${offerSide}AssetIds`] || []).forEach(id => {
+            const box = document.getElementById(`${formSide}-asset-${id}`);
+            if (box && !box.disabled) box.checked = true;
+        });
+        (offer[`${offerSide}Shares`] || []).forEach(lot => {
+            const input = document.querySelector(`#${formSide}Assets .trade-share-input[data-corp-id="${CSS.escape(lot.corpId)}"]`);
+            if (input) input.value = Number(lot.shares || 0);
+        });
+        document.querySelectorAll(`#${formSide}Assets .trade-share-input`).forEach(updateTradeSharePercent);
+        const intoCorpId = offer[`${offerSide}PropertiesToCorpId`] || '';
+        const destination = document.querySelector(`#${formSide}Destination input[value="${CSS.escape(intoCorpId)}"]`);
+        if (destination) destination.checked = true;
+    });
+    tradeCounterOfferId = offer.id;
+    showMarketPane('trade');
+    updateMarketActionState();
+    showMarketStatus('');
+    document.querySelector('#market .market-tabs')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+function stopTradeCounter() {
+    tradeCounterOfferId = null;
+    resetTradeForm();
+    showMarketStatus('');
+}
+
+// The offer closed (accepted elsewhere, withdrawn, expired) while you were countering.
+function dropClosedTradeCounter() {
+    if (!tradeCounterOfferId) return;
+    const offer = tradeOfferById(tradeCounterOfferId);
+    if (offer && offer.status === 'pending') return;
+    tradeCounterOfferId = null;
+    renderTradeCounterBanner();
+    // Your own counter just closed it; the send confirms that.
+    if (offer?.status === 'countered' && offer.resolvedById === currentUser.id) return;
+    const whose = offer?.proposedByName ? `${offer.proposedByName}'s offer` : 'That offer';
+    showMarketStatus(`${whose} is no longer open, so sending this makes a new trade proposal.`, 'info');
+}
+
+function renderTradeCounterBanner() {
+    const banner = document.getElementById('tradeCounterBanner');
+    if (!banner) return;
+    const offer = activeTradeCounter();
+    banner.hidden = !offer;
+    if (!offer) return;
+    banner.querySelector('.trade-counter-text').textContent = `Countering ${offer.proposedByName}'s offer. Change the terms below and send it back. Their offer stays open until you do.`;
+}
+
 async function acceptTradeOffer(offerId) {
     await submitGameAction('accept_trade', { offerId }, {
         errorText: 'Failed to accept trade offer.',
@@ -931,8 +1073,12 @@ async function executeTransaction() {
         errorText: 'Failed to execute transaction.',
         showError: showMarketError,
         onSaved: () => {
+            const countered = terms.counterOfferId ? tradeOfferById(terms.counterOfferId) : null;
+            tradeCounterOfferId = null;
             showMarketPane('proposals');
-            showMarketStatus('Trade proposal sent. It will execute when the other player accepts.', 'success');
+            showMarketStatus(countered
+                ? `Counteroffer sent to ${countered.proposedByName}. Their original offer is closed as countered.`
+                : 'Trade proposal sent. It will execute when the other player accepts.', 'success');
             resetTradeForm();
         },
     });

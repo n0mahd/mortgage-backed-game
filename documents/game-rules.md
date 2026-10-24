@@ -391,8 +391,10 @@ Trades let two players exchange any combination of cash, properties, corporation
 2. Choose who gives on each side from the **Player** dropdowns. Corporations are listed there too, under **Companies**: picking one trades for that corporation with its chairman (see **Running a Corporation** in section 9). Picking yourself under **You give** and a corporation you run under **They give** adds your properties to it instead (see **Adding Properties to a Corporation You Run** in section 9).
 3. Enter how much cash each player contributes to the swap.
 4. Check the properties each player is transferring. A player holding a Get Out of Jail Free card can check it too, so the card can be sold for cash or swapped as part of a deal. For each corporation a player holds shares in, enter how many shares they are transferring (up to the number they hold).
-5. Click **Propose Transaction** — the offer appears under **Pending Trade Offers**.
-6. The other involved player accepts to execute the transfer, or declines to reject it.
+5. Click **Propose Transaction** — the offer appears under **Trade proposals**.
+6. The other involved player accepts to execute the transfer, declines to reject it, or counters.
+
+**Countering.** Tap **Counter** on an offer made to you and the trade form opens with that offer's terms, your side under **You give**. Change anything (cash, properties, shares, a card) and tap **Send Counteroffer**. The original offer closes as *Countered* and your counter goes to the other player, who can accept, decline or counter in turn. A counter is always between the same two players; pick someone else and it becomes an ordinary new trade, leaving the original open. Every closed offer in the game, with how it ended (Accepted, Declined, Countered, Expired or Canceled), is listed under **Past transactions**: your own trades by default, or everyone's, or one player's, from the **Show** menu.
 
 Streets in a color group with buildings can't be checked: a built group can only change hands by an IPO of the whole group (or by adding the whole group to a corporation you run), whose shares can then be traded here. A property backing a loan can't be traded, put into an IPO or added to a corporation until that loan is paid off or refinanced onto other properties.
 

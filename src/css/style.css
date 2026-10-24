@@ -2000,6 +2000,23 @@ input[type="radio"] {
 
 .trade-offer-card.trade-offer-expired { opacity: 0.7; }
 
+/* Countering an offer: above the trade form while it holds that offer's terms */
+.trade-counter-banner {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--s2);
+    margin-bottom: var(--s3);
+    padding: var(--s3) var(--s4);
+    border-radius: var(--r-group);
+    background: var(--mint-wash);
+    color: var(--forest);
+    font-size: var(--text-sub);
+    font-weight: 600;
+}
+
+.trade-counter-banner[hidden] { display: none; }
+
 .trade-history-header {
     display: flex;
     align-items: center;
@@ -2010,10 +2027,16 @@ input[type="radio"] {
 .trade-history-card .trade-offer-meta { margin-top: 2px; }
 
 .trade-history-more {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--s2);
     font-size: var(--text-caption);
     color: var(--ink-3);
     text-align: center;
 }
+
+.past-trades-filter { margin-bottom: var(--s3); }
 
 .trade-offer-header {
     display: flex;
@@ -2239,13 +2262,15 @@ input[type="radio"] {
 
 .offer-property-for-shares small { font-size: var(--text-caption); color: var(--ink-3); }
 
+/* Accept, Counter and Decline share a row, and wrap on the narrowest phones */
 .trade-offer-actions {
     display: flex;
+    flex-wrap: wrap;
     gap: var(--s2);
     margin-top: var(--s3);
 }
 
-.trade-offer-actions .btn { flex: 1; }
+.trade-offer-actions .btn { flex: 1 1 auto; }
 
 .trade-offer-card > .empty-state {
     margin-top: var(--s3);

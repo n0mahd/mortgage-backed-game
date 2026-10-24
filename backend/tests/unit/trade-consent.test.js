@@ -458,3 +458,66 @@ describe('majority holders chair their LLC', () => {
         expect(state.corporations[0].chairmanId).toBe('alice');
     });
 });
+
+describe('trade counteroffers', () => {
+    function counter(state, actorId, offerId, overrides = {}) {
+        return applyAction(state, actorId, {
+            type: 'propose_trade',
+            payload: {
+                player1Id: 'bob',
+                player2Id: 'alice',
+                player1Cash: 0,
+                player2Cash: 150,
+                player1AssetIds: ['prop-1'],
+                player2AssetIds: [],
+                counterOfferId: offerId,
+                ...overrides,
+            },
+        });
+    }
+
+    test('a counter closes the original as countered and waits on the original proposer', () => {
+        const proposed = proposeCashForProperty(makeState());
+        const originalId = proposed.state.marketOffers[0].id;
+
+        const countered = counter(proposed.state, 'bob', originalId);
+        const [original, reply] = countered.state.marketOffers;
+
+        expect(original).toMatchObject({ status: 'countered', resolvedById: 'bob', counteredByOfferId: reply.id });
+        expect(reply).toMatchObject({ status: 'pending', proposedById: 'bob', recipientId: 'alice', counterToOfferId: originalId, player2Cash: 150 });
+        expect(countered.events.find(event => event.type === 'trade_offer_proposed').data.counterOfferId).toBe(originalId);
+        expect(countered.state.gameLog.some(entry => entry.message.includes("Bob countered Alice's trade offer"))).toBe(true);
+        expect(countered.state.players.find(p => p.userId === 'bob').cash).toBe(1500);
+
+        // The original can no longer be accepted; the counter can.
+        expect(() => applyAction(countered.state, 'bob', { type: 'accept_trade', payload: { offerId: originalId } })).toThrow('Pending trade offer not found');
+        const accepted = applyAction(countered.state, 'alice', { type: 'accept_trade', payload: { offerId: reply.id } });
+        expect(accepted.state.properties.find(prop => prop.id === 'prop-1').ownerId).toBe('alice');
+        expect(accepted.state.players.find(p => p.userId === 'alice').cash).toBe(1350);
+    });
+
+    test('only the player the offer waits on can counter it', () => {
+        const proposed = proposeCashForProperty(makeState());
+        const offerId = proposed.state.marketOffers[0].id;
+        expect(() => counter(proposed.state, 'alice', offerId)).toThrow('Only the player an offer was made to can counter it');
+    });
+
+    test('a counter must be between the same two players', () => {
+        const state = makeState();
+        state.players.push(player('carol', 'Carol'));
+        const proposed = proposeCashForProperty(state);
+        const offerId = proposed.state.marketOffers[0].id;
+        expect(() => counter(proposed.state, 'bob', offerId, { player2Id: 'carol' })).toThrow('A counteroffer must be between the same two players');
+        expect(proposed.state.marketOffers[0].status).toBe('pending');
+    });
+
+    test('an expired or answered offer cannot be countered', () => {
+        const proposed = proposeCashForProperty(makeState());
+        const offerId = proposed.state.marketOffers[0].id;
+        const declined = applyAction(proposed.state, 'bob', { type: 'cancel_trade', payload: { offerId } });
+        expect(() => counter(declined.state, 'bob', offerId)).toThrow('Pending trade offer not found');
+
+        proposed.state.marketOffers[0].expiresAt = '2000-01-01T00:00:00.000Z';
+        expect(() => counter(proposed.state, 'bob', offerId)).toThrow('That trade offer has expired');
+    });
+});
