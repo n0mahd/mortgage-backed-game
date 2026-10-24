@@ -101,7 +101,7 @@ Other docs: player rules in `documents/game-rules.md` and `README.md`, open deci
   code is in `src/js/game/`, loaded before it:
   - `turn-panel.js`: turn ticket, landing summary, warnings, auction panel, `renderActionButtons`,
     the moves grid and `renderHostPanel`.
-  - `purchase.js` (buying and auctions), `houses.js`, `debt.js` (the Debt sheet), `corporations.js`
+  - `purchase.js` (buying and auctions), `houses.js`, `debt.js` (the Debt sheet) and `debt-outlook.js` (its End Turn cards, before/after previews and limit sum, built on `TurnEndOutlook`), `corporations.js`
     (IPO and add-to-corporation sheets, the Corporations listing, chairman votes, buying treasury
     shares), `corporation-desk.js` (the chairman's tools: rent policy, dividends, property offers),
     `market.js` (the Market's panes: trade form, payments, trade proposals and past transactions; share-deal summary), `device-alerts.js` (another

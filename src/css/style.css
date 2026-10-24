@@ -587,6 +587,99 @@ input[type="radio"] {
 
 .loan-pay .field-label { margin-bottom: 0; }
 
+/* Debt page: what End Turn does to each borrower, and before/after previews */
+.loan-outlook {
+    display: flex;
+    flex-direction: column;
+    gap: var(--s2);
+    margin-bottom: var(--s4);
+}
+
+.outlook-title {
+    font-size: var(--text-footnote);
+    font-weight: 650;
+    color: var(--ink-2);
+}
+
+.outlook-card,
+.debt-preview {
+    display: flex;
+    flex-direction: column;
+    gap: var(--s2);
+    padding: var(--s3) var(--s4);
+    border-radius: var(--r-group);
+    background: var(--mint-wash);
+    border: 1px solid var(--rule);
+}
+
+.outlook-card.is-short,
+.debt-preview.is-short {
+    background: var(--danger-wash);
+    border-color: var(--danger);
+}
+
+.outlook-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--s2);
+}
+
+.outlook-name { font-weight: 700; }
+
+.outlook-rows {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    font-size: var(--text-footnote);
+}
+
+.outlook-row {
+    display: flex;
+    justify-content: space-between;
+    gap: var(--s3);
+    color: var(--ink-2);
+}
+
+.outlook-row dd {
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+    text-align: right;
+}
+
+.outlook-row.is-note { color: var(--ink-3); }
+
+.outlook-row.is-total {
+    color: var(--ink);
+    font-weight: 700;
+    padding-top: 2px;
+    border-top: 1px solid var(--rule);
+}
+
+.is-short .outlook-row.is-total { color: var(--danger); }
+
+.outlook-advice {
+    font-size: var(--text-footnote);
+    color: var(--danger);
+}
+
+.outlook-actions,
+.loan-row-actions {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(0, 1fr));
+    gap: var(--s2);
+}
+
+.loan-limit {
+    margin-top: var(--s2);
+    padding: var(--s2) var(--s3);
+    border-radius: var(--r-control);
+    background: var(--note);
+    border: 1px solid var(--rule);
+}
+
+.loan-limit:empty { display: none; }
+
 .loan-rates {
     display: grid;
     grid-template-columns: repeat(3, minmax(0, 1fr));
