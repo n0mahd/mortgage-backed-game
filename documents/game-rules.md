@@ -336,9 +336,13 @@ Payments are made on your turn. Paying more than is owed only takes what is owed
 ### Refinancing
 
 1. Go to **Manage Debt** → **Refinance loans**.
-2. Select one or more of your loans.
-3. Enter a new loan amount greater than their combined balance and pick a term.
-4. The selected loans are paid off, one new loan is created on the new term at its rate, and only the net cash above the payoff is added to your balance. Refinancing follows the same 90% limit, with the loans being replaced not counted as owed.
+2. If you run a corporation with loans, choose whose loans: yours or the corporation's.
+3. Select one or more of those loans. The new amount starts at their combined balance.
+4. Enter the new loan amount and pick a term:
+   - **More than the balance** takes out the difference as cash. It follows the same 90% limit, with the loans being replaced not counted as owed.
+   - **Less than the balance** pays the difference down from the borrower's cash (yours, or the corporation's treasury), which must cover it.
+   - **The same amount** just moves the balance onto the new term.
+5. The selected loans are replaced by one new loan on the new term at its rate.
 
 ### Corporation loans
 
