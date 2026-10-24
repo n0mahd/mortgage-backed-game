@@ -1031,18 +1031,6 @@ describe('game rule edge cases', () => {
         expect(result.state.turnCashFlow.alice.paid).toBe(150);
     });
 
-    test('refinance debt requires a larger loan than the selected payoff', () => {
-        const state = makeState();
-        state.players[0].debts = [
-            { id: 'debt-1', principal: 100, interestRate: 8 },
-        ];
-
-        expect(() => applyAction(state, 'alice', {
-            type: 'refinance_debt',
-            payload: { debtIds: ['debt-1'], amount: 100 },
-        })).toThrow('Refinance amount must exceed selected debt principal');
-    });
-
     test('a host without a seat can use host controls but nothing else', () => {
         const state = makeState();
 

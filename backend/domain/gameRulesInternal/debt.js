@@ -104,28 +104,37 @@ function issueDebt(state, player, payload, events) {
     log(state, `${player.name} borrowed ${describeLoan(amount, terms)}.`);
 }
 
+// Replace one or more of a borrower's loans (the player's own, or those of a
+// corporation they run: payload.corpId) with one new loan on a fresh term. A
+// larger loan pays out the difference in cash and must fit the borrowing limit,
+// with the replaced loans not counted as owed; a smaller one pays the balance
+// down from cash.
 function refinanceDebt(state, player, payload, events) {
     const amount = positiveNumber(payload.amount, 'amount');
     const terms = loanTerms(state, payload);
     const { interestRate, termTurns } = terms;
+    const borrower = findBorrower(state, player, payload);
+    const { account } = borrower;
+    if (account.insolvent) throw new GameRuleError(400, 'Corporation is insolvent');
 
-    const selectedDebts = resolveSelectedPlayerDebts(player, payload);
+    const selectedDebts = resolveSelectedDebts(account, payload);
     if (!selectedDebts.length) throw new GameRuleError(400, 'Select at least one debt to refinance');
 
-    const payoffAmount = selectedDebts.reduce((sum, debt) => {
+    const payoffAmount = roundCents(selectedDebts.reduce((sum, debt) => {
         const principal = Number(debt.principal || 0);
         if (!Number.isFinite(principal) || principal <= 0) {
             throw new GameRuleError(400, 'Selected debts must have positive principal');
         }
         return sum + principal;
-    }, 0);
+    }, 0));
+    const netProceeds = roundCents(amount - payoffAmount);
 
-    if (amount <= payoffAmount) {
-        throw new GameRuleError(400, 'Refinance amount must exceed selected debt principal');
+    if (netProceeds > 0) {
+        requireBorrowingCapacity(state, account, amount, new Set(selectedDebts));
+    } else if (Number(account.cash || 0) < -netProceeds) {
+        const has = `${borrower.corp ? `${borrower.name} has` : 'you have'} $${Number(account.cash || 0).toFixed(2)}`;
+        throw new GameRuleError(400, `Paying the loans down to $${amount.toFixed(2)} takes $${(-netProceeds).toFixed(2)} in cash; ${has}.`);
     }
-
-    // The loans being replaced don't count against the limit for the new one.
-    requireBorrowingCapacity(state, player, amount, new Set(selectedDebts));
 
     const refinancedFrom = selectedDebts.map(debt => ({
         id: debt.id || null,
@@ -133,22 +142,20 @@ function refinanceDebt(state, player, payload, events) {
         interestRate: Number(debt.interestRate || 0),
     }));
     const selectedDebtSet = new Set(selectedDebts);
-    player.debts = player.debts.filter(debt => !selectedDebtSet.has(debt));
-
-    const netProceeds = amount - payoffAmount;
-    player.debts.push({
+    account.debts = account.debts.filter(debt => !selectedDebtSet.has(debt));
+    account.debts.push({
         id: `debt-${uuidv4()}`,
         principal: amount,
         ...terms,
         issueDate: new Date().toISOString(),
-        issuerType: 'player',
+        issuerType: borrower.corp ? 'corporation' : 'player',
         refinancedFrom,
     });
-    player.cash += netProceeds;
-    recordCashFlow(state, null, player.userId, amount);
-    recordCashFlow(state, player.userId, null, payoffAmount);
+    account.cash = roundCents(Number(account.cash || 0) + netProceeds);
+    recordCashFlow(state, null, borrower.cashFlowId, amount);
+    recordCashFlow(state, borrower.cashFlowId, null, payoffAmount);
     events.push(makeEvent(player, 'debt_refinanced', {
-        borrower: player.name,
+        borrower: borrower.eventName,
         amount,
         payoffAmount,
         netProceeds,
@@ -156,10 +163,14 @@ function refinanceDebt(state, player, payload, events) {
         termTurns,
         refinancedDebtCount: selectedDebts.length,
     }));
-    log(state, `${player.name} refinanced ${selectedDebts.length} debt(s) into ${describeLoan(amount, terms)} and received $${netProceeds.toFixed(2)} net cash`);
+    const cashText = netProceeds >= 0
+        ? `received $${netProceeds.toFixed(2)} net cash`
+        : `paid $${(-netProceeds).toFixed(2)} down from cash`;
+    log(state, `${borrower.corp ? `${player.name} refinanced ${borrower.name}'s` : `${player.name} refinanced`} ${selectedDebts.length} debt(s) into ${describeLoan(amount, terms)} and ${cashText}`);
 }
 
-function resolveSelectedPlayerDebts(player, payload) {
+function resolveSelectedDebts(account, payload) {
+    const debts = account.debts || [];
     const refs = [];
     if (Array.isArray(payload.debtIds)) {
         payload.debtIds.forEach(id => refs.push({ id }));
@@ -174,10 +185,10 @@ function resolveSelectedPlayerDebts(player, payload) {
     const seenIndexes = new Set();
     refs.forEach(ref => {
         const debt = ref.id
-            ? player.debts.find(item => item.id === ref.id)
-            : player.debts[Number(ref.index)];
+            ? debts.find(item => item.id === ref.id)
+            : debts[Number(ref.index)];
         if (!debt) throw new GameRuleError(404, 'Debt not found');
-        const index = player.debts.indexOf(debt);
+        const index = debts.indexOf(debt);
         if (seenIndexes.has(index)) return;
         seenIndexes.add(index);
         selected.push(debt);
@@ -185,22 +196,27 @@ function resolveSelectedPlayerDebts(player, payload) {
     return selected;
 }
 
-// A loan and the account that owes it: the player's own, or a corporation's
-// that the player runs (payload.corpId).
-function findBorrowerLoan(state, player, payload) {
+// The account a debt action is for: the player's own, or a corporation's that
+// the player runs (payload.corpId).
+function findBorrower(state, player, payload) {
     if (payload.corpId) {
         const corp = state.corporations.find(c => c.id === payload.corpId);
         if (!corp) throw new GameRuleError(404, 'Corporation not found');
         if (!controlsCorporation(corp, player.userId)) {
             throw new GameRuleError(403, 'Only the chairman or controlling shareholder can manage corporation debt');
         }
-        const debt = corp.debts.find(d => d.id === payload.debtId);
-        if (!debt) throw new GameRuleError(404, 'Debt not found');
-        return { debt, account: corp, cashFlowId: corp.id, name: corp.ticker, eventName: `[${corp.ticker}]` };
+        return { account: corp, corp, cashFlowId: corp.id, name: corp.ticker, eventName: `[${corp.ticker}]` };
     }
-    const debt = player.debts.find(d => d.id === payload.debtId) || player.debts[Number(payload.debtIndex)];
+    return { account: player, corp: null, cashFlowId: player.userId, name: player.name, eventName: player.name };
+}
+
+// A loan and the account that owes it.
+function findBorrowerLoan(state, player, payload) {
+    const borrower = findBorrower(state, player, payload);
+    const debts = borrower.account.debts || [];
+    const debt = debts.find(d => d.id === payload.debtId) || (borrower.corp ? null : debts[Number(payload.debtIndex)]);
     if (!debt) throw new GameRuleError(404, 'Debt not found');
-    return { debt, account: player, cashFlowId: player.userId, name: player.name, eventName: player.name };
+    return { debt, ...borrower };
 }
 
 function payDebt(state, player, payload, events) {

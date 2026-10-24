@@ -103,6 +103,54 @@ describe('loan limits', () => {
         refusedWith(() => applyAction(state, 'alice', { type: 'refinance_debt', payload: { debtIds: [debtId], amount: 676 } }), /up to \$675\.00/);
     });
 
+    test('a refinance below the balance pays the difference down from cash, even over the limit', () => {
+        const { state } = borrow(makeState(), 600);
+        // Park Place goes, so the $600 loan is now over the $360 limit.
+        own(state, [PARK_PLACE], null, null);
+        const debtId = state.players[0].debts[0].id;
+        const cash = state.players[0].cash;
+        const { state: after, events } = applyAction(state, 'alice', { type: 'refinance_debt', payload: { debtIds: [debtId], amount: 250, termTurns: 15 } });
+        expect(after.players[0].debts).toHaveLength(1);
+        expect(after.players[0].debts[0]).toMatchObject({ principal: 250, termTurns: 15 });
+        expect(after.players[0].cash).toBe(cash - 350);
+        expect(events.find(event => event.type === 'debt_refinanced').data.netProceeds).toBe(-350);
+        // Same balance on a new term moves no cash.
+        const same = applyAction(state, 'alice', { type: 'refinance_debt', payload: { debtIds: [debtId], amount: 600, termTurns: 5 } }).state;
+        expect(same.players[0].cash).toBe(cash);
+        expect(same.players[0].debts[0]).toMatchObject({ principal: 600, termTurns: 5 });
+        state.players[0].cash = 100;
+        refusedWith(() => applyAction(state, 'alice', { type: 'refinance_debt', payload: { debtIds: [debtId], amount: 250 } }), /takes \$350\.00 in cash; you have \$100\.00/);
+    });
+
+    test("a corporation's loans are refinanced from and into its treasury", () => {
+        let { state } = applyAction(makeState(), 'alice', {
+            type: 'create_ipo',
+            payload: { ticker: 'ALC', totalShares: 10, pricePerShare: 50, assetIds: [BOARDWALK] },
+        });
+        const corpId = state.corporations[0].id;
+        const corporate = amount => applyAction(state, 'alice', { type: 'issue_debt', payload: { amount, issuerType: 'corporation', corpId } }).state;
+        state = corporate(100);
+        state = applyAction(state, 'alice', { type: 'issue_debt', payload: { amount: 200, issuerType: 'corporation', corpId } }).state;
+        const debtIds = state.corporations[0].debts.map(debt => debt.id);
+        const aliceCash = state.players[0].cash;
+
+        const down = applyAction(state, 'alice', { type: 'refinance_debt', payload: { corpId, debtIds, amount: 120 } });
+        const corp = down.state.corporations[0];
+        expect(corp.debts).toHaveLength(1);
+        expect(corp.debts[0]).toMatchObject({ principal: 120, issuerType: 'corporation' });
+        expect(corp.cash).toBe(300 - 180);
+        expect(down.state.players[0].cash).toBe(aliceCash);
+        expect(down.state.players[0].debts).toHaveLength(0);
+
+        const up = applyAction(state, 'alice', { type: 'refinance_debt', payload: { corpId, debtIds: [debtIds[0]], amount: 160 } }).state;
+        expect(up.corporations[0].debts.map(debt => debt.principal).sort()).toEqual([160, 200]);
+        expect(up.corporations[0].cash).toBe(360);
+        refusedWith(() => applyAction(state, 'alice', { type: 'refinance_debt', payload: { corpId, debtIds: [debtIds[0]], amount: 161 } }), /up to \$160\.00/);
+
+        state.currentPlayerIndex = 1;
+        refusedWith(() => applyAction(state, 'bob', { type: 'refinance_debt', payload: { corpId, debtIds, amount: 300 } }), /chairman or controlling shareholder/);
+    });
+
     test("corporate loans are limited by the corporation's properties", () => {
         const { state } = applyAction(makeState(), 'alice', {
             type: 'create_ipo',

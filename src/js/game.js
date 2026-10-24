@@ -813,9 +813,8 @@ function bindStaticGameControls() {
     document.getElementById('loanList')?.addEventListener('change', handleLoanAutopayChange);
     document.getElementById('loanAmount')?.addEventListener('input', () => renderLoanTerms('loanTerms', 'loanAmount'));
     document.getElementById('refinanceAmount')?.addEventListener('input', () => renderLoanTerms('refinanceTerms', 'refinanceAmount'));
-    document.getElementById('debtsToRefinance')?.addEventListener('change', () => {
-        updateRefinanceSummary();
-    });
+    document.getElementById('refinanceBorrower')?.addEventListener('change', renderRefinanceDebtOptions);
+    document.getElementById('debtsToRefinance')?.addEventListener('change', handleRefinanceSelectionChange);
     document.getElementById('refinanceAmount')?.addEventListener('input', updateRefinanceSummary);
     document.getElementById('process-debt-btn')?.addEventListener('click', processDebt);
     document.getElementById('confirm-house-purchase-btn')?.addEventListener('click', confirmHousePurchase);
