@@ -21,10 +21,11 @@ const {
     buyPropertyForCorporation,
     sharesFor,
 } = require('./corporations');
-const { payCreditorAvailableCash } = require('./bankruptcy');
+const { payCreditorAvailableCash, getBankruptcyClaim, settleBankruptcyClaim } = require('./bankruptcy');
 
 function rollDice(state, player, events, options) {
     if (player.diceRolled) throw new GameRuleError(400, 'Dice already rolled this turn');
+    payClaimBeforeRolling(state, player, events);
     state.lastCardDrawn = null;
     const [die1, die2] = Array.isArray(options.dice) ? options.dice : [randomDie(), randomDie()];
     const total = die1 + die2;
@@ -76,6 +77,21 @@ function rollDice(state, player, events, options) {
     processLanding(state, player, square, total, events);
     // Doubles roll again, unless the landing (Go to Jail, a card) sent them to Jail.
     if (isDoubles && !wasInJail && !player.inJail) rollEntry.message = `${rollLine} (doubles - roll again!)`;
+}
+
+// Rent still owed from this turn's earlier roll (doubles) is paid before rolling again.
+// Short of cash, the player raises it first or ends the turn (endTurn allows that).
+function payClaimBeforeRolling(state, player, events) {
+    const claim = getBankruptcyClaim(state, player.userId);
+    if (!claim) return;
+    const unpaid = Number(claim.unpaidAmount || 0);
+    const short = roundCents(unpaid - Number(player.cash || 0));
+    if (short > 0) {
+        throw new GameRuleError(400, `Pay the $${unpaid.toFixed(2)} you owe ${claim.creditorName} before rolling again: raise $${short.toFixed(2)} more, or end your turn and go bankrupt`);
+    }
+    if (settleBankruptcyClaim(state, player, events)) {
+        throw new GameRuleError(400, `${claim.creditorName} is out of the game, so the unpaid ${claim.reason} can't be paid: end your turn`);
+    }
 }
 
 function payJailFine(state, player, events) {

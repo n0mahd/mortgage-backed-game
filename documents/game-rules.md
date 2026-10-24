@@ -92,7 +92,7 @@ The game screen has four tabs accessible via the top navigation bar:
 4. Rent, taxes, and card effects are applied automatically and recorded in the log.
 5. You can roll again only if you rolled doubles; otherwise, complete your actions and click **End Turn** in the **Game** tab.
 
-After doubles, deal with the square you landed on before rolling again: the dock offers **Buy** for an unowned property, with **Roll Again** beside it. Rolling again moves you on, and the property you left stays unowned. You can only buy or auction the property you landed on during this turn, never the square you started the turn on.
+After doubles, deal with the square you landed on before rolling again: the dock offers **Buy** for an unowned property, with **Roll Again** beside it. Rolling again moves you on, and the property you left stays unowned. Rent you couldn't afford on the first roll is paid before the next one (see §11). You can only buy or auction the property you landed on during this turn, never the square you started the turn on.
 
 End Turn is only valid after the current player has rolled. The UI disables it before rolling, and the server rejects unrolled end-turn actions.
 
@@ -371,7 +371,7 @@ Bankruptcy is triggered automatically when your **cash drops below $0 at the end
 - Open chairman votes involving you are closed.
 - A liquidation summary appears after bankruptcy so players can see the cause, destination of assets, share movement, and debt cleanup.
 
-If you cannot afford rent owed to another player or corporation, you pay only the cash you actually have and the unpaid remainder is tracked as a claim. If you raise enough cash before ending the turn, End Turn pays the claim from your cash (after loan payments) and bankruptcy is avoided; there is no separate pay button, and the End Turn button shows the amount it will pay. If the claim is still unpaid when you end the turn:
+If you cannot afford rent owed to another player or corporation, you pay only the cash you actually have and the unpaid remainder is tracked as a claim. If you raise enough cash before ending the turn, End Turn pays the claim from your cash (before loan payments) and bankruptcy is avoided; there is no separate pay button, and the End Turn button shows the amount it will pay. After doubles the claim is paid before you roll again instead: **Pay $X & Roll Again** takes it from your cash first. If you can't cover it, you can't roll again: raise the cash (borrow, trade, IPO), or End Turn declares bankruptcy. If the claim is still unpaid when you end the turn:
 
 - Rent owed to a player transfers your directly owned properties and player-held corporation shares to that player.
 - Rent owed to a corporation transfers your directly owned properties to that corporation. Player-held shares return to their issuing corporation's treasury share pool.
