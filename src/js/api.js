@@ -439,6 +439,59 @@ function subscribeToGame(roomId, onGameUpdate, onJoined) {
 }
 
 // ----------------------------------------------------------------
+// Live screens: no page stays stale after a change made elsewhere.
+// A page keeps one coalesced resync function (refetch and re-render). Room
+// events call it, and so does the socket (re)joining a room (the onJoined
+// callbacks above). Socket events are missed while a phone has the page in the
+// background or is offline, and some changes emit nothing (archiving, a game
+// made on another device), so watchForMissedUpdates also calls it when the
+// page is shown again, when the network comes back and on a slow poll while
+// the page is visible. game.js keeps its own variant (it also reports presence).
+// ----------------------------------------------------------------
+
+const SCREEN_RESYNC_POLL_MS = 15000;
+
+function watchForMissedUpdates(resync, pollMs = SCREEN_RESYNC_POLL_MS) {
+    document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'visible') resync();
+    });
+    window.addEventListener('pageshow', (event) => {
+        if (event.persisted) resync();
+    });
+    window.addEventListener('online', () => resync());
+    setInterval(() => {
+        if (document.visibilityState === 'visible') resync();
+    }, pollMs);
+}
+
+// The user id inside a stored token (the JWT "sub"), or null. Display only:
+// the server checks every token.
+function tokenUserId(token) {
+    if (!token) return null;
+    try {
+        const payload = token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/');
+        return JSON.parse(atob(payload)).sub || null;
+    } catch {
+        return null;
+    }
+}
+
+// Every tab shares one 'auth_token'. Signing in as someone else or out in
+// another tab reloads this page so it never shows one user while acting as
+// another; a new token for the same user (a guest upgraded to an account, a
+// rotated secret) calls onSameUser instead. Not for hotseat games, which swap
+// tokens themselves.
+function reloadOnSignInChange(getUserId, onSameUser) {
+    window.addEventListener('storage', (event) => {
+        if (event.key !== 'auth_token' && event.key !== null) return;
+        const shownUserId = getUserId();
+        if (!shownUserId) return;
+        if (tokenUserId(getToken()) !== shownUserId) window.location.reload();
+        else if (onSameUser) onSameUser();
+    });
+}
+
+// ----------------------------------------------------------------
 // Moving a signed-in session to another browser or device
 // ----------------------------------------------------------------
 

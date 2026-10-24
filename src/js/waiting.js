@@ -199,9 +199,8 @@ function renderRoom(room) {
 
 // Socket events missed while the page was hidden or offline (a phone switching
 // apps to paste an agent invite) are caught up by refetching the room and the
-// agent invites: on every socket (re)join, when the page is shown again, and
-// on a slow poll as a last resort.
-const ROOM_RESYNC_POLL_MS = 15000;
+// agent invites: on every socket (re)join, and through watchForMissedUpdates
+// (api.js) when the page is shown again, comes back online, and on a slow poll.
 let roomResyncInFlight = null;
 
 function resyncRoom() {
@@ -219,16 +218,6 @@ function resyncRoom() {
         }
     })();
     return roomResyncInFlight;
-}
-
-function watchForMissedRoomUpdates() {
-    document.addEventListener('visibilitychange', () => {
-        if (document.visibilityState === 'visible') resyncRoom();
-    });
-    window.addEventListener('online', resyncRoom);
-    setInterval(() => {
-        if (document.visibilityState === 'visible') resyncRoom();
-    }, ROOM_RESYNC_POLL_MS);
 }
 
 function subscribeToRoomUpdatesById(id) {
@@ -249,7 +238,8 @@ function subscribeToRoomUpdatesById(id) {
         },
         resyncRoom
     );
-    watchForMissedRoomUpdates();
+    watchForMissedUpdates(resyncRoom);
+    reloadOnSignInChange(() => currentUser && currentUser.id, resyncRoom);
 }
 
 function renderPlayers(members) {

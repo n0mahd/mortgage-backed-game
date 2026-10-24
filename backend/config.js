@@ -65,6 +65,9 @@ function getConfig() {
         if (host !== '127.0.0.1' && host !== 'localhost') {
             throw new Error('Production HOST/BIND_HOST must be 127.0.0.1');
         }
+        if (process.env.PUSH_ALLOW_LOCAL_ENDPOINTS === 'true') {
+            throw new Error('PUSH_ALLOW_LOCAL_ENDPOINTS is for tests and dev only');
+        }
     }
 
     return {
@@ -154,4 +157,4 @@ function parseTrustProxy(raw, production) {
     return raw;
 }
 
-module.exports = { getConfig, getCorsOptions, REFRESHED_TOKEN_HEADER };
+module.exports = { getConfig, getCorsOptions, isProduction, REFRESHED_TOKEN_HEADER };
