@@ -1733,20 +1733,20 @@ input[type="radio"] {
 
 .rent-chip { font-variant-numeric: tabular-nums; }
 
-.development-icons { display: inline-flex; gap: 2px; }
+.development-icons { display: inline-flex; align-items: flex-end; gap: 2px; }
 
 .house-pip,
 .hotel-pip,
 .empty-house-pip {
     display: inline-block;
-    width: 8px;
-    height: 8px;
-    border-radius: 2px;
+    width: 10px;
+    height: 10px;
     background: var(--emerald);
+    clip-path: polygon(50% 0, 100% 45%, 100% 100%, 0 100%, 0 45%);
 }
 
-.hotel-pip { width: 14px; background: var(--danger); }
-.empty-house-pip { background: transparent; box-shadow: inset 0 0 0 1.5px var(--rule-strong); }
+.hotel-pip { width: 18px; height: 12px; background: var(--danger); }
+.empty-house-pip { background: var(--rule-strong); opacity: 0.5; }
 .building-na { display: none; }
 
 .player-corporations,
@@ -2420,6 +2420,7 @@ input[type="radio"] {
 .mobile-square-meta {
     display: flex;
     flex-wrap: wrap;
+    align-items: center;
     gap: 0 var(--s3);
     font-size: var(--text-caption);
     color: var(--ink-3);

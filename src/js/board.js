@@ -214,9 +214,7 @@ function renderMobileSquareMeta(square, property, gameState) {
     if (property) {
         const owner = property.ownerId ? escapeHtml(gameState ? describeOwner(gameState, property.ownerId, property.ownerName).label : (property.ownerName || '')) : 'Unowned';
         const price = property.price != null ? `$${property.price}` : '';
-        const houses = property.houses > 0
-            ? `<span>${property.houses === 5 ? 'Hotel' : `${property.houses} house${property.houses === 1 ? '' : 's'}`}</span>`
-            : '';
+        const houses = property.houses > 0 ? renderDevelopmentIcons(property) : '';
         return `<div class="mobile-square-meta">
             <span>${owner}</span>
             ${price ? `<span>${price}</span>` : ''}
