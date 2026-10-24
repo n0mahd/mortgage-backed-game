@@ -510,11 +510,23 @@ class Autoplay {
         await this.closeModals(seat);
     }
 
+    // Corporations sheet: the list, then one corporation's detail, and on a
+    // phone the given tab ('overview', 'owners', 'assets', 'debt').
+    async openCorporation(seat, corpId, tab = null) {
+        await this.gameButton(seat, 'open-corporation').click();
+        const modal = seat.page.locator('#corporationModal');
+        await modal.waitFor({ state: 'visible' });
+        const card = modal.locator(`[data-game-action="open-corporation-detail"][data-corp-id="${corpId}"]`);
+        if (await card.count()) await card.click();
+        const tabButton = modal.locator(`[data-game-action="corporation-tab"][data-tab="${tab}"]`);
+        if (tab && await tabButton.isVisible().catch(() => false)) await tabButton.click();
+        return modal;
+    }
+
     // Corporations → Add properties to <ticker>: tick the first free property and
     // take new shares when they're on offer, otherwise give it.
     async addToCorporation(seat, corp) {
-        await this.gameButton(seat, 'open-corporation').click();
-        await seat.page.locator('#corporationModal').waitFor({ state: 'visible' });
+        await this.openCorporation(seat, corp.id);
         const open = seat.page.locator(`#corporationModal [data-game-action="open-add-to-corporation"][data-corp-id="${corp.id}"]`);
         if (!(await this.usable(open))) return this.closeModals(seat);
         await open.click();
@@ -532,9 +544,7 @@ class Autoplay {
     // Treasury shares sell at the corporation's price; shares a player holds are
     // bought by offering cash for them in the Market, which the holder may accept.
     async buyShares(seat, corp, wanted = 1) {
-        await this.gameButton(seat, 'open-corporation').click();
-        const modal = seat.page.locator('#corporationModal');
-        await modal.waitFor({ state: 'visible' });
+        const modal = await this.openCorporation(seat, corp.id);
         await this.firstTime('corporation-modal', [seat], 'corporation-modal');
         const input = seat.page.locator(`#buyShares-${corp.id}`);
         if (await input.count()) {

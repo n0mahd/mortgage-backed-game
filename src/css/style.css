@@ -2673,24 +2673,272 @@ input[type="radio"] {
     font-variant-numeric: lining-nums proportional-nums;
 }
 
-.corporation-card {
+/* Corporations sheet: a list of summary cards, then one corporation's detail.
+   Phones show the detail's panels one tab at a time; from 720px the sheet
+   widens and every panel shows, in two columns. */
+.corp-summary-list { display: grid; gap: var(--s3); }
+
+.corp-summary {
+    display: grid;
+    gap: 6px;
+    width: 100%;
     padding: var(--s4);
-    margin-bottom: var(--s3);
+    border: 1px solid var(--rule);
     border-radius: var(--r-group);
     background: var(--note);
-    border: 1px solid var(--rule);
+    color: var(--ink);
+    font: inherit;
     font-size: var(--text-sub);
+    text-align: left;
+    cursor: pointer;
 }
 
-.corporation-card h3 {
+.corp-summary:active { transform: scale(0.97); background: var(--mint-wash); }
+.corp-summary:focus-visible { outline: 2px solid var(--emerald); outline-offset: 2px; }
+
+.corp-summary-head { display: flex; align-items: center; gap: var(--s2); }
+
+.corp-ticker {
     font-family: var(--font-money);
     font-size: var(--text-title3);
-    margin-bottom: var(--s2);
+    font-weight: 700;
+    color: var(--forest);
 }
 
-.corporation-card p { margin-top: 3px; color: var(--ink-2); }
-.corporation-card h4 { margin-top: var(--s3); }
-.corporation-card ul { margin-top: 4px; color: var(--ink-2); }
+.corp-summary-price {
+    margin-left: auto;
+    font-family: var(--font-money);
+    font-size: var(--text-title3);
+    font-weight: 700;
+    font-variant-numeric: lining-nums proportional-nums;
+    text-align: right;
+    line-height: 1.1;
+}
+
+.corp-summary-price small {
+    display: block;
+    font-family: var(--font-ui);
+    font-size: var(--text-caption);
+    font-weight: 500;
+    color: var(--ink-3);
+}
+
+.corp-summary-role { font-size: var(--text-footnote); color: var(--ink-3); }
+
+.corp-summary-facts {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 2px var(--s3);
+    font-size: var(--text-footnote);
+    color: var(--ink-2);
+}
+
+.corp-summary-facts b { color: var(--ink); }
+.corp-summary-facts .is-owed,
+.corp-summary-facts .is-owed b { color: var(--danger); }
+
+.corp-summary-waiting {
+    padding: 6px var(--s3);
+    border-radius: var(--r-control);
+    background: var(--gold-wash);
+    color: var(--gold-ink);
+    font-size: var(--text-footnote);
+    font-weight: 600;
+}
+
+/* Ownership: one segment per shareholder, in their player colour */
+.corp-owners-bar {
+    display: flex;
+    height: 8px;
+    overflow: hidden;
+    border-radius: var(--r-chip);
+    background: var(--paper-deep);
+}
+
+.corp-owners-bar span {
+    flex: 0 0 var(--owner-share);
+    background: var(--owner-color);
+}
+
+.corp-back {
+    padding: var(--s1) 0;
+    border: 0;
+    background: none;
+    color: var(--emerald);
+    font: inherit;
+    font-size: var(--text-footnote);
+    font-weight: 700;
+    cursor: pointer;
+}
+
+.corp-detail-head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: var(--s3);
+    margin-top: var(--s1);
+}
+
+.corp-detail-title {
+    font-family: var(--font-money);
+    font-size: var(--text-title2);
+    color: var(--forest);
+    line-height: 1.15;
+}
+
+.corp-detail-title span {
+    font-family: var(--font-ui);
+    font-size: var(--text-footnote);
+    font-weight: 500;
+    color: var(--ink-3);
+}
+
+.corp-stats {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: var(--s2);
+    margin-top: var(--s4);
+}
+
+.corp-stat {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+    padding: var(--s2) var(--s3);
+    border: 1px solid var(--rule);
+    border-radius: var(--r-control);
+    background: var(--note);
+}
+
+.corp-stat-value {
+    font-family: var(--font-money);
+    font-size: var(--text-title3);
+    font-weight: 700;
+    font-variant-numeric: lining-nums proportional-nums;
+    white-space: nowrap;
+}
+
+.corp-stat.is-owed .corp-stat-value { color: var(--danger); }
+
+.corp-tabs { grid-template-columns: repeat(4, 1fr); }
+.corp-tabs .segmented-option { padding: 4px 2px; }
+
+.corp-detail [data-corp-panel] { display: none; }
+.corp-detail[data-corp-tab="overview"] [data-corp-panel="overview"],
+.corp-detail[data-corp-tab="owners"] [data-corp-panel="owners"],
+.corp-detail[data-corp-tab="assets"] [data-corp-panel="assets"],
+.corp-detail[data-corp-tab="debt"] [data-corp-panel="debt"] { display: block; }
+
+.corp-panel { font-size: var(--text-sub); color: var(--ink-2); }
+.corp-panel h4 { margin: var(--s4) 0 var(--s2); color: var(--ink); }
+.corp-panel > :first-child,
+.corp-panel > :first-child > h4:first-child { margin-top: 0; }
+
+.corp-heading-note { font-size: var(--text-footnote); font-weight: 500; color: var(--ink-3); }
+
+.corp-hint { margin-top: var(--s2); font-size: var(--text-footnote); color: var(--ink-3); }
+
+.corp-panel small { display: block; margin-top: var(--s2); font-size: var(--text-caption); color: var(--ink-3); }
+.corp-panel .btn small,
+.corp-panel .policy-option small { margin-top: 0; }
+
+.corp-moves { margin-top: var(--s2); }
+
+/* Rent policy: the current policy is the selected half; the other half switches */
+.policy-toggle {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 3px;
+    padding: 3px;
+    border-radius: var(--r-control);
+    background: var(--paper-deep);
+}
+
+.policy-option {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 1px;
+    padding: var(--s2);
+    border: 0;
+    border-radius: calc(var(--r-control) - 3px);
+    background: transparent;
+    color: var(--ink-2);
+    font: inherit;
+    font-size: var(--text-footnote);
+    font-weight: 700;
+    text-align: center;
+}
+
+.policy-option small { font-size: var(--text-caption); font-weight: 500; color: var(--ink-3); }
+
+.policy-option.is-current {
+    background: var(--forest);
+    color: var(--on-dark);
+}
+
+.policy-option.is-current small { color: var(--mint); }
+
+button.policy-option { cursor: pointer; box-shadow: inset 0 0 0 1.5px var(--jade); color: var(--emerald); }
+button.policy-option:disabled { box-shadow: none; color: var(--ink-3); cursor: default; }
+button.policy-option:active:not(:disabled) { background: var(--mint-wash); }
+
+.corp-rent-policy > p { margin-top: var(--s2); }
+.corp-rent-policy .share-deal-warning { margin-top: var(--s2); }
+
+.corp-owners-bar + .corp-owner-list { margin-top: var(--s2); }
+.corp-owner-list,
+.corp-debt-list { padding: 0; list-style: none; }
+
+.corp-panel .chairman-governance { margin-top: var(--s4); }
+
+.corp-owner-row {
+    display: flex;
+    justify-content: space-between;
+    gap: var(--s2);
+    padding: 6px 0;
+    border-top: 1px solid var(--rule);
+    color: var(--ink);
+}
+
+.corp-owner-row:first-child { border-top: 0; }
+.corp-owner-row small { display: inline; margin: 0; }
+
+.corp-owner-dot {
+    display: inline-block;
+    width: 10px;
+    height: 10px;
+    margin-right: 6px;
+    border-radius: 3px;
+    background: var(--owner-color);
+}
+
+.corp-debt-list li { padding: 6px 0; border-top: 1px solid var(--rule); }
+.corp-debt-list li:first-child { border-top: 0; }
+
+@media (min-width: 720px) {
+    .modal-content.corp-sheet.is-detail { max-width: 920px; }
+    .corp-summary-list { grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); }
+    .modal-content.corp-sheet:not(.is-detail) { max-width: 720px; }
+    .corp-stats { grid-template-columns: repeat(4, 1fr); }
+    .corp-tabs { display: none; }
+    .corp-detail-cols {
+        display: grid;
+        grid-template-columns: 1.15fr 1fr;
+        gap: var(--s3);
+        align-items: start;
+        margin-top: var(--s4);
+    }
+    .corp-col { display: grid; gap: var(--s3); }
+    .corp-detail [data-corp-panel] {
+        display: block;
+        padding: var(--s4);
+        border: 1px solid var(--rule);
+        border-radius: var(--r-group);
+        background: var(--note);
+    }
+}
 
 /* Corporation assets: one block per colour group, in board order */
 .corp-asset-groups { display: grid; gap: var(--s2); margin-top: 4px; }
@@ -2768,8 +3016,6 @@ input[type="radio"] {
 .governance-control label { flex-basis: 100%; font-size: var(--text-footnote); font-weight: 600; }
 .governance-control select { flex: 1; min-width: 0; }
 
-.corp-rent-policy,
-.corp-runner-tools,
 /* Corporations sheet: property offers live in Market > Trade proposals; this points there */
 .corp-offer-pointer {
     display: flex;

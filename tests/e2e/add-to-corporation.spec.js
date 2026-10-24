@@ -2,7 +2,7 @@
 // Whoever runs an LLC can put more of their own properties into it from the
 // Corporations modal, taking whole new shares or giving the property outright.
 const { test, expect } = require('@playwright/test');
-const { BASE, BASE_API, apiJson, loginPage, playerState } = require('./helpers');
+const { BASE, BASE_API, apiJson, loginPage, playerState, openCorporation } = require('./helpers');
 
 // Sam runs MBS (10 shares, worth $1,200: Pennsylvania Ave $320 + $880 cash) and
 // holds 7; Alex holds 3. Sam owns Illinois Ave ($240) and it is Sam's turn.
@@ -73,11 +73,11 @@ test('the chairman adds a property to their LLC for new shares', async ({ browse
     const alex = await openGame(browser, room, users.Alex);
 
     // Alex doesn't run MBS, so he can't add to it.
-    await alex.page.click('[data-game-action="open-corporation"]');
+    await openCorporation(alex.page, 'corp-mbs');
     await expect(alex.page.locator('#corporationModal')).toHaveClass(/active/);
     await expect(alex.page.locator('[data-game-action="open-add-to-corporation"]')).toHaveCount(0);
 
-    await sam.page.click('[data-game-action="open-corporation"]');
+    await openCorporation(sam.page, 'corp-mbs');
     await expect(sam.page.locator('[data-game-action="offer-property-for-shares"]')).toHaveCount(0);
     await sam.page.click('[data-game-action="open-add-to-corporation"][data-corp-id="corp-mbs"]');
     const modal = sam.page.locator('#addToCorpModal');
@@ -126,7 +126,7 @@ test('the chairman adds a property to their LLC for new shares', async ({ browse
 test('the add-properties sheet fits a 320px phone', async ({ browser, request }) => {
     const { room, users } = await setupGame(request);
     const sam = await openGame(browser, room, users.Sam, 320);
-    await sam.page.click('[data-game-action="open-corporation"]');
+    await openCorporation(sam.page, 'corp-mbs');
     await sam.page.click('[data-game-action="open-add-to-corporation"][data-corp-id="corp-mbs"]');
     await sam.page.check('#addToCorpAssets input[value="prop-il"]');
     await expect(sam.page.locator('#addToCorpPreview')).toBeVisible();

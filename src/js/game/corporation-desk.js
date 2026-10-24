@@ -69,39 +69,51 @@
         const lockLine = lockedTurns > 0
             ? `<small>The chairman can't change it alone for ${lockedTurns} more of their turns. Every shareholder agreeing changes it at once.</small>`
             : '';
+        // The current policy is the selected half of a two-way toggle; the
+        // other half is the switch, when the viewer runs the corporation.
+        let switchControl = '';
         let controls = '';
         if (runs && !corp.rentPolicyVote) {
             const canSwitch = isMyTurn() && !hasRolled() && lockedTurns === 0;
             const note = lockedTurns > 0 ? 'Locked after the last change. Ask the shareholders instead.'
                 : (!isMyTurn() ? 'You can change this at the start of your turn.'
                     : (hasRolled() ? 'Locked: you have rolled. Change it at the start of your next turn.'
-                        : `Change it now, before you roll. It then stays put for your next 5 turns unless every shareholder agrees.`));
+                        : `Change it before you roll. It then stays put for your next 5 turns unless every shareholder agrees.`));
             const debt = (corp.debts || []).reduce((sum, d) => sum + Number(d.principal || 0), 0);
             const debtWarning = other === 'payout' && debt > 0
                 ? `<p class="share-deal-warning">${esc(corp.ticker)} owes ${money(debt)}. In Payout its treasury stops growing, but interest is still charged to it.</p>`
                 : '';
+            if (lockedTurns === 0) {
+                switchControl = `<button type="button" class="policy-option" data-game-action="set-rent-policy" data-corp-id="${esc(corp.id)}" data-policy="${other}" aria-label="Switch to ${otherLabel}"${canSwitch ? '' : ' disabled'}>${policyOptionText(other)}</button>`;
+            }
             controls = `
                 ${debtWarning}
-                <div class="governance-control">
-                    ${canSwitch || lockedTurns === 0
-                        ? `<button class="btn btn-primary btn-sm" data-game-action="set-rent-policy" data-corp-id="${esc(corp.id)}" data-policy="${other}"${canSwitch ? '' : ' disabled'}>Switch to ${otherLabel}</button>`
-                        : ''}
-                    ${mine > 0 && lockedTurns > 0 ? proposeButton(corp, other, otherLabel) : ''}
-                </div>
+                ${mine > 0 && lockedTurns > 0 ? `<div class="governance-control">${proposeButton(corp, other, otherLabel)}</div>` : ''}
                 <small>${esc(note)}</small>
             `;
         } else if (mine > 0 && !corp.rentPolicyVote) {
             controls = `<div class="governance-control">${proposeButton(corp, other, otherLabel)}</div>`;
         }
+        const current = `<span class="policy-option is-current">${policyOptionText(policy)}</span>`;
+        const otherOption = switchControl || `<span class="policy-option">${policyOptionText(other)}</span>`;
         return `
             <div class="corp-rent-policy">
-                <h4>Rent policy: <span class="badge${policy === 'payout' ? ' badge-gold' : ''}">${policy === 'payout' ? 'Payout' : 'Reinvest'}</span></h4>
+                <h4>Rent policy</h4>
+                <div class="policy-toggle" role="group" aria-label="Rent policy">
+                    ${policy === 'reinvest' ? current + otherOption : otherOption + current}
+                </div>
                 <p>${esc(effect)}</p>
                 ${lockLine}
                 ${renderRentPolicyVote(corp)}
                 ${controls}
             </div>
         `;
+    }
+
+    function policyOptionText(policy) {
+        return policy === 'payout'
+            ? 'Payout<small>Rent goes to the owners</small>'
+            : 'Reinvest<small>Rent grows the treasury</small>';
     }
 
     function proposeButton(corp, policy, label) {
@@ -161,26 +173,27 @@
 
     // ---- The runner's tools -----------------------------------------------
 
-    function renderRunnerTools(corp) {
+    // The chairman's moves: a dividend (it needs an amount), then one tile per
+    // other move. extraMoves adds tiles owned by corporations.js.
+    function renderRunnerTools(corp, extraMoves = '') {
         if (global.ShareDeals.isInsolvent(corp) || !global.ShareDeals.runsCorporation(corp, me())) return '';
         const myTurn = isMyTurn();
         const cash = Number(corp.cash || 0);
         const ownsGroup = global.getCompleteGroupProperties(corp.id, state()).length > 0;
-        const turnNote = myTurn ? '' : '<small>Dividends and building happen on your turn.</small>';
         return `
             <div class="corp-runner-tools">
-                <h4>Spend the treasury (${money(cash)})</h4>
+                <h4>Chairman moves <span class="corp-heading-note">${money(cash)} to spend</span></h4>
                 <div class="buy-shares-form">
                     <label for="dividend-${esc(corp.id)}">Pay a dividend, split by shares</label>
                     <input type="number" inputmode="decimal" id="dividend-${esc(corp.id)}" min="1" max="${Math.floor(cash)}" value="${Math.floor(cash / 2) || ''}">
                     <button class="btn btn-primary btn-sm" data-game-action="pay-dividend" data-corp-id="${esc(corp.id)}"${myTurn && cash >= 1 ? '' : ' disabled'}>Pay dividend</button>
                 </div>
-                <div class="governance-control">
-                    <button class="btn btn-secondary btn-sm" data-game-action="build-for-corporation" data-corp-id="${esc(corp.id)}"${myTurn && ownsGroup ? '' : ' disabled'}>Build houses for ${esc(corp.ticker)}</button>
-                    <button class="btn btn-secondary btn-sm" data-game-action="trade-as-corporation" data-corp-id="${esc(corp.id)}">Trade as ${esc(corp.ticker)}</button>
+                <div class="moves-grid corp-moves">
+                    <button class="btn btn-secondary btn-sm" data-game-action="build-for-corporation" data-corp-id="${esc(corp.id)}"${myTurn && ownsGroup ? '' : ' disabled'}>Build houses<small>${ownsGroup ? `On ${esc(corp.ticker)}'s full sets` : 'Needs a whole colour group'}</small></button>
+                    <button class="btn btn-secondary btn-sm" data-game-action="trade-as-corporation" data-corp-id="${esc(corp.id)}">Trade as ${esc(corp.ticker)}<small>Opens the Market</small></button>
+                    ${extraMoves}
                 </div>
-                <small>${ownsGroup ? '' : `${esc(corp.ticker)} can build once it owns a whole colour group. `}To buy a property for ${esc(corp.ticker)}, land on it and choose ${esc(corp.ticker)} when you buy.</small>
-                ${turnNote}
+                <small>${myTurn ? '' : 'Dividends and building happen on your turn. '}To buy a property for ${esc(corp.ticker)}, land on it and choose ${esc(corp.ticker)} when you buy.</small>
             </div>
         `;
     }
@@ -568,7 +581,20 @@
             && global.ShareDeals.sharesHeld(corp, userId) > 0 && !corp.rentPolicyVote.supporterIds.includes(userId));
     }
 
+    // One line per thing in this corporation waiting on the viewer, for the
+    // Corporations list.
+    function waitingOnMe(corp) {
+        const lines = [];
+        if (votesAwaiting(me()).includes(corp)) {
+            lines.push(`Vote: switch to ${corp.rentPolicyVote.policy === 'payout' ? 'Payout' : 'Reinvest'}?`);
+        }
+        const offers = pendingOffers(corp).filter(offer => awaitsUser(offer, me())).length;
+        if (offers) lines.push(`${offers} property offer${offers === 1 ? '' : 's'} to answer`);
+        return lines;
+    }
+
     global.CorporationDesk = {
+        waitingOnMe,
         renderRentPolicy,
         renderRunnerTools,
         renderOfferButton,

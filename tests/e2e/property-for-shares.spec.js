@@ -2,7 +2,7 @@
 // A player can trade a property into someone else's LLC in exchange for part
 // of its shares, starting from the Corporations modal.
 const { test, expect } = require('@playwright/test');
-const { BASE, BASE_API, apiJson, loginPage, playerState, showMarketPane } = require('./helpers');
+const { BASE, BASE_API, apiJson, loginPage, playerState, openCorporation, showMarketPane } = require('./helpers');
 
 // Sam runs MBS (12 shares, worth $1,200: Pennsylvania Ave $320 + $880 cash).
 // Alex owns Boardwalk ($400).
@@ -73,7 +73,7 @@ test('a player trades a property into an LLC for its shares', async ({ browser, 
     const sam = await openGame(browser, room, users.Sam);
 
     // Alex starts from MBS in the Corporations modal (it's not his turn).
-    await alex.page.click('[data-game-action="open-corporation"]');
+    await openCorporation(alex.page, 'corp-mbs');
     await alex.page.click('[data-game-action="offer-property-for-shares"][data-corp-id="corp-mbs"]');
     await expect(alex.page.locator('#market')).toHaveClass(/active/);
     await expect(alex.page.locator('#player1Destination input[value="corp-mbs"]')).toBeChecked();
