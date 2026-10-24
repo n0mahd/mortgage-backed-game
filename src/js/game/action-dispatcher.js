@@ -43,6 +43,9 @@
         'build-for-corporation': button => global.CorporationDesk.buildForCorporation(button.dataset.corpId),
         'trade-as-corporation': button => global.CorporationDesk.tradeAsCorporation(button.dataset.corpId),
         'open-property-offer': button => global.CorporationDesk.openPropertyOffer(button.dataset.corpId),
+        'toggle-property-counter': button => global.CorporationDesk.togglePropertyCounter(button.dataset.offerId),
+        'fill-property-counter': button => global.CorporationDesk.fillPropertyCounter(button.dataset.offerId, Number(button.dataset.price)),
+        'open-trade-proposals': () => global.openTradeProposals(),
         'respond-property-offer': button => global.CorporationDesk.respondPropertyOffer(button.dataset.offerId, button.dataset.response),
     };
 

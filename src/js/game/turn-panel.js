@@ -427,6 +427,7 @@ function renderActionButtons(landing) {
             ${renderImprovePropertiesButton(gameState, currentPlayer, auctionOpen)}
             <button class="btn btn-secondary btn-sm" data-game-action="open-ipo" ${auctionOpen ? 'disabled' : ''}>Create IPO<small>Take properties public</small></button>
             <button class="btn btn-secondary btn-sm" data-game-action="open-debt" ${auctionOpen ? 'disabled' : ''}>Manage Debt<small>Borrow, repay, refinance</small></button>
+            ${renderProposalsButton()}
             ${renderCorporationsButton()}
             ${buyTile}
         `)}
@@ -448,11 +449,18 @@ function buyUnavailableLabel(landing) {
     return 'No Property to Buy';
 }
 
-// Flags property offers waiting for this player (as offerer or chairman).
+// Flags rent-policy votes waiting for this shareholder.
 function renderCorporationsButton() {
-    const waiting = CorporationDesk.offersAwaiting(currentUser.id).length;
+    const waiting = CorporationDesk.votesAwaiting(currentUser.id).length;
     const hint = waiting ? `${waiting} waiting for your answer` : 'Shares and chairmen';
     return `<button class="btn btn-secondary btn-sm${waiting ? ' is-featured' : ''}" data-game-action="open-corporation">Corporations<small>${hint}</small></button>`;
+}
+
+// Trade and property offers waiting for this player's answer, so none is missed before End Turn.
+function renderProposalsButton() {
+    const waiting = tradeProposalsAwaitingMe();
+    if (!waiting) return '';
+    return `<button class="btn btn-secondary btn-sm is-featured" data-game-action="open-trade-proposals">Trade proposals<small>${waiting} waiting for your answer</small></button>`;
 }
 
 function renderNonTurnActions() {
@@ -460,6 +468,7 @@ function renderNonTurnActions() {
         ? '<button class="btn btn-secondary btn-sm" data-game-action="open-debt">Your Loans<small>Balances and autopay</small></button>'
         : '';
     return renderMovesGrid(`
+        ${renderProposalsButton()}
         ${loansButton}
         ${renderCorporationsButton()}
         <button class="btn btn-secondary btn-sm" data-switch-section="market">Trade or pay<small>Opens the market</small></button>
@@ -477,6 +486,7 @@ function renderSpectatorNote() {
 
 function renderPausedActions() {
     return renderMovesGrid(`
+        ${renderProposalsButton()}
         ${renderCorporationsButton()}
     `);
 }

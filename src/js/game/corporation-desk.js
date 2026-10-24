@@ -231,48 +231,222 @@
         `;
     }
 
+    // In the Corporations sheet, a pointer: the offers themselves are Trade
+    // proposals in the Market.
     function renderPropertyOffers(corp) {
         const offers = pendingOffers(corp);
         if (!offers.length) return '';
-        const runs = global.ShareDeals.runsCorporation(corp, me());
+        const mine = offers.filter(offer => awaitsUser(offer, me())).length;
+        const label = mine
+            ? `${mine} property offer${mine === 1 ? '' : 's'} waiting for you`
+            : `${offers.length} property offer${offers.length === 1 ? '' : 's'} pending`;
         return `
-            <div class="corp-property-offers">
-                <h4>Property offers</h4>
-                ${offers.map(offer => renderOffer(corp, offer, runs)).join('')}
+            <div class="corp-offer-pointer">
+                <span>${esc(label)}</span>
+                <button class="btn btn-secondary btn-sm" data-game-action="open-trade-proposals">See in Market</button>
             </div>
         `;
     }
 
-    function renderOffer(corp, offer, runs) {
+    function pendingPropertyOffers() {
+        return (state()?.propertyOffers || []).filter(offer => offer.status === 'pending');
+    }
+
+    // Whose answer a property offer waits on: the offerer after a counter,
+    // otherwise whoever runs the corporation.
+    function awaitsUser(offer, userId) {
+        if (!userId || global.isTradeOfferExpiredForDisplay(offer)) return false;
+        if (offer.awaiting === 'offerer') return offer.offererId === userId;
+        const corp = corpById(offer.corpId);
+        return !!corp && global.ShareDeals.runsCorporation(corp, userId);
+    }
+
+    function summarizeOffer(corp, offer, price) {
+        return global.ShareDeals.summarizePropertyOffer(state(), corp, offer.offererId, offer.assetIds,
+            price, offer.payWith, me(), offerOptions());
+    }
+
+    function offerPrice(offer) {
+        return offer.priceBasis === 'book' ? null : offer.price;
+    }
+
+    // One sentence on whether the price is fair and what it means for the viewer.
+    function offerVerdict(corp, offer, summary) {
+        const { value, price } = summary.quote;
+        const over = Math.round(price - value);
+        const names = global.ShareDeals.list(offer.assetIds.map(id => global.ShareDeals.propertyName(state(), id)));
+        const isAre = offer.assetIds.length === 1 ? 'is' : 'are';
+        const stake = summary.stakes.find(item => item.userId === me());
+        const change = stake ? Math.round(stake.change) : 0;
         const isOfferer = offer.offererId === me();
-        const awaitingMe = offer.awaiting === 'offerer' ? isOfferer : runs;
-        const summary = global.ShareDeals.summarizePropertyOffer(state(), corp, offer.offererId, offer.assetIds,
-            offer.priceBasis === 'book' ? null : offer.price, offer.payWith, me(), offerOptions());
-        const waitingOn = offer.awaiting === 'offerer' ? offer.offererName : `${corp.ticker}'s chairman`;
-        const canAnswer = awaitingMe && !global.isTradeOfferExpiredForDisplay(offer);
+        const decider = awaitsUser(offer, me());
+        if (over === 0) {
+            return { tone: 'is-fair', html: `A fair price: ${esc(names)} ${isAre} worth ${money(value)}.${stake ? ' Your net worth doesn\'t change.' : ''}` };
+        }
+        const gap = `<strong>${money(Math.abs(over))} ${over > 0 ? 'more' : 'less'}</strong>`;
+        // After a counter the chairman set the price, not the offerer.
+        const countered = offer.awaiting === 'offerer';
+        const counterer = corp.chairmanId === me() ? 'Your' : `${esc(corp.chairmanName || corp.ticker)}'s`;
+        const asking = countered
+            ? `${counterer} counter is ${gap} than ${esc(names)} ${isAre} worth.`
+            : `${isOfferer ? 'You\'re' : `${esc(offer.offererName)} is`} asking ${gap} than ${esc(names)} ${isAre} worth.`;
+        const tone = change > 0 ? 'is-good' : (change < 0 ? 'is-bad' : 'is-fair');
+        if (!stake || change === 0) {
+            return { tone, html: `${asking}${over > 0 && !isOfferer ? ` ${esc(corp.ticker)}'s other owners pay the difference.` : ''}` };
+        }
+        const amount = `<strong>${money(Math.abs(change))}</strong>`;
+        const effect = decider
+            ? `Accepting ${change < 0 ? 'costs you' : 'gains you'} ${amount}`
+            : `If it goes through, you ${change < 0 ? 'lose' : 'gain'} ${amount}`;
+        const source = change < 0 && !isOfferer ? `; the extra goes to ${esc(offer.offererName)}` : '';
+        return { tone, html: `${asking} ${effect}${source}.` };
+    }
+
+    // A property offer as a Trade proposals card: the two sides, a verdict,
+    // what changes for the viewer, and Accept / Counter / Decline for whoever
+    // the offer waits on.
+    function renderPropertyOfferCard(offer) {
+        const corp = corpById(offer.corpId);
+        if (!corp) return '';
+        const summary = summarizeOffer(corp, offer, offerPrice(offer));
+        const isOfferer = offer.offererId === me();
+        const canAnswer = awaitsUser(offer, me());
+        const expired = global.isTradeOfferExpiredForDisplay(offer);
+        const chairman = corp.chairmanId === me() ? 'you' : (corp.chairmanName || `${corp.ticker}'s chairman`);
+        const names = global.ShareDeals.list(offer.assetIds.map(id => global.ShareDeals.propertyName(state(), id)));
+        const offerer = isOfferer ? 'You' : offer.offererName;
+        const title = offer.awaiting === 'offerer'
+            ? `${corp.chairmanId === me() ? 'You' : (corp.chairmanName || corp.ticker)} countered: ${corp.ticker} pays ${money(summary.quote.price)} for ${names}`
+            : `${offerer} ${isOfferer ? 'want' : 'wants'} to sell ${names} to ${corp.ticker}`;
+        const kind = `Offer to ${corp.ticker}${canAnswer ? (isOfferer ? ' · your answer' : ' · you decide as chairman') : ''}`;
+        const assetTags = global.sortTradeAssetIds(offer.assetIds).map(id => {
+            const property = global.tradeAssetProperty(id);
+            const value = Number((state().players || []).flatMap(p => p.properties || []).find(p => p.id === id)?.value ?? property?.price ?? 0);
+            return global.renderTradeAssetTag(property?.name || id, `Worth ${money(value)}`, 'property', property ? global.getPropertyColorValue(property.color) : null);
+        }).join('');
+        const paid = offer.payWith === 'cash'
+            ? global.renderTradeAssetTag(money(summary.quote.price), 'Treasury cash', 'cash')
+            : global.renderTradeAssetTag(`${global.ShareDeals.count(summary.newShares)} new share${summary.newShares === 1 ? '' : 's'}`, `Worth ${money(summary.quote.price)}`, 'shares');
+        const verdict = offerVerdict(corp, offer, summary);
+        const rows = [];
+        const myStake = summary.stakes.find(item => item.userId === me());
+        if (myStake) {
+            const change = Math.round(myStake.change);
+            rows.push(`<tr><td>Your net worth</td><td class="${change > 0 ? 'up' : (change < 0 ? 'down' : '')}">${esc(global.ShareDeals.signedMoney(change))}</td></tr>`);
+        }
+        if (summary.newShares > 0) {
+            summary.stakes
+                .slice()
+                .sort((a, b) => (b.userId === me()) - (a.userId === me()))
+                .forEach(item => {
+                    const you = item.userId === me();
+                    let note = '';
+                    if (item.majorityAfter && !item.majorityBefore) note = you ? 'You take control' : 'Takes control';
+                    else if (item.majorityBefore && !item.majorityAfter) note = you ? 'You lose control' : 'Loses control';
+                    else if (you && item.majorityAfter) note = 'You keep control';
+                    rows.push(`<tr><td>${you ? `You own of ${esc(corp.ticker)}` : `${esc(item.name)} owns`}</td><td>${esc(item.percentBefore)} → ${esc(item.percentAfter)}${note ? `<small>${esc(note)}</small>` : ''}</td></tr>`);
+                });
+        }
+        const otherWarnings = summary.warnings.filter(warning => !/over book value/.test(warning) && !/will own over half/.test(warning));
+        const waitingOn = offer.awaiting === 'offerer'
+            ? offer.offererName
+            : `${corp.chairmanName || 'the chairman'}, ${corp.ticker}'s chairman`;
+        const id = esc(offer.id);
         return `
-            <div class="trade-offer-card">
+            <div class="trade-offer-card${expired ? ' trade-offer-expired' : ''}" data-property-offer-id="${id}">
                 <div class="trade-offer-header">
-                    <strong>${esc(offer.offererName)} → ${esc(corp.ticker)}: ${money(offer.price)} in ${offer.payWith === 'cash' ? 'treasury cash' : 'new shares'}</strong>
+                    <span class="offer-kind">${esc(kind)}</span>
+                    <strong>${esc(title)}</strong>
                     <div class="trade-offer-meta">
-                        <span>${esc(offer.priceBasis === 'book' ? 'Book value' : 'Set price')}</span>
+                        ${offer.createdAt ? `<span>${esc(global.formatTradeOfferAge(offer.createdAt))}</span>` : ''}
                         ${offer.expiresAt ? `<span>${esc(global.formatTradeOfferExpiry(offer.expiresAt))}</span>` : ''}
                     </div>
                 </div>
-                ${global.renderShareDealSummary(summary)}
+                <div class="trade-offer-sides">
+                    <div>
+                        <h4>${esc(offerer)} ${isOfferer ? 'give' : 'gives'}</h4>
+                        <ul class="trade-asset-list">${assetTags}</ul>
+                    </div>
+                    <div>
+                        <h4>${esc(corp.ticker)} gives</h4>
+                        <ul class="trade-asset-list">${paid}</ul>
+                    </div>
+                </div>
+                <p class="offer-verdict ${verdict.tone}">${verdict.html}</p>
+                ${rows.length ? `<table class="share-deal-table">${rows.join('')}</table>` : ''}
+                ${otherWarnings.map(warning => `<p class="share-deal-warning">${esc(warning)}</p>`).join('')}
                 ${canAnswer ? `
                     <div class="trade-offer-actions">
-                        <button class="btn btn-success btn-sm" data-game-action="respond-property-offer" data-offer-id="${esc(offer.id)}" data-response="accept">Accept</button>
-                        <input type="number" class="counter-price-input" id="counter-${esc(offer.id)}" min="1" step="1" inputmode="decimal" value="${Math.round(offer.price)}" aria-label="Counter price">
-                        <button class="btn btn-secondary btn-sm" data-game-action="respond-property-offer" data-offer-id="${esc(offer.id)}" data-response="counter">Counter</button>
-                        <button class="btn btn-secondary btn-sm" data-game-action="respond-property-offer" data-offer-id="${esc(offer.id)}" data-response="decline">${isOfferer ? 'Withdraw' : 'Decline'}</button>
+                        <button class="btn btn-success btn-sm" data-game-action="respond-property-offer" data-offer-id="${id}" data-response="accept">Accept</button>
+                        <button class="btn btn-secondary btn-sm" data-game-action="toggle-property-counter" data-offer-id="${id}" aria-expanded="${counterOfferId === offer.id}" aria-controls="counter-box-${id}">Counter</button>
+                        <button class="btn btn-secondary btn-sm" data-game-action="respond-property-offer" data-offer-id="${id}" data-response="decline">${isOfferer ? 'Withdraw' : 'Decline'}</button>
                     </div>
+                    ${renderCounterBox(corp, offer, summary.quote.value, names)}
                 ` : `
-                    <p class="empty-state">Waiting for ${esc(waitingOn)}.</p>
-                    ${isOfferer ? `<div class="trade-offer-actions"><button class="btn btn-secondary btn-sm" data-game-action="respond-property-offer" data-offer-id="${esc(offer.id)}" data-response="decline">Withdraw</button></div>` : ''}
+                    <p class="empty-state">${expired ? 'This offer has expired.' : `Waiting on ${esc(waitingOn)}.`}</p>
+                    ${isOfferer ? `<div class="trade-offer-actions"><button class="btn btn-secondary btn-sm" data-game-action="respond-property-offer" data-offer-id="${id}" data-response="decline">Withdraw</button></div>` : ''}
                 `}
             </div>
         `;
+    }
+
+    // Counter: hidden until the Counter button opens it. The draft price
+    // survives game updates re-rendering the list.
+    let counterOfferId = null;
+    const counterDrafts = {};
+
+    function renderCounterBox(corp, offer, bookValue, names) {
+        const id = esc(offer.id);
+        const draft = counterDrafts[offer.id] ?? Math.round(offer.price);
+        return `
+            <div class="offer-counter" id="counter-box-${id}"${counterOfferId === offer.id ? '' : ' hidden'}>
+                <label for="counter-${id}">Your price for ${esc(names)}</label>
+                <div class="offer-counter-row">
+                    <input type="number" class="offer-counter-input" id="counter-${id}" data-offer-id="${id}" min="1" step="1" inputmode="decimal" value="${esc(draft)}">
+                    <button type="button" class="btn btn-secondary btn-sm" data-game-action="fill-property-counter" data-offer-id="${id}" data-price="${Math.round(bookValue)}">Its worth: ${money(bookValue)}</button>
+                </div>
+                <p class="offer-counter-result" id="counter-result-${id}">${counterResultHtml(corp, offer, draft)}</p>
+                <button class="btn btn-success btn-sm" data-game-action="respond-property-offer" data-offer-id="${id}" data-response="counter" id="counter-send-${id}">Send counter at ${money(draft)}</button>
+            </div>
+        `;
+    }
+
+    function counterResultHtml(corp, offer, price) {
+        if (!(Number(price) > 0)) return 'Enter a price.';
+        const summary = summarizeOffer(corp, offer, Number(price));
+        const stake = summary.stakes.find(item => item.userId === me());
+        const forYou = stake ? ` For you: <strong>${esc(global.ShareDeals.signedMoney(stake.change))}</strong>${summary.newShares > 0 ? `, owning ${esc(stake.percentAfter)}` : ''}.` : '';
+        if (offer.payWith === 'cash') return `${esc(corp.ticker)} would pay <strong>${money(price)}</strong> from its treasury.${forYou}`;
+        if (!summary.newShares) return esc(summary.quote.noSharesReason || 'This price buys no shares.');
+        const who = offer.offererId === me() ? 'You' : esc(offer.offererName);
+        return `${who} would get <strong>${esc(global.ShareDeals.count(summary.newShares))} new share${summary.newShares === 1 ? '' : 's'}</strong>.${forYou}`;
+    }
+
+    function updateCounterPreview(offerId) {
+        const offer = pendingPropertyOffers().find(item => item.id === offerId);
+        const corp = offer && corpById(offer.corpId);
+        if (!corp) return;
+        const price = counterDrafts[offerId];
+        const result = document.getElementById(`counter-result-${offerId}`);
+        if (result) result.innerHTML = counterResultHtml(corp, offer, price);
+        const send = document.getElementById(`counter-send-${offerId}`);
+        if (send) send.textContent = `Send counter at ${money(price)}`;
+    }
+
+    function togglePropertyCounter(offerId) {
+        counterOfferId = counterOfferId === offerId ? null : offerId;
+        const box = document.getElementById(`counter-box-${offerId}`);
+        if (box) box.hidden = counterOfferId !== offerId;
+        document.querySelector(`[data-game-action="toggle-property-counter"][data-offer-id="${CSS.escape(offerId)}"]`)
+            ?.setAttribute('aria-expanded', String(counterOfferId === offerId));
+        if (counterOfferId === offerId) document.getElementById(`counter-${offerId}`)?.focus();
+    }
+
+    function fillPropertyCounter(offerId, price) {
+        counterDrafts[offerId] = Number(price);
+        const input = document.getElementById(`counter-${offerId}`);
+        if (input) input.value = String(price);
+        updateCounterPreview(offerId);
     }
 
     async function respondPropertyOffer(offerId, response) {
@@ -283,7 +457,11 @@
         }
         await global.submitGameAction('respond_property_offer', payload, {
             errorText: 'Failed to answer the offer',
-            onSaved: () => global.openCorporationModal(),
+            onSaved: () => {
+                if (counterOfferId === offerId) counterOfferId = null;
+                delete counterDrafts[offerId];
+                global.renderTradeOffers();
+            },
         });
     }
 
@@ -372,22 +550,22 @@
     }
 
     function bind() {
+        document.addEventListener('input', event => {
+            const input = event.target.closest?.('.offer-counter-input');
+            if (!input) return;
+            counterDrafts[input.dataset.offerId] = Number(input.value || 0);
+            updateCounterPreview(input.dataset.offerId);
+        });
         document.getElementById('propertyOfferModal')?.addEventListener('change', renderPropertyOfferPreview);
         document.getElementById('propertyOfferPriceInput')?.addEventListener('input', renderPropertyOfferPreview);
         document.getElementById('send-property-offer-btn')?.addEventListener('click', sendPropertyOffer);
     }
 
-    // Property offers and rent-policy votes someone needs to answer, for the
-    // Corporations button.
-    function offersAwaiting(userId) {
-        const votes = (state()?.corporations || []).filter(corp => corp.rentPolicyVote && !global.ShareDeals.isInsolvent(corp)
+    // Rent-policy votes waiting on this shareholder, for the Corporations button.
+    // (Property offers wait in Market > Trade proposals.)
+    function votesAwaiting(userId) {
+        return (state()?.corporations || []).filter(corp => corp.rentPolicyVote && !global.ShareDeals.isInsolvent(corp)
             && global.ShareDeals.sharesHeld(corp, userId) > 0 && !corp.rentPolicyVote.supporterIds.includes(userId));
-        return [...votes, ...(state()?.propertyOffers || []).filter(offer => {
-            if (offer.status !== 'pending') return false;
-            if (offer.awaiting === 'offerer') return offer.offererId === userId;
-            const corp = corpById(offer.corpId);
-            return !!corp && global.ShareDeals.runsCorporation(corp, userId);
-        })];
     }
 
     global.CorporationDesk = {
@@ -395,6 +573,11 @@
         renderRunnerTools,
         renderOfferButton,
         renderPropertyOffers,
+        renderPropertyOfferCard,
+        pendingPropertyOffers,
+        awaitsUser,
+        togglePropertyCounter,
+        fillPropertyCounter,
         setRentPolicy,
         proposeRentPolicy,
         voteRentPolicy,
@@ -403,7 +586,7 @@
         tradeAsCorporation,
         openPropertyOffer,
         respondPropertyOffer,
-        offersAwaiting,
+        votesAwaiting,
         bind,
     };
 })(window);

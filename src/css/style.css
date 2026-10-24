@@ -2672,6 +2672,44 @@ input[type="radio"] {
 .corporation-card h4 { margin-top: var(--s3); }
 .corporation-card ul { margin-top: 4px; color: var(--ink-2); }
 
+/* Corporation assets: one block per colour group, in board order */
+.corp-asset-groups { display: grid; gap: var(--s2); margin-top: 4px; }
+
+.corp-asset-group {
+    --property-color: var(--rule-strong);
+    padding: 6px 10px 6px 14px;
+    border-radius: var(--r-deed);
+    border: 1px solid var(--rule);
+    border-left: 5px solid var(--property-color);
+    background: var(--paper);
+}
+
+.corp-asset-group-head {
+    display: flex;
+    justify-content: space-between;
+    gap: var(--s2);
+    font-size: var(--text-caption);
+    font-weight: 600;
+    color: var(--ink-3);
+}
+
+.corp-asset-set.complete { color: var(--emerald); font-weight: 700; }
+
+.corp-asset-row {
+    display: flex;
+    justify-content: space-between;
+    gap: var(--s2);
+    padding-top: 2px;
+    color: var(--ink);
+    font-weight: 600;
+}
+
+.corp-asset-value {
+    font-family: var(--font-money);
+    font-variant-numeric: lining-nums proportional-nums;
+    color: var(--ink-2);
+}
+
 .corp-status-warning {
     padding: var(--s2) var(--s3);
     border-radius: var(--r-control);
@@ -2712,19 +2750,82 @@ input[type="radio"] {
 
 .corp-rent-policy,
 .corp-runner-tools,
-.corp-property-offers {
-    margin-top: var(--s4);
-    padding-top: var(--s3);
-    border-top: 1px solid var(--rule);
+/* Corporations sheet: property offers live in Market > Trade proposals; this points there */
+.corp-offer-pointer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--s2);
+    margin-top: var(--s3);
+    padding: var(--s2) var(--s3);
+    border-radius: var(--r-control);
+    background: var(--gold-wash);
+    color: var(--gold-ink);
+    font-size: var(--text-footnote);
+    font-weight: 600;
 }
 
-.corp-rent-policy p,
-.corp-runner-tools small,
-.corp-rent-policy small { font-size: var(--text-footnote); color: var(--ink-3); }
+.corp-offer-pointer .btn { flex: none; }
 
-.corp-property-offers .trade-offer-card { margin-top: var(--s2); }
+/* Property offer cards in Trade proposals */
+.offer-kind {
+    font-size: var(--text-caption);
+    font-weight: 700;
+    color: var(--gold);
+}
 
-.counter-price-input { width: 96px !important; margin: 0 !important; }
+.offer-verdict {
+    margin-top: var(--s3);
+    padding: var(--s2) var(--s3);
+    border-radius: var(--r-control);
+    font-size: var(--text-footnote);
+    line-height: 1.4;
+}
+
+.offer-verdict strong { font-weight: 700; }
+.offer-verdict.is-bad { background: var(--gold-wash); color: var(--gold-ink); }
+.offer-verdict.is-good,
+.offer-verdict.is-fair { background: var(--mint-wash); color: var(--forest); }
+
+.trade-offer-card .share-deal-table,
+.trade-offer-card .share-deal-warning { margin-top: var(--s2); }
+
+.share-deal-table td small {
+    display: block;
+    font-family: var(--font-ui);
+    font-size: var(--text-caption);
+    font-weight: 500;
+    color: var(--ink-3);
+}
+
+.offer-counter {
+    display: grid;
+    gap: var(--s2);
+    margin-top: var(--s3);
+    padding: var(--s3);
+    border-radius: var(--r-control);
+    background: var(--paper);
+}
+
+.offer-counter label {
+    font-size: var(--text-caption);
+    font-weight: 600;
+    color: var(--ink-2);
+}
+
+.offer-counter-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--s2);
+}
+
+.offer-counter-row input { flex: 1 1 96px; min-width: 0; }
+.offer-counter-row .btn { flex: 1 1 auto; }
+
+.offer-counter-result {
+    font-size: var(--text-footnote);
+    color: var(--ink-2);
+}
 
 .chairman-vote-row {
     display: flex;
