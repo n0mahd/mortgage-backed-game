@@ -50,4 +50,9 @@ async function apiJson(request, method, url, options = {}) {
     return body;
 }
 
-module.exports = { BASE, BASE_API, BASE_URL, apiJson, loginPage, playerState };
+// The Market tab has panes: 'New trade', 'Send money', 'Trade proposals', 'Past transactions'.
+async function showMarketPane(page, name) {
+    await page.getByRole('tab', { name }).click();
+}
+
+module.exports = { BASE, BASE_API, BASE_URL, apiJson, loginPage, playerState, showMarketPane };

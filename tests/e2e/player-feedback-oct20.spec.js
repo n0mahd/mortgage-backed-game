@@ -4,7 +4,7 @@
 // going to Jail from a card, selling a Get Out of Jail Free card, vibrating
 // on your turn, and moving a game to another browser.
 const { test, expect } = require('@playwright/test');
-const { BASE, BASE_API, apiJson, playerState } = require('./helpers');
+const { BASE, BASE_API, apiJson, playerState, showMarketPane } = require('./helpers');
 
 const GO_TO_JAIL_CARD = { id: 'cc-6', text: 'Go to Jail. Do not pass GO.', action: { type: 'go_to_jail' } };
 
@@ -215,6 +215,7 @@ test.describe('Player feedback 2026-10-20', () => {
         await expect(alice.page.locator('#tradeOffersList')).toContainText('Get Out of Jail Free card');
 
         await bob.page.click('.nav-tab[data-section="market"]');
+        await showMarketPane(bob.page, 'Trade proposals');
         await expect(bob.page.locator('#tradeOffersList')).toContainText('Get Out of Jail Free card', { timeout: 10000 });
         await bob.page.click('[data-game-action="accept-trade-offer"]');
 

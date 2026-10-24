@@ -680,6 +680,9 @@ function showSection(tab, sectionName) {
     if (sectionName === 'board') {
         renderBoardTab();
     }
+    if (sectionName === 'market') {
+        openMarketOnWaitingOffer();
+    }
 
     updateTurnBanner();
 }
@@ -725,6 +728,7 @@ function bindStaticGameControls() {
         const tab = event.target.closest('.nav-tab[data-section]');
         if (tab) showSection(tab, tab.dataset.section);
     });
+    bindMarketTabs();
 
     // Escape or a tap on the dimmed backdrop closes a dialog, like its Cancel button.
     // The Game Over dialog stays until the player chooses Back to Lobby.

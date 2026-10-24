@@ -558,7 +558,7 @@ class Explore {
         const bot = this.bot;
         const offer = (state.marketOffers || []).find(o => o.status === 'pending' && o.proposedById === me.userId);
         if (!offer) return;
-        await bot.marketTab(seat);
+        await bot.marketTab(seat, 'proposals');
         const button = seat.page.locator(`#tradeOffersList [data-game-action="cancel-trade-offer"][data-offer-id="${offer.id}"]`);
         if (await bot.usable(button)) await bot.act(seat, 'withdraw own trade offer', () => button.click(), { allowRejection: true });
         await bot.gameTab(seat);
@@ -572,7 +572,7 @@ class Explore {
         const { state } = bot.server();
         const offer = (state.marketOffers || []).find(o => o.status === 'pending' && ![o.player1Id, o.player2Id].includes(host.userId));
         if (!offer) return;
-        await bot.marketTab(host);
+        await bot.marketTab(host, 'proposals');
         const button = host.page.locator(`#tradeOffersList [data-game-action="host-cancel-trade-offer"][data-offer-id="${offer.id}"]`);
         if (await bot.usable(button)) await bot.act(host, 'host cancels a trade offer', () => button.click(), { allowRejection: true });
         await bot.gameTab(host);
@@ -583,7 +583,7 @@ class Explore {
         const others = state.players.filter(p => !p.bankrupt && p.userId !== me.userId && (p.properties || []).length);
         if (!others.length || !(me.properties || []).length) return;
         const target = bot.pick(others);
-        await bot.marketTab(seat);
+        await bot.marketTab(seat, 'trade');
         await bot.tradeParties(seat, me.userId, target.userId);
         await seat.page.locator('#player1Cash').fill('0');
         await seat.page.locator('#player2Cash').fill('0');
@@ -601,7 +601,7 @@ class Explore {
         const bot = this.bot;
         const target = bot.pick(state.players.filter(p => !p.bankrupt && p.userId !== me.userId));
         if (!target) return;
-        await bot.marketTab(seat);
+        await bot.marketTab(seat, 'trade');
         await bot.tradeParties(seat, me.userId, target.userId);
         await seat.page.locator('#player1Cash').fill('0');
         // Ask no more than they have; with nothing, the card goes as a gift.
@@ -639,12 +639,12 @@ class Explore {
         const probe = bot.pick(probes);
         if (!probe) return;
         if (probe === 'pay') {
-            await bot.marketTab(seat);
+            await bot.marketTab(seat, 'payment');
             await seat.page.locator('#paymentToPlayer').selectOption({ value: bot.pick(others).userId });
             await seat.page.locator('#paymentAmount').fill(String(cash + 500));
             await bot.act(seat, 'probe: pay more than my cash', () => seat.page.locator('#makePaymentBtn').click(), { allowRejection: true, allowNoChange: true });
         } else if (probe === 'trade') {
-            await bot.marketTab(seat);
+            await bot.marketTab(seat, 'trade');
             await bot.tradeParties(seat, me.userId, bot.pick(others).userId);
             await seat.page.locator('#player1Cash').fill(String(cash + 1000));
             // The form disables Propose for cash over your balance; that is the refusal.
@@ -667,7 +667,7 @@ class Explore {
             // A street in a built group can't be offered: the box must be greyed out, or the server must say no.
             const mine = built.ownerId === me.userId;
             const partner = mine ? bot.pick(others) : state.players.find(p => p.userId === built.ownerId);
-            await bot.marketTab(seat);
+            await bot.marketTab(seat, 'trade');
             await bot.tradeParties(seat, me.userId, partner.userId);
             const box = seat.page.locator(`#${mine ? 'player1' : 'player2'}-asset-${built.id}`);
             if (!(await box.count()) || await box.isDisabled()) {

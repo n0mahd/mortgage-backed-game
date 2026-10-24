@@ -3,7 +3,7 @@
 // property offers (offer, counter, accept), trading as the company, buying a
 // property for it, all through the real UI.
 const { test, expect } = require('@playwright/test');
-const { BASE, BASE_API, apiJson, loginPage, playerState } = require('./helpers');
+const { BASE, BASE_API, apiJson, loginPage, playerState, showMarketPane } = require('./helpers');
 
 const PARK = { id: 'prop-25', name: 'Park Place', color: 'Dark Blue', price: 350, rent: [35, 175, 500, 1100, 1300, 1500] };
 const BOARDWALK = { id: 'prop-26', name: 'Boardwalk', color: 'Dark Blue', price: 400, rent: [50, 200, 600, 1400, 1700, 2000] };
@@ -245,6 +245,7 @@ test('the chairman trades as the company and buys a property for it', async ({ b
     await expect(sam.page.locator('#market-status')).toContainText('Trade proposal sent');
 
     await kim.page.locator('.nav-tab[data-section="market"]').click();
+    await showMarketPane(kim.page, 'Trade proposals');
     const offer = kim.page.locator('.trade-offer-card').first();
     await expect(offer).toContainText('MBS (via Sam) gives', { timeout: 10000 });
     await offer.locator('[data-game-action="accept-trade-offer"]').click();
@@ -312,6 +313,7 @@ test('the chairman picks the company under They give to add a property, and send
     await expect(sam.page.locator('#player1CashGroup')).toBeVisible();
 
     // Send money into MBS for new shares: $135 at $1,590 over 14,133 shares.
+    await showMarketPane(sam.page, 'Send money');
     await sam.page.selectOption('#paymentToPlayer', 'corp:corp-mbs');
     await sam.page.fill('#paymentAmount', '135');
     await expect(sam.page.locator('#paymentReturn')).toContainText('1,200 new shares');
@@ -326,6 +328,7 @@ test('the chairman picks the company under They give to add a property, and send
     // Alex doesn't run MBS: cash he sends is a gift, with no shares choice.
     const alex = await openGame(browser, room, users.Alex);
     await alex.page.locator('.nav-tab[data-section="market"]').click();
+    await showMarketPane(alex.page, 'Send money');
     await alex.page.selectOption('#paymentToPlayer', 'corp:corp-mbs');
     await alex.page.fill('#paymentAmount', '10');
     await expect(alex.page.locator('#paymentReturn')).toContainText('as a gift');

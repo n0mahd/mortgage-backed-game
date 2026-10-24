@@ -1,6 +1,6 @@
 // @ts-check
 const { test, expect } = require('@playwright/test');
-const { BASE, BASE_API, apiJson, loginPage, playerState } = require('./helpers');
+const { BASE, BASE_API, apiJson, loginPage, playerState, showMarketPane } = require('./helpers');
 
 /**
  * Setup a 2-player game with some properties owned.
@@ -320,19 +320,35 @@ test.describe('Trading — past transactions', () => {
         await page.setViewportSize({ width: 390, height: 844 });
         await loginPage(page, hostToken);
         await page.goto(`${BASE}/game.html?room=${room.id}`);
+        await expect(page.locator('.game-header')).toBeVisible();
         await page.getByRole('button', { name: 'Market' }).click();
-        const past = page.locator('#pastTradesList .trade-history-card');
-        await expect(past).toHaveCount(1, { timeout: 5000 });
-        await expect(past.first()).toContainText('Accepted');
-        await expect(past.first()).toContainText('Alice accepted');
 
+        // An offer is waiting on Alice, so the Market opens on Trade proposals, with its count.
+        await expect(page.getByRole('tab', { name: /Trade proposals/ })).toHaveAttribute('aria-selected', 'true', { timeout: 5000 });
+        await expect(page.locator('#marketProposalsCount')).toHaveText('1');
+        await expect(page.locator('#executeTradeBtn')).toBeHidden();
         await page.locator('#tradeOffersList').getByRole('button', { name: 'Decline' }).click();
+        await expect(page.locator('#tradeOffersList')).toContainText('No pending trade offers');
+        await expect(page.locator('#marketProposalsCount')).toBeHidden();
+
+        await showMarketPane(page, 'Past transactions');
+        await expect(page.locator('#tradeOffersList')).toBeHidden();
+        const past = page.locator('#pastTradesList .trade-history-card');
         await expect(past).toHaveCount(2, { timeout: 5000 });
         await expect(past.first().locator('.badge')).toHaveText('Declined');
         await expect(past.first()).toContainText('Alice declined');
         await expect(past.first()).toContainText('Mediterranean Ave');
         await expect(past.nth(1).locator('.badge')).toHaveText('Accepted');
-        await expect(page.locator('#tradeOffersList')).toContainText('No pending trade offers');
+        await expect(past.nth(1)).toContainText('Alice accepted');
+
+        // The other panes are one tap away, and the choice survives a state update.
+        await showMarketPane(page, 'Send money');
+        await expect(page.locator('#makePaymentBtn')).toBeVisible();
+        await expect(page.locator('#executeTradeBtn')).toBeHidden();
+        await page.evaluate(() => resyncGame());
+        await expect(page.locator('#makePaymentBtn')).toBeVisible();
+        await showMarketPane(page, 'New trade');
+        await expect(page.locator('#executeTradeBtn')).toBeVisible();
         if (process.env.PAST_TRADES_SHOT) await page.locator('#pastTradesList').screenshot({ path: process.env.PAST_TRADES_SHOT });
     });
 });

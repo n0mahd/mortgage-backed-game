@@ -485,14 +485,76 @@ function useEvenShares() {
     updateMarketActionState();
 }
 
+// Market panes: New trade, Send money, Trade proposals, Past transactions.
+const MARKET_PANES = ['trade', 'payment', 'proposals', 'history'];
+let marketPane = null;
+
+function bindMarketTabs() {
+    const tablist = document.querySelector('.market-tabs');
+    if (!tablist) return;
+    tablist.addEventListener('click', event => {
+        const tab = event.target.closest('[data-market-pane]');
+        if (tab) showMarketPane(tab.dataset.marketPane);
+    });
+    tablist.addEventListener('keydown', event => {
+        if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return;
+        const step = event.key === 'ArrowRight' ? 1 : -1;
+        const next = MARKET_PANES[(MARKET_PANES.indexOf(marketPane) + step + MARKET_PANES.length) % MARKET_PANES.length];
+        showMarketPane(next);
+        document.getElementById(`marketTab-${next}`)?.focus();
+    });
+}
+
+function showMarketPane(name) {
+    if (!MARKET_PANES.includes(name)) return;
+    marketPane = name;
+    MARKET_PANES.forEach(pane => {
+        const selected = pane === name;
+        const tab = document.getElementById(`marketTab-${pane}`);
+        tab?.setAttribute('aria-selected', String(selected));
+        tab?.setAttribute('tabindex', selected ? '0' : '-1');
+        document.getElementById(`marketPane-${pane}`)?.toggleAttribute('hidden', !selected);
+    });
+}
+
+// Opens the Market tab on one pane, from elsewhere on the page.
+function openMarketPane(name) {
+    const marketTab = document.querySelector('.nav-tab[data-section="market"]');
+    if (marketTab) showSection(marketTab, 'market');
+    showMarketPane(name);
+}
+
+function pendingTradeOffers() {
+    return (currentGame?.game_state?.marketOffers || []).filter(offer => offer.status === 'pending');
+}
+
+function hasTradeOfferAwaitingMe() {
+    return pendingTradeOffers().some(offer => offer.recipientId === currentUser?.id && !isTradeOfferExpiredForDisplay(offer));
+}
+
+// The Market opens on New trade, or on Trade proposals while an offer is waiting
+// on you. Otherwise the pane only changes when the player picks one.
+function updateMarketTabs(pendingOffers) {
+    const count = document.getElementById('marketProposalsCount');
+    if (count) {
+        count.textContent = String(pendingOffers.length);
+        count.hidden = pendingOffers.length === 0;
+    }
+    if (!marketPane) showMarketPane(hasTradeOfferAwaitingMe() ? 'proposals' : 'trade');
+}
+
+// Called when the Market tab is opened from the tab bar.
+function openMarketOnWaitingOffer() {
+    if (hasTradeOfferAwaitingMe()) showMarketPane('proposals');
+}
+
 // From the Corporations modal: start a trade that puts one of your properties
 // into this LLC in exchange for its shares.
 function offerPropertyForShares(corpId) {
     const corp = currentGame?.game_state?.corporations?.find(item => item.id === corpId);
     if (!corp || !corp.chairmanId) return;
     closeModal('corporationModal');
-    const marketTab = document.querySelector('.nav-tab[data-section="market"]');
-    if (marketTab) showSection(marketTab, 'market');
+    openMarketPane('trade');
     document.getElementById('player1Select').value = currentUser.id;
     document.getElementById('player2Select').value = corp.chairmanId;
     updatePlayerAssets('player1');
@@ -502,7 +564,7 @@ function offerPropertyForShares(corpId) {
     updateMarketActionState();
     const shareInput = document.querySelector(`#player2Assets .trade-share-input[data-corp-id="${CSS.escape(corp.id)}"]`);
     showMarketStatus(`Tick the property you're offering, then enter how many ${corp.ticker} shares you want back.`, 'info');
-    document.querySelector('#market .transaction-form')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    document.querySelector('#market .market-tabs')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     shareInput?.focus({ preventScroll: true });
 }
 
@@ -608,8 +670,9 @@ function showMarketStatus(message, type = 'info') {
 function renderTradeOffers() {
     const container = document.getElementById('tradeOffersList');
     if (!container || !currentGame) return;
-    const offers = (currentGame.game_state.marketOffers || []).filter(offer => offer.status === 'pending');
+    const offers = pendingTradeOffers();
     renderPastTrades();
+    updateMarketTabs(offers);
     if (offers.length === 0) {
         container.innerHTML = '<p class="empty-state">No pending trade offers</p>';
         return;
@@ -868,6 +931,7 @@ async function executeTransaction() {
         errorText: 'Failed to execute transaction.',
         showError: showMarketError,
         onSaved: () => {
+            showMarketPane('proposals');
             showMarketStatus('Trade proposal sent. It will execute when the other player accepts.', 'success');
             resetTradeForm();
         },
