@@ -8,7 +8,7 @@
 
 const webpush = require('web-push');
 const db = require('../db');
-const { getConfig } = require('../config');
+const { getConfig, isProduction } = require('../config');
 
 // Only the browser vendors' push services. We send requests to whatever URL a
 // browser registers, so anything else would let a client aim the server at
@@ -43,8 +43,9 @@ function isAllowedEndpoint(endpoint) {
     } catch {
         return false;
     }
-    // Integration tests run a local HTTPS stand-in for the push service.
-    if (process.env.NODE_ENV === 'test' && process.env.PUSH_ALLOW_LOCAL_ENDPOINTS === 'true' && url.hostname === '127.0.0.1') {
+    // Integration tests and the verify-mortgage harness run a local HTTPS
+    // stand-in for the push service. Never in production (config.js refuses it).
+    if (process.env.PUSH_ALLOW_LOCAL_ENDPOINTS === 'true' && !isProduction() && url.hostname === '127.0.0.1') {
         return url.protocol === 'https:';
     }
     return url.protocol === 'https:' && !url.port && PUSH_SERVICE_HOSTS.some(pattern => pattern.test(url.hostname));

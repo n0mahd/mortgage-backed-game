@@ -131,7 +131,10 @@ Other docs: player rules in `documents/game-rules.md` and `README.md`, open deci
   `.agents/skills/verify-mortgage/SKILL.md`. `play` runs whole games (2/5/8 players, 20 rounds, sync
   and state invariants, coverage of every game pathway, screenshots, agent seats); `journeys` runs
   every path outside the board (accounts, My games, rooms, hotseat, agents over MCP, hosting,
-  resilience) in fresh browsers.
+  resilience, turn alerts) in fresh browsers. Its dev runs deliver mail to a local mail sink and
+  turn alerts through a local push service into the browser's real service worker
+  (`PUSH_ALLOW_LOCAL_ENDPOINTS`, which `config.js` refuses in production), so both are checked end
+  to end headless.
   Its bot relies on the `data-game-action` buttons and modal/Market ids listed there; update
   `.agents/skills/verify-mortgage/scripts/lib/bot.js` when renaming them.
 

@@ -7,6 +7,7 @@
 // errors, failed API calls and dialogs.
 
 const { waitForMail, INBOXES, FAKE_EMAILS } = require('./agentmail');
+const { readLoginCode } = require('./mail-sink');
 
 const NAMES = ['Ava', 'Ben', 'Cleo', 'Dev', 'Eli', 'Fay', 'Gus', 'Hana'];
 const DESKTOP = { width: 1280, height: 800 };
@@ -118,6 +119,7 @@ async function readOtp(ctx, seat, since) {
         if (!match) throw new Error(`No 6-digit code in mail to ${seat.email}`);
         return match[1];
     }
+    if (ctx.mailbox) return readLoginCode(ctx.mailbox, seat.email, { since: typeof since === 'number' ? since : 0 });
     const deadline = Date.now() + 10000;
     while (Date.now() < deadline) {
         const row = ctx.sql(`SELECT code FROM otps WHERE email = ? AND used = 0 ORDER BY created_at DESC LIMIT 1`, [seat.email.toLowerCase()])[0];

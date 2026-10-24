@@ -13,6 +13,7 @@ const fs = require('fs');
 const path = require('path');
 const { snapshotInPage, formatView } = require('./view');
 const { contextOptions, watchPage } = require('./table');
+const { readLoginCode } = require('./mail-sink');
 
 const PASSWORD = 'journey-pass-2026';
 const IPHONE_UA = 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_7 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.7 Mobile/15E148 Safari/604.1';
@@ -88,12 +89,16 @@ class Journey {
     }
 
     // A new person in their own browser. device: phone | desktop | iphone.
-    async person(name, { device = 'phone', standalone = false, permissions = [], ua } = {}) {
+    // alerts: a browser that allows notifications and can get pushes, through
+    // the harness's local push service (see attachPushDevice).
+    async person(name, { device = 'phone', standalone = false, permissions = [], ua, alerts = false } = {}) {
         const kind = device === 'iphone' ? 'phone' : device;
         const options = contextOptions(kind);
         if (device === 'iphone') options.userAgent = IPHONE_UA;
         if (ua) options.userAgent = ua;
-        const context = await this.ctx.browser.newContext(options);
+        if (alerts) permissions = [...new Set([...permissions, 'notifications'])];
+        const browser = alerts ? await this.ctx.alertsBrowser() : this.ctx.browser;
+        const context = await browser.newContext(options);
         context.setDefaultTimeout(15000);
         if (standalone) {
             await context.addInitScript(() => {
@@ -111,9 +116,55 @@ class Journey {
             dialogs: [], unreadDialogs: [], unreadIssues: [], lastControls: [],
             dismissNextConfirm: false, human: false, userId: null,
         };
+        if (alerts) p.push = await attachPushDevice(this, p);
         watchPage(this.watchCtx, p);
         this.people.push(p);
         return p;
+    }
+
+    // Pushes the local push service received for this person since `since`
+    // (an index from pushCount), each with its decrypted payload.
+    pushCount(p) {
+        return this.ctx.pushRelay.forPerson(p.push.device.person).length;
+    }
+
+    pushesSince(p, since = 0) {
+        return this.ctx.pushRelay.forPerson(p.push.device.person).slice(since);
+    }
+
+    // Waits for a push to reach this person's service worker and returns it.
+    async waitForPush(p, since, { title, timeout = 15000 } = {}) {
+        const deadline = Date.now() + timeout;
+        while (Date.now() < deadline) {
+            const bad = this.pushesSince(p, since).find(r => r.error);
+            if (bad) this.fail(`${p.name}: the push service refused or couldn't deliver a push: ${bad.error}`);
+            const hit = this.pushesSince(p, since).find(r => r.delivered && (!title || textMatches(r.payload?.title || '', title)));
+            if (hit) return hit;
+            await sleep(200);
+        }
+        const got = this.pushesSince(p, since).map(r => r.payload?.title || r.error).join(', ') || 'nothing';
+        this.fail(`${p.name}: no ${title ? `"${title}" ` : ''}push arrived within ${timeout / 1000}s (got: ${got})`);
+    }
+
+    // Notifications the service worker is showing on this person's device.
+    async notifications(p) {
+        return p.page.evaluate(async () => {
+            const reg = await navigator.serviceWorker.getRegistration('/');
+            if (!reg) return [];
+            return (await reg.getNotifications()).map(n => ({ title: n.title, body: n.body, tag: n.tag, url: n.data?.url || null }));
+        });
+    }
+
+    async waitForNotification(p, title, { timeout = 10000 } = {}) {
+        const deadline = Date.now() + timeout;
+        let shown = [];
+        while (Date.now() < deadline) {
+            shown = await this.notifications(p).catch(() => []);
+            const hit = shown.find(n => textMatches(n.title, title));
+            if (hit) return hit;
+            await sleep(200);
+        }
+        this.fail(`${p.name}: the device is not showing a "${title}" notification (showing: ${shown.map(n => n.title).join(', ') || 'none'})`);
     }
 
     // A second tab in the same browser (same storage), watched like the first.
@@ -355,6 +406,76 @@ class Journey {
     }
 }
 
+// ---------------------------------------------------------------- turn alerts
+
+// Gives a person a push "device" on the harness's local push service
+// (lib/push-relay.js). Headless Chromium can't reach a real push service, so
+// PushManager hands out the relay's endpoint and harness-made keys; the
+// backend's sending, the relay's VAPID check and decryption, and the service
+// worker's notification are all real. Messages reach sw.js through CDP.
+async function attachPushDevice(j, p) {
+    const relay = j.ctx.pushRelay;
+    if (!relay) j.fail('This run has no local push service (restart the run after updating the skill)');
+    const device = relay.newDevice(`${p.name}#${p.index}`);
+    await p.context.exposeBinding('__verifyPush', (_source, event, key) => {
+        if (event === 'subscribe') { device.applicationServerKey = key; device.gone = false; }
+        if (event === 'unsubscribe') device.gone = true;
+    });
+    await p.context.addInitScript(({ endpoint, keys }) => {
+        const FLAG = 'verify_push_subscribed';
+        const toB64Url = bytes => btoa(String.fromCharCode(...new Uint8Array(bytes))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+        const make = () => ({
+            endpoint,
+            expirationTime: null,
+            options: { userVisibleOnly: true },
+            toJSON: () => ({ endpoint, expirationTime: null, keys }),
+            async unsubscribe() {
+                localStorage.removeItem(FLAG);
+                await window.__verifyPush('unsubscribe');
+                return true;
+            },
+        });
+        PushManager.prototype.getSubscription = async function () {
+            return localStorage.getItem(FLAG) ? make() : null;
+        };
+        PushManager.prototype.subscribe = async function (options = {}) {
+            if (Notification.permission !== 'granted') throw new DOMException('Registration failed - permission denied', 'NotAllowedError');
+            if (!options.userVisibleOnly || !options.applicationServerKey) throw new DOMException('Registration failed - missing applicationServerKey', 'AbortError');
+            const key = typeof options.applicationServerKey === 'string' ? options.applicationServerKey : toB64Url(options.applicationServerKey);
+            localStorage.setItem(FLAG, '1');
+            await window.__verifyPush('subscribe', key);
+            return make();
+        };
+    }, { endpoint: device.endpoint, keys: device.keys });
+    const cdp = await p.context.newCDPSession(p.page);
+    const registrations = new Map();
+    cdp.on('ServiceWorker.workerRegistrationUpdated', e => {
+        for (const r of e.registrations) {
+            if (r.isDeleted) registrations.delete(r.registrationId); else registrations.set(r.registrationId, r);
+        }
+    });
+    await cdp.send('ServiceWorker.enable');
+    const origin = j.ctx.webUrl;
+    device.deliver = async data => {
+        const reg = [...registrations.values()].find(r => r.scopeURL === `${origin}/`);
+        if (!reg) throw new Error('no service worker registered for the app on this device');
+        await cdp.send('ServiceWorker.deliverPushMessage', { origin, registrationId: reg.registrationId, data });
+    };
+    return { device, cdp };
+}
+
+// Turns alerts on from the game page's Turn alerts sheet. Returns the endpoint saved.
+async function turnOnAlerts(j, p) {
+    await j.click(p, '#turn-alerts-btn');
+    await j.see(p, '#turnAlertsModal');
+    await j.see(p, '#turnAlertsActions [data-turn-alerts="enable"]', 'Turn on alerts', { what: 'the Turn on alerts button' });
+    await j.click(p, '#turnAlertsActions [data-turn-alerts="enable"]');
+    await j.see(p, '#turnAlertsStatus', 'Alerts turned on.', { timeout: 15000 });
+    const rows = j.sql('SELECT endpoint FROM push_subscriptions WHERE user_id = ?', [p.userId]);
+    if (!rows.some(r => r.endpoint === p.push.device.endpoint)) j.fail(`${p.name}: Turn on alerts did not save this device's subscription (saved: ${rows.length})`);
+    return p.push.device.endpoint;
+}
+
 // ---------------------------------------------------------------- shared flows
 
 async function register(j, p, { prefix = 'jr', viaHome = false } = {}) {
@@ -393,7 +514,16 @@ async function logOut(j, p) {
     if (await j.token(p)) j.fail(`${p.name}: still holds a token after Log out`);
 }
 
+// The login code from the email the person got (the local mail sink on dev
+// runs); the dev DB only when the run has no mailbox.
 async function readOtp(j, email) {
+    if (j.ctx.mailbox) {
+        try {
+            return await readLoginCode(j.ctx.mailbox, email);
+        } catch (err) {
+            j.fail(err.message);
+        }
+    }
     const deadline = Date.now() + 10000;
     while (Date.now() < deadline) {
         const row = j.sql('SELECT code FROM otps WHERE email = ? AND used = 0 ORDER BY created_at DESC LIMIT 1', [email.toLowerCase()])[0];
@@ -466,11 +596,11 @@ async function startGame(j, host, players) {
 }
 
 // Host (account, desktop) and a guest (phone) in a started 2-player game.
-async function twoPlayerGame(j, { hostDevice = 'desktop', guestDevice = 'phone', hostName = 'Hal', guestName = 'Gia', max = 2, guestAccount = false } = {}) {
+async function twoPlayerGame(j, { hostDevice = 'desktop', guestDevice = 'phone', hostName = 'Hal', guestName = 'Gia', max = 2, guestAccount = false, guestAlerts = false } = {}) {
     const host = await j.person(hostName, { device: hostDevice });
     await register(j, host, { prefix: 'host' });
     const room = await createRoom(j, host, { max });
-    const guest = await j.person(guestName, { device: guestDevice });
+    const guest = await j.person(guestName, { device: guestDevice, alerts: guestAlerts });
     if (guestAccount) await register(j, guest, { prefix: 'acct' });
     await joinRoom(j, guest, room.code);
     await j.see(host, '#players-list', guestName);
@@ -953,27 +1083,48 @@ const JOURNEYS = [
         },
     },
     {
-        id: 'accounts.forgot-room-code', group: 'Accounts', label: 'Forgot your room code? form answers (mail off)',
+        id: 'accounts.forgot-room-code', group: 'Accounts', label: 'Forgot your room code? emails the codes of your rooms, and nothing to an unknown address',
         async run(j) {
-            const p = await j.person('Eli', { device: 'phone' });
-            await j.goto(p, '/');
-            await p.page.locator('.resume-more summary').click();
-            await j.click(p, '#forgot-code-link');
-            await j.see(p, '#forgot-code-form');
-            await j.click(p, '#send-forgot-code-btn');
-            await j.see(p, '#forgot-error', /email/i);
-            await j.fill(p, '#forgot-email', testEmail(j));
-            p.expectIssues = /send-code|Failed to load resource: the server responded with a status of 5/;
-            await j.click(p, '#send-forgot-code-btn');
-            const deadline = Date.now() + 10000;
-            let shown = '';
-            while (Date.now() < deadline && !shown) {
-                for (const sel of ['#forgot-success', '#forgot-error']) if (await j.visible(p, sel)) shown = `${sel}: ${(await p.page.locator(sel).innerText()).trim()}`;
-                await sleep(200);
-            }
+            const forgot = async (p, email) => {
+                await j.goto(p, '/');
+                await p.page.locator('.resume-more summary').click();
+                await j.click(p, '#forgot-code-link');
+                await j.see(p, '#forgot-code-form');
+                if (email === null) {
+                    await j.click(p, '#send-forgot-code-btn');
+                    return j.see(p, '#forgot-error', /email/i);
+                }
+                await j.fill(p, '#forgot-email', email);
+                await j.click(p, '#send-forgot-code-btn');
+                return j.see(p, '#forgot-success', /./, { what: 'the Send Codes answer' });
+            };
+            j.say('an email player with a room');
+            const owner = await j.person('Eli', { device: 'phone' });
+            const email = testEmail(j);
+            await emailSignIn(j, owner, email);
+            const { code } = await createRoom(j, owner, { max: 2, playerName: 'Eli' });
+            await logOut(j, owner);
+            const p = await j.person('Eli-later', { device: 'phone' });
+            await forgot(p, null);
+            const since = Date.now();
+            const answer = (await (await forgot(p, email)).innerText()).trim();
             await j.shot(p, 'forgot-code-answer');
-            if (!shown) j.fail('Send Codes showed neither a success nor an error message');
-            j.note(`Answer shown: ${shown}. Mail is off on dev runs, so delivery is not verified.`);
+            if (!j.ctx.mailbox) j.skip(`Answer shown: ${answer}. This run sends real mail, so delivery is checked in the inbox, not here.`);
+            const deadline = Date.now() + 10000;
+            let mail = null;
+            while (!mail && Date.now() < deadline) {
+                mail = j.ctx.mailbox.to(email).find(m => m.at >= since && /room codes/i.test(m.subject));
+                if (!mail) await sleep(200);
+            }
+            if (!mail) j.fail(`"${answer}" was shown, but no room-code email reached ${email}`);
+            if (!mail.text.includes(code) || !mail.html.includes(code)) j.fail(`The room-code email does not have the room's code ${code}: "${mail.text.slice(0, 120)}"`);
+            j.note(`Email "${mail.subject}": ${mail.text.replace(/\s+/g, ' ').slice(0, 100)}`);
+            j.say('an address with no rooms gets the same answer and no email');
+            const stranger = testEmail(j);
+            const strangerAnswer = (await (await forgot(p, stranger)).innerText()).trim();
+            if (strangerAnswer !== answer) j.fail(`An unknown address got a different answer ("${strangerAnswer}" vs "${answer}"), which tells people who has an account`);
+            await sleep(1500);
+            if (j.ctx.mailbox.to(stranger).length) j.fail('An address with no rooms was sent an email');
         },
     },
 
@@ -1116,10 +1267,15 @@ const JOURNEYS = [
             if (copied.trim() !== code) j.fail(`Copy Code put "${copied}" on the clipboard, not ${code}`);
             j.say('Send Invite');
             host.expectIssues = /send-code|status of 5\d\d/;
-            await j.fill(host, '#invite-email', testEmail(j));
+            const inviteTo = testEmail(j);
+            await j.fill(host, '#invite-email', inviteTo);
             await j.click(host, '#send-invite-btn');
             const status = await j.see(host, '#invite-status', /^(?!Sending)\S/, { timeout: 15000, what: 'an answer to Send Invite' });
-            j.note(`Send Invite answered: "${(await status.innerText()).trim()}" (mail is off on dev runs; delivery not verified)`);
+            const statusText = (await status.innerText()).trim();
+            const invites = j.ctx.mailbox ? j.ctx.mailbox.to(inviteTo).filter(m => /room code/i.test(m.subject)) : [];
+            if (invites.length && !invites[0].text.includes(code)) j.fail(`The invite email does not have the room code ${code}: "${invites[0].text.slice(0, 120)}"`);
+            if (/sent/i.test(statusText) && j.ctx.mailbox && !invites.length) j.fail(`Send Invite said "${statusText}" but no email reached ${inviteTo}`);
+            j.note(`Send Invite answered: "${statusText}"${j.ctx.mailbox ? `; ${invites.length ? 'the email arrived with the code' : 'no email sent'}` : ''}`);
             j.say('host loan rates');
             await j.fill(host, '#loan-rate-5', '3');
             await j.fill(host, '#loan-rate-10', '5.5');
@@ -1206,6 +1362,32 @@ const JOURNEYS = [
             await j.see(lost, '#guest-join-error', /not found|Could not join/i);
             if (await j.token(lost)) j.fail('A failed join left a guest token behind');
             await j.shot(lost, 'bad-code');
+        },
+    },
+    {
+        id: 'rooms.email-invite', group: 'Rooms', label: 'An email host sends an invite; the friend joins with the code from the email',
+        async run(j) {
+            if (!j.ctx.mailbox) j.skip('This run sends real mail; the invite email is checked in the inbox instead');
+            const host = await j.person('Hal', { device: 'desktop' });
+            await emailSignIn(j, host, testEmail(j));
+            const { code } = await createRoom(j, host, { max: 2, playerName: 'Hal' });
+            const friendEmail = testEmail(j);
+            await j.fill(host, '#invite-email', friendEmail);
+            await j.click(host, '#send-invite-btn');
+            const status = (await (await j.see(host, '#invite-status', /^(?!Sending)\S/, { timeout: 15000, what: 'an answer to Send Invite' })).innerText()).trim();
+            const deadline = Date.now() + 10000;
+            let mail = null;
+            while (!mail && Date.now() < deadline) {
+                mail = j.ctx.mailbox.to(friendEmail).find(m => /room code/i.test(m.subject));
+                if (!mail) await sleep(200);
+            }
+            if (!mail) j.fail(`Send Invite answered "${status}" but no email reached the friend`);
+            j.note(`Invite email "${mail.subject}": ${mail.text.replace(/\s+/g, ' ').slice(0, 100)}`);
+            const emailed = (/\b([A-Z0-9]{6})\b/.exec(mail.text) || [])[1];
+            if (emailed !== code) j.fail(`The invite email's code is ${emailed}, not the room's ${code}`);
+            const friend = await j.person('Fay', { device: 'phone' });
+            await joinRoom(j, friend, emailed, { via: 'home' });
+            await j.see(host, '#players-list', 'Fay');
         },
     },
     {
@@ -2010,47 +2192,163 @@ const JOURNEYS = [
 
     // ===== Turn alerts =====
     {
-        id: 'push.turn-alerts', group: 'Turn alerts', label: 'Turn alerts sheet: blocked, then allowed and subscribed, then off',
+        id: 'push.turn-alerts', group: 'Turn alerts', label: 'Turn alerts sheet: blocked browser, then turn on, test alert shows, turn off',
         async run(j) {
             const { host, roomId } = await twoPlayerGame(j, { hostDevice: 'desktop' });
-            j.say('headless default: notifications blocked');
+            j.say('a browser that blocks notifications');
             await j.click(host, '#turn-alerts-btn');
             await j.see(host, '#turnAlertsModal');
             await j.see(host, '#turnAlertsHint', /blocked|can't show alerts|aren't available/);
             await j.shot(host, 'alerts-blocked');
             await host.page.locator('#turnAlertsActions button', { hasText: /Done|Not now/ }).first().click();
             await j.gone(host, '#turnAlertsModal');
-            j.say('a browser that allows notifications');
-            const allowed = await j.person('Hal-chrome', { device: 'desktop', permissions: ['notifications'] });
-            // Headless Chromium answers "denied" even when granted; act as a browser that asks and is allowed.
-            await allowed.context.addInitScript(() => {
-                let state = 'default';
-                Object.defineProperty(Notification, 'permission', { configurable: true, get: () => state });
-                Notification.requestPermission = async () => { state = 'granted'; return state; };
-            });
-            await j.goto(allowed, '/');
-            await allowed.page.evaluate(t => localStorage.setItem('auth_token', t), await j.token(host));
-            await j.goto(allowed, `/game.html?room=${roomId}`);
-            await inGame(j, allowed);
-            await j.click(allowed, '#turn-alerts-btn');
-            const hint = await j.see(allowed, '#turnAlertsHint', /./);
-            const hintText = (await hint.innerText()).trim();
-            if (!(await j.visible(allowed, '#turnAlertsActions [data-turn-alerts="enable"]'))) {
-                await j.shot(allowed, 'alerts-no-enable');
-                j.skip(`Turn on alerts is not offered in headless Chromium with notifications granted: "${hintText}"`);
-            }
-            allowed.expectIssues = /push|subscri|AbortError|Registration failed|messaging/i;
-            await j.click(allowed, '#turnAlertsActions [data-turn-alerts="enable"]');
-            const status = await j.see(allowed, '#turnAlertsStatus, #turnAlertsHint', /turned on|Alerts are on|didn't|wasn't|not|error|failed|push service/i, { timeout: 20000 });
-            const statusText = (await status.innerText()).trim();
-            await j.shot(allowed, 'alerts-after-enable');
-            const rows = j.sql('SELECT endpoint FROM push_subscriptions WHERE user_id = ?', [host.userId]);
-            if (!rows.length) j.skip(`The browser could not subscribe to push in headless Chromium ("${statusText}"); the subscription and test alert are not verifiable here`);
-            j.note(`Subscribed through ${new URL(rows[0].endpoint).hostname}`);
-            await j.see(allowed, '#turnAlertsActions [data-turn-alerts="disable"]');
-            await j.click(allowed, '#turnAlertsActions [data-turn-alerts="disable"]');
-            await j.see(allowed, '#turnAlertsStatus', 'turned off');
+
+            j.say('the same player on a browser that allows notifications');
+            const phone = await j.person('Hal-phone', { device: 'phone', alerts: true });
+            await j.goto(phone, '/');
+            await phone.page.evaluate(t => localStorage.setItem('auth_token', t), await j.token(host));
+            phone.userId = host.userId;
+            await j.goto(phone, `/game.html?room=${roomId}`);
+            await inGame(j, phone);
+            await j.see(phone, '#turn-alerts-btn:not(.is-on)', null, { what: 'the Turn alerts button, off' });
+            await turnOnAlerts(j, phone);
+            await j.shot(phone, 'alerts-on');
+            await j.see(phone, '#turnAlertsActions [data-turn-alerts="test"]', 'Send a test alert');
+
+            j.say('Send a test alert: the server signs and encrypts it, the device shows it');
+            const since = j.pushCount(phone);
+            await j.click(phone, '#turnAlertsActions [data-turn-alerts="test"]');
+            await j.see(phone, '#turnAlertsStatus', 'Test alert sent');
+            const push = await j.waitForPush(phone, since, { title: 'Alerts are on' });
+            if (push.urgency !== 'high' || !(push.ttl > 0)) j.fail(`Test alert headers: urgency ${push.urgency}, TTL ${push.ttl}`);
+            const shown = await j.waitForNotification(phone, 'Alerts are on');
+            if (!/when it's your turn/.test(shown.body)) j.fail(`Test notification body: "${shown.body}"`);
+            j.note(`Test alert shown: "${shown.title}: ${shown.body}"`);
+            await j.click(phone, '#turnAlertsActions [data-turn-alerts="close"]');
+            await j.see(phone, '#turn-alerts-btn.is-on', null, { what: 'the Turn alerts button, on' });
+
+            j.say('reload: the sheet still says alerts are on');
+            await phone.page.reload();
+            await inGame(j, phone);
+            await j.see(phone, '#turn-alerts-btn.is-on', null, { what: 'the Turn alerts button, on after a reload' });
+
+            j.say('Turn off alerts');
+            await j.click(phone, '#turn-alerts-btn');
+            await j.click(phone, '#turnAlertsActions [data-turn-alerts="disable"]');
+            await j.see(phone, '#turnAlertsStatus', 'turned off');
+            await j.see(phone, '#turnAlertsActions [data-turn-alerts="enable"]', 'Turn on alerts');
             if (j.sql('SELECT endpoint FROM push_subscriptions WHERE user_id = ?', [host.userId]).length) j.fail('Turning alerts off left the subscription on the server');
+            const after = j.pushCount(phone);
+            const res = await phone.page.evaluate(async () => (await fetch('/api/push/test', { method: 'POST', headers: { Authorization: `Bearer ${localStorage.getItem('auth_token')}` } })).json());
+            if (res.sent) j.fail(`A test alert still went out after turning alerts off (sent ${res.sent})`);
+            await sleep(1000);
+            if (j.pushCount(phone) !== after) j.fail('The push service still got a message after alerts were turned off');
+        },
+    },
+    {
+        id: 'push.agent-turn', group: 'Turn alerts', label: "Playing an agent: no alert while the game is on screen, an alert when it's hidden or closed, tap opens your turn",
+        async run(j) {
+            const host = await j.person('Hal', { device: 'phone', alerts: true });
+            await register(j, host);
+            const roomName = `Alerts ${j.unique('r')}`;
+            const { roomId } = await createRoom(j, host, { name: roomName, max: 2 });
+            const invite = await inviteAgent(j, host, 'Claude Alert');
+            await closeInvite(j, host);
+            await j.mcpOk('join_game', { agent_key: invite.key });
+            await j.see(host, '#players-list', 'Claude Alert');
+            await startGame(j, host, [host]);
+            await turnOnAlerts(j, host);
+            await j.click(host, '#turnAlertsActions [data-turn-alerts="close"]');
+            const isHostsTurn = () => {
+                const g = j.game(roomId).state;
+                return g.players[g.currentPlayerIndex].userId === host.userId;
+            };
+            const waitForHostsTurn = async what => {
+                const deadline = Date.now() + 15000;
+                while (!isHostsTurn() && Date.now() < deadline) await sleep(200);
+                if (!isHostsTurn()) j.fail(`It never became the host's turn ${what}`);
+            };
+            if (isHostsTurn()) await takeTurn(j, host);
+
+            j.say('the game is on screen: the agent ends its turn, no push (the page shows it)');
+            let since = j.pushCount(host);
+            await agentTurn(j, invite.key);
+            await waitForHostsTurn('after the agent played');
+            await caughtUp(j, host, roomId);
+            await sleep(2500);
+            const early = j.pushesSince(host, since);
+            if (early.length) j.fail(`A push went out while the game was on screen: ${early.map(r => r.payload?.title).join(', ')}`);
+
+            j.say('the game tab is hidden (phone locked, another app): the turn alert arrives');
+            await takeTurn(j, host);
+            await host.page.evaluate(() => {
+                Object.defineProperty(document, 'visibilityState', { configurable: true, get: () => 'hidden' });
+                Object.defineProperty(document, 'hidden', { configurable: true, get: () => true });
+                document.dispatchEvent(new Event('visibilitychange'));
+            });
+            await sleep(500);
+            since = j.pushCount(host);
+            await agentTurn(j, invite.key);
+            await waitForHostsTurn('after the agent played (hidden tab)');
+            const hidden = await j.waitForPush(host, since, { title: 'Your turn' });
+            if (!hidden.payload.body.includes(roomName)) j.fail(`Turn alert body "${hidden.payload.body}" does not name the game "${roomName}"`);
+            await j.waitForNotification(host, 'Your turn');
+
+            j.say('the game is closed (player on My games): the alert arrives and its link opens the turn');
+            await host.page.reload();
+            await inGame(j, host);
+            await takeTurn(j, host);
+            await j.goto(host, '/lobby.html');
+            await sleep(500);
+            since = j.pushCount(host);
+            await agentTurn(j, invite.key);
+            await waitForHostsTurn('after the agent played (game closed)');
+            const closed = await j.waitForPush(host, since, { title: 'Your turn' });
+            const p = closed.payload;
+            if (p.url !== `/game.html?room=${encodeURIComponent(roomId)}`) j.fail(`Turn alert opens ${p.url}, not this game`);
+            if (closed.urgency !== 'high' || !closed.topic) j.fail(`Turn alert headers: urgency ${closed.urgency}, topic ${closed.topic}`);
+            const shown = await j.waitForNotification(host, 'Your turn');
+            await j.shot(host, 'turn-alert-arrived');
+            if (shown.url !== p.url) j.fail(`The notification opens ${shown.url}, not ${p.url}`);
+            j.note(`Turn alert: "${shown.title}: ${shown.body}"`);
+            j.say("tap the alert: the game opens on the player's turn");
+            await j.goto(host, shown.url);
+            await inGame(j, host);
+            await caughtUp(j, host, roomId);
+            if (!(await pageGame(host))?.mine) j.fail('Opening the turn alert did not land on my turn');
+            await j.see(host, button(host, 'roll-dice'), null, { what: 'Roll Dice after opening the alert' });
+        },
+    },
+    {
+        id: 'push.human-turn', group: 'Turn alerts', label: "Two people: the guest gets a turn alert when the host ends their turn, and none for their own moves",
+        async run(j) {
+            const { host, guest, roomId } = await twoPlayerGame(j, { guestAccount: true, guestAlerts: true });
+            await turnOnAlerts(j, guest);
+            await j.click(guest, '#turnAlertsActions [data-turn-alerts="close"]');
+            const people = [host, guest];
+            const turnOf = () => {
+                const g = j.game(roomId).state;
+                return g.players[g.currentPlayerIndex].userId;
+            };
+            if (turnOf() === guest.userId) {
+                j.say("the guest's own turn: no alert for it");
+                const since = j.pushCount(guest);
+                await takeTurn(j, guest, { others: [host] });
+                await sleep(1500);
+                if (j.pushesSince(guest, since).length) j.fail("The guest got a push for their own move");
+            }
+            j.say('the guest closes the game; the host ends their turn');
+            await j.goto(guest, '/lobby.html');
+            await sleep(500);
+            const since = j.pushCount(guest);
+            await takeTurn(j, host, { others: [] });
+            const push = await j.waitForPush(guest, since, { title: 'Your turn' });
+            await j.waitForNotification(guest, 'Your turn');
+            j.say('the guest opens it and plays');
+            await j.goto(guest, push.payload.url);
+            await inGame(j, guest);
+            await caughtUp(j, guest, roomId);
+            await playTurns(j, people, 1);
         },
     },
     {

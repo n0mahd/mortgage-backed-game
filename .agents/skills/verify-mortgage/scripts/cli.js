@@ -97,7 +97,7 @@ async function up(flags) {
         const run = runs.readRun(runId);
         if (run.status === 'ready') {
             console.log(`export VERIFY_RUN_ID=${runId}`);
-            console.log(`READY run=${runId} web=http://127.0.0.1:${ports.web} tailnet=http://${TAILNET_IP}:${ports.web} api=${ports.api} email=${email ? 'agentmail' : 'off'} git=${rev}${dirty ? '-dirty' : ''}${runs.APP_ROOT !== runs.REPO_ROOT ? ` app=${runs.APP_ROOT}` : ''} evidence=${path.relative(runs.REPO_ROOT, runs.evidenceDir(runId))}`);
+            console.log(`READY run=${runId} web=http://127.0.0.1:${ports.web} tailnet=http://${TAILNET_IP}:${ports.web} api=${ports.api} email=${email ? 'agentmail' : 'local sink'} git=${rev}${dirty ? '-dirty' : ''}${runs.APP_ROOT !== runs.REPO_ROOT ? ` app=${runs.APP_ROOT}` : ''} evidence=${path.relative(runs.REPO_ROOT, runs.evidenceDir(runId))}`);
             return;
         }
         if (run.status === 'failed') die(`Run failed to start: ${run.error}\nSee ${path.join(dir, 'daemon.log')} and backend.log`);
