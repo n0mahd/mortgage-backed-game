@@ -2262,13 +2262,15 @@ input[type="radio"] {
 
 .offer-property-for-shares small { font-size: var(--text-caption); color: var(--ink-3); }
 
+/* Accept, Counter and Decline share a row, and wrap on the narrowest phones */
 .trade-offer-actions {
     display: flex;
+    flex-wrap: wrap;
     gap: var(--s2);
     margin-top: var(--s3);
 }
 
-.trade-offer-actions .btn { flex: 1; }
+.trade-offer-actions .btn { flex: 1 1 auto; }
 
 .trade-offer-card > .empty-state {
     margin-top: var(--s3);

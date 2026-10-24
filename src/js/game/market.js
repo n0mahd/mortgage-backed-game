@@ -496,7 +496,10 @@ function bindMarketTabs() {
     if (!tablist) return;
     tablist.addEventListener('click', event => {
         const tab = event.target.closest('[data-market-pane]');
-        if (tab) showMarketPane(tab.dataset.marketPane);
+        if (!tab) return;
+        // A message about one pane's last action doesn't belong on the next one.
+        if (tab.dataset.marketPane !== marketPane) showMarketStatus('');
+        showMarketPane(tab.dataset.marketPane);
     });
     tablist.addEventListener('keydown', event => {
         if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return;
@@ -744,11 +747,11 @@ function renderPastTrades() {
         const empty = pastTradesFilter === 'mine' ? "You haven't been in any finished trades yet."
             : pastTradesFilter === 'all' ? 'No past trades yet.'
             : `${name || 'This player'} hasn't been in any finished trades yet.`;
-        container.innerHTML = `<p class="empty-state">${escapeHtml(empty)}</p>`;
+        setPastTradesHtml(container, `<p class="empty-state">${escapeHtml(empty)}</p>`);
         return;
     }
     const shown = past.slice(0, pastTradesShown);
-    container.innerHTML = shown.map(offer => {
+    setPastTradesHtml(container, shown.map(offer => {
         const outcome = pastTradeOutcome(offer);
         const when = offer.resolvedAt ? formatTimeAgo(offer.resolvedAt) : '';
         return `
@@ -777,7 +780,14 @@ function renderPastTrades() {
         <div class="trade-history-more">
             <p>Showing ${shown.length} of ${past.length} trades.</p>
             <button type="button" class="btn btn-secondary btn-sm" data-game-action="show-more-past-trades">Show more</button>
-        </div>` : '');
+        </div>` : ''));
+}
+
+// Game updates re-render often; replacing an unchanged list would swallow a tap on Show more.
+function setPastTradesHtml(container, html) {
+    if (container.dataset.html === html) return;
+    container.innerHTML = html;
+    container.dataset.html = html;
 }
 
 function renderPastTradesFilter(players) {

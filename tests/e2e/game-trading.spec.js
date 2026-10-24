@@ -367,13 +367,20 @@ test.describe('Trading — counteroffers', () => {
             },
         });
 
-        await page.setViewportSize({ width: 375, height: 812 });
+        await page.setViewportSize({ width: 320, height: 700 });
         await loginPage(page, hostToken);
         await page.goto(`${BASE}/game.html?room=${room.id}`);
         await expect(page.locator('.game-header')).toBeVisible();
         await page.getByRole('button', { name: 'Market' }).click();
         const offers = page.locator('#tradeOffersList');
         await expect(offers.getByRole('button', { name: 'Counter' })).toBeVisible({ timeout: 5000 });
+
+        // On a 320px phone, Accept, Counter and Decline all sit inside the card.
+        const card = await offers.locator('.trade-offer-card').boundingBox();
+        for (const name of ['Accept', 'Counter', 'Decline']) {
+            const button = await offers.getByRole('button', { name }).boundingBox();
+            expect(button.x + button.width).toBeLessThanOrEqual(card.x + card.width);
+        }
         await offers.getByRole('button', { name: 'Counter' }).click();
 
         // The form holds Bob's terms with Alice's side under You give.
@@ -401,6 +408,7 @@ test.describe('Trading — counteroffers', () => {
         await expect(page.locator('#tradeCounterBanner')).toBeHidden();
 
         await page.getByRole('tab', { name: 'Past transactions' }).click();
+        await expect(page.locator('#market-status')).toBeEmpty();
         const past = page.locator('#pastTradesList .trade-history-card').first();
         await expect(past.locator('.badge')).toHaveText('Countered');
         await expect(past).toContainText('Alice countered');
