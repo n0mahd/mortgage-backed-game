@@ -72,7 +72,7 @@ function statusLine(state, userId, attention) {
         case 'game_ended': return 'The game has ended.';
         case 'you_are_bankrupt': return 'You are bankrupt and can no longer act.';
         case 'auction_needs_you': return `Auction open for ${state.auction.propertyName}: bid or pass.`;
-        case 'trade_offer_for_you': return 'A trade offer is waiting for your answer (accept_trade or cancel_trade).';
+        case 'trade_offer_for_you': return 'A trade offer is waiting for your answer (accept_trade, cancel_trade, or propose_trade with counterOfferId to counter).';
         case 'your_turn': return 'It is your turn.';
         default:
             if (state.paused) return 'The game is paused by the host.';
@@ -200,6 +200,7 @@ function summarizeGame({ room, members, game, userId }) {
                 offer_id: offer.id,
                 proposed_by: clip(offer.proposedByName),
                 needs_your_answer: offer.recipientId === userId,
+                counters_offer_id: offer.counterToOfferId || null,
                 player1: clip(offer.player1Name),
                 player1_trades_for_corp: offer.player1CorpId || null,
                 player1_gives_cash: offer.player1Cash,

@@ -15,7 +15,7 @@
     <title>Game — Mortgage Backed Monopoly</title>
     <link rel="preload" href="src/assets/fonts/besley-latin.woff2" as="font" type="font/woff2" crossorigin>
     <link rel="stylesheet" href="src/css/tokens.css?v=13">
-    <link rel="stylesheet" href="src/css/style.css?v=43">
+    <link rel="stylesheet" href="src/css/style.css?v=44">
 </head>
 <body class="game-page">
     <div class="container">
@@ -84,6 +84,10 @@
                 </div>
 
                 <div class="market-pane" id="marketPane-trade" role="tabpanel" aria-labelledby="marketTab-trade">
+                    <div class="trade-counter-banner" id="tradeCounterBanner" hidden>
+                        <p class="trade-counter-text"></p>
+                        <button type="button" class="btn btn-secondary btn-sm" data-game-action="stop-trade-counter">Stop countering</button>
+                    </div>
                     <div class="transaction-form">
                         <div class="transaction-side">
                             <h3 id="player1Heading">You give</h3>
@@ -434,14 +438,14 @@
     <script src="src/js/ui.js?v=2"></script>
     <script src="src/js/rejoin-prompts.js?v=2"></script>
     <script src="src/js/board.js?v=12"></script>
-    <script src="src/js/game/action-dispatcher.js?v=5"></script>
+    <script src="src/js/game/action-dispatcher.js?v=6"></script>
     <script src="src/js/game/turn-alert.js?v=1"></script>
     <script src="src/js/game/turn-end-outlook.js?v=4"></script>
     <script src="src/js/game/loans.js?v=2"></script>
     <script src="src/js/game/share-deals.js?v=6"></script>
     <script src="src/js/game/corporation-desk.js?v=6"></script>
     <script src="src/js/turn-notifications.js?v=1"></script>
-    <script src="src/js/game/log-format.js?v=2"></script>
+    <script src="src/js/game/log-format.js?v=3"></script>
     <script src="src/js/game/valuation.js?v=1"></script>
     <script src="src/js/game/property-display.js?v=1"></script>
     <script src="src/js/game/turn-panel.js?v=6"></script>
@@ -449,7 +453,7 @@
     <script src="src/js/game/houses.js?v=1"></script>
     <script src="src/js/game/debt.js?v=3"></script>
     <script src="src/js/game/corporations.js?v=2"></script>
-    <script src="src/js/game/market.js?v=4"></script>
+    <script src="src/js/game/market.js?v=5"></script>
     <script src="src/js/game/device-alerts.js?v=1"></script>
     <script src="src/js/game.js?v=58"></script>
 </body>

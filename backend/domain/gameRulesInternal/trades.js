@@ -318,6 +318,7 @@ function proposeTrade(state, actor, payload, events) {
     const terms = getTradeTerms(state, payload);
     const { player1, player2, player1Cash, player2Cash, player1AssetIds, player2AssetIds, player1Shares, player2Shares } = terms;
     if (![player1.userId, player2.userId].includes(actor.userId)) throw new GameRuleError(403, 'Trade must involve acting player');
+    const countered = payload.counterOfferId ? findCounterableTradeOffer(state, actor, payload.counterOfferId, terms) : null;
     validateTradeTerms(state, terms);
     const recipient = actor.userId === player1.userId ? player2 : player1;
     const now = new Date();
@@ -347,7 +348,14 @@ function proposeTrade(state, actor, payload, events) {
         player2CorpTicker: terms.player2Corp?.ticker || null,
         createdAt,
         expiresAt: expiresAfter(state.settings.tradeOfferTimeoutMs, now),
+        counterToOfferId: countered ? countered.id : null,
     };
+    if (countered) {
+        // A counteroffer answers the original: it closes as countered, and the new offer replaces it.
+        countered.status = 'countered';
+        countered.counteredByOfferId = offer.id;
+        markResolved(countered, actor, createdAt);
+    }
     state.marketOffers.push(offer);
     events.push(makeEvent(actor, 'trade_offer_proposed', {
         offerId: offer.id,
@@ -360,8 +368,23 @@ function proposeTrade(state, actor, payload, events) {
         player1Assets: tradeAssetCount(player1AssetIds, player1Shares),
         player2Assets: tradeAssetCount(player2AssetIds, player2Shares),
         expiresAt: offer.expiresAt,
+        counterOfferId: offer.counterToOfferId,
     }));
-    log(state, `${actor.name} proposed a trade with ${recipient.name}`);
+    log(state, countered
+        ? `${actor.name} countered ${recipient.name}'s trade offer`
+        : `${actor.name} proposed a trade with ${recipient.name}`);
+}
+
+// Only the player an offer is waiting on can counter it, with a trade between the same two players.
+function findCounterableTradeOffer(state, actor, offerId, terms) {
+    const offer = findPendingTradeOffer(state, offerId);
+    if (offer.recipientId !== actor.userId) throw new GameRuleError(403, 'Only the player an offer was made to can counter it');
+    if (isExpired(offer)) throw new GameRuleError(400, 'That trade offer has expired');
+    const players = [terms.player1.userId, terms.player2.userId].sort().join('|');
+    if (players !== [offer.player1Id, offer.player2Id].sort().join('|')) {
+        throw new GameRuleError(400, 'A counteroffer must be between the same two players');
+    }
+    return offer;
 }
 
 function acceptTrade(state, actor, payload, events) {

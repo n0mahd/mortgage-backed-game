@@ -352,3 +352,70 @@ test.describe('Trading — past transactions', () => {
         if (process.env.PAST_TRADES_SHOT) await page.locator('#pastTradesList').screenshot({ path: process.env.PAST_TRADES_SHOT });
     });
 });
+
+test.describe('Trading — counteroffers', () => {
+    test('Counter opens the offer in the trade form and sends the changed terms back', async ({ page, request }) => {
+        const { room, game, hostToken, guestToken, hostId, guestId } = await setupTradingGame(request);
+        // Bob offers $10 for Alice's Mediterranean Ave.
+        await apiJson(request, 'post', `${BASE_API}/games/${game.id}/actions`, {
+            headers: { Authorization: `Bearer ${guestToken}` },
+            data: {
+                actionId: `e2e-counter-offer-${Date.now()}`,
+                type: 'propose_trade',
+                payload: { player1Id: guestId, player2Id: hostId, player1Cash: 10, player2Cash: 0, player1AssetIds: [], player2AssetIds: ['prop-0'] },
+                expectedVersion: game.state_version,
+            },
+        });
+
+        await page.setViewportSize({ width: 375, height: 812 });
+        await loginPage(page, hostToken);
+        await page.goto(`${BASE}/game.html?room=${room.id}`);
+        await expect(page.locator('.game-header')).toBeVisible();
+        await page.getByRole('button', { name: 'Market' }).click();
+        const offers = page.locator('#tradeOffersList');
+        await expect(offers.getByRole('button', { name: 'Counter' })).toBeVisible({ timeout: 5000 });
+        await offers.getByRole('button', { name: 'Counter' }).click();
+
+        // The form holds Bob's terms with Alice's side under You give.
+        await expect(page.getByRole('tab', { name: 'New trade' })).toHaveAttribute('aria-selected', 'true');
+        await expect(page.locator('#tradeCounterBanner')).toContainText("Countering Bob's offer");
+        await expect(page.locator('#player1Select')).toHaveValue(hostId);
+        await expect(page.locator('#player2Select')).toHaveValue(guestId);
+        await expect(page.locator('#player1-asset-prop-0')).toBeChecked();
+        await expect(page.locator('#player2Cash')).toHaveValue('10');
+        await expect(page.locator('#executeTradeBtn')).toHaveText('Send Counteroffer');
+
+        // Stop countering clears the form; Counter again brings the terms back.
+        await page.getByRole('button', { name: 'Stop countering' }).click();
+        await expect(page.locator('#tradeCounterBanner')).toBeHidden();
+        await expect(page.locator('#player1-asset-prop-0')).not.toBeChecked();
+        await expect(page.locator('#executeTradeBtn')).toHaveText('Propose Transaction');
+        await page.getByRole('tab', { name: /Trade proposals/ }).click();
+        await offers.getByRole('button', { name: 'Counter' }).click();
+        await expect(page.locator('#player1-asset-prop-0')).toBeChecked();
+
+        await page.fill('#player2Cash', '40');
+        await page.click('#executeTradeBtn');
+        await expect(page.locator('#market-status')).toContainText('Counteroffer sent to Bob', { timeout: 5000 });
+        await expect(offers).toContainText('Alice sent a counteroffer');
+        await expect(page.locator('#tradeCounterBanner')).toBeHidden();
+
+        await page.getByRole('tab', { name: 'Past transactions' }).click();
+        const past = page.locator('#pastTradesList .trade-history-card').first();
+        await expect(past.locator('.badge')).toHaveText('Countered');
+        await expect(past).toContainText('Alice countered');
+
+        // Bob accepts the counter: $40 for Mediterranean Ave.
+        const current = await apiJson(request, 'get', `${BASE_API}/games/${game.id}`, { headers: { Authorization: `Bearer ${guestToken}` } });
+        const reply = current.game_state.marketOffers.find(o => o.status === 'pending');
+        expect(reply).toMatchObject({ proposedById: hostId, recipientId: guestId, player2Cash: 40, player1AssetIds: ['prop-0'] });
+        expect(current.game_state.marketOffers.find(o => o.id === reply.counterToOfferId).status).toBe('countered');
+        await apiJson(request, 'post', `${BASE_API}/games/${game.id}/actions`, {
+            headers: { Authorization: `Bearer ${guestToken}` },
+            data: { actionId: `e2e-counter-accept-${Date.now()}`, type: 'accept_trade', payload: { offerId: reply.id }, expectedVersion: current.state_version },
+        });
+        const after = await apiJson(request, 'get', `${BASE_API}/games/${game.id}`, { headers: { Authorization: `Bearer ${hostToken}` } });
+        expect(after.game_state.properties.find(p => p.id === 'prop-0').ownerId).toBe(guestId);
+        if (process.env.COUNTER_SHOT) await page.screenshot({ path: process.env.COUNTER_SHOT, fullPage: true });
+    });
+});
