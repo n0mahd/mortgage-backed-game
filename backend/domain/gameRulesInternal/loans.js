@@ -1,55 +1,77 @@
 'use strict';
 
-// Loan terms, rates and the per-turn schedule. Pure math on debt records; the
+// Loan terms, the rate and the per-turn schedule. Pure math on debt records; the
 // engine decides who pays, from which cash, and what happens when they can't.
 //
-// A loan runs for a fixed number of the borrower's turns. Each End Turn charges
-// one turn of interest on the balance, takes the scheduled installment when
-// autopay is on, and counts down. The installment is recomputed every turn so
-// the loan is paid off exactly at maturity: skipped payments make later ones
-// bigger, extra payments make them smaller, and the last installment is the
-// whole balance. Interest that isn't paid is added to the balance and compounds.
+// The host sets one interest rate per turn for the game. A borrower picks how
+// many of their turns the loan runs (1 to 30) and what autopay takes at each End
+// Turn:
+// - pay_down: the installment that pays the loan off exactly at maturity. It is
+//   recomputed every turn, so skipped payments make later ones bigger and extra
+//   payments make them smaller; paying every installment leaves nothing owed.
+// - interest_only: that turn's interest, so the balance stays where it is.
+// - off: nothing. Interest that isn't paid is added to the balance and compounds.
+// Each End Turn charges one turn of interest on the balance, takes the autopay
+// payment and counts down. On the last turn the whole balance is due.
 
-const LOAN_TERMS = [5, 10, 15];
-const DEFAULT_LOAN_RATES = { 5: 4, 10: 5, 15: 6 };
+const MIN_LOAN_TERM = 1;
+const MAX_LOAN_TERM = 30;
+const DEFAULT_LOAN_TERM = 10;
+const DEFAULT_LOAN_RATE = 5;
 const MAX_LOAN_RATE = 25;
-// Loans made before terms existed get this term from the moment they are next loaded.
-const LEGACY_LOAN_TERM = 10;
+const AUTOPAY_MODES = ['pay_down', 'interest_only', 'off'];
+const DEFAULT_AUTOPAY = 'pay_down';
 
 function roundCents(value) {
     return Math.round(Number(value) * 100) / 100;
 }
 
-// Returns the host's rates per term, or an error message players can read.
-function validateLoanRates(raw) {
-    const rates = {};
-    for (const term of LOAN_TERMS) {
-        const value = raw && raw[term] !== undefined && raw[term] !== '' ? Number(raw[term]) : DEFAULT_LOAN_RATES[term];
-        if (!Number.isFinite(value) || value < 0 || value > MAX_LOAN_RATE) {
-            return { error: `The ${term}-turn rate must be between 0% and ${MAX_LOAN_RATE}% per turn.` };
-        }
-        rates[term] = Math.round(value * 100) / 100;
-    }
-    return { rates };
+function isLoanTerm(value) {
+    return Number.isInteger(value) && value >= MIN_LOAN_TERM && value <= MAX_LOAN_TERM;
 }
 
-function normalizeLoanRates(raw) {
-    const { rates } = validateLoanRates(raw);
-    return rates || { ...DEFAULT_LOAN_RATES };
+// Returns the host's rate per turn, or an error message players can read.
+// Games set up before the single rate used the 10-turn rate of their old table.
+function validateLoanRate(raw, legacyRates) {
+    const given = raw !== undefined && raw !== null && raw !== '';
+    const legacy = legacyRates && legacyRates[DEFAULT_LOAN_TERM] !== undefined ? Number(legacyRates[DEFAULT_LOAN_TERM]) : DEFAULT_LOAN_RATE;
+    const value = given ? Number(raw) : legacy;
+    if (!Number.isFinite(value) || value < 0 || value > MAX_LOAN_RATE) {
+        return { error: `The loan rate must be between 0% and ${MAX_LOAN_RATE}% per turn.` };
+    }
+    return { rate: Math.round(value * 100) / 100 };
+}
+
+function normalizeLoanRate(raw, legacyRates) {
+    const { rate } = validateLoanRate(raw, legacyRates);
+    return rate === undefined ? DEFAULT_LOAN_RATE : rate;
+}
+
+// Accepts a mode name, or the booleans of the old on/off switch.
+function parseAutopay(value) {
+    if (value === true) return 'pay_down';
+    if (value === false) return 'off';
+    return AUTOPAY_MODES.includes(value) ? value : null;
 }
 
 function normalizeDebt(debt) {
     debt.principal = Number(debt.principal || 0);
     debt.interestRate = Number(debt.interestRate || 0);
-    debt.termTurns = LOAN_TERMS.includes(Number(debt.termTurns)) ? Number(debt.termTurns) : LEGACY_LOAN_TERM;
+    const term = Number(debt.termTurns);
+    debt.termTurns = isLoanTerm(term) ? term : DEFAULT_LOAN_TERM;
     const remaining = Number(debt.turnsRemaining);
-    debt.turnsRemaining = Number.isInteger(remaining) && remaining > 0 ? remaining : debt.termTurns;
-    debt.autopay = debt.autopay !== false;
+    debt.turnsRemaining = Number.isInteger(remaining) && remaining > 0 ? Math.min(remaining, debt.termTurns) : debt.termTurns;
+    debt.autopay = parseAutopay(debt.autopay === undefined ? DEFAULT_AUTOPAY : debt.autopay) || DEFAULT_AUTOPAY;
     return debt;
 }
 
-// The installment that keeps the loan on schedule, charged at the end of the
-// borrower's next turn (this turn's interest included).
+// One turn of interest on the balance.
+function interestDue({ principal, interestRate }) {
+    return roundCents(Number(principal || 0) * Number(interestRate || 0) / 100);
+}
+
+// The pay-down installment that keeps the loan on schedule, charged at the end
+// of the borrower's next turn (this turn's interest included).
 function scheduledPayment({ principal, interestRate, turnsRemaining }) {
     const balance = Number(principal || 0);
     const rate = Number(interestRate || 0) / 100;
@@ -60,30 +82,45 @@ function scheduledPayment({ principal, interestRate, turnsRemaining }) {
     return roundCents(balance * rate / (1 - Math.pow(1 + rate, -turns)));
 }
 
-// One turn of a loan: charge interest, take the installment (autopay, as far as
-// cash allows) and count down. At maturity the whole balance is taken whether or
-// not there is cash for it; the caller deals with a negative balance.
+// What the next End Turn takes for this loan, given its autopay mode. On the
+// last turn that is the whole balance plus interest, whatever the mode.
+function autopayPayment(debt) {
+    if (Number(debt.turnsRemaining || 1) <= 1) return scheduledPayment(debt);
+    if (debt.autopay === 'pay_down') return scheduledPayment(debt);
+    if (debt.autopay === 'interest_only') return interestDue(debt);
+    return 0;
+}
+
+// One turn of a loan: charge interest, take the autopay payment (as far as cash
+// allows) and count down. At maturity the whole balance is taken whether or not
+// there is cash for it; the caller deals with a negative balance.
 function serviceLoan(debt, cashAvailable) {
-    const due = scheduledPayment(debt);
-    const interest = roundCents(debt.principal * debt.interestRate / 100);
+    const due = autopayPayment(debt);
+    const interest = interestDue(debt);
     debt.principal = roundCents(debt.principal + interest);
     debt.turnsRemaining -= 1;
     const matured = debt.turnsRemaining <= 0;
     let paid = 0;
     if (matured) paid = debt.principal;
-    else if (debt.autopay) paid = Math.min(due, debt.principal, Math.max(0, roundCents(cashAvailable)));
+    else paid = Math.min(due, debt.principal, Math.max(0, roundCents(cashAvailable)));
     debt.principal = roundCents(debt.principal - paid);
     return { interest, paid, matured, unpaidInterest: roundCents(Math.max(0, interest - paid)) };
 }
 
 module.exports = {
-    LOAN_TERMS,
-    DEFAULT_LOAN_RATES,
+    MIN_LOAN_TERM,
+    MAX_LOAN_TERM,
+    DEFAULT_LOAN_TERM,
+    DEFAULT_LOAN_RATE,
     MAX_LOAN_RATE,
-    LEGACY_LOAN_TERM,
-    validateLoanRates,
-    normalizeLoanRates,
+    AUTOPAY_MODES,
+    isLoanTerm,
+    validateLoanRate,
+    normalizeLoanRate,
+    parseAutopay,
     normalizeDebt,
+    interestDue,
     scheduledPayment,
+    autopayPayment,
     serviceLoan,
 };

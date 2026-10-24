@@ -1276,15 +1276,13 @@ const JOURNEYS = [
             if (invites.length && !invites[0].text.includes(code)) j.fail(`The invite email does not have the room code ${code}: "${invites[0].text.slice(0, 120)}"`);
             if (/sent/i.test(statusText) && j.ctx.mailbox && !invites.length) j.fail(`Send Invite said "${statusText}" but no email reached ${inviteTo}`);
             j.note(`Send Invite answered: "${statusText}"${j.ctx.mailbox ? `; ${invites.length ? 'the email arrived with the code' : 'no email sent'}` : ''}`);
-            j.say('host loan rates');
-            await j.fill(host, '#loan-rate-5', '3');
-            await j.fill(host, '#loan-rate-10', '5.5');
-            await j.fill(host, '#loan-rate-15', '7');
+            j.say('host loan rate');
+            await j.fill(host, '#loan-rate', '5.5');
             const guest = await j.person('Gia', { device: 'phone' });
             await joinRoom(j, guest, code);
             await startGame(j, host, [host, guest]);
-            const rates = j.game(roomId).state.settings?.loanRates || {};
-            if (Number(rates[5]) !== 3 || Number(rates[10]) !== 5.5 || Number(rates[15]) !== 7) j.fail(`Game started with loan rates ${JSON.stringify(rates)}, not 3/5.5/7`);
+            const rate = j.game(roomId).state.settings?.loanRate;
+            if (Number(rate) !== 5.5) j.fail(`Game started with loan rate ${JSON.stringify(rate)}, not 5.5`);
         },
     },
     {

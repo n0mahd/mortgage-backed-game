@@ -70,7 +70,7 @@ function startGameForRoom({ roomId, actorUserId, gameState, settings }) {
 
     const gameId = uuidv4();
     const roomMembers = db.prepare(`SELECT * FROM room_members WHERE room_id = ? ORDER BY joined_at ASC`).all(roomId);
-    const initialState = normalizeState(gameState || createInitialGame(roomMembers, { loanRates: settings?.loanRates }));
+    const initialState = normalizeState(gameState || createInitialGame(roomMembers, { loanRate: settings?.loanRate, loanRates: settings?.loanRates }));
     db.withTransaction(() => {
         db.prepare(`
             INSERT INTO games (id, room_id, game_state, current_player_index)

@@ -19,16 +19,18 @@ function sumPrincipal(debts) {
 }
 
 // A loan as it would stand right after being taken: End Turn charges its first
-// turn and, with autopay on, takes the installment.
+// turn and takes what its autopay mode pays.
 function proposedLoan(amount, termTurns, autopay) {
-    const interestRate = LoanMath.loanRates(currentGame.game_state)[termTurns];
+    const interestRate = LoanMath.loanRate(currentGame.game_state);
     return {
         principal: amount,
         interestRate,
         termTurns,
         turnsRemaining: termTurns,
         autopay,
-        nextPayment: LoanMath.scheduledPayment(amount, interestRate, termTurns),
+        nextPayment: LoanMath.autopayPayment(amount, interestRate, termTurns, autopay),
+        installment: LoanMath.scheduledPayment(amount, interestRate, termTurns),
+        interestDue: LoanMath.interestDue(amount, interestRate),
     };
 }
 

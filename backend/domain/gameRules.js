@@ -54,8 +54,10 @@ module.exports = {
     findNearestType,
     GameRuleError,
     JAIL_CARD_ASSET_ID,
-    LOAN_TERMS: loans.LOAN_TERMS,
-    DEFAULT_LOAN_RATES: loans.DEFAULT_LOAN_RATES,
+    MIN_LOAN_TERM: loans.MIN_LOAN_TERM,
+    MAX_LOAN_TERM: loans.MAX_LOAN_TERM,
+    DEFAULT_LOAN_RATE: loans.DEFAULT_LOAN_RATE,
     MAX_LOAN_RATE: loans.MAX_LOAN_RATE,
-    validateLoanRates: loans.validateLoanRates,
+    AUTOPAY_MODES: loans.AUTOPAY_MODES,
+    validateLoanRate: loans.validateLoanRate,
 };

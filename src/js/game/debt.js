@@ -12,16 +12,18 @@ function openDebtModal() {
         option.disabled = !isMyTurn;
     });
     select.value = isMyTurn && !getManagedLoans().length ? 'issue' : 'loans';
-    const rates = LoanMath.loanRates(currentGame.game_state);
     document.getElementById('loanRatesHint').textContent =
-        `Rates this game: ${LoanMath.LOAN_TERMS.map(term => `${term} turns at ${rates[term]}%`).join(', ')} per turn. Each payment includes interest; the whole balance is due when the term ends.`;
+        `Loans this game cost ${LoanMath.loanRate(currentGame.game_state)}% interest per turn, for 1 to ${LoanMath.MAX_LOAN_TERM} turns. Paying the loan down every turn clears it by the last turn; with interest only, the whole balance is due then.`;
     document.getElementById('debtIssuer').innerHTML = debtIssuerOptionsHtml();
     document.getElementById('loanAmount').value = '';
-    document.getElementById('loanAutopay').checked = true;
-    document.getElementById('refinanceAutopay').checked = true;
+    ['loan', 'refinance'].forEach(prefix => {
+        fillLoanTermOptions(`${prefix}Term`);
+        document.getElementById(`${prefix}Term`).value = String(LoanMath.DEFAULT_LOAN_TERM);
+        document.getElementById(`${prefix}Autopay`).value = 'pay_down';
+    });
     renderLoanList();
     renderBorrowingLimit();
-    renderLoanTerms('loanTerms', 'loanAmount');
+    renderLoanTerms('loan');
     renderRefinanceBorrowerOptions();
     toggleDebtForm();
 
@@ -55,17 +57,25 @@ function renderLoanRow(debt, corp, isMyTurn) {
     const cash = corp ? Number(corp.cash || 0) : Number(currentPlayerData?.cash || 0);
     const borrower = corp ? `${corp.ticker} (corporation)` : 'Personal';
     const autopayId = `loan-autopay-${debt.id}`;
+    const whoseTurn = corp ? 'the chairman\'s' : 'your';
     const amountId = `loan-pay-${debt.id}`;
     const ids = `data-debt-id="${escapeHtml(debt.id)}" data-corp-id="${escapeHtml(corp ? corp.id : '')}"`;
     let schedule;
     if (status.dueInFull) {
         const when = status.dueThisTurn ? 'when you end this turn' : `at the end of ${corp ? 'the chairman\'s' : 'your'} next turn`;
         schedule = `${formatMoney(status.nextPayment)} is due in full ${when}. If there isn't the cash, ${corp ? `${corp.ticker} becomes insolvent` : 'you go bankrupt'}.`;
-    } else if (status.autopay) {
-        schedule = `Autopay takes ${formatMoney(status.nextPayment)} at the end of ${corp ? 'the chairman\'s' : 'your'} turn.`;
+    } else if (status.autopay === 'pay_down') {
+        schedule = `Autopay takes ${formatMoney(status.nextPayment)} at the end of ${whoseTurn} turn, paying the loan off in ${status.turnsLeft} turns.`;
+    } else if (status.autopay === 'interest_only') {
+        schedule = `Autopay takes the ${formatMoney(status.nextPayment)} interest at the end of ${whoseTurn} turn. The balance stays the same and is all due when the term ends.`;
     } else {
-        schedule = `Autopay is off. Next scheduled payment ${formatMoney(status.nextPayment)}; anything unpaid adds ${formatMoney(status.interestNext)} interest to the balance.`;
+        schedule = `Autopay is off: ${formatMoney(status.interestNext)} interest is added to the balance at the end of ${whoseTurn} turn.`;
     }
+    const autopayOptions = LoanMath.AUTOPAY_MODES.map(mode => {
+        const amount = mode.value === 'pay_down' ? status.installment : mode.value === 'interest_only' ? status.interestNext : 0;
+        const text = mode.value === 'off' ? mode.label : `${mode.label} · ${formatMoney(amount)}`;
+        return `<option value="${mode.value}"${status.autopay === mode.value ? ' selected' : ''}>${escapeHtml(text)}</option>`;
+    }).join('');
     const payDisabled = isMyTurn ? '' : ' disabled';
     return `
         <article class="loan-row${status.dueInFull ? ' is-due' : ''}" ${ids}>
@@ -75,11 +85,9 @@ function renderLoanRow(debt, corp, isMyTurn) {
             </div>
             <p class="debt-detail">${escapeHtml(borrower)} · ${escapeHtml(status.termLabel)}</p>
             <p class="loan-schedule">${escapeHtml(schedule)}</p>
-            <div class="asset-list">
-                <div class="asset-checkbox">
-                    <input type="checkbox" role="switch" id="${escapeHtml(autopayId)}" data-loan-autopay ${ids}${status.autopay ? ' checked' : ''}${status.dueInFull ? ' disabled' : ''}>
-                    <label for="${escapeHtml(autopayId)}">Autopay</label>
-                </div>
+            <div class="loan-autopay">
+                <label class="field-label" for="${escapeHtml(autopayId)}">Autopay each turn</label>
+                <select id="${escapeHtml(autopayId)}" data-loan-autopay ${ids}${status.dueInFull ? ' disabled' : ''}>${autopayOptions}</select>
             </div>
             <div class="loan-pay">
                 <label class="field-label" for="${escapeHtml(amountId)}">Pay an amount</label>
@@ -91,7 +99,7 @@ function renderLoanRow(debt, corp, isMyTurn) {
                     <button type="button" class="btn btn-success btn-sm" data-loan-payoff ${ids}${payDisabled || (cash < status.balance ? ' disabled' : '')}>Pay off ${formatMoney(status.balance)}</button>
                     <button type="button" class="btn ${status.dueInFull ? 'btn-primary' : 'btn-secondary'} btn-sm" data-loan-refinance ${ids}${payDisabled}>Refinance</button>
                 </div>
-                ${isMyTurn ? (cash < status.balance ? `<p class="debt-detail">Paying off needs ${formatMoney(status.balance)}; ${corp ? `${corp.ticker} has` : 'you have'} ${formatMoney(cash)}.</p>` : '') : '<p class="debt-detail">You can make payments on your turn. Autopay can be changed any time.</p>'}
+                ${isMyTurn ? (cash < status.balance ? `<p class="debt-detail">Paying off needs ${formatMoney(status.balance)}; ${corp ? `${corp.ticker} has` : 'you have'} ${formatMoney(cash)}.</p>` : '') : '<p class="debt-detail">You can make extra payments on your turn. Autopay can be changed any time.</p>'}
             </div>
         </article>
     `;
@@ -138,36 +146,47 @@ async function handleLoanAutopayChange(event) {
     if (!input) return;
     const loan = findManagedLoan(input);
     if (!loan) return;
-    await submitGameAction('set_debt_autopay', { debtId: loan.debt.id, corpId: loan.corp ? loan.corp.id : undefined, autopay: input.checked }, {
+    await submitGameAction('set_debt_autopay', { debtId: loan.debt.id, corpId: loan.corp ? loan.corp.id : undefined, autopay: input.value }, {
         errorText: 'Failed to change autopay',
     });
-    // Redraw either way, so a refused change puts the switch back.
+    // Redraw either way, so a refused change puts the choice back.
     renderLoanList();
 }
 
-// Term choices with what each costs at the amount typed: the payment each turn and the total.
-function renderLoanTerms(containerId, amountInputId) {
-    const container = document.getElementById(containerId);
-    const selected = container.querySelector('input:checked')?.value || '10';
-    const amount = parseFloat(document.getElementById(amountInputId).value);
-    const rates = LoanMath.loanRates(currentGame.game_state);
-    container.innerHTML = LoanMath.LOAN_TERMS.map(term => {
-        const id = `${containerId}-${term}`;
-        const quote = amount > 0 ? LoanMath.loanQuote(amount, rates[term], term) : null;
-        const detail = quote
-            ? `${formatMoney(quote.payment)} a turn, ${formatMoney(quote.total)} in total`
-            : 'Enter an amount to see the payments';
-        return `
-            <div class="asset-checkbox">
-                <input type="radio" name="${escapeHtml(containerId)}" id="${escapeHtml(id)}" value="${term}"${String(term) === selected ? ' checked' : ''}>
-                <label for="${escapeHtml(id)}">${term} turns at ${rates[term]}% per turn<span class="debt-detail">${escapeHtml(detail)}</span></label>
-            </div>
-        `;
-    }).join('');
+// The term dropdown: 1 to 30 turns.
+function fillLoanTermOptions(selectId) {
+    const select = document.getElementById(selectId);
+    if (select.options.length) return;
+    const terms = Array.from({ length: LoanMath.MAX_LOAN_TERM - LoanMath.MIN_LOAN_TERM + 1 }, (_, i) => LoanMath.MIN_LOAN_TERM + i);
+    select.innerHTML = terms.map(term => `<option value="${term}">${term} turn${term === 1 ? '' : 's'}</option>`).join('');
 }
 
-function selectedLoanTerm(containerId) {
-    return Number(document.querySelector(`#${containerId} input:checked`)?.value || 10);
+// What the loan typed costs at the term and autopay chosen. prefix: 'loan' or 'refinance'.
+function renderLoanTerms(prefix) {
+    const amount = parseFloat(document.getElementById(`${prefix}Amount`).value);
+    const turns = selectedLoanTerm(`${prefix}Term`);
+    const autopay = document.getElementById(`${prefix}Autopay`).value;
+    const rate = LoanMath.loanRate(currentGame.game_state);
+    const quote = document.getElementById(`${prefix}TermQuote`);
+    if (!(amount > 0)) {
+        quote.textContent = 'Enter an amount to see the payments.';
+        return;
+    }
+    const q = LoanMath.loanQuote(amount, rate, turns);
+    if (turns === 1) {
+        quote.textContent = `${formatMoney(q.finalPayment)} is due in full at the end of the turn.`;
+    } else if (autopay === 'pay_down') {
+        quote.textContent = `${formatMoney(q.payment)} a turn for ${turns} turns, ${formatMoney(q.total)} in total. Nothing is owed after the last payment.`;
+    } else if (autopay === 'interest_only') {
+        quote.textContent = `${formatMoney(q.interest)} interest a turn, then ${formatMoney(q.finalPayment)} on the last turn: ${formatMoney(q.interestOnlyTotal)} in total.`;
+    } else {
+        const owed = Math.round(amount * Math.pow(1 + rate / 100, turns) * 100) / 100;
+        quote.textContent = `Nothing is taken until the last turn, when ${formatMoney(owed)} is due with the interest added (less anything you pay before then).`;
+    }
+}
+
+function selectedLoanTerm(selectId) {
+    return Number(document.getElementById(selectId)?.value || LoanMath.DEFAULT_LOAN_TERM);
 }
 
 function debtIssuerOptionsHtml() {
@@ -206,7 +225,7 @@ function renderBorrowingLimit() {
     const amount = parseFloat(document.getElementById('loanAmount').value);
     renderDebtPreview('loanPreview', borrower, amount > 0 ? {
         cash: Number(borrower.account.cash || 0) + amount,
-        debts: [...(borrower.account.debts || []), proposedLoan(amount, selectedLoanTerm('loanTerms'), document.getElementById('loanAutopay').checked)],
+        debts: [...(borrower.account.debts || []), proposedLoan(amount, selectedLoanTerm('loanTerm'), document.getElementById('loanAutopay').value)],
     } : null, amount > 0 ? overLimitProblem(borrower.account, amount) : '');
 }
 
@@ -215,7 +234,7 @@ function openNewLoanFor(key, amount) {
     document.getElementById('debtAction').value = 'issue';
     document.getElementById('debtIssuer').value = key;
     document.getElementById('loanAmount').value = amount > 0 ? (Math.ceil(amount * 100) / 100).toFixed(2) : '';
-    renderLoanTerms('loanTerms', 'loanAmount');
+    renderLoanTerms('loan');
     toggleDebtForm();
     document.querySelector('#debtModal .modal-content').scrollTop = 0;
 }
@@ -271,7 +290,7 @@ function renderRefinanceDebtOptions() {
     document.getElementById('debtsToRefinance').innerHTML = debtsHtml || '<p class="empty-state">No loans to refinance. Loans you or your corporations take out appear here.</p>';
     document.getElementById('refinanceAmount').value = debts.length === 1 ? debtPrincipal(debts[0]).toFixed(2) : '';
     lastRefinancePayoff = getRefinancePayoffAmount();
-    renderLoanTerms('refinanceTerms', 'refinanceAmount');
+    renderLoanTerms('refinance');
     updateRefinanceSummary();
 }
 
@@ -284,7 +303,7 @@ function handleRefinanceSelectionChange() {
     const payoff = getRefinancePayoffAmount();
     if (!Number.isFinite(typed) || Math.abs(typed - lastRefinancePayoff) < 0.005) {
         amountInput.value = payoff > 0 ? payoff.toFixed(2) : '';
-        renderLoanTerms('refinanceTerms', 'refinanceAmount');
+        renderLoanTerms('refinance');
     }
     lastRefinancePayoff = payoff;
     updateRefinanceSummary();
@@ -372,7 +391,7 @@ function renderRefinancePreview(borrower, selected) {
         cash: Number(borrower.account.cash || 0) + amount - payoff,
         debts: [
             ...(borrower.account.debts || []).filter(debt => !replaced.has(debt)),
-            proposedLoan(amount, selectedLoanTerm('refinanceTerms'), document.getElementById('refinanceAutopay').checked),
+            proposedLoan(amount, selectedLoanTerm('refinanceTerm'), document.getElementById('refinanceAutopay').value),
         ],
     }, problem);
 }
@@ -414,8 +433,8 @@ async function issueDebt() {
 
     await submitGameAction('issue_debt', {
         amount: loanAmount,
-        termTurns: selectedLoanTerm('loanTerms'),
-        autopay: document.getElementById('loanAutopay').checked,
+        termTurns: selectedLoanTerm('loanTerm'),
+        autopay: document.getElementById('loanAutopay').value,
         issuerType,
         corpId,
     }, {
@@ -441,9 +460,9 @@ async function refinanceDebt() {
 
     await submitGameAction('refinance_debt', {
         amount: refinanceAmount,
-        termTurns: selectedLoanTerm('refinanceTerms'),
+        termTurns: selectedLoanTerm('refinanceTerm'),
         debtIds: selectedItems.map(item => item.debt.id).filter(Boolean),
-        autopay: document.getElementById('refinanceAutopay').checked,
+        autopay: document.getElementById('refinanceAutopay').value,
         corpId: borrower.corp ? borrower.corp.id : undefined,
     }, {
         errorText: 'Failed to refinance debt',

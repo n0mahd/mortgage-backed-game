@@ -324,10 +324,11 @@ async function issueDebt(page, amount, rate) {
     // Loans can total 90% of the book value of everything the player owns.
     await expect(page.locator('#loanLimit')).toContainText(/You can borrow up to \$/);
     await page.locator('#loanAmount').fill(String(amount));
-    // The 10-turn term is picked by default, at the host's rate for it.
-    await expect(page.locator('#loanTerms input[value="10"]')).toBeChecked();
-    await expect(page.locator('#loanTerms')).toContainText(`10 turns at ${rate}% per turn`);
-    await expect(page.locator('#loanTerms')).toContainText(/a turn, .* in total/);
+    // A 10-turn term, paid down, is picked by default, at the host's rate.
+    await expect(page.locator('#loanTerm')).toHaveValue('10');
+    await expect(page.locator('#loanAutopay')).toHaveValue('pay_down');
+    await expect(page.locator('#loanRatesHint')).toContainText(`${rate}% interest per turn`);
+    await expect(page.locator('#loanTermQuote')).toContainText(/a turn for 10 turns, .* in total/);
     await clickAndWaitForGameVersion(page, page.locator('#process-debt-btn'));
     await expect(page.locator('#debtModal')).toBeHidden({ timeout: 10000 });
     await expect(page.locator('#gameContent')).toContainText(`${formatMoneyForUi(amount)} · 10 turns left`, { timeout: 10000 });

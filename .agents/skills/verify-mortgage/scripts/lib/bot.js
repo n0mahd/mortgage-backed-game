@@ -443,18 +443,18 @@ class Autoplay {
             return this.closeModals(seat);
         }
         await seat.page.locator('#loanAmount').fill(String(limit ? Math.min(amount, limit) : amount));
-        await this.pickLoanTerm(seat, 'loanTerms', opts);
-        const autopay = opts.autopay ?? this.chance(0.8);
-        await seat.page.locator('#loanAutopay').setChecked(autopay);
-        await this.act(seat, `issue debt (autopay ${autopay ? 'on' : 'off'})`, () => seat.page.locator('#process-debt-btn').click(), { allowRejection: true });
+        await this.pickLoanTerm(seat, 'loanTerm', opts);
+        const autopay = opts.autopay ?? (this.chance(0.7) ? 'pay_down' : this.pick(['interest_only', 'off']));
+        await seat.page.locator('#loanAutopay').selectOption(autopay);
+        await this.act(seat, `issue debt (autopay ${autopay})`, () => seat.page.locator('#process-debt-btn').click(), { allowRejection: true });
         await this.closeModals(seat);
     }
 
-    // Picks a loan term (5, 10 or 15 turns) in a term list, at random unless given.
-    async pickLoanTerm(seat, containerId, opts = {}) {
-        const term = opts.term || this.pick([5, 10, 15]);
-        const radio = seat.page.locator(`#${containerId}-${term}`);
-        if (await radio.count()) await radio.check();
+    // Picks a loan term (1 to 30 turns) in a term dropdown, at random unless given.
+    async pickLoanTerm(seat, selectId, opts = {}) {
+        const term = opts.term || 1 + Math.floor(this.rand() * 30);
+        const select = seat.page.locator(`#${selectId}`);
+        if (await select.count()) await select.selectOption(String(term));
         return term;
     }
 
@@ -484,13 +484,13 @@ class Autoplay {
         await this.closeModals(seat);
     }
 
-    // Flips autopay on the first loan (allowed off-turn too).
-    async toggleAutopay(seat, on) {
+    // Sets autopay on the first loan to 'pay_down', 'interest_only' or 'off' (allowed off-turn too).
+    async setAutopay(seat, mode) {
         const row = await this.openLoans(seat);
         if (!row) return this.closeModals(seat);
-        const toggle = row.locator('[data-loan-autopay]');
-        if (await this.usable(toggle) && (await toggle.isChecked()) !== on) {
-            await this.act(seat, `turn autopay ${on ? 'on' : 'off'}`, () => toggle.setChecked(on), { allowRejection: true });
+        const select = row.locator('[data-loan-autopay]');
+        if (await this.usable(select) && (await select.inputValue()) !== mode) {
+            await this.act(seat, `set autopay to ${mode}`, () => select.selectOption(mode), { allowRejection: true });
         }
         await this.closeModals(seat);
     }

@@ -131,7 +131,7 @@ class Explore {
         if (!done.has('ipo') && (me.properties || []).length && this.wantsAny('corp.ipo', 'debt.issue-corporate', 'corp.insolvent')) out.push(['ipo', 0.5]);
         if (!done.has('debt') && this.wantsAny('debt.issue', 'debt.interest', 'debt.pay', 'debt.refinance', 'debt.term-short', 'debt.term-long')) out.push(['debt', 0.6]);
         if (!done.has('settle') && (me.debts || []).length && this.wantsAny('debt.pay', 'debt.payoff')) out.push(['settle', 0.7]);
-        if (!done.has('autopay') && (me.debts || []).some(d => d.autopay !== false) && this.wantsAny('debt.autopay-off', 'debt.unpaid-interest')) out.push(['autopay', 0.7]);
+        if (!done.has('autopay') && (me.debts || []).some(d => d.autopay !== 'off') && this.wantsAny('debt.autopay-off', 'debt.autopay-interest-only', 'debt.unpaid-interest')) out.push(['autopay', 0.7]);
         if (!done.has('probe') && this.wantsAny('refuse.bid-over-cash', 'refuse.pay-over-cash', 'refuse.junk-amount', 'refuse.trade-not-owned', 'refuse.loan-over-limit', 'refuse.trade-built-group', 'refuse.force-buy-shares')) out.push(['probe', 0.5]);
         if (!done.has('trade') && this.wantsAny('trade.propose', 'trade.accept', 'trade.decline', 'trade.withdraw', 'trade.host-cancel', 'trade.expire')) out.push(['trade', this.holdingOffersFor(state, 'trade.expire') ? 0.9 : 0.35]);
         // The chairman's desk.
@@ -191,7 +191,7 @@ class Explore {
             return bot.issueDebt(seat, 100 + Math.floor(bot.rand() * 200), true, { term });
         }
         if (kind === 'settle') return bot.settleDebt(seat, { partial: !this.wants('debt.payoff') && bot.chance(0.5) });
-        if (kind === 'autopay') return bot.toggleAutopay(seat, false);
+        if (kind === 'autopay') return bot.setAutopay(seat, this.wantsAny('debt.autopay-off', 'debt.unpaid-interest') ? 'off' : 'interest_only');
         if (kind === 'trade') return bot.proposeTrade(seat, me, state);
         if (kind === 'probe') return this.refusalProbe(seat, me, state);
         if (kind === 'dividend') return this.payDividend(seat, me, state);
@@ -463,7 +463,7 @@ class Explore {
         // The new loan must exceed the payoff and stay within the borrowing limit.
         if (!limit || limit <= principal) return bot.closeModals(seat);
         await seat.page.locator('#refinanceAmount').fill(String(Math.min(limit, principal + 100)));
-        await bot.pickLoanTerm(seat, 'refinanceTerms');
+        await bot.pickLoanTerm(seat, 'refinanceTerm');
         await bot.firstTime('refinance-form', [seat], 'refinance-form');
         await bot.act(seat, 'refinance debt', () => seat.page.locator('#process-debt-btn').click(), { allowRejection: true });
         await bot.closeModals(seat);
@@ -484,7 +484,7 @@ class Explore {
         const limit = await bot.borrowingLimit(seat);
         if (!limit) return bot.closeModals(seat);
         await seat.page.locator('#loanAmount').fill(String(Math.min(limit, 100 + Math.floor(bot.rand() * 200))));
-        await bot.pickLoanTerm(seat, 'loanTerms');
+        await bot.pickLoanTerm(seat, 'loanTerm');
         await bot.act(seat, 'issue corporate debt', () => seat.page.locator('#process-debt-btn').click(), { allowRejection: true });
         await bot.closeModals(seat);
     }

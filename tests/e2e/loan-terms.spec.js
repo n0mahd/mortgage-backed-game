@@ -46,7 +46,7 @@ async function seedGame(request, { currentPlayerIndex = 0, aliceDebts = [], corp
                 corporations: corporations(alice.user.id),
                 lastDiceRoll: null,
                 lastCardDrawn: null,
-                settings: { passGoAmount: 200, startingCash: 1500, loanRates: { 5: 4, 10: 5, 15: 6 } },
+                settings: { passGoAmount: 200, startingCash: 1500, loanRate: 5 },
             },
         },
     });
@@ -72,25 +72,23 @@ function actionSaved(page) {
     return page.waitForResponse(response => response.url().includes('/actions') && response.status() === 200);
 }
 
-test('the host sets the loan rates in the waiting room', async ({ page, request }) => {
+test('the host sets the loan rate in the waiting room', async ({ page, request }) => {
     const { room, alice } = await makeRoom(request);
     await page.goto(`${BASE}/index.html`);
     await page.evaluate(token => localStorage.setItem('auth_token', token), alice.token);
     await page.goto(`${BASE}/waiting.html?room=${room.id}`);
     await expect(page.locator('#loan-rates-panel')).toBeVisible({ timeout: 5000 });
-    await page.fill('#loan-rate-5', '3');
-    await page.fill('#loan-rate-10', '4.5');
-    await page.fill('#loan-rate-15', '8');
+    await page.fill('#loan-rate', '4.5');
     await page.click('#start-game-btn');
     await page.waitForURL(/game\.html/, { timeout: 10000 });
 
     const game = await apiJson(request, 'get', `${BASE_API}/games/by-room/${room.id}`, {
         headers: { Authorization: `Bearer ${alice.token}` },
     });
-    expect(game.game_state.settings.loanRates).toEqual({ 5: 3, 10: 4.5, 15: 8 });
+    expect(game.game_state.settings.loanRate).toBe(4.5);
     await page.click('.nav-tab[data-section="game"]');
     await page.click('#game [data-game-action="open-debt"]');
-    await expect(page.locator('#loanRatesHint')).toContainText('5 turns at 3%, 10 turns at 4.5%, 15 turns at 8%');
+    await expect(page.locator('#loanRatesHint')).toContainText('4.5% interest per turn, for 1 to 30 turns');
 });
 
 test('a rate out of range is refused before the game starts', async ({ page, request }) => {
@@ -98,14 +96,14 @@ test('a rate out of range is refused before the game starts', async ({ page, req
     await page.goto(`${BASE}/index.html`);
     await page.evaluate(token => localStorage.setItem('auth_token', token), alice.token);
     await page.goto(`${BASE}/waiting.html?room=${room.id}`);
-    await page.fill('#loan-rate-15', '40');
+    await page.fill('#loan-rate', '40');
     const dialog = page.waitForEvent('dialog');
     await page.click('#start-game-btn');
     const message = (await dialog).message();
-    expect(message).toContain('15-turn rate must be between 0% and 25%');
+    expect(message).toContain('loan rate must be between 0% and 25%');
 });
 
-test('take a loan on a chosen term, switch autopay and pay it off', async ({ page, request }) => {
+test('take a loan on a chosen term, change autopay and pay it off', async ({ page, request }) => {
     const { room, game, alice } = await seedGame(request);
     await openGame(page, room, alice);
 
@@ -115,16 +113,19 @@ test('take a loan on a chosen term, switch autopay and pay it off', async ({ pag
     await expect(page.locator('#loanLimit')).toContainText('90% of the $400 book value of your properties and shares $360');
     await expect(page.locator('#loanLimit')).toContainText('You can borrow up to $360');
     await page.fill('#loanAmount', '300');
-    await expect(page.locator('#loanTerms')).toContainText('5 turns at 4% per turn');
-    await expect(page.locator('#loanTerms')).toContainText('$67.39 a turn, $336.95 in total');
-    await page.check('#loanTerms-5');
-    await page.uncheck('#loanAutopay');
+    // Every term up to 30 turns is in the dropdown, all at the one rate.
+    await expect(page.locator('#loanTerm option')).toHaveCount(30);
+    await page.selectOption('#loanTerm', '5');
+    await expect(page.locator('#loanTermQuote')).toContainText('$69.29 a turn for 5 turns, $346.45 in total. Nothing is owed after the last payment.');
+    await page.selectOption('#loanAutopay', 'interest_only');
+    await expect(page.locator('#loanTermQuote')).toContainText('$15 interest a turn, then $315 on the last turn: $375 in total.');
+    await page.selectOption('#loanAutopay', 'off');
     await Promise.all([actionSaved(page), page.click('#process-debt-btn')]);
     await expect(page.locator('#debtModal')).toBeHidden();
     await expect(page.locator('#gameContent')).toContainText('Autopay off');
 
     let loan = (await fetchAlice(request, game, alice)).debts[0];
-    expect(loan).toMatchObject({ principal: 300, termTurns: 5, turnsRemaining: 5, interestRate: 4, autopay: false });
+    expect(loan).toMatchObject({ principal: 300, termTurns: 5, turnsRemaining: 5, interestRate: 5, autopay: 'off' });
 
     await page.click('#game [data-game-action="open-debt"]');
     await expect(page.locator('#debtAction')).toHaveValue('loans');
@@ -132,9 +133,12 @@ test('take a loan on a chosen term, switch autopay and pay it off', async ({ pag
     const row = page.locator('#loanList .loan-row');
     await expect(row).toContainText('5 turns left');
     await expect(row).toContainText('Autopay is off');
-    await Promise.all([actionSaved(page), row.locator('[data-loan-autopay]').check()]);
-    await expect(row).toContainText('Autopay takes $67.39');
-    expect((await fetchAlice(request, game, alice)).debts[0].autopay).toBe(true);
+    await Promise.all([actionSaved(page), row.locator('[data-loan-autopay]').selectOption('interest_only')]);
+    await expect(row).toContainText('Autopay takes the $15 interest');
+    expect((await fetchAlice(request, game, alice)).debts[0].autopay).toBe('interest_only');
+    await Promise.all([actionSaved(page), row.locator('[data-loan-autopay]').selectOption('pay_down')]);
+    await expect(row).toContainText('Autopay takes $69.29 at the end of your turn, paying the loan off in 5 turns.');
+    expect((await fetchAlice(request, game, alice)).debts[0].autopay).toBe('pay_down');
 
     await row.locator('input[type="number"]').fill('100');
     await Promise.all([actionSaved(page), row.locator('[data-loan-pay]').click()]);
@@ -148,7 +152,7 @@ test('take a loan on a chosen term, switch autopay and pay it off', async ({ pag
 });
 
 test('off your turn you can change autopay but not pay', async ({ page, request }) => {
-    const debt = { id: 'debt-1', principal: 300, interestRate: 5, termTurns: 10, turnsRemaining: 4, autopay: true };
+    const debt = { id: 'debt-1', principal: 300, interestRate: 5, termTurns: 10, turnsRemaining: 4, autopay: 'pay_down' };
     const { room, game, alice } = await seedGame(request, { currentPlayerIndex: 1, aliceDebts: [debt] });
     await openGame(page, room, alice);
 
@@ -158,12 +162,12 @@ test('off your turn you can change autopay but not pay', async ({ page, request 
     await expect(row.locator('[data-loan-pay]')).toBeDisabled();
     await expect(row.locator('[data-loan-payoff]')).toBeDisabled();
     await expect(page.locator('#debtAction option[value="issue"]')).toBeDisabled();
-    await Promise.all([actionSaved(page), row.locator('[data-loan-autopay]').uncheck()]);
-    expect((await fetchAlice(request, game, alice)).debts[0].autopay).toBe(false);
+    await Promise.all([actionSaved(page), row.locator('[data-loan-autopay]').selectOption('off')]);
+    expect((await fetchAlice(request, game, alice)).debts[0].autopay).toBe('off');
 });
 
 test('the turn screen warns before a loan comes due', async ({ page, request }) => {
-    const debt = { id: 'debt-1', principal: 2000, interestRate: 5, termTurns: 5, turnsRemaining: 1, autopay: true };
+    const debt = { id: 'debt-1', principal: 2000, interestRate: 5, termTurns: 5, turnsRemaining: 1, autopay: 'pay_down' };
     const { room, alice } = await seedGame(request, { aliceDebts: [debt] });
     await openGame(page, room, alice);
     await expect(page.locator('.turn-warning.danger')).toContainText('$2,100 of loans come due when you end your turn. Raise $600 more');
@@ -171,7 +175,7 @@ test('the turn screen warns before a loan comes due', async ({ page, request }) 
 });
 
 test('refinance a loan onto a new term', async ({ page, request }) => {
-    const debt = { id: 'debt-1', principal: 200, interestRate: 5, termTurns: 10, turnsRemaining: 3, autopay: true };
+    const debt = { id: 'debt-1', principal: 200, interestRate: 5, termTurns: 10, turnsRemaining: 3, autopay: 'pay_down' };
     const { room, game, alice } = await seedGame(request, { aliceDebts: [debt] });
     await openGame(page, room, alice);
     await page.click('#game [data-game-action="open-debt"]');
@@ -181,17 +185,17 @@ test('refinance a loan onto a new term', async ({ page, request }) => {
     // The loan being replaced doesn't count against the limit.
     await expect(page.locator('#refinanceLimit')).toContainText('You can borrow up to $360');
     await page.fill('#refinanceAmount', '300');
-    await page.check('#refinanceTerms-15');
+    await page.selectOption('#refinanceTerm', '15');
     await Promise.all([actionSaved(page), page.click('#process-debt-btn')]);
     await expect(page.locator('#debtModal')).toBeHidden();
     const after = await fetchAlice(request, game, alice);
     expect(after.debts).toHaveLength(1);
-    expect(after.debts[0]).toMatchObject({ principal: 300, termTurns: 15, turnsRemaining: 15, interestRate: 6 });
+    expect(after.debts[0]).toMatchObject({ principal: 300, termTurns: 15, turnsRemaining: 15, interestRate: 5, autopay: 'pay_down' });
     expect(after.cash).toBe(1600);
 });
 
 test("refinance a corporation's loans down to a smaller one", async ({ page, request }) => {
-    const loan = (id, principal) => ({ id, principal, interestRate: 5, termTurns: 10, turnsRemaining: 6, autopay: true });
+    const loan = (id, principal) => ({ id, principal, interestRate: 5, termTurns: 10, turnsRemaining: 6, autopay: 'pay_down' });
     const { room, game, alice } = await seedGame(request, {
         aliceDebts: [loan('debt-own', 50)],
         corporations: aliceId => [{
@@ -214,7 +218,7 @@ test("refinance a corporation's loans down to a smaller one", async ({ page, req
     await expect(page.locator('#refinanceSummary')).toContainText('Same balance on a new term');
     await page.fill('#refinanceAmount', '100');
     await expect(page.locator('#refinanceSummary')).toContainText("$150 is paid down from LOAN's cash");
-    await page.check('#refinanceTerms-5');
+    await page.selectOption('#refinanceTerm', '5');
     await Promise.all([actionSaved(page), page.click('#process-debt-btn')]);
     await expect(page.locator('#debtModal')).toBeHidden();
     const state = (await apiJson(request, 'get', `${BASE_API}/games/${game.id}`, {
@@ -222,7 +226,7 @@ test("refinance a corporation's loans down to a smaller one", async ({ page, req
     })).game_state;
     const corp = state.corporations.find(item => item.id === 'corp-loan');
     expect(corp.debts).toHaveLength(1);
-    expect(corp.debts[0]).toMatchObject({ principal: 100, termTurns: 5, interestRate: 4 });
+    expect(corp.debts[0]).toMatchObject({ principal: 100, termTurns: 5, interestRate: 5 });
     expect(corp.cash).toBe(250);
     const aliceAfter = state.players.find(player => player.userId === alice.user.id);
     expect(aliceAfter.cash).toBe(1500);
@@ -239,8 +243,8 @@ test('the Debt sheet shows a company loan coming due and fixes it from there', a
             totalShares: 10, availableShares: 0, treasuryShares: 0, assets: [],
             shareholders: [{ userId: aliceId, name: 'Alice', shares: 10 }],
             debts: [
-                { id: 'debt-due', principal: 300, interestRate: 5, termTurns: 10, turnsRemaining: 1, autopay: false },
-                { id: 'debt-later', principal: 200, interestRate: 6, termTurns: 15, turnsRemaining: 9, autopay: false },
+                { id: 'debt-due', principal: 300, interestRate: 5, termTurns: 10, turnsRemaining: 1, autopay: 'off' },
+                { id: 'debt-later', principal: 200, interestRate: 6, termTurns: 15, turnsRemaining: 9, autopay: 'off' },
             ],
             cash: 244,
         }],
@@ -287,6 +291,6 @@ test('the Debt sheet shows a company loan coming due and fixes it from there', a
         headers: { Authorization: `Bearer ${alice.token}` },
     })).game_state.corporations.find(item => item.id === 'corp-due');
     expect(corp.debts.find(debt => debt.id === 'debt-later').principal).toBe(200);
-    expect(corp.debts.find(debt => debt.id !== 'debt-later')).toMatchObject({ principal: 300, turnsRemaining: 10, autopay: true });
+    expect(corp.debts.find(debt => debt.id !== 'debt-later')).toMatchObject({ principal: 300, turnsRemaining: 10, autopay: 'pay_down' });
     expect(corp.cash).toBe(244);
 });

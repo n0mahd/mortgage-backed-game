@@ -32,7 +32,7 @@ Other docs: player rules in `documents/game-rules.md` and `README.md`, open deci
     (initial state, normalizing, invariants) → `applyAction`.
   - `gameRulesInternal/corporateFinance.js`: corporation share maths (Payout rent split and
     shareholder discount, dividend split, shares a price buys). `gameRulesInternal/loans.js`: loan
-    terms, host rates and the payment schedule. Both pure; the modules above move the cash.
+    terms, the host rate, autopay modes and the payment schedule. Both pure; the modules above move the cash.
   - `gameRulesInternal/applyAction.js`: the `ACTIONS` table lists every action type, who may take it
     (`turn`, `host`) and its handler. The only entry point that changes game state.
   - `actionCatalog.js`: player-facing action list, descriptions and payload shapes; "legal right now"

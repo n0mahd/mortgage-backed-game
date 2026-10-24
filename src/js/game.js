@@ -824,16 +824,21 @@ function bindStaticGameControls() {
     document.getElementById('debtAction')?.addEventListener('change', toggleDebtForm);
     document.getElementById('debtIssuer')?.addEventListener('change', renderBorrowingLimit);
     document.getElementById('loanOutlook')?.addEventListener('click', handleOutlookClick);
-    ['loanAmount', 'loanTerms', 'loanAutopay'].forEach(id => {
-        document.getElementById(id)?.addEventListener(id === 'loanAmount' ? 'input' : 'change', renderBorrowingLimit);
+    ['loanAmount', 'loanTerm', 'loanAutopay'].forEach(id => {
+        document.getElementById(id)?.addEventListener(id === 'loanAmount' ? 'input' : 'change', () => {
+            renderLoanTerms('loan');
+            renderBorrowingLimit();
+        });
     });
-    ['refinanceTerms', 'refinanceAutopay'].forEach(id => {
-        document.getElementById(id)?.addEventListener('change', updateRefinanceSummary);
+    ['refinanceTerm', 'refinanceAutopay'].forEach(id => {
+        document.getElementById(id)?.addEventListener('change', () => {
+            renderLoanTerms('refinance');
+            updateRefinanceSummary();
+        });
     });
     document.getElementById('loanList')?.addEventListener('click', handleLoanListClick);
     document.getElementById('loanList')?.addEventListener('change', handleLoanAutopayChange);
-    document.getElementById('loanAmount')?.addEventListener('input', () => renderLoanTerms('loanTerms', 'loanAmount'));
-    document.getElementById('refinanceAmount')?.addEventListener('input', () => renderLoanTerms('refinanceTerms', 'refinanceAmount'));
+    document.getElementById('refinanceAmount')?.addEventListener('input', () => renderLoanTerms('refinance'));
     document.getElementById('refinanceBorrower')?.addEventListener('change', renderRefinanceDebtOptions);
     document.getElementById('debtsToRefinance')?.addEventListener('change', handleRefinanceSelectionChange);
     document.getElementById('refinanceAmount')?.addEventListener('input', updateRefinanceSummary);

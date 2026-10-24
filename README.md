@@ -108,19 +108,19 @@ The chairman also runs the corporation from its card: a **rent policy** (Reinves
 
 ### Take a Loan (Mortgage-Backed Securities)
 
-Tap **Manage Debt → Take a new loan**. Set a **loan amount** (you receive this cash immediately) and choose a **term of 5, 10 or 15 turns**. Nothing is pledged: all your loans together can reach 90% of the book value of what you own (properties at price plus buildings, shares at book value per share), and the form shows how much you can still borrow. The host sets the interest rate for each term in the waiting room before the game starts (defaults 4%, 5% and 6% per turn).
+Tap **Manage Debt → Take a new loan**. Set a **loan amount** (you receive this cash immediately) and choose a **term of 1 to 30 turns**. Nothing is pledged: all your loans together can reach 90% of the book value of what you own (properties at price plus buildings, shares at book value per share), and the form shows how much you can still borrow. The host sets one interest rate per turn for every loan in the waiting room before the game starts (default 5%).
 
-Every time you end your turn a loan charges a turn of interest. With **autopay** on, it takes the payment that pays the loan off by the end of its term; with autopay off, nothing is taken and the unpaid interest is added to the balance, where it compounds. On the last turn the whole balance is due, and if you can't pay it you go bankrupt.
+Every time you end your turn a loan charges a turn of interest. **Autopay** takes a payment from your cash: **Pay down loan** (the default) takes the installment that pays the loan off by the end of its term, so after the last payment you owe nothing; **Interest only** takes just the interest, leaving the balance due at the end; **Off** takes nothing and the unpaid interest is added to the balance, where it compounds. On the last turn the whole balance is due, and if you can't pay it you go bankrupt.
 
 ---
 
 ### Your Loans
 
-**Manage Debt → Your loans** shows each loan's balance, turns left and next payment. Switch autopay on or off, pay any amount, or pay the loan off. Paying more than is owed only takes what is owed.
+**Manage Debt → Your loans** shows each loan's balance, turns left and next payment. Change autopay (Pay down loan, Interest only or Off) any time, pay any amount on your turn, or pay the loan off. Paying more than is owed only takes what is owed.
 
 ### Refinance Debt
 
-Tap **Manage Debt → Refinance loans**. Choose whose loans (yours, or a corporation you run), select one or more of them, set the new loan amount and pick a term. The selected loans are replaced by one new loan on that term at its rate. A larger amount pays out the difference as cash (within the 90% borrowing limit); a smaller one pays the balance down from the borrower's cash.
+Tap **Manage Debt → Refinance loans**. Choose whose loans (yours, or a corporation you run), select one or more of them, set the new loan amount and pick a term. The selected loans are replaced by one new loan on that term at the game's rate. A larger amount pays out the difference as cash (within the 90% borrowing limit); a smaller one pays the balance down from the borrower's cash.
 
 ---
 
@@ -192,7 +192,7 @@ Falling below $0 cash or ending the turn with unpaid rent triggers final bankrup
 
 - **Leverage early.** Issue debt while interest is manageable to buy more properties before others do.
 - **IPO fast.** Bundle your cheapest color groups to raise capital through share sales without giving up valuable assets.
-- **Watch the maturity clock.** Every loan comes due in full at the end of its term. Turning autopay off saves cash now but compounds the balance you'll owe later.
+- **Watch the maturity clock.** Every loan comes due in full at the end of its term. Interest only or autopay off saves cash now, but leaves the whole balance (compounded, with autopay off) due later.
 - **Use the market tab.** Negotiate trades and package deals — the secondary market is where fortunes shift.
 
 ---
