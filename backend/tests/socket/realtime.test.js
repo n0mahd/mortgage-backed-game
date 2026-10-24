@@ -290,3 +290,40 @@ describe('game:state_update broadcasts', () => {
         client.disconnect();
     });
 });
+
+// ---------------------------------------------------------------------------
+// room:status_change when a game ends (My games and the waiting room follow it)
+// ---------------------------------------------------------------------------
+describe('room:status_change on game end', () => {
+    test('ending the game tells the room it is completed, once', async () => {
+        const { id: hostId, token: hostToken } = createUserFixture(db);
+        const { id: bobId, token: bobToken } = createUserFixture(db);
+        const room = createRoomFixture(db, hostId, { inviteCode: 'ENDS01', maxPlayers: 4 });
+        await request(app).post(`/api/rooms/${room.id}/join`).set('Authorization', `Bearer ${bobToken}`).send({ player_name: 'Bob' });
+        const gs = buildGameState(['Alice', 'Bob']);
+        gs.players[0].userId = hostId;
+        gs.players[1].userId = bobId;
+        const started = await request(app).post('/api/games').set('Authorization', `Bearer ${hostToken}`).send({ room_id: room.id, game_state: gs });
+        expect(started.status).toBe(200);
+
+        const client = makeClient(bobToken);
+        await waitForConnect(client);
+        await new Promise(resolve => client.emit('join_room', room.id, resolve));
+        const statuses = [];
+        client.on('room:status_change', payload => statuses.push(payload));
+
+        const end = (actionId, expectedVersion) => request(app)
+            .post(`/api/games/${started.body.id}/actions`)
+            .set('Authorization', `Bearer ${hostToken}`)
+            .send({ actionId, type: 'host_end_game', payload: {}, expectedVersion });
+        const first = await end('end-1', started.body.state_version);
+        expect(first.status).toBe(200);
+        await end('end-2', first.body.game.state_version);
+        await new Promise(r => setTimeout(r, 300));
+
+        expect(statuses).toHaveLength(1);
+        expect(statuses[0]).toMatchObject({ id: room.id, status: 'completed' });
+        expect(statuses[0].room_members.map(member => member.player_name)).toContain('Bob');
+        client.disconnect();
+    });
+});

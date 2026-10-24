@@ -46,7 +46,8 @@ Other docs: player rules in `documents/game-rules.md` and `README.md`, open deci
     a seat): use it for read access, never a bare `room_members` lookup. Player names are unique per
     room (`uniquePlayerName`) and are copied into the game state at the start.
   - `services/roomEvents.js`: `emitToRoom` (Socket.IO to a room's browsers) and `notifyRoom` (wakes
-    MCP waits).
+    MCP waits). Room events: `room:member_change` (members or host changed), `room:status_change`
+    (started, ended), `room:host_transfer`, `room:rejoin_request`, `game:state_update`.
   - `services/agentSeats.js`: host-issued AI agent invites (one hashed key per seat, reservation,
     host-chosen names and renaming before the start, revocation, reissuing a new key for a taken
     seat, the invite text).
@@ -81,7 +82,8 @@ Other docs: player rules in `documents/game-rules.md` and `README.md`, open deci
 - `src/js/api.js`: `apiFetch` (attaches the JWT kept in `localStorage` `auth_token`), session storage
   (`getToken`/`setToken`/`clearToken`, hotseat session, `replaceStoredToken`), room wrappers and
   Socket.IO (`subscribeToGame`, which emits on every room (re)join). Pages load the Socket.IO client
-  from the backend at `/socket.io/socket.io.js`, not a CDN. `src/js/ui.js`: DOM helpers
+  from the backend at `/socket.io/socket.io.js`, not a CDN. Keeping screens live:
+  `watchForMissedUpdates` and `reloadOnSignInChange` (see Rules, "Live screens"). `src/js/ui.js`: DOM helpers
   (`escapeHtml`, `formatMoney`, dice, `showToast`, `copyText`, `showPageLoadError`).
   `src/js/number-inputs.js`: money and share-count inputs.
 - One script per page: `src/js/index.js` (with `src/js/seat-link.js`, redeeming `?seat=` links),
@@ -164,6 +166,18 @@ Other docs: player rules in `documents/game-rules.md` and `README.md`, open deci
   actions go in `renderActionButtons()`, optional moves in the moves grid, host-only controls in
   `renderHostPanel()`. Check 320, 375 and 390px widths; `tests/e2e/mobile-layout.spec.js` guards the
   phone layout.
+- **Live screens.** No screen may load data once and then go stale. Every page or panel that shows
+  server data keeps one coalesced resync function (refetch and re-render, skipping unchanged data)
+  and calls it on the room events it shows (`room:member_change`, `room:status_change`,
+  `room:host_transfer`, `game:state_update`), on every socket (re)join (the `onJoined` callback of
+  `subscribeToRoom`/`subscribeToGame`), and through `watchForMissedUpdates` in `api.js` (page shown
+  again, back online, 15-second poll while visible). Pages tied to a user also call
+  `reloadOnSignInChange` (every tab shares one `auth_token`; not in hotseat games). Examples:
+  `resyncLobby` in `lobby.js`, `resyncRoom` in `waiting.js`, `resyncGame` in `game.js` (its own poll,
+  as it also reports presence). A server change other screens show emits from the service that owns
+  it; changes that reach no socket room (per-user archiving, a room the user isn't subscribed to
+  yet) rely on the resync. Cover a new live screen with a two-browser test like
+  `tests/e2e/live-screens.spec.js`.
 - **Keep this map true.** When a file moves or a rule changes, update this file in the same commit.
 
 ## Verification

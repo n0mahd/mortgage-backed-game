@@ -100,7 +100,11 @@ All JSON. Errors are `{ error }` with a 4xx status (`RoomError`).
 - `lobby.html` (My games): Active and Archived lists, Archive/Unarchive per game, pending host
   offers at the top (Accept, Decline; a guest is asked to create an account first), a banner
   inviting guests to create an account, and for hosts a Manage sheet: per player "Copy link", per
-  agent "New key", "Make host", and cancel a pending offer.
+  agent "New key", "Make host", and cancel a pending offer. The page and an open Manage sheet stay
+  live: room events (`room:member_change`, `room:status_change`, `room:host_transfer`) and every
+  socket rejoin resync them, and so does the page being shown again, the network coming back and a
+  15-second poll, which is what catches per-user changes that emit nothing (archiving on another
+  device, a game made or joined elsewhere). Signing in as someone else in another tab reloads it.
 - `index.html?seat=<token>`: redeems a seat link.
 - Waiting room and the game's host panel link to Manage players (`lobby.html?manage=<roomId>`).
 

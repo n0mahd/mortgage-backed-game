@@ -5,7 +5,9 @@
 // - startGameForRoom creates a room's game.
 // - applyGameAction runs every game move: one SQLite transaction with the
 //   state_version check, the domain applyAction call, event rows, the
-//   game_actions idempotency row, the audit log, and the Socket.IO broadcast.
+//   game_actions idempotency row, the audit log, and the Socket.IO broadcast
+//   (game:state_update, plus room:status_change when the game ends, so My
+//   games and the waiting room see the room complete).
 // - repairGameState replaces the state wholesale (dev-only host repair).
 // Callers authenticate; game rules stay in the domain.
 
@@ -15,7 +17,7 @@ const { getConfig } = require('../config');
 const { buildGameActionAuditRecord, logGameActionAudit } = require('./audit');
 const { emitToRoom, notifyRoom } = require('./roomEvents');
 const { notifyTurnChange } = require('./turnAlerts');
-const { getRoom, canViewRoom } = require('./rooms');
+const { getRoom, getRoomWithMembers, canViewRoom } = require('./rooms');
 const {
     createInitialGame,
     normalizeState,
@@ -101,7 +103,7 @@ function applyGameAction({ gameId, actorUserId, actionId, type, payload, expecte
     const existing = db.prepare(`SELECT result_json FROM game_actions WHERE game_id = ? AND action_id = ?`).get(gameId, actionId);
     if (existing) return JSON.parse(existing.result_json);
 
-    const { game, updatedGame, result } = db.withTransaction(() => {
+    const { game, updatedGame, result, justEnded } = db.withTransaction(() => {
         const game = getGame(gameId);
         if (!game) throw new GameRuleError(404, 'Game not found');
         if (game.state_version !== expectedVersion) {
@@ -120,6 +122,7 @@ function applyGameAction({ gameId, actorUserId, actionId, type, payload, expecte
             SET game_state = ?, current_player_index = ?, state_version = state_version + 1, updated_at = datetime('now')
             WHERE id = ?
         `).run(JSON.stringify(afterState), afterState.currentPlayerIndex, gameId);
+        const justEnded = !!afterState.ended && room.status !== 'completed';
         if (afterState.ended) {
             db.prepare(`UPDATE rooms SET status = 'completed' WHERE id = ?`).run(game.room_id);
         }
@@ -130,7 +133,7 @@ function applyGameAction({ gameId, actorUserId, actionId, type, payload, expecte
             INSERT INTO game_actions (id, game_id, actor_user_id, action_id, action_type, request_json, result_json, state_version)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?)
         `).run(uuidv4(), gameId, actorUserId, actionId, type, JSON.stringify(requestBody), JSON.stringify(result), updatedGame.state_version);
-        return { game, updatedGame, result };
+        return { game, updatedGame, result, justEnded };
     });
 
     logGameActionAudit(buildGameActionAuditRecord({
@@ -142,6 +145,7 @@ function applyGameAction({ gameId, actorUserId, actionId, type, payload, expecte
         events: result.events,
     }), config);
     publishGameUpdate(updatedGame);
+    if (justEnded) emitToRoom(updatedGame.room_id, 'room:status_change', getRoomWithMembers(updatedGame.room_id));
     notifyTurnChange(game, updatedGame, actorUserId);
     return result;
 }
