@@ -308,9 +308,13 @@
                 </div>
             </div>
             <div id="refinanceDebtForm" style="display: none;">
+                <div class="form-group" id="refinanceBorrowerGroup">
+                    <label for="refinanceBorrower">Loans of</label>
+                    <select id="refinanceBorrower"></select>
+                </div>
                 <div class="form-group">
-                    <label>Loans to refinance</label>
-                    <div class="asset-list" id="debtsToRefinance"></div>
+                    <span class="field-label" id="refinanceLoansLabel">Loans to refinance</span>
+                    <div class="asset-list" id="debtsToRefinance" role="group" aria-labelledby="refinanceLoansLabel"></div>
                 </div>
                 <div class="form-group">
                     <label for="refinanceAmount">New loan amount</label>
@@ -425,7 +429,7 @@
     </div>
 
     <script src="/socket.io/socket.io.js"></script>
-    <script src="src/js/api.js?v=20"></script>
+    <script src="src/js/api.js?v=21"></script>
     <script src="src/js/number-inputs.js?v=1"></script>
     <script src="src/js/ui.js?v=2"></script>
     <script src="src/js/rejoin-prompts.js?v=2"></script>
@@ -437,13 +441,13 @@
     <script src="src/js/game/share-deals.js?v=6"></script>
     <script src="src/js/game/corporation-desk.js?v=6"></script>
     <script src="src/js/turn-notifications.js?v=1"></script>
-    <script src="src/js/game/log-format.js?v=1"></script>
+    <script src="src/js/game/log-format.js?v=2"></script>
     <script src="src/js/game/valuation.js?v=1"></script>
     <script src="src/js/game/property-display.js?v=1"></script>
     <script src="src/js/game/turn-panel.js?v=6"></script>
     <script src="src/js/game/purchase.js?v=1"></script>
     <script src="src/js/game/houses.js?v=1"></script>
-    <script src="src/js/game/debt.js?v=2"></script>
+    <script src="src/js/game/debt.js?v=3"></script>
     <script src="src/js/game/corporations.js?v=2"></script>
     <script src="src/js/game/market.js?v=4"></script>
     <script src="src/js/game/device-alerts.js?v=1"></script>

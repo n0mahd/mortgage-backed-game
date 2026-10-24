@@ -64,7 +64,7 @@ function formatLogEvent(type, data) {
                 ? `${data.payer} paid off a loan ($${Number(data.amount).toFixed(2)})`
                 : `${data.payer} paid $${Number(data.amount).toFixed(2)} towards a loan`;
         case 'debt_refinanced':
-            return `${data.borrower} refinanced ${data.refinancedDebtCount} debt(s) into $${Number(data.amount).toFixed(2)}${data.termTurns ? ` over ${data.termTurns} turns` : ''} at ${data.interestRate}% per turn and received $${Number(data.netProceeds || 0).toFixed(2)} net cash`;
+            return `${data.borrower} refinanced ${data.refinancedDebtCount} debt(s) into $${Number(data.amount).toFixed(2)}${data.termTurns ? ` over ${data.termTurns} turns` : ''} at ${data.interestRate}% per turn and ${Number(data.netProceeds || 0) < 0 ? `paid $${(-Number(data.netProceeds)).toFixed(2)} down from cash` : `received $${Number(data.netProceeds || 0).toFixed(2)} net cash`}`;
         case 'debt_autopay':
             return `${data.borrower} turned autopay ${data.autopay ? 'on' : 'off'} for a loan`;
         case 'loan_matured':

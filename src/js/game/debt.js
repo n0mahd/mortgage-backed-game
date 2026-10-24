@@ -16,13 +16,11 @@ function openDebtModal() {
         `Rates this game: ${LoanMath.LOAN_TERMS.map(term => `${term} turns at ${rates[term]}%`).join(', ')} per turn. Each payment includes interest; the whole balance is due when the term ends.`;
     document.getElementById('debtIssuer').innerHTML = debtIssuerOptionsHtml();
     document.getElementById('loanAmount').value = '';
-    document.getElementById('refinanceAmount').value = '';
     document.getElementById('loanAutopay').checked = true;
     renderLoanList();
     renderBorrowingLimit();
     renderLoanTerms('loanTerms', 'loanAmount');
-    renderRefinanceDebtOptions();
-    renderLoanTerms('refinanceTerms', 'refinanceAmount');
+    renderRefinanceBorrowerOptions();
     toggleDebtForm();
 
     openModal('debtModal');
@@ -202,18 +200,64 @@ function renderBorrowingLimit() {
     document.getElementById('loanLimit').textContent = borrowingLimitText(account, corp);
 }
 
+// Refinancing: pick a borrower (you, or a corporation you run), one or more of
+// its loans, and the new loan amount. More than the selected balance pays out
+// the difference; less pays the balance down from the borrower's cash.
+function refinanceBorrowers() {
+    const borrowers = [];
+    if (getPersonalDebts().length) borrowers.push({ value: 'player', label: 'Personal', account: currentPlayerData, corp: null });
+    getEligibleDebtCorporations()
+        .filter(corp => !ShareDeals.isInsolvent(corp) && (corp.debts || []).length)
+        .forEach(corp => borrowers.push({ value: `corporation:${corp.id}`, label: `${corp.ticker} (corporation)`, account: corp, corp }));
+    return borrowers;
+}
+
+function selectedRefinanceBorrower() {
+    const value = document.getElementById('refinanceBorrower')?.value;
+    return refinanceBorrowers().find(borrower => borrower.value === value) || null;
+}
+
+function renderRefinanceBorrowerOptions() {
+    const select = document.getElementById('refinanceBorrower');
+    const previous = select.value;
+    const borrowers = refinanceBorrowers();
+    select.innerHTML = borrowers.map(borrower => `<option value="${escapeHtml(borrower.value)}">${escapeHtml(borrower.label)}</option>`).join('');
+    if (borrowers.some(borrower => borrower.value === previous)) select.value = previous;
+    document.getElementById('refinanceBorrowerGroup').style.display = borrowers.length > 1 ? '' : 'none';
+    renderRefinanceDebtOptions();
+}
+
 function renderRefinanceDebtOptions() {
-    const debts = getPersonalDebts();
+    const borrower = selectedRefinanceBorrower();
+    const debts = borrower ? borrower.account.debts : [];
     const debtsHtml = debts.map((debt, index) => `
         <div class="asset-checkbox">
-            <input type="checkbox" id="refinance-debt-${index}" value="${index}" data-debt-id="${escapeHtml(debt.id || '')}">
+            <input type="checkbox" id="refinance-debt-${index}" value="${index}" data-debt-id="${escapeHtml(debt.id || '')}"${debts.length === 1 ? ' checked' : ''}>
             <label for="refinance-debt-${index}">
                 ${debtOptionLabel(debt, index)}
             </label>
         </div>
     `).join('');
 
-    document.getElementById('debtsToRefinance').innerHTML = debtsHtml || '<p class="empty-state">No debts to refinance</p>';
+    document.getElementById('debtsToRefinance').innerHTML = debtsHtml || '<p class="empty-state">No loans to refinance. Loans you or your corporations take out appear here.</p>';
+    document.getElementById('refinanceAmount').value = debts.length === 1 ? debtPrincipal(debts[0]).toFixed(2) : '';
+    lastRefinancePayoff = getRefinancePayoffAmount();
+    renderLoanTerms('refinanceTerms', 'refinanceAmount');
+    updateRefinanceSummary();
+}
+
+// The amount starts at the selected balance (same loan, new term) until the
+// player types their own.
+let lastRefinancePayoff = 0;
+function handleRefinanceSelectionChange() {
+    const amountInput = document.getElementById('refinanceAmount');
+    const typed = parseFloat(amountInput.value);
+    const payoff = getRefinancePayoffAmount();
+    if (!Number.isFinite(typed) || Math.abs(typed - lastRefinancePayoff) < 0.005) {
+        amountInput.value = payoff > 0 ? payoff.toFixed(2) : '';
+        renderLoanTerms('refinanceTerms', 'refinanceAmount');
+    }
+    lastRefinancePayoff = payoff;
     updateRefinanceSummary();
 }
 
@@ -231,7 +275,7 @@ function debtOptionLabel(debt, index) {
 }
 
 function getSelectedRefinanceDebtItems() {
-    const debts = getPersonalDebts();
+    const debts = selectedRefinanceBorrower()?.account.debts || [];
     return Array.from(document.querySelectorAll('#debtsToRefinance input:checked'))
         .map(input => Number(input.value))
         .filter(index => Number.isInteger(index) && debts[index])
@@ -243,28 +287,41 @@ function getRefinancePayoffAmount() {
         .reduce((sum, item) => sum + debtPrincipal(item.debt), 0);
 }
 
+// What the new amount does: cash out above the balance, or pay down from cash below it.
 function updateRefinanceSummary() {
     const summary = document.getElementById('refinanceSummary');
     if (!summary) return;
-    renderRefinanceLimit();
-    const selectedCount = getSelectedRefinanceDebtItems().length;
-    const payoffAmount = getRefinancePayoffAmount();
-    const newLoanAmount = parseFloat(document.getElementById('refinanceAmount').value);
-    const netCash = Number.isFinite(newLoanAmount) ? newLoanAmount - payoffAmount : 0;
-    summary.classList.toggle('debt-flow-warning', selectedCount > 0 && Number.isFinite(newLoanAmount) && netCash <= 0);
-
-    if (!selectedCount) {
-        summary.textContent = 'Selected payoff: $0.00';
+    const borrower = selectedRefinanceBorrower();
+    document.getElementById('refinanceLimit').textContent = borrower
+        ? borrowingLimitText(borrower.account, borrower.corp, getRefinancePayoffAmount())
+        : '';
+    summary.classList.remove('debt-flow-warning');
+    if (!borrower || !getSelectedRefinanceDebtItems().length) {
+        summary.textContent = borrower ? 'Select the loans to replace.' : '';
         return;
     }
-
-    const netText = Number.isFinite(newLoanAmount) ? `$${netCash.toFixed(2)}` : '$0.00';
-    summary.textContent = `Selected payoff: $${payoffAmount.toFixed(2)} | Net new cash: ${netText}`;
-}
-
-// The loans being refinanced don't count against the limit for the new one.
-function renderRefinanceLimit() {
-    document.getElementById('refinanceLimit').textContent = borrowingLimitText(currentPlayerData, null, getRefinancePayoffAmount());
+    const payoff = getRefinancePayoffAmount();
+    const amount = parseFloat(document.getElementById('refinanceAmount').value);
+    const whose = borrower.corp ? `${borrower.corp.ticker}'s` : 'your';
+    const balance = `Selected balance ${formatMoney(payoff)}.`;
+    if (!(amount > 0)) {
+        summary.textContent = `${balance} Enter more to take out cash, or less to pay it down from ${whose} cash.`;
+        return;
+    }
+    const difference = Math.round((amount - payoff) * 100) / 100;
+    const cash = Number(borrower.account.cash || 0);
+    if (difference > 0) {
+        const available = Number(borrower.account.borrowing?.limit || 0)
+            - Math.max(0, Number(borrower.account.borrowing?.owed || 0) - payoff);
+        summary.textContent = `${balance} ${formatMoney(difference)} more is added to ${whose} cash.`;
+        summary.classList.toggle('debt-flow-warning', borrower.account.borrowing && amount > available + 0.005);
+    } else if (difference < 0) {
+        const short = -difference > cash + 0.005;
+        summary.textContent = `${balance} ${formatMoney(-difference)} is paid down from ${whose} cash${short ? `, which has only ${formatMoney(cash)}` : ''}.`;
+        summary.classList.toggle('debt-flow-warning', short);
+    } else {
+        summary.textContent = `${balance} Same balance on a new term; no cash changes hands.`;
+    }
 }
 
 function toggleDebtForm() {
@@ -315,22 +372,17 @@ async function issueDebt() {
 }
 
 async function refinanceDebt() {
+    const borrower = selectedRefinanceBorrower();
     const selectedItems = getSelectedRefinanceDebtItems();
     const refinanceAmount = parseFloat(document.getElementById('refinanceAmount').value);
-    const payoffAmount = getRefinancePayoffAmount();
 
-    if (!selectedItems.length) {
-        alert('Please select at least one debt to refinance');
+    if (!borrower || !selectedItems.length) {
+        alert('Select at least one loan to refinance.');
         return;
     }
 
-    if (!refinanceAmount) {
-        alert('Please enter a new loan amount');
-        return;
-    }
-
-    if (refinanceAmount <= payoffAmount) {
-        alert('New loan amount must be greater than the selected payoff amount');
+    if (!(refinanceAmount > 0)) {
+        alert('Enter the new loan amount. To clear the loans instead, pay them off from Your loans.');
         return;
     }
 
@@ -338,7 +390,7 @@ async function refinanceDebt() {
         amount: refinanceAmount,
         termTurns: selectedLoanTerm('refinanceTerms'),
         debtIds: selectedItems.map(item => item.debt.id).filter(Boolean),
-        debtIndexes: selectedItems.map(item => item.index),
+        corpId: borrower.corp ? borrower.corp.id : undefined,
     }, {
         errorText: 'Failed to refinance debt',
         onSaved: () => closeModal('debtModal'),

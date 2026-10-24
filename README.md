@@ -120,7 +120,7 @@ Every time you end your turn a loan charges a turn of interest. With **autopay**
 
 ### Refinance Debt
 
-Tap **Manage Debt → Refinance Existing Debt**. Select one or more existing loans, set a larger new loan amount and pick a term. The selected loans are paid off, one new loan is created on that term at its rate, and you receive only the net new cash above the payoff amount.
+Tap **Manage Debt → Refinance loans**. Choose whose loans (yours, or a corporation you run), select one or more of them, set the new loan amount and pick a term. The selected loans are replaced by one new loan on that term at its rate. A larger amount pays out the difference as cash (within the 90% borrowing limit); a smaller one pays the balance down from the borrower's cash.
 
 ---
 

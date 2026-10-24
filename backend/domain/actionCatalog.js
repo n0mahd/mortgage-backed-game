@@ -30,7 +30,7 @@ const ACTIONS = [
     { type: 'issue_debt', category: 'debt', payload: { amount: 'number > 0, <= you.borrowing.available (all your loans together may reach 90% of the book value of your properties and shares)', termTurns: '5, 10 (default) or 15: turns until the whole balance is due', autopay: 'boolean, default true: pay each installment from cash at the end of your turn', issuerType: "'player' (default) or 'corporation'", corpId: '<corporation id, when issuerType is corporation>' }, description: "Borrow cash at the host's rate for the chosen term. Each End Turn charges interest; autopay pays the installment that clears the loan on schedule; unpaid interest is added to the balance. The whole balance is due at the end of the last turn, and if you can't pay it you go bankrupt. Your turn only." },
     { type: 'pay_debt', category: 'debt', payload: { debtId: '<your debt id>', amount: 'number > 0, <= your cash (more than the balance pays it off)', corpId: "<corporation id, for a loan of a corporation you run (optional)>" }, description: 'Repay part or all of a loan. Your turn only.' },
     { type: 'set_debt_autopay', category: 'debt', payload: { debtId: '<your debt id>', autopay: 'boolean', corpId: "<corporation id, for a loan of a corporation you run (optional)>" }, description: 'Turn autopay on or off for a loan. Allowed any time.' },
-    { type: 'refinance_debt', category: 'debt', payload: { debtIds: ['<your debt id>'], amount: 'number > total balance of selected debts, within your borrowing limit (the replaced loans do not count)', termTurns: '5, 10 (default) or 15' }, description: 'Replace selected debts with one new loan on a fresh term; you receive the cash above the payoff. Your turn only.' },
+    { type: 'refinance_debt', category: 'debt', payload: { debtIds: ['<debt id>'], amount: 'number > 0: above the selected balance, within the borrowing limit (the replaced loans do not count); below it, the difference is paid from cash', termTurns: '5, 10 (default) or 15', corpId: "<corporation id, to refinance loans of a corporation you run (optional)>" }, description: "Replace one or more loans of one borrower (you, or a corporation you run) with one new loan on a fresh term. A larger loan pays out the cash above the payoff; a smaller one pays the balance down from the borrower's cash. Your turn only." },
     { type: 'propose_trade', category: 'market', payload: { player1Id: '<player id>', player2Id: '<player id>', player1Cash: 'number >= 0 paid by player1 to player2', player2Cash: 'number >= 0 paid by player2 to player1', player1AssetIds: ['<propertyId player1 gives>'], player2AssetIds: ['<propertyId player2 gives>'], player1Shares: [{ corpId: '<corporation id>', shares: 'integer > 0 player1 gives (optional)' }], player2Shares: [{ corpId: '<corporation id>', shares: 'integer > 0 player2 gives (optional)' }], player1PropertiesToCorpId: '<corporation id player2 runs: player1AssetIds properties go into it instead of to player2 (optional)>', player2PropertiesToCorpId: '<corporation id player1 runs: player2AssetIds properties go into it instead of to player1 (optional)>', player1CorpId: '<corporation id player1 runs (optional): player1 trades for it>', player2CorpId: '<corporation id player2 runs (optional): player2 trades for it>' }, description: 'Offer a trade of cash, properties and/or corporation shares; you must be player1 or player2. The other player must accept. A one-sided offer sends shares as a gift. To buy into an LLC with a property, give the property with *PropertiesToCorpId set to the LLC and ask for its shares. With *CorpId a side trades for a corporation it runs: its cash, properties and own treasury shares, and it can buy back its own shares; a runner cannot trade personally with their corporation. Allowed any time.' },
     { type: 'accept_trade', category: 'market', payload: { offerId: '<pending offer id>' }, description: 'Accept a pending trade offer made to you.' },
     { type: 'cancel_trade', category: 'market', payload: { offerId: '<pending offer id>' }, description: 'Cancel your own pending offer, or decline one made to you.' },
@@ -102,6 +102,9 @@ function buildCandidates(state, me, hostId) {
             add('vote_rent_policy_change', { corpId: corp.id, approve: false });
         }
         add('pay_dividend', { corpId: corp.id, amount: Math.max(1, Math.floor(Number(corp.cash || 0))) });
+        (corp.debts || []).forEach(debt => {
+            add('refinance_debt', { corpId: corp.id, debtIds: [debt.id], amount: Number(debt.principal || 0) });
+        });
         add('buy_property', { corpId: corp.id });
         const corpPropertyIds = state.properties.filter(prop => prop.ownerId === corp.id).map(prop => prop.id);
         corpPropertyIds.forEach(id => add('buy_houses', { corpId: corp.id, selections: { [id]: 1 } }));
@@ -133,7 +136,7 @@ function buildCandidates(state, me, hostId) {
     (me.debts || []).forEach(debt => {
         add('pay_debt', { debtId: debt.id, amount: Math.min(Number(debt.principal || 0), Math.max(Number(me.cash || 0), 1)) });
         add('set_debt_autopay', { debtId: debt.id, autopay: debt.autopay === false });
-        add('refinance_debt', { debtIds: [debt.id], amount: Math.ceil(Number(debt.principal || 0)) + 1 });
+        add('refinance_debt', { debtIds: [debt.id], amount: Number(debt.principal || 0) });
     });
 
     others.forEach(other => {

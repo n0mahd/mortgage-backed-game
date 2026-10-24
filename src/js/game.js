@@ -23,7 +23,12 @@ let gameResyncInFlight = null;
 const GAME_RESYNC_CONNECTED_MS = 30000;
 const GAME_RESYNC_CHECK_MS = 5000;
 const GAME_JAIL_CARD_ASSET_ID = 'get-out-of-jail-free';
-const ACTION_RETRY_DELAYS_MS = [500, 1500, 3000];
+// About 20s in all: long enough to ride out a Cloudflare tunnel reconnect.
+// Retrying is safe because the server applies one actionId only once.
+const ACTION_RETRY_DELAYS_MS = [500, 1500, 3000, 5000, 10000];
+// Gateway errors from nginx (502-504) and Cloudflare (520-530): the request
+// did not get an answer from the game server.
+const GATEWAY_ERROR_STATUSES = [502, 503, 504, 520, 521, 522, 523, 524, 525, 526, 530];
 
 // Hotseat mode (same-device local play)
 let isHotseatMode = false;
@@ -506,7 +511,7 @@ async function performGameAction(type, payload = {}) {
             alert('The game changed before your action was saved. Review the latest state and try again.');
             return null;
         }
-        if (!error.status) {
+        if (isRetryableActionError(error)) {
             gameActionInFlight = false;
             resyncGame();
             throw new Error("Couldn't reach the game server. Check your connection; the game will refresh when you're back online.");
@@ -526,7 +531,7 @@ function logActionError(label, error) {
 }
 
 function isRetryableActionError(error) {
-    return !error.status || [502, 503, 504].includes(error.status);
+    return !error.status || GATEWAY_ERROR_STATUSES.includes(error.status);
 }
 
 async function postGameActionWithRetry(body) {
@@ -817,9 +822,8 @@ function bindStaticGameControls() {
     document.getElementById('loanList')?.addEventListener('change', handleLoanAutopayChange);
     document.getElementById('loanAmount')?.addEventListener('input', () => renderLoanTerms('loanTerms', 'loanAmount'));
     document.getElementById('refinanceAmount')?.addEventListener('input', () => renderLoanTerms('refinanceTerms', 'refinanceAmount'));
-    document.getElementById('debtsToRefinance')?.addEventListener('change', () => {
-        updateRefinanceSummary();
-    });
+    document.getElementById('refinanceBorrower')?.addEventListener('change', renderRefinanceDebtOptions);
+    document.getElementById('debtsToRefinance')?.addEventListener('change', handleRefinanceSelectionChange);
     document.getElementById('refinanceAmount')?.addEventListener('input', updateRefinanceSummary);
     document.getElementById('process-debt-btn')?.addEventListener('click', processDebt);
     document.getElementById('confirm-house-purchase-btn')?.addEventListener('click', confirmHousePurchase);

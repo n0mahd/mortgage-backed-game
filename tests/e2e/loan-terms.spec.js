@@ -24,7 +24,7 @@ async function makeRoom(request) {
     return { room, alice: users[0], bob: users[1] };
 }
 
-async function seedGame(request, { currentPlayerIndex = 0, aliceDebts = [] } = {}) {
+async function seedGame(request, { currentPlayerIndex = 0, aliceDebts = [], corporations = () => [] } = {}) {
     const { room, alice, bob } = await makeRoom(request);
     const properties = MONOPOLY_PROPERTIES.map((prop, index) => ({
         ...prop, id: `prop-${index}`, ownerId: null, ownerName: null, houses: 0,
@@ -41,7 +41,7 @@ async function seedGame(request, { currentPlayerIndex = 0, aliceDebts = [] } = {
                     playerState(bob.user.id, 'Bob'),
                 ],
                 properties,
-                corporations: [],
+                corporations: corporations(alice.user.id),
                 lastDiceRoll: null,
                 lastCardDrawn: null,
                 settings: { passGoAmount: 200, startingCash: 1500, loanRates: { 5: 4, 10: 5, 15: 6 } },
@@ -185,4 +185,43 @@ test('refinance a loan onto a new term', async ({ page, request }) => {
     expect(after.debts).toHaveLength(1);
     expect(after.debts[0]).toMatchObject({ principal: 300, termTurns: 15, turnsRemaining: 15, interestRate: 6 });
     expect(after.cash).toBe(1600);
+});
+
+test("refinance a corporation's loans down to a smaller one", async ({ page, request }) => {
+    const loan = (id, principal) => ({ id, principal, interestRate: 5, termTurns: 10, turnsRemaining: 6, autopay: true });
+    const { room, game, alice } = await seedGame(request, {
+        aliceDebts: [loan('debt-own', 50)],
+        corporations: aliceId => [{
+            id: 'corp-loan', ticker: 'LOAN', name: 'LOAN Corporation',
+            founderId: aliceId, founderName: 'Alice', chairmanId: aliceId, chairmanName: 'Alice',
+            totalShares: 10, availableShares: 0, treasuryShares: 0, assets: [],
+            shareholders: [{ userId: aliceId, name: 'Alice', shares: 10 }],
+            debts: [loan('debt-a', 100), loan('debt-b', 150)],
+            cash: 400,
+        }],
+    });
+    await openGame(page, room, alice);
+    await page.click('#game [data-game-action="open-debt"]');
+    await page.selectOption('#debtAction', 'refinance');
+    await page.selectOption('#refinanceBorrower', 'corporation:corp-loan');
+    await page.check('#refinance-debt-0');
+    await page.check('#refinance-debt-1');
+    // The amount starts at the selected balance: the same loans on a new term.
+    await expect(page.locator('#refinanceAmount')).toHaveValue('250.00');
+    await expect(page.locator('#refinanceSummary')).toContainText('Same balance on a new term');
+    await page.fill('#refinanceAmount', '100');
+    await expect(page.locator('#refinanceSummary')).toContainText("$150 is paid down from LOAN's cash");
+    await page.check('#refinanceTerms-5');
+    await Promise.all([actionSaved(page), page.click('#process-debt-btn')]);
+    await expect(page.locator('#debtModal')).toBeHidden();
+    const state = (await apiJson(request, 'get', `${BASE_API}/games/${game.id}`, {
+        headers: { Authorization: `Bearer ${alice.token}` },
+    })).game_state;
+    const corp = state.corporations.find(item => item.id === 'corp-loan');
+    expect(corp.debts).toHaveLength(1);
+    expect(corp.debts[0]).toMatchObject({ principal: 100, termTurns: 5, interestRate: 4 });
+    expect(corp.cash).toBe(250);
+    const aliceAfter = state.players.find(player => player.userId === alice.user.id);
+    expect(aliceAfter.cash).toBe(1500);
+    expect(aliceAfter.debts.map(debt => debt.id)).toEqual(['debt-own']);
 });
