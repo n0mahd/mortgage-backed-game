@@ -12,7 +12,7 @@ const KENTUCKY = { id: 'prop-13', name: 'Kentucky Avenue', color: 'Red', price: 
 
 // MBS: 12,000 shares (Sam 6,000, Alex 3,600, Kim 2,400), owns the Dark Blues
 // and has $600 in its treasury: worth $1,350, so $0.1125 a share. Sam's turn.
-async function setupGame(request, { samOverrides = {}, illinoisOwner = 'alex' } = {}) {
+async function setupGame(request, { samOverrides = {}, illinoisOwner = 'alex', mbsOwnsKentucky = false } = {}) {
     const users = {};
     for (const name of ['Alex', 'Sam', 'Kim']) {
         users[name] = await apiJson(request, 'post', `${BASE_API}/auth/anonymous`);
@@ -43,7 +43,7 @@ async function setupGame(request, { samOverrides = {}, illinoisOwner = 'alex' } 
                     owned(PARK, 'corp-mbs', '[MBS]'),
                     owned(BOARDWALK, 'corp-mbs', '[MBS]'),
                     illinois,
-                    owned(KENTUCKY, ids.kim, 'Kim'),
+                    mbsOwnsKentucky ? owned(KENTUCKY, 'corp-mbs', '[MBS]') : owned(KENTUCKY, ids.kim, 'Kim'),
                 ],
                 corporations: [{
                     id: 'corp-mbs',
@@ -57,6 +57,7 @@ async function setupGame(request, { samOverrides = {}, illinoisOwner = 'alex' } 
                     assets: [
                         { id: PARK.id, name: PARK.name, value: PARK.price, color: PARK.color },
                         { id: BOARDWALK.id, name: BOARDWALK.name, value: BOARDWALK.price, color: BOARDWALK.color },
+                        ...(mbsOwnsKentucky ? [{ id: KENTUCKY.id, name: KENTUCKY.name, value: KENTUCKY.price, color: KENTUCKY.color }] : []),
                     ],
                     shareholders: [
                         { userId: ids.sam, name: 'Sam', shares: 6000 },
@@ -284,6 +285,21 @@ test('the corporation sheet and offer sheet fit a 320px phone', async ({ browser
     await sam.page.locator('.corp-rent-policy').scrollIntoViewIfNeeded();
     await sam.page.screenshot({ path: 'test-results/corporation-desk-320.png', fullPage: false });
     await sam.context.close();
+});
+
+test('a corporation lists its properties grouped by colour, in board order', async ({ browser, request }) => {
+    const { room, users } = await setupGame(request, { mbsOwnsKentucky: true });
+    const kim = await openGame(browser, room, users.Kim);
+    await kim.page.click('[data-game-action="open-corporation"]');
+    const groups = kim.page.locator('.corp-asset-group');
+    await expect(groups).toHaveCount(2);
+    await expect(groups.nth(0).locator('.corp-asset-group-head')).toContainText('Red');
+    await expect(groups.nth(0).locator('.corp-asset-group-head')).toContainText('1 of 3');
+    await expect(groups.nth(1).locator('.corp-asset-group-head')).toContainText('Monopoly');
+    await expect(groups.nth(1).locator('.corp-asset-row')).toHaveText([/Park Place\s*\$350/, /Boardwalk\s*\$400/]);
+    await groups.nth(0).scrollIntoViewIfNeeded();
+    await kim.page.screenshot({ path: 'test-results/corporation-assets-390.png', fullPage: false });
+    await kim.context.close();
 });
 
 test('the chairman picks the company under They give to add a property, and sends it cash for shares', async ({ browser, request }) => {

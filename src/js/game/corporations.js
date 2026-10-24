@@ -60,6 +60,41 @@ async function createIPO() {
     });
 }
 
+// A corporation's properties in board order, one block per colour group,
+// each saying how much of the set the corporation holds.
+function renderCorporationAssetGroups(assets) {
+    if (!assets.length) return '<p class="empty-state">No assets</p>';
+    const allProperties = currentGame.game_state.properties || [];
+    const groups = new Map();
+    [...assets]
+        .sort((a, b) => getPropertyBoardPosition(a.id) - getPropertyBoardPosition(b.id))
+        .forEach(asset => {
+            const color = allProperties.find(prop => prop.id === asset.id)?.color || 'Property';
+            if (!groups.has(color)) groups.set(color, []);
+            groups.get(color).push(asset);
+        });
+    return `<div class="corp-asset-groups">${[...groups].map(([color, items]) => {
+        const total = PROPERTY_GROUP_SIZES[color] || allProperties.filter(prop => prop.color === color).length || items.length;
+        const setLabel = items.length >= total
+            ? (color === 'Railroad' || color === 'Utility' ? 'Complete set' : 'Monopoly')
+            : `${items.length} of ${total}`;
+        return `
+            <div class="corp-asset-group" style="--property-color:${escapeHtml(getPropertyColorValue(color))};">
+                <div class="corp-asset-group-head">
+                    <span>${escapeHtml(color)}</span>
+                    <span class="corp-asset-set${items.length >= total ? ' complete' : ''}">${escapeHtml(setLabel)}</span>
+                </div>
+                ${items.map(asset => `
+                    <div class="corp-asset-row">
+                        <span>${escapeHtml(asset.name)}</span>
+                        <span class="corp-asset-value">${formatMoney(Number(asset.value || 0))}</span>
+                    </div>
+                `).join('')}
+            </div>
+        `;
+    }).join('')}</div>`;
+}
+
 // Open Corporation Modal
 async function openCorporationModal() {
     const gameState = currentGame.game_state;
@@ -110,9 +145,7 @@ async function openCorporationModal() {
             ${CorporationDesk.renderRunnerTools(corp)}
             ${CorporationDesk.renderPropertyOffers(corp)}
             <h4>Assets:</h4>
-            <ul>
-                ${assets.map(a => `<li>${propertyDot(a.id)}${escapeHtml(a.name)} ($${Number(a.value || 0).toFixed(2)})</li>`).join('') || '<li>No assets</li>'}
-            </ul>
+            ${renderCorporationAssetGroups(assets)}
             <h4>Shareholders:</h4>
             <ul>
                 ${shareholderRows}

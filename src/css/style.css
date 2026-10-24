@@ -2647,6 +2647,44 @@ input[type="radio"] {
 .corporation-card h4 { margin-top: var(--s3); }
 .corporation-card ul { margin-top: 4px; color: var(--ink-2); }
 
+/* Corporation assets: one block per colour group, in board order */
+.corp-asset-groups { display: grid; gap: var(--s2); margin-top: 4px; }
+
+.corp-asset-group {
+    --property-color: var(--rule-strong);
+    padding: 6px 10px 6px 14px;
+    border-radius: var(--r-deed);
+    border: 1px solid var(--rule);
+    border-left: 5px solid var(--property-color);
+    background: var(--paper);
+}
+
+.corp-asset-group-head {
+    display: flex;
+    justify-content: space-between;
+    gap: var(--s2);
+    font-size: var(--text-caption);
+    font-weight: 600;
+    color: var(--ink-3);
+}
+
+.corp-asset-set.complete { color: var(--emerald); font-weight: 700; }
+
+.corp-asset-row {
+    display: flex;
+    justify-content: space-between;
+    gap: var(--s2);
+    padding-top: 2px;
+    color: var(--ink);
+    font-weight: 600;
+}
+
+.corp-asset-value {
+    font-family: var(--font-money);
+    font-variant-numeric: lining-nums proportional-nums;
+    color: var(--ink-2);
+}
+
 .corp-status-warning {
     padding: var(--s2) var(--s3);
     border-radius: var(--r-control);
