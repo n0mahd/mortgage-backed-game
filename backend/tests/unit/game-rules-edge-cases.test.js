@@ -389,6 +389,56 @@ describe('game rule edge cases', () => {
         )).toBe(true);
     });
 
+    // Doubles onto Boardwalk (prop-26, $50 rent) with $20: $30 stays owed through the next roll.
+    function doublesOntoUnaffordableRent() {
+        const state = makeState({
+            players: [
+                makePlayer('alice', 'Alice', { cash: 20, position: 37 }),
+                makePlayer('bob', 'Bob'),
+                makePlayer('carol', 'Carol'),
+            ],
+        });
+        ownProperty(state, 'prop-26', 'bob', 'Bob');
+        return applyAction(state, 'alice', { type: 'roll_dice', payload: {} }, { dice: [1, 1] }).state;
+    }
+
+    test('after doubles, rolling again pays rent still owed before moving', () => {
+        const state = doublesOntoUnaffordableRent();
+        state.players.find(player => player.userId === 'alice').cash = 100;
+
+        const rolled = applyAction(state, 'alice', { type: 'roll_dice', payload: {} }, { dice: [2, 3] });
+        const alice = rolled.state.players.find(player => player.userId === 'alice');
+
+        expect(rolled.state.bankruptcyClaims.alice).toBeUndefined();
+        expect(rolled.state.players.find(player => player.userId === 'bob').cash).toBe(1550);
+        expect(alice.position).toBe(4);
+        expect(alice.cash).toBe(100 - 30 + 200 - 200); // claim, GO salary, Income Tax
+        expect(rolled.events.findIndex(event => event.type === 'bankruptcy_claim_settled'))
+            .toBeLessThan(rolled.events.findIndex(event => event.type === 'dice_roll'));
+    });
+
+    test('after doubles with rent unpaid, rolling again is refused and End Turn declares bankruptcy', () => {
+        const state = doublesOntoUnaffordableRent();
+        expect(state.players.find(player => player.userId === 'alice').diceRolled).toBe(false);
+
+        expect(() => applyAction(state, 'alice', { type: 'roll_dice', payload: {} }, { dice: [2, 3] }))
+            .toThrow('raise $30.00 more');
+
+        const ended = applyAction(state, 'alice', { type: 'end_turn', payload: {} });
+        expect(ended.state.players.find(player => player.userId === 'alice').bankrupt).toBe(true);
+        expect(ended.state.currentPlayerIndex).toBe(1);
+    });
+
+    test('after doubles with rent paid in full, End Turn still waits for the next roll', () => {
+        const state = makeState({
+            players: [makePlayer('alice', 'Alice', { position: 37 }), makePlayer('bob', 'Bob')],
+        });
+        ownProperty(state, 'prop-26', 'bob', 'Bob');
+        const rolled = applyAction(state, 'alice', { type: 'roll_dice', payload: {} }, { dice: [1, 1] });
+
+        expect(() => applyAction(rolled.state, 'alice', { type: 'end_turn', payload: {} })).toThrow('Roll before ending turn');
+    });
+
     test('rent bankruptcy transfers direct assets and shares to the player creditor', () => {
         const state = makeState({
             players: [
