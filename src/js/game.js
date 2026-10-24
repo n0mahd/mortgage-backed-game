@@ -31,6 +31,8 @@ const ACTION_RETRY_DELAYS_MS = [500, 1500, 3000, 5000, 10000];
 const GATEWAY_ERROR_STATUSES = [502, 503, 504, 520, 521, 522, 523, 524, 525, 526, 530];
 
 // Hotseat mode (same-device local play)
+// Newest game events, as loaded for the Recent events tab (the Board tab shows a few).
+let recentGameEvents = [];
 let isHotseatMode = false;
 let isSpectator = false;
 let hotseatTokens = []; // [{userId, token, name}]
@@ -338,6 +340,7 @@ function secondsUntil(isoTime) {
 async function loadGameLog() {
     try {
         const events = await apiFetch(`/games/${currentGame.id}/events`);
+        recentGameEvents = Array.isArray(events) ? events : [];
 
         const logContainer = document.getElementById('full-game-log');
         logContainer.innerHTML = events.map(event => `
@@ -704,8 +707,9 @@ function updateTurnBanner() {
     const gameState = currentGame.game_state;
     const currentPlayer = gameState.players[gameState.currentPlayerIndex];
     const isMyTurn = !!currentPlayer && currentPlayer.userId === currentUser.id && !gameState.paused && !gameState.ended;
-    const onGameTab = document.getElementById('game')?.classList.contains('active');
-    banner.style.display = isMyTurn && !onGameTab ? 'flex' : 'none';
+    // The Board tab shows whose turn it is (and Roll Dice) in its centre.
+    const onTurnTab = ['game', 'board'].some(id => document.getElementById(id)?.classList.contains('active'));
+    banner.style.display = isMyTurn && !onTurnTab ? 'flex' : 'none';
 
     const gameTab = document.querySelector('.nav-tab[data-section="game"]');
     if (gameTab) {
@@ -730,7 +734,6 @@ function switchToGameTab() {
 function setupUIListeners() {
     // Populate player dropdowns
     populatePlayerDropdowns();
-    window.addEventListener('resize', scaleBoardToFit);
 }
 
 function bindStaticGameControls() {
@@ -767,6 +770,11 @@ function bindStaticGameControls() {
             return;
         }
 
+        if (event.target.closest('#boardContent') && !event.target.closest('[data-game-action], [data-switch-section]')) {
+            if (handleBoardClick(event)) renderBoardTab();
+            return;
+        }
+
         const switchButton = event.target.closest('[data-switch-section]');
         if (switchButton) {
             document.querySelector(`.nav-tab[data-section="${switchButton.dataset.switchSection}"]`)?.click();
@@ -784,6 +792,18 @@ function bindStaticGameControls() {
         event.preventDefault();
         togglePlayerCard(playerSummary);
     });
+
+    // Desktop: pointing at a board square shows its details in the centre.
+    const boardContent = document.getElementById('boardContent');
+    if (boardContent && window.matchMedia('(hover: hover)').matches) {
+        boardContent.addEventListener('mouseover', (event) => {
+            const cell = event.target.closest('.board-cell');
+            if (cell && currentGame) previewBoardSquare(currentGame.game_state, Number(cell.dataset.boardSquare));
+        });
+        boardContent.addEventListener('mouseleave', () => {
+            if (currentGame) previewBoardSquare(currentGame.game_state, null);
+        });
+    }
 
     // A hairline appears under the app bar once content scrolls beneath it.
     const appBar = document.querySelector('.app-bar');
@@ -853,6 +873,6 @@ function bindStaticGameControls() {
 function renderBoardTab() {
     const el = document.getElementById('boardContent');
     if (!el || !currentGame || !currentUser) return;
-    el.innerHTML = renderBoard(currentGame.game_state, currentUser.id);
-    scaleBoardToFit();
+    el.innerHTML = renderBoard(currentGame.game_state, currentUser.id, recentGameEvents);
+    animateBoardTokens(currentGame.game_state);
 }

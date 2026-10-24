@@ -17,6 +17,7 @@ const {
 const {
     hasCompleteColorGroup,
     getCompleteGroupProperties,
+    boardGridCell,
 } = require('../../../src/js/board.js');
 
 function calculateRent(property, gameState, diceTotal) {
@@ -613,5 +614,23 @@ describe('CHANCE_CARDS and COMMUNITY_CHEST_CARDS', () => {
             expect(card).toHaveProperty('action');
             expect(card.action).toHaveProperty('type');
         }
+    });
+});
+
+describe('Board tab layout', () => {
+    test('the 40 squares form one clockwise loop around the edge, GO bottom-right', () => {
+        expect(boardGridCell(0)).toEqual({ row: 11, col: 11 });
+        expect(boardGridCell(10)).toEqual({ row: 11, col: 1 });
+        expect(boardGridCell(20)).toEqual({ row: 1, col: 1 });
+        expect(boardGridCell(30)).toEqual({ row: 1, col: 11 });
+        const seen = new Set();
+        for (let pos = 0; pos < 40; pos++) {
+            const a = boardGridCell(pos);
+            const b = boardGridCell((pos + 1) % 40);
+            seen.add(`${a.row},${a.col}`);
+            expect(a.row === 1 || a.row === 11 || a.col === 1 || a.col === 11).toBe(true);
+            expect(Math.abs(a.row - b.row) + Math.abs(a.col - b.col)).toBe(1);
+        }
+        expect(seen.size).toBe(40);
     });
 });

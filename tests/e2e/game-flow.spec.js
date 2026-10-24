@@ -80,9 +80,8 @@ test.describe('Game flow', () => {
             await boardTab.click();
         }
 
-        // Board grid should be visible. Scope to the rendered board content so
-        // hidden mobile/desktop duplicate markup does not satisfy the selector.
-        const board = page.locator('#boardContent .board-grid:visible, #boardContent .mobile-board-view:visible, #boardContent .board-tab-wrapper:visible').first();
+        // The board itself should be visible.
+        const board = page.locator('#boardContent .board-frame');
         await expect(board).toBeVisible({ timeout: 5000 });
     });
 
