@@ -1,7 +1,65 @@
-// The Market tab: the trade form (trading as yourself or an LLC you run, with its
-// LLC share preview), pending trade offers, and sending money. Also the share-deal
+// The Market tab: the trade form (each side a player or a company; you and a
+// company you run turns it into adding properties to that company), its LLC
+// share preview, pending trade offers, and sending money (to a player or into a
+// company, for new shares if you run it). Also the share-deal
 // summary table that the add-to-corporation and offer sheets reuse.
 // Part of the game page; reads game.js's state. Offer buttons run via action-dispatcher.js.
+
+// Market dropdowns list the players, then the companies. A company's option
+// value is "corp:<id>": picking it trades for (or pays) the company itself,
+// and its runner acts for it.
+const MARKET_CORP_PREFIX = 'corp:';
+
+function marketPartyOptionsHtml(gameState, excludeUserId = null) {
+    const players = gameState.players.filter(p => p.userId !== excludeUserId);
+    const playersHtml = players.map(p => `<option value="${escapeHtml(p.userId)}">${escapeHtml(p.userId === currentUser.id ? `${p.name} (you)` : p.name)}</option>`).join('');
+    const corps = (gameState.corporations || []).filter(corp => corp.chairmanId && !ShareDeals.isInsolvent(corp));
+    if (!corps.length) return playersHtml;
+    const corpsHtml = corps.map(corp => {
+        const owner = ShareDeals.runsCorporation(corp, currentUser.id) ? 'your company' : `${corp.chairmanName || 'chairman'}'s company`;
+        return `<option value="${escapeHtml(MARKET_CORP_PREFIX + corp.id)}">${escapeHtml(corp.ticker)} (${escapeHtml(owner)})</option>`;
+    }).join('');
+    return `<optgroup label="Players">${playersHtml}</optgroup><optgroup label="Companies">${corpsHtml}</optgroup>`;
+}
+
+// A dropdown value as { value, userId, player, corp }: for a company, userId
+// is whoever acts for it (you, if you run it; otherwise its chairman).
+function marketPartyFromValue(value) {
+    const gameState = currentGame.game_state;
+    const playerById = id => gameState.players.find(p => p.userId === id) || null;
+    if (!String(value || '').startsWith(MARKET_CORP_PREFIX)) {
+        return { value, userId: value || '', player: playerById(value), corp: null };
+    }
+    const corp = (gameState.corporations || []).find(item => item.id === value.slice(MARKET_CORP_PREFIX.length)) || null;
+    const userId = !corp ? '' : (ShareDeals.runsCorporation(corp, currentUser.id) ? currentUser.id : corp.chairmanId);
+    return { value, userId, player: playerById(userId), corp };
+}
+
+function tradeSide(side) {
+    return marketPartyFromValue(document.getElementById(`${side}Select`)?.value || '');
+}
+
+function tradeSideCorp(side) {
+    return tradeSide(side).corp;
+}
+
+// What the trade form does with its two sides: 'trade', 'add' (your own
+// properties into a company you run, no one else involved), or 'invalid'
+// with the reason.
+function tradeFormMode() {
+    const one = tradeSide('player1');
+    const two = tradeSide('player2');
+    const invalid = reason => ({ kind: 'invalid', reason, one, two });
+    if (!one.player || !two.player) return invalid('Choose who gives on each side.');
+    if (one.value === two.value) return invalid('Choose two different sides for a trade.');
+    if (one.userId !== two.userId) {
+        return [one.userId, two.userId].includes(currentUser.id) ? { kind: 'trade', one, two } : invalid('Your trade must include you.');
+    }
+    if (one.userId !== currentUser.id) return invalid('Your trade must include you.');
+    if (!one.corp && two.corp) return { kind: 'add', corp: two.corp, one, two };
+    if (one.corp && !two.corp) return invalid(`You run ${one.corp.ticker}, so it can't give you anything personally. Pay a dividend instead.`);
+    return invalid(`You run both ${one.corp.ticker} and ${two.corp.ticker}, so they can't trade with each other.`);
+}
 
 function populatePlayerDropdowns() {
     const gameState = currentGame.game_state;
@@ -12,36 +70,28 @@ function populatePlayerDropdowns() {
     const paymentToPlayer = document.getElementById('paymentToPlayer');
     if (!player1Select || !player2Select || !paymentFromPlayer || !paymentToPlayer) return;
 
-    const playersHtml = gameState.players.map(p =>
-        `<option value="${escapeHtml(p.userId)}">${escapeHtml(p.name)}</option>`
-    ).join('');
-
     const previous = {
         player1: player1Select.value,
         player2: player2Select.value,
-        paymentFrom: paymentFromPlayer.value,
         paymentTo: paymentToPlayer.value,
     };
     const firstOtherId = getFirstOtherPlayerId(currentUser.id) || gameState.players[0]?.userId || '';
 
-    player1Select.innerHTML = playersHtml;
-    player2Select.innerHTML = playersHtml;
-    paymentFromPlayer.innerHTML = playersHtml;
-    paymentToPlayer.innerHTML = playersHtml;
+    player1Select.innerHTML = marketPartyOptionsHtml(gameState);
+    player2Select.innerHTML = marketPartyOptionsHtml(gameState);
+    paymentFromPlayer.innerHTML = gameState.players.map(p => `<option value="${escapeHtml(p.userId)}">${escapeHtml(p.name)}</option>`).join('');
+    paymentToPlayer.innerHTML = marketPartyOptionsHtml(gameState, currentUser.id);
 
     setSelectValue(player1Select, previous.player1 || currentUser.id, currentUser.id);
     setSelectValue(player2Select, previous.player2 || firstOtherId, firstOtherId || currentUser.id);
     setSelectValue(paymentFromPlayer, currentUser.id, currentUser.id);
-    setSelectValue(paymentToPlayer, previous.paymentTo || firstOtherId, firstOtherId || currentUser.id);
+    setSelectValue(paymentToPlayer, previous.paymentTo || firstOtherId, firstOtherId);
     paymentFromPlayer.disabled = true;
     enforceDistinctPlayers(player1Select, player2Select);
-    enforceDistinctPlayers(paymentFromPlayer, paymentToPlayer);
 
     if (!player1Select.dataset.assetsBound) {
         player1Select.addEventListener('change', () => {
             enforceDistinctPlayers(player1Select, player2Select);
-            renderTradingAs('player1');
-            renderTradingAs('player2');
             updatePlayerAssets('player1');
             updatePlayerAssets('player2');
             updateMarketActionState();
@@ -51,8 +101,6 @@ function populatePlayerDropdowns() {
     if (!player2Select.dataset.assetsBound) {
         player2Select.addEventListener('change', () => {
             enforceDistinctPlayers(player2Select, player1Select);
-            renderTradingAs('player1');
-            renderTradingAs('player2');
             updatePlayerAssets('player1');
             updatePlayerAssets('player2');
             updateMarketActionState();
@@ -60,11 +108,16 @@ function populatePlayerDropdowns() {
         player2Select.dataset.assetsBound = 'true';
     }
     if (!paymentToPlayer.dataset.paymentBound) {
-        paymentToPlayer.addEventListener('change', () => {
-            enforceDistinctPlayers(paymentFromPlayer, paymentToPlayer);
+        paymentToPlayer.addEventListener('change', updateMarketActionState);
+        paymentToPlayer.dataset.paymentBound = 'true';
+    }
+    const paymentReturn = document.getElementById('paymentReturn');
+    if (paymentReturn && !paymentReturn.dataset.paymentBound) {
+        paymentReturn.addEventListener('change', event => {
+            if (event.target.name === 'paymentReturnChoice') paymentReturnChoice = event.target.value;
             updateMarketActionState();
         });
-        paymentToPlayer.dataset.paymentBound = 'true';
+        paymentReturn.dataset.paymentBound = 'true';
     }
     ['player1Cash', 'player2Cash', 'paymentAmount'].forEach(id => {
         const input = document.getElementById(id);
@@ -74,56 +127,18 @@ function populatePlayerDropdowns() {
         }
     });
 
-    ['player1', 'player2'].forEach(side => {
-        const asSelect = document.getElementById(`${side}As`);
-        if (asSelect && !asSelect.dataset.assetsBound) {
-            asSelect.addEventListener('change', () => {
-                updatePlayerAssets('player1');
-                updatePlayerAssets('player2');
-                updateMarketActionState();
-            });
-            asSelect.dataset.assetsBound = 'true';
-        }
-        renderTradingAs(side);
-    });
     updatePlayerAssets('player1');
     updatePlayerAssets('player2');
     renderTradeOffers();
     updateMarketActionState();
 }
 
-// "Trading as": a side's player can trade for a company they run, using its
-// treasury cash, properties and treasury shares.
-function renderTradingAs(side) {
-    const group = document.getElementById(`${side}AsGroup`);
-    const select = document.getElementById(`${side}As`);
-    if (!group || !select) return;
-    const userId = document.getElementById(`${side}Select`)?.value;
-    const player = currentGame.game_state.players.find(p => p.userId === userId);
-    const corps = player ? ShareDeals.corporationsRunBy(currentGame.game_state, userId) : [];
-    const previous = select.dataset.playerId === userId ? select.value : '';
-    group.hidden = corps.length === 0;
-    select.innerHTML = [`<option value="">${escapeHtml(userId === currentUser.id ? 'Yourself' : (player?.name || 'Themselves'))}</option>`]
-        .concat(corps.map(corp => `<option value="${escapeHtml(corp.id)}">${escapeHtml(corp.ticker)} (treasury ${formatMoney(corp.cash)})</option>`))
-        .join('');
-    select.dataset.playerId = userId || '';
-    setSelectValue(select, previous, '');
-}
-
-function tradingAsCorp(side) {
-    const corpId = document.getElementById(`${side}As`)?.value || '';
-    return corpId ? currentGame.game_state.corporations.find(corp => corp.id === corpId) || null : null;
-}
-
+// From a company's card: trade for that company (corpId) or yourself.
 function setTradingAs(side, userId, corpId) {
     const select = document.getElementById(`${side}Select`);
     if (!select) return;
-    select.value = userId;
+    select.value = corpId ? MARKET_CORP_PREFIX + corpId : userId;
     enforceDistinctPlayers(select, document.getElementById(`${otherTradeSide(side)}Select`));
-    renderTradingAs('player1');
-    renderTradingAs('player2');
-    const asSelect = document.getElementById(`${side}As`);
-    if (asSelect) asSelect.value = corpId || '';
     updatePlayerAssets('player1');
     updatePlayerAssets('player2');
     updateMarketActionState();
@@ -153,15 +168,17 @@ function enforceDistinctPlayers(primarySelect, secondarySelect) {
 
 function updatePlayerAssets(playerNumber) {
     const gameState = currentGame.game_state;
-    const selectId = playerNumber === 'player1' ? 'player1Select' : 'player2Select';
     const assetsId = playerNumber === 'player1' ? 'player1Assets' : 'player2Assets';
 
-    const userId = document.getElementById(selectId).value;
-    const player = gameState.players.find(p => p.userId === userId);
+    const { userId, player, corp } = tradeSide(playerNumber);
 
     if (!player) return;
     const container = document.getElementById(assetsId);
-    const corp = tradingAsCorp(playerNumber);
+    const mode = tradeFormMode();
+    if (mode.kind === 'add') {
+        renderAddToCorporationSide(container, playerNumber, mode.corp);
+        return;
+    }
     const holderKey = corp ? `${userId}|${corp.id}` : userId;
     if (corp) {
         renderCorporationTradeAssets(container, playerNumber, corp, holderKey);
@@ -234,6 +251,64 @@ function updatePlayerAssets(playerNumber) {
     renderTradeDestination(playerNumber);
 }
 
+// You give, to a company you run: your properties, as in the Add properties
+// sheet (a built group goes in whole). The company's side shows what you get
+// back, drawn by renderTradeAddReturn.
+function renderAddToCorporationSide(container, playerNumber, corp) {
+    if (playerNumber === 'player2') {
+        container.innerHTML = '';
+        container.dataset.playerId = '';
+        return;
+    }
+    const holderKey = `add|${corp.id}`;
+    const kept = container.dataset.playerId === holderKey
+        ? new Set(Array.from(container.querySelectorAll('input:checked')).map(input => input.value))
+        : null;
+    container.innerHTML = addToCorporationAssetsHtml(tradeSide(playerNumber).player?.properties || [], `${playerNumber}-asset`);
+    container.dataset.playerId = holderKey;
+    if (kept) container.querySelectorAll('input[type="checkbox"]').forEach(input => { input.checked = kept.has(input.value); });
+    bindBuiltGroupChecks(container);
+    document.getElementById(`${playerNumber}Destination`).innerHTML = '';
+}
+
+let tradeAddChoice = 'shares'; // "What do you get back?" when adding to your company
+let paymentReturnChoice = 'shares'; // the same, for cash sent to your company
+
+// Shows the form for a trade or for adding to your own company: headings,
+// cash boxes, "What do you get back?" and the button.
+function renderTradeFormMode(mode) {
+    const adding = mode.kind === 'add';
+    document.getElementById('player1Heading').textContent = adding ? 'You put in' : 'You give';
+    document.getElementById('player2Heading').textContent = adding ? 'You get back' : 'They give';
+    ['player1', 'player2'].forEach(side => {
+        const group = document.getElementById(`${side}CashGroup`);
+        if (group) group.hidden = adding;
+    });
+    const button = document.getElementById('executeTradeBtn');
+    if (button) button.textContent = adding ? `Add to ${mode.corp.ticker}` : 'Propose Transaction';
+    if (!adding) {
+        // Both sides are you (you and a company you run): say why that can't work.
+        if (mode.kind === 'invalid' && mode.one.player && mode.one.userId === mode.two.userId) {
+            const destination = document.getElementById('player2Destination');
+            destination.innerHTML = `<p class="hint">${escapeHtml(mode.reason)}</p>`;
+            destination.dataset.html = '';
+        }
+        return null;
+    }
+    const picked = document.querySelector('#player2Destination input[name="tradeAddReturn"]:checked:not(:disabled)');
+    if (picked && !document.querySelector('#player2Destination input[name="tradeAddReturn"]:disabled')) tradeAddChoice = picked.value;
+    const ids = Array.from(document.querySelectorAll('#player1Assets input[type="checkbox"]:checked')).map(cb => cb.value);
+    const choice = addToCorporationReturn(mode.corp, ids, tradeAddChoice, 'tradeAddReturn');
+    const turnNote = isCurrentUsersTurn() ? '' : `<p class="hint">You can add properties to ${escapeHtml(mode.corp.ticker)} on your turn.</p>`;
+    const destination = document.getElementById('player2Destination');
+    const html = choice.html + turnNote;
+    if (destination.dataset.html !== html) {
+        destination.innerHTML = html;
+        destination.dataset.html = html;
+    }
+    return { ids, issueShares: choice.issueShares, html: addToCorporationPreviewHtml(mode.corp, ids, choice.issueShares) };
+}
+
 // A company's side of a trade: the properties it owns (built groups stay put)
 // and its own treasury shares.
 function renderCorporationTradeAssets(container, playerNumber, corp, holderKey) {
@@ -291,10 +366,13 @@ function renderTradeDestination(playerNumber) {
     const container = document.getElementById(`${playerNumber}Destination`);
     if (!container) return;
     const gameState = currentGame.game_state;
-    const giver = gameState.players.find(p => p.userId === document.getElementById(`${playerNumber}Select`)?.value);
-    const receiver = gameState.players.find(p => p.userId === document.getElementById(`${otherTradeSide(playerNumber)}Select`)?.value);
+    const giverSide = tradeSide(playerNumber);
+    const receiverSide = tradeSide(otherTradeSide(playerNumber));
+    const giver = giverSide.player;
+    const receiver = receiverSide.player;
+    container.dataset.html = '';
     // A company side gives from, or receives into, its own books.
-    const companySide = tradingAsCorp(playerNumber) || tradingAsCorp(otherTradeSide(playerNumber));
+    const companySide = giverSide.corp || receiverSide.corp;
     const corps = !companySide && giver && receiver && giver.userId !== receiver.userId && (giver.properties || []).length
         ? ShareDeals.corporationsRunBy(gameState, receiver.userId)
         : [];
@@ -327,8 +405,8 @@ function collectTradeTerms() {
     const value = id => parseFloat(document.getElementById(id)?.value) || 0;
     const assets = assetsId => Array.from(document.querySelectorAll(`#${assetsId} input[type="checkbox"]:checked`)).map(cb => cb.value);
     return {
-        player1Id: document.getElementById('player1Select')?.value,
-        player2Id: document.getElementById('player2Select')?.value,
+        player1Id: tradeSide('player1').userId,
+        player2Id: tradeSide('player2').userId,
         player1Cash: value('player1Cash'),
         player2Cash: value('player2Cash'),
         player1AssetIds: assets('player1Assets'),
@@ -337,8 +415,8 @@ function collectTradeTerms() {
         player2Shares: selectedTradeShares('player2Assets'),
         player1PropertiesToCorpId: selectedTradeDestination('player1'),
         player2PropertiesToCorpId: selectedTradeDestination('player2'),
-        player1CorpId: tradingAsCorp('player1')?.id || null,
-        player2CorpId: tradingAsCorp('player2')?.id || null,
+        player1CorpId: tradeSideCorp('player1')?.id || null,
+        player2CorpId: tradeSideCorp('player2')?.id || null,
     };
 }
 
@@ -375,20 +453,18 @@ function renderShareDealSummary(summary, options = {}) {
     `;
 }
 
-function renderTradePreview() {
+// The preview under the form: adding to your company, or a trade with an LLC
+// in it. addPreview is renderTradeFormMode's result in add mode.
+function renderTradePreview(addPreview) {
     const preview = document.getElementById('tradePreview');
     if (!preview || !currentGame) return;
     const terms = collectTradeTerms();
-    if (!tradeInvolvesLLC(terms)) {
-        preview.hidden = true;
-        preview.innerHTML = '';
-        preview.dataset.html = '';
-        return;
-    }
-    preview.hidden = false;
+    let html = '';
+    if (addPreview) html = addPreview.html;
+    else if (tradeInvolvesLLC(terms)) html = `<h4>Your offer</h4>${renderShareDealSummary(summarizeShareDeal(terms), { showEven: true })}`;
+    preview.hidden = !html;
     // Only re-render on a real change, so a click on "Use N" isn't swallowed
     // when the share box's blur fires a change event first.
-    const html = `<h4>Your offer</h4>${renderShareDealSummary(summarizeShareDeal(terms), { showEven: true })}`;
     if (preview.dataset.html !== html) {
         preview.innerHTML = html;
         preview.dataset.html = html;
@@ -440,33 +516,67 @@ function selectedTradeShares(assetsId) {
 function updateMarketActionState() {
     const tradeBtn = document.getElementById('executeTradeBtn');
     const paymentBtn = document.getElementById('makePaymentBtn');
-    const player1Id = document.getElementById('player1Select')?.value;
-    const player2Id = document.getElementById('player2Select')?.value;
-    const fromPlayerId = document.getElementById('paymentFromPlayer')?.value;
-    const toPlayerId = document.getElementById('paymentToPlayer')?.value;
     const player1Cash = parseFloat(document.getElementById('player1Cash')?.value) || 0;
     const player2Cash = parseFloat(document.getElementById('player2Cash')?.value) || 0;
-    const paymentAmount = parseFloat(document.getElementById('paymentAmount')?.value) || 0;
     const player1Assets = document.querySelectorAll('#player1Assets input:checked').length + selectedTradeShares('player1Assets').length;
     const player2Assets = document.querySelectorAll('#player2Assets input:checked').length + selectedTradeShares('player2Assets').length;
 
-    const tradeHasOffer = player1Cash > 0 || player2Cash > 0 || player1Assets > 0 || player2Assets > 0;
-    const tradeCashCovered = ['player1', 'player2'].map(updateTradeCashLimit).every(Boolean);
-    const tradeValid = player1Id && player2Id && player1Id !== player2Id && [player1Id, player2Id].includes(currentUser.id)
-        && tradeHasOffer && tradeCashCovered;
-    const paymentValid = fromPlayerId && toPlayerId && fromPlayerId !== toPlayerId && fromPlayerId === currentUser.id && paymentAmount > 0;
-
+    const mode = tradeFormMode();
+    const addPreview = renderTradeFormMode(mode);
+    let tradeValid = false;
+    if (mode.kind === 'add') {
+        tradeValid = addPreview.ids.length > 0 && isCurrentUsersTurn();
+    } else if (mode.kind === 'trade') {
+        const tradeHasOffer = player1Cash > 0 || player2Cash > 0 || player1Assets > 0 || player2Assets > 0;
+        const tradeCashCovered = ['player1', 'player2'].map(updateTradeCashLimit).every(Boolean);
+        tradeValid = tradeHasOffer && tradeCashCovered;
+    }
     if (tradeBtn) tradeBtn.disabled = !tradeValid;
-    if (paymentBtn) paymentBtn.disabled = !paymentValid;
-    renderTradePreview();
+    if (paymentBtn) paymentBtn.disabled = !renderPaymentReturn().valid;
+    renderTradePreview(addPreview);
+}
+
+// Send money: who gets it, and for a company you run, "What do you get back?".
+function paymentTerms() {
+    const to = marketPartyFromValue(document.getElementById('paymentToPlayer')?.value || '');
+    const amount = parseFloat(document.getElementById('paymentAmount')?.value) || 0;
+    const runsIt = !!to.corp && ShareDeals.runsCorporation(to.corp, currentUser.id);
+    const issueShares = runsIt && document.querySelector('#paymentReturn input:checked')?.value === 'shares';
+    return { to, amount, runsIt, issueShares };
+}
+
+function renderPaymentReturn() {
+    const container = document.getElementById('paymentReturn');
+    const preview = document.getElementById('paymentPreview');
+    const terms = paymentTerms();
+    let html = '';
+    let previewHtml = '';
+    if (terms.runsIt) {
+        const choice = addToCorporationReturn(terms.to.corp, [], paymentReturnChoice, 'paymentReturnChoice', terms.amount);
+        html = choice.html;
+        previewHtml = addToCorporationPreviewHtml(terms.to.corp, [], choice.issueShares, terms.amount);
+    } else if (terms.to.corp) {
+        html = `<p class="hint">Goes into the ${escapeHtml(terms.to.corp.ticker)} treasury as a gift: every ${escapeHtml(terms.to.corp.ticker)} share rises in value. For shares in return, offer ${escapeHtml(terms.to.player?.name || 'its chairman')} a trade.</p>`;
+    }
+    if (container && container.dataset.html !== html) {
+        container.innerHTML = html;
+        container.dataset.html = html;
+    }
+    if (preview) {
+        preview.hidden = !previewHtml;
+        if (preview.dataset.html !== previewHtml) {
+            preview.innerHTML = previewHtml;
+            preview.dataset.html = previewHtml;
+        }
+    }
+    const recipient = terms.to.corp ? !ShareDeals.isInsolvent(terms.to.corp) : (!!terms.to.player && terms.to.userId !== currentUser.id);
+    return { valid: recipient && terms.amount > 0 };
 }
 
 // The most cash a trade side's player can put in: what they hold, never below zero.
 function tradeCashMax(side) {
-    const corp = tradingAsCorp(side);
+    const { corp, player } = tradeSide(side);
     if (corp) return Math.max(0, Number(corp.cash) || 0);
-    const userId = document.getElementById(`${side}Select`)?.value;
-    const player = currentGame?.game_state?.players?.find(p => p.userId === userId);
     return Math.max(0, Number(player?.cash) || 0);
 }
 
@@ -668,29 +778,24 @@ async function hostCancelTradeOffer(offerId) {
 }
 
 async function executeTransaction() {
+    const mode = tradeFormMode();
+    if (mode.kind === 'add') {
+        await submitTradeAddToCorporation(mode.corp);
+        return;
+    }
+    if (mode.kind === 'invalid') {
+        showMarketStatus(mode.reason, 'error');
+        return;
+    }
     const terms = collectTradeTerms();
-    const { player1Id, player2Id, player1Cash, player2Cash } = terms;
-    const player1Assets = terms.player1AssetIds;
-    const player2Assets = terms.player2AssetIds;
-    const player1Shares = terms.player1Shares;
-    const player2Shares = terms.player2Shares;
-
-    if (player1Id === player2Id) {
-        showMarketStatus('Choose two different players for a trade.', 'error');
-        return;
-    }
-    if (![player1Id, player2Id].includes(currentUser.id)) {
-        showMarketStatus('Your trade must include you.', 'error');
-        return;
-    }
-    if (player1Cash <= 0 && player2Cash <= 0 && player1Assets.length === 0 && player2Assets.length === 0
-        && player1Shares.length === 0 && player2Shares.length === 0) {
+    if (terms.player1Cash <= 0 && terms.player2Cash <= 0 && terms.player1AssetIds.length === 0 && terms.player2AssetIds.length === 0
+        && terms.player1Shares.length === 0 && terms.player2Shares.length === 0) {
         showMarketStatus('Add cash, property, shares, or a Get Out of Jail Free card before proposing a trade.', 'error');
         return;
     }
     const short = ['player1', 'player2'].find(side => terms[`${side}Cash`] > tradeCashMax(side));
     if (short) {
-        const name = tradingAsCorp(short)?.ticker || document.getElementById(`${short}Select`)?.selectedOptions[0]?.textContent || 'That player';
+        const name = tradeSideCorp(short)?.ticker || tradeSide(short).player?.name || 'That player';
         showMarketStatus(`${name} only has ${formatMoney(tradeCashMax(short))} in cash.`, 'error');
         return;
     }
@@ -700,6 +805,25 @@ async function executeTransaction() {
         showError: showMarketError,
         onSaved: () => {
             showMarketStatus('Trade proposal sent. It will execute when the other player accepts.', 'success');
+            resetTradeForm();
+        },
+    });
+}
+
+// You give, to a company you run: add_to_corporation, which needs no one's
+// agreement (the same as the Add properties sheet).
+async function submitTradeAddToCorporation(corp) {
+    const assetIds = Array.from(document.querySelectorAll('#player1Assets input[type="checkbox"]:checked')).map(cb => cb.value);
+    if (!assetIds.length) {
+        showMarketStatus(`Tick the properties to put into ${corp.ticker}.`, 'error');
+        return;
+    }
+    const issueShares = document.querySelector('#player2Destination input[name="tradeAddReturn"]:checked')?.value === 'shares';
+    await submitGameAction('add_to_corporation', { corpId: corp.id, assetIds, issueShares }, {
+        errorText: `Failed to add properties to ${corp.ticker}.`,
+        showError: showMarketError,
+        onSaved: () => {
+            showMarketStatus(`Added to ${corp.ticker}.`, 'success');
             resetTradeForm();
         },
     });
@@ -718,28 +842,24 @@ function resetTradeForm() {
 }
 
 async function makePayment() {
-    const fromPlayerId = document.getElementById('paymentFromPlayer').value;
-    const toPlayerId = document.getElementById('paymentToPlayer').value;
-    const amount = parseFloat(document.getElementById('paymentAmount').value);
-
+    const { to, amount, issueShares } = paymentTerms();
     if (!amount || amount <= 0) {
         showMarketStatus('Enter a payment amount greater than $0.', 'error');
         return;
     }
-    if (fromPlayerId === toPlayerId) {
+    if (!to.corp && (!to.player || to.userId === currentUser.id)) {
         showMarketStatus('Choose a different recipient.', 'error');
         return;
     }
-    if (fromPlayerId !== currentUser.id) {
-        showMarketStatus('Payments must be sent from your player.', 'error');
-        return;
-    }
+    const payload = to.corp
+        ? { fromPlayerId: currentUser.id, toCorpId: to.corp.id, amount, issueShares }
+        : { fromPlayerId: currentUser.id, toPlayerId: to.userId, amount };
 
-    await submitGameAction('manual_payment', { fromPlayerId, toPlayerId, amount }, {
+    await submitGameAction('manual_payment', payload, {
         errorText: 'Failed to make payment.',
         showError: showMarketError,
         onSaved: () => {
-            showMarketStatus('Payment completed successfully.', 'success');
+            showMarketStatus(to.corp ? `Paid into ${to.corp.ticker}.` : 'Payment completed successfully.', 'success');
             document.getElementById('paymentAmount').value = '';
             updateMarketActionState();
         },

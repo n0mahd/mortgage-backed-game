@@ -277,7 +277,6 @@ async function buyShares(corpId) {
 
 // Adding your own properties to a company you run (add_to_corporation). The
 // server decides the share count; this only previews it.
-const MAX_CORPORATION_SHARES = 1000000;
 let addToCorpId = null;
 let addToCorpChoice = 'shares'; // the player's pick; shown when shares are possible
 
@@ -291,73 +290,96 @@ function openAddToCorporationModal(corpId) {
     document.getElementById('addToCorpTitle').textContent = `Add properties to ${corp.ticker}`;
     document.getElementById('addToCorpHint').textContent = `${corp.ticker} will own them and collect their rent, so every ${corp.ticker} share is worth more.`;
     const container = document.getElementById('addToCorpAssets');
-    container.innerHTML = (currentPlayerData?.properties || []).map(p => {
-        const built = groupHasBuildingsUi(p.color);
-        const note = built ? `Has buildings: goes in with the whole ${p.color} group` : '';
-        return `
-        <div class="asset-checkbox">
-            <input type="checkbox" id="add-corp-asset-${escapeHtml(p.id)}" value="${escapeHtml(p.id)}"${built ? ` data-built-group="${escapeHtml(p.color)}"` : ''}>
-            <label for="add-corp-asset-${escapeHtml(p.id)}">${propertyDot(p.id)}${escapeHtml(p.name)} <span class="debt-detail">${formatMoney(p.value)}</span>${note ? ` <span class="debt-detail">${escapeHtml(note)}</span>` : ''}</label>
-        </div>
-    `;
-    }).join('') || '<p class="empty-state">You have no properties to add.</p>';
-    // A built group goes in whole, so ticking one street ticks the group.
-    container.querySelectorAll('input[data-built-group]').forEach(input => {
-        input.addEventListener('change', () => {
-            container.querySelectorAll(`input[data-built-group="${CSS.escape(input.dataset.builtGroup)}"]:not(:disabled)`).forEach(other => { other.checked = input.checked; });
-        });
-    });
+    container.innerHTML = addToCorporationAssetsHtml(currentPlayerData?.properties || [], 'add-corp-asset');
+    bindBuiltGroupChecks(container);
     document.getElementById('addToCorpShares').innerHTML = '';
     addToCorpChoice = 'shares';
     renderAddToCorpChoices();
     openModal('addToCorpModal');
 }
 
+// Your properties as add-to-company checkboxes. A built group goes in whole,
+// so its streets carry data-built-group (see bindBuiltGroupChecks).
+// Shared by the Add properties sheet and the Market form.
+function addToCorporationAssetsHtml(properties, idPrefix) {
+    return properties.map(p => {
+        const built = groupHasBuildingsUi(p.color);
+        const note = built ? `Has buildings: goes in with the whole ${p.color} group` : '';
+        return `
+        <div class="asset-checkbox">
+            <input type="checkbox" id="${idPrefix}-${escapeHtml(p.id)}" value="${escapeHtml(p.id)}"${built ? ` data-built-group="${escapeHtml(p.color)}"` : ''}>
+            <label for="${idPrefix}-${escapeHtml(p.id)}">${propertyDot(p.id)}${escapeHtml(p.name)} <span class="debt-detail">${formatMoney(p.value)}</span>${note ? ` <span class="debt-detail">${escapeHtml(note)}</span>` : ''}</label>
+        </div>
+    `;
+    }).join('') || '<p class="empty-state">You have no properties to add.</p>';
+}
+
+// Ticking one street of a built group ticks the whole group.
+function bindBuiltGroupChecks(container) {
+    container.querySelectorAll('input[data-built-group]').forEach(input => {
+        input.addEventListener('change', () => {
+            container.querySelectorAll(`input[data-built-group="${CSS.escape(input.dataset.builtGroup)}"]:not(:disabled)`).forEach(other => { other.checked = input.checked; });
+        });
+    });
+}
+
 function selectedAddToCorpIds() {
     return Array.from(document.querySelectorAll('#addToCorpAssets input:checked')).map(cb => cb.value);
 }
 
-function addToCorpOptions() {
-    return { netAssetValue: getCorporationNetAssetValue, maxShares: MAX_CORPORATION_SHARES };
+function addToCorpOptions(extra = {}) {
+    return { netAssetValue: getCorporationNetAssetValue, ...extra };
+}
+
+// "What do you get back?" for putting properties (ids) or cash into a company
+// you run: radios named radioName, and whether new shares end up chosen.
+// Shared by the Add properties sheet and the Market's trade and Send money forms.
+// cash is null for properties, or the amount being paid in.
+function addToCorporationReturn(corp, ids, choice, radioName, cash = null) {
+    const quote = ShareDeals.contributionQuote(currentGame.game_state, corp, currentUser.id, ids, addToCorpOptions({ cash: cash || 0 }));
+    const canIssue = (ids.length > 0 || cash > 0) && quote.newShares > 0;
+    const picked = canIssue ? choice : 'gift';
+    const keeps = quote.otherShares > 0 ? "so the other holders' stakes keep their value" : 'and you still hold every share';
+    const sharesDetail = canIssue
+        ? `${ShareDeals.count(quote.newShares)} new share${quote.newShares === 1 ? '' : 's'} at today's value per share, ${keeps}.`
+        : (quote.noSharesReason || (cash === null ? 'Pick a property to see how many shares it is worth.' : 'Enter an amount to see how many shares it buys.'));
+    const giftDetail = quote.otherShares > 0
+        ? `Every ${corp.ticker} share rises in value, including the other holders'.`
+        : `Every ${corp.ticker} share rises in value.`;
+    return {
+        issueShares: picked === 'shares',
+        html: `
+            <p class="trade-destination-title">What do you get back?</p>
+            <label class="trade-destination-option">
+                <input type="radio" name="${radioName}" value="shares"${picked === 'shares' ? ' checked' : ''}${canIssue ? '' : ' disabled'}>
+                <span><strong>New ${escapeHtml(corp.ticker)} shares</strong><small>${escapeHtml(sharesDetail)}</small></span>
+            </label>
+            <label class="trade-destination-option">
+                <input type="radio" name="${radioName}" value="gift"${picked === 'gift' ? ' checked' : ''}>
+                <span><strong>Nothing, it's a gift</strong><small>${escapeHtml(giftDetail)}</small></span>
+            </label>
+        `,
+    };
+}
+
+function addToCorporationPreviewHtml(corp, ids, issueShares, cash = 0) {
+    if (!ids.length && !(cash > 0)) return '';
+    const summary = ShareDeals.summarizeContribution(currentGame.game_state, corp, currentUser.id, ids, issueShares, addToCorpOptions({ cash }));
+    return `<h4>Before you confirm</h4>${renderShareDealSummary(summary)}`;
 }
 
 // Redraws the "what do you get back" choice and the preview whenever the
 // ticked properties or the choice change.
 function renderAddToCorpChoices(event) {
     if (event?.target?.name === 'addToCorpReturn') addToCorpChoice = event.target.value;
-    const gameState = currentGame?.game_state;
-    const corp = gameState?.corporations?.find(item => item.id === addToCorpId);
+    const corp = currentGame?.game_state?.corporations?.find(item => item.id === addToCorpId);
     if (!corp) return;
     const ids = selectedAddToCorpIds();
-    const quote = ShareDeals.contributionQuote(gameState, corp, currentUser.id, ids, addToCorpOptions());
-    const choices = document.getElementById('addToCorpShares');
-    if (quote.otherShares <= 0) {
-        // Sole owner: the property just moves inside the company.
-        choices.innerHTML = '';
-    } else {
-        const canIssue = ids.length > 0 && quote.newShares > 0;
-        const choice = canIssue ? addToCorpChoice : 'gift';
-        const sharesDetail = canIssue
-            ? `${ShareDeals.count(quote.newShares)} new share${quote.newShares === 1 ? '' : 's'} at today's value per share, so the other holders' stakes keep their value.`
-            : (quote.noSharesReason || 'Pick a property to see how many shares it is worth.');
-        choices.innerHTML = `
-            <p class="trade-destination-title">What do you get back?</p>
-            <label class="trade-destination-option">
-                <input type="radio" name="addToCorpReturn" value="shares"${choice === 'shares' ? ' checked' : ''}${canIssue ? '' : ' disabled'}>
-                <span><strong>New ${escapeHtml(corp.ticker)} shares</strong><small>${escapeHtml(sharesDetail)}</small></span>
-            </label>
-            <label class="trade-destination-option">
-                <input type="radio" name="addToCorpReturn" value="gift"${choice === 'gift' ? ' checked' : ''}>
-                <span><strong>Nothing, it's a gift</strong><small>Every ${escapeHtml(corp.ticker)} share rises in value, including the other holders'.</small></span>
-            </label>
-        `;
-    }
-    const issueShares = choices.querySelector('input:checked')?.value === 'shares';
+    const choice = addToCorporationReturn(corp, ids, addToCorpChoice, 'addToCorpReturn');
+    document.getElementById('addToCorpShares').innerHTML = choice.html;
     const preview = document.getElementById('addToCorpPreview');
     preview.hidden = ids.length === 0;
-    preview.innerHTML = ids.length
-        ? `<h4>Before you confirm</h4>${renderShareDealSummary(ShareDeals.summarizeContribution(gameState, corp, currentUser.id, ids, issueShares, addToCorpOptions()))}`
-        : '';
+    preview.innerHTML = addToCorporationPreviewHtml(corp, ids, choice.issueShares);
     document.getElementById('add-to-corp-btn').disabled = ids.length === 0;
 }
 

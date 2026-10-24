@@ -2,8 +2,9 @@
 
 // Whoever runs an LLC can put more of their own properties into it. With other
 // shareholders, the runner can take whole new shares priced at the current
-// value per share (rounded to the nearest share, 12,000 at most); otherwise the property is
-// a gift that raises every share's value.
+// value per share (rounded to the nearest share, with no cap on the share
+// count); otherwise the property is a gift that raises every share's value. The
+// same goes for cash paid into the corporation (manual_payment with toCorpId).
 
 const {
     MONOPOLY_PROPERTIES,
@@ -142,11 +143,12 @@ describe('adding properties to an existing corporation', () => {
         expect(sharesOf(state.corporations[0], 'alice')).toBe(10);
     });
 
-    test('adding properties can grow a corporation to 1,000,000 shares', () => {
+    test('there is no share cap: a corporation past 1,000,000 shares still issues new ones', () => {
         const { state } = add(mbsState({ totalShares: 999999, aliceShares: 900000 }), 'alice', { assetIds: [ILLINOIS], issueShares: true });
-        expect(state.corporations[0].totalShares).toBe(1000000);
-        expect(sharesOf(state.corporations[0], 'alice')).toBe(900001);
-        expectRefused(() => add(state, 'alice', { assetIds: [KENTUCKY], issueShares: true }), /1,000,000 shares, the most allowed/);
+        expect(state.corporations[0].totalShares).toBe(1199999);
+        expect(sharesOf(state.corporations[0], 'alice')).toBe(1100000);
+        const { state: again } = add(state, 'alice', { assetIds: [KENTUCKY], issueShares: true });
+        expect(again.corporations[0].totalShares).toBeGreaterThan(1199999);
     });
 
     test('an IPO can issue up to 12,000 shares', () => {
@@ -156,13 +158,16 @@ describe('adding properties to an existing corporation', () => {
         expectRefused(() => ipo(12001, KENTUCKY), /12,000 or fewer/);
     });
 
-    test('a sole owner just moves the property in; new shares are refused as meaningless', () => {
+    test('a sole owner can take new shares, or just move the property in', () => {
         const state = mbsState({ totalShares: 10, aliceShares: 10 });
-        expectRefused(() => add(state, 'alice', { assetIds: [ILLINOIS], issueShares: true }), /every MBS share/);
         const aliceBefore = calculateNetWorth(state, 'alice');
-        const { state: after } = add(state, 'alice', { assetIds: [ILLINOIS] });
-        expect(after.corporations[0].totalShares).toBe(10);
-        expect(calculateNetWorth(after, 'alice')).toBeCloseTo(aliceBefore);
+        const { state: withShares } = add(state, 'alice', { assetIds: [ILLINOIS], issueShares: true });
+        expect(withShares.corporations[0].totalShares).toBe(12);
+        expect(sharesOf(withShares.corporations[0], 'alice')).toBe(12);
+        expect(calculateNetWorth(withShares, 'alice')).toBeCloseTo(aliceBefore);
+        const { state: gift } = add(state, 'alice', { assetIds: [ILLINOIS] });
+        expect(gift.corporations[0].totalShares).toBe(10);
+        expect(calculateNetWorth(gift, 'alice')).toBeCloseTo(aliceBefore);
     });
 
     test('shares cannot be priced when the corporation is worth $0 or less', () => {
@@ -245,5 +250,72 @@ describe('agents see add_to_corporation in their legal actions', () => {
         const state = own(mbsState(), ['prop-21'], 'bob', 'Bob');
         state.currentPlayerIndex = 1;
         expect(listLegalActions(state, 'bob').some(item => item.type === 'add_to_corporation')).toBe(false);
+    });
+});
+
+describe('paying cash into a corporation', () => {
+    const { listLegalActions } = require('../../domain/actionCatalog');
+    const pay = (state, actorId, payload) => applyAction(state, actorId, {
+        type: 'manual_payment',
+        payload: { fromPlayerId: actorId, toCorpId: state.corporations[0].id, ...payload },
+    });
+    const cashOf = (state, userId) => state.players.find(p => p.userId === userId).cash;
+
+    test('the runner can take new shares at the current value per share', () => {
+        // MBS: $1,200 over 10 shares, so $240 buys 2.
+        const state = mbsState();
+        const { state: after } = pay(state, 'alice', { amount: 240, issueShares: true });
+        const corp = after.corporations[0];
+        expect(cashOf(after, 'alice')).toBe(cashOf(state, 'alice') - 240);
+        expect(corp.cash).toBe(Number(state.corporations[0].cash || 0) + 240);
+        expect(corp.totalShares).toBe(12);
+        expect(sharesOf(corp, 'alice')).toBe(9);
+        expect(sharesOf(corp, 'bob')).toBe(3);
+        expect(after.gameLog.at(-1).message).toContain('for 2 new shares');
+    });
+
+    test('a sole owner gets shares for cash too, with no cap on the count', () => {
+        const { state } = pay(mbsState({ totalShares: 12000, aliceShares: 12000 }), 'alice', { amount: 120, issueShares: true });
+        expect(state.corporations[0].totalShares).toBe(13200);
+        expect(sharesOf(state.corporations[0], 'alice')).toBe(13200);
+    });
+
+    test('without issueShares it is a gift that raises every share', () => {
+        const state = mbsState();
+        const bobBefore = calculateNetWorth(state, 'bob');
+        const { state: after } = pay(state, 'alice', { amount: 100 });
+        expect(after.corporations[0].totalShares).toBe(10);
+        expect(calculateNetWorth(after, 'bob')).toBeCloseTo(bobBefore + 30);
+    });
+
+    test('anyone can give a company cash, at any time, but only the runner can issue shares', () => {
+        const state = mbsState();
+        const { state: after } = pay(state, 'bob', { amount: 50 });
+        expect(cashOf(after, 'bob')).toBe(1450);
+        expect(after.corporations[0].totalShares).toBe(10);
+        expectRefused(() => pay(state, 'bob', { amount: 240, issueShares: true }), /don't run MBS/);
+    });
+
+    test('the runner can buy in off their turn', () => {
+        const state = mbsState();
+        state.currentPlayerIndex = 1;
+        expect(pay(state, 'alice', { amount: 240, issueShares: true }).state.corporations[0].totalShares).toBe(12);
+    });
+
+    test('refused without the cash, for an insolvent company, or when shares cannot be priced', () => {
+        const state = mbsState();
+        expectRefused(() => pay(state, 'alice', { amount: 999999 }), /Insufficient funds/);
+        expectRefused(() => pay(state, 'alice', { amount: 10, issueShares: true }), /less than half/);
+        const broke = mbsState();
+        broke.corporations[0].debts.push({ id: 'debt-x', principal: 1500, interestRate: 5 });
+        expectRefused(() => pay(broke, 'alice', { amount: 240, issueShares: true }), /can't be priced/);
+        const insolvent = mbsState();
+        insolvent.corporations[0].insolvent = true;
+        expectRefused(() => pay(insolvent, 'alice', { amount: 10 }), /insolvent/);
+    });
+
+    test('is listed as a legal action for a company', () => {
+        const action = listLegalActions(mbsState(), 'bob').find(item => item.type === 'manual_payment');
+        expect(action.examples).toEqual(expect.arrayContaining([expect.objectContaining({ toCorpId: expect.any(String) })]));
     });
 });

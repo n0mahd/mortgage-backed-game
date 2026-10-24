@@ -234,25 +234,23 @@
     }
 
     // Mirrors the engine's contribution quote: whole new shares at the current
-    // value per share, rounded to the nearest share, total capped at maxShares. options.price
+    // value per share, rounded to the nearest share, with no cap on the count
+    // and for a sole owner too. options.cash adds cash paid in; options.price
     // overrides the book value (a property offer at a named price).
     function contributionQuote(gameState, corp, userId, propertyIds, options) {
-        const value = propertyIds.reduce((sum, id) => sum + propertyValue(gameState, id), 0);
+        const cash = Math.max(0, Number(options.cash || 0));
+        const value = propertyIds.reduce((sum, id) => sum + propertyValue(gameState, id), 0) + cash;
         const price = options.price == null ? value : Number(options.price);
         const totalShares = Number(corp.totalShares || 0);
         const otherShares = totalShares - sharesHeld(corp, userId);
         const netAssetValue = options.netAssetValue(corp);
-        const room = Math.max(0, options.maxShares - totalShares);
         const quote = { value, price, newShares: 0, fairShares: 0, otherShares, noSharesReason: null };
-        if (otherShares <= 0) {
-            quote.noSharesReason = `You hold every ${corp.ticker} share, so there's no one to share the value with.`;
-        } else if (netAssetValue <= 0) {
+        if (netAssetValue <= 0 || totalShares <= 0) {
             quote.noSharesReason = `${corp.ticker} is worth $0 or less, so new shares can't be priced.`;
         } else {
             quote.fairShares = Math.round((price * totalShares) / netAssetValue);
-            quote.newShares = Math.min(quote.fairShares, room);
-            if (room === 0) quote.noSharesReason = `${corp.ticker} already has ${count(options.maxShares)} shares, the most allowed.`;
-            else if (propertyIds.length && quote.fairShares === 0) quote.noSharesReason = `That's worth less than half a ${corp.ticker} share (${perShare(netAssetValue / totalShares)}).`;
+            quote.newShares = quote.fairShares;
+            if ((propertyIds.length || cash) && quote.fairShares === 0) quote.noSharesReason = `That's worth less than half a ${corp.ticker} share (${perShare(netAssetValue / totalShares)}).`;
         }
         return quote;
     }
@@ -269,7 +267,8 @@
         const stakeBefore = total ? (mine * navBefore) / total : 0;
         const stakeAfter = total + newShares ? ((mine + newShares) * navAfter) / (total + newShares) : 0;
         const netChange = stakeAfter - stakeBefore - quote.value;
-        const names = list(propertyIds.map(id => propertyName(gameState, id)));
+        const cash = Math.max(0, Number(options.cash || 0));
+        const names = list(propertyIds.map(id => propertyName(gameState, id)).concat(cash ? [money(cash)] : []));
         const sentences = [newShares > 0
             ? `You put ${names} into ${corp.ticker} and get ${count(newShares)} new share${newShares === 1 ? '' : 's'}.`
             : `You put ${names} into ${corp.ticker}.`];
@@ -287,7 +286,7 @@
                 ? `The other ${corp.ticker} holders gain ${money(-netChange)}: shares are rounded to a whole number.`
                 : `The other ${corp.ticker} holders gain ${money(-netChange)}, since their shares rise in value too.`);
         } else if (Math.round(netChange) > 0) {
-            warnings.push(`Rounding to a whole share gives you ${money(netChange)} more than the property's value, and the other ${corp.ticker} holders' stakes drop by as much.`);
+            warnings.push(`Rounding to a whole share gives you ${money(netChange)} more than ${cash && !propertyIds.length ? 'you paid' : "the property's value"}, and the other ${corp.ticker} holders' stakes drop by as much.`);
         }
         return { sentences, rows, warnings, netChange, quote };
     }
