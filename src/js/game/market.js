@@ -533,17 +533,24 @@ function pendingTradeOffers() {
     return (currentGame?.game_state?.marketOffers || []).filter(offer => offer.status === 'pending');
 }
 
+// Trade offers and property offers (to a corporation) waiting on this player's answer.
+function tradeProposalsAwaitingMe() {
+    const trades = pendingTradeOffers().filter(offer => offer.recipientId === currentUser?.id && !isTradeOfferExpiredForDisplay(offer));
+    const propertyOffers = CorporationDesk.pendingPropertyOffers().filter(offer => CorporationDesk.awaitsUser(offer, currentUser?.id));
+    return trades.length + propertyOffers.length;
+}
+
 function hasTradeOfferAwaitingMe() {
-    return pendingTradeOffers().some(offer => offer.recipientId === currentUser?.id && !isTradeOfferExpiredForDisplay(offer));
+    return tradeProposalsAwaitingMe() > 0;
 }
 
 // The Market opens on New trade, or on Trade proposals while an offer is waiting
 // on you. Otherwise the pane only changes when the player picks one.
-function updateMarketTabs(pendingOffers) {
+function updateMarketTabs(pendingCount) {
     const count = document.getElementById('marketProposalsCount');
     if (count) {
-        count.textContent = String(pendingOffers.length);
-        count.hidden = pendingOffers.length === 0;
+        count.textContent = String(pendingCount);
+        count.hidden = pendingCount === 0;
     }
     if (!marketPane) showMarketPane(hasTradeOfferAwaitingMe() ? 'proposals' : 'trade');
 }
@@ -676,15 +683,19 @@ function renderTradeOffers() {
     const container = document.getElementById('tradeOffersList');
     if (!container || !currentGame) return;
     const offers = pendingTradeOffers();
+    const propertyOffers = CorporationDesk.pendingPropertyOffers();
     dropClosedTradeCounter();
     renderPastTrades();
-    updateMarketTabs(offers);
-    if (offers.length === 0) {
-        container.innerHTML = '<p class="empty-state">No pending trade offers</p>';
+    updateMarketTabs(offers.length + propertyOffers.length);
+    if (offers.length + propertyOffers.length === 0) {
+        setTradeOffersHtml(container, '<p class="empty-state">No pending trade offers</p>');
         return;
     }
 
-    container.innerHTML = offers.map(offer => {
+    // Property offers to a corporation are proposals too; the ones waiting on you come first.
+    const propertyCards = propertyOffers
+        .map(offer => ({ waiting: CorporationDesk.awaitsUser(offer, currentUser.id), html: CorporationDesk.renderPropertyOfferCard(offer) }));
+    const tradeCards = offers.map(offer => {
         const participant = [offer.player1Id, offer.player2Id].includes(currentUser.id);
         const expired = isTradeOfferExpiredForDisplay(offer);
         const canAccept = !expired && participant && offer.proposedById !== currentUser.id;
@@ -693,7 +704,7 @@ function renderTradeOffers() {
         const canHostCancel = isHost && !canCancel;
         const canClearExpired = expired && (participant || isHost);
         const hasActions = canAccept || canCancel || canHostCancel;
-        return `
+        const html = `
             <div class="trade-offer-card${expired ? ' trade-offer-expired' : ''}">
                 <div class="trade-offer-header">
                     <strong>${escapeHtml(offer.proposedByName)} ${offer.counterToOfferId ? 'sent a counteroffer' : 'proposed a trade'}</strong>
@@ -723,7 +734,32 @@ function renderTradeOffers() {
                 ` : `<p class="empty-state">${canClearExpired ? 'Clear this expired offer from the involved player view.' : 'Waiting on the involved players'}</p>`}
             </div>
         `;
-    }).join('');
+        return { waiting: canAccept, html };
+    });
+    const cards = [...propertyCards, ...tradeCards].sort((a, b) => b.waiting - a.waiting);
+    setTradeOffersHtml(container, cards.map(card => card.html).join(''));
+}
+
+// Game updates re-render often: leave an unchanged list alone, and keep the
+// caret in a counter price being typed when it does change.
+function setTradeOffersHtml(container, html) {
+    if (container.dataset.html === html) return;
+    const active = document.activeElement;
+    const focusedId = active && container.contains(active) ? active.id : null;
+    const caret = focusedId && typeof active.selectionStart === 'number' ? active.selectionStart : null;
+    container.innerHTML = html;
+    container.dataset.html = html;
+    const again = focusedId ? document.getElementById(focusedId) : null;
+    if (again) {
+        again.focus();
+        if (caret != null) try { again.setSelectionRange(caret, caret); } catch { /* number inputs have no selection */ }
+    }
+}
+
+// From the Corporations sheet or the Moves grid: open Market > Trade proposals.
+function openTradeProposals() {
+    closeModal('corporationModal');
+    openMarketPane('proposals');
 }
 
 const PAST_TRADES_PAGE = 10;

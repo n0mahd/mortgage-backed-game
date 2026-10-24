@@ -319,17 +319,23 @@
         const holders = new Map((corp.shareholders || []).map(item => [item.userId, Number(item.shares || 0)]));
         if (!holders.has(offererId)) holders.set(offererId, 0);
         const warnings = [];
+        // stakes: every holder (and the offerer) with shares before and after
+        // and their net worth change, for renderers that lay the deal out themselves.
+        const stakes = [];
         holders.forEach((before, userId) => {
             const after = before + (userId === offererId ? newShares : 0);
             const valueBefore = before * perShareBefore;
             const valueAfter = after * perShareAfter;
+            const change = userId === offererId
+                ? valueAfter - valueBefore + (payWith === 'cash' ? quote.price : 0) - quote.value
+                : valueAfter - valueBefore;
+            stakes.push({ userId, name: playerById(gameState, userId)?.name || 'Someone', before, after, change,
+                percentBefore: percent(before, total), percentAfter: percent(after, totalAfter),
+                majorityBefore: before > total / 2, majorityAfter: after > totalAfter / 2 });
             if (newShares > 0) {
                 rows.push({ label: who(userId), value: `${percent(before, total)} → ${percent(after, totalAfter)}` });
             }
             if (userId === viewerId) {
-                const change = userId === offererId
-                    ? valueAfter - valueBefore + (payWith === 'cash' ? quote.price : 0) - quote.value
-                    : valueAfter - valueBefore;
                 rows.push({ label: 'Your net worth', value: signedMoney(change), tone: Math.round(change) > 0 ? 'up' : (Math.round(change) < 0 ? 'down' : '') });
             }
             if (after > totalAfter / 2 && before <= total / 2 && userId !== corp.chairmanId) {
@@ -340,8 +346,8 @@
             warnings.push(`Paying ${money(quote.price - quote.value)} over book value moves value from the other ${corp.ticker} holders to ${offerer?.name || 'the offerer'}.`);
         }
         if (payWith !== 'cash' && propertyIds.length && newShares === 0) warnings.push(quote.noSharesReason || 'This price buys no shares.');
-        return { sentences, rows, warnings, quote, newShares };
+        return { sentences, rows, warnings, quote, newShares, stakes, totalAfter };
     }
 
-    global.ShareDeals = { summarize, summarizeContribution, summarizePropertyOffer, contributionQuote, corporationsRunBy, runsCorporation, sharesHeld, isInsolvent, percent, count, perShare };
+    global.ShareDeals = { signedMoney, list, propertyName, summarize, summarizeContribution, summarizePropertyOffer, contributionQuote, corporationsRunBy, runsCorporation, sharesHeld, isInsolvent, percent, count, perShare };
 })(window);

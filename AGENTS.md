@@ -103,7 +103,7 @@ Other docs: player rules in `documents/game-rules.md` and `README.md`, open deci
     the moves grid and `renderHostPanel`.
   - `purchase.js` (buying and auctions), `houses.js`, `debt.js` (the Debt sheet) and `debt-outlook.js` (its End Turn cards, before/after previews and limit sum, built on `TurnEndOutlook`), `corporations.js`
     (IPO and add-to-corporation sheets, the Corporations listing, chairman votes, buying treasury
-    shares), `corporation-desk.js` (the chairman's tools: rent policy, dividends, property offers),
+    shares), `corporation-desk.js` (the chairman's tools: rent policy, dividends; property offers, whose cards `market.js` lists under Trade proposals),
     `market.js` (the Market's panes: trade form, payments, trade proposals and past transactions; share-deal summary), `device-alerts.js` (another
     device, turn alerts).
   - `property-display.js` (player cards, property rows, colours), `valuation.js` (net worth and

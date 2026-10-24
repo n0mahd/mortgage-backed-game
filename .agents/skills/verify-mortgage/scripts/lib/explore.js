@@ -421,9 +421,14 @@ class Explore {
 
     async answerOffer(seat, offer, response, label) {
         const bot = this.bot;
-        await bot.gameTab(seat);
-        const modal = await this.openCorporations(seat);
-        const button = modal.locator(`[data-game-action="respond-property-offer"][data-offer-id="${offer.id}"][data-response="${response}"]`);
+        // Property offers are Trade proposals in the Market.
+        await bot.marketTab(seat, 'proposals');
+        const card = seat.page.locator(`#tradeOffersList [data-property-offer-id="${offer.id}"]`);
+        if (response === 'counter') {
+            const toggle = card.locator('[data-game-action="toggle-property-counter"]');
+            if (await bot.usable(toggle)) await toggle.click();
+        }
+        const button = card.locator(`[data-game-action="respond-property-offer"][data-response="${response}"]`);
         if (!(await bot.usable(button))) {
             this.ctx.finding({ severity: 'medium', category: 'ui', seat, title: `No "${response}" control on a property offer waiting for this player`, detail: `${offer.offererName} → ${offer.ticker}, awaiting ${offer.awaiting}` });
             await this.ctx.shot(seat, 'property-offer-no-button');

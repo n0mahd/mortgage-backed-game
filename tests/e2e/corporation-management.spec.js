@@ -192,19 +192,41 @@ test('a player offers a property, the chairman counters and the offerer accepts'
     await alex.page.click('#send-property-offer-btn');
     await expect(alex.page.locator('#propertyOfferModal')).not.toHaveClass(/active/);
 
-    // Sam's Corporations button flags it; the MBS card shows what it costs him.
-    await expect(sam.page.locator('[data-game-action="open-corporation"]').first()).toContainText('1 waiting for your answer', { timeout: 10000 });
+    // Sam's Moves grid flags it; the offer is a Trade proposal in the Market.
+    const proposalsTile = sam.page.locator('[data-game-action="open-trade-proposals"]').first();
+    await expect(proposalsTile).toContainText('1 waiting for your answer', { timeout: 10000 });
+    await expect(sam.page.locator('[data-game-action="open-corporation"]').first()).toContainText('Shares and chairmen');
+    // The Corporations sheet only points to it.
     await sam.page.click('[data-game-action="open-corporation"]');
-    const offerCard = sam.page.locator('.corp-property-offers .trade-offer-card');
-    await expect(offerCard).toContainText('Alex → MBS: $300 in new shares', { timeout: 10000 });
-    await expect(offerCard).toContainText('Your net worth');
-    await offerCard.locator('.counter-price-input').fill('260');
+    await expect(sam.page.locator('.corp-offer-pointer')).toContainText('1 property offer waiting for you');
+    await sam.page.click('.corp-offer-pointer [data-game-action="open-trade-proposals"]');
+    await expect(sam.page.locator('#marketTab-proposals')).toHaveAttribute('aria-selected', 'true');
+    await expect(sam.page.locator('#marketProposalsCount')).toHaveText('1');
+    const offerCard = sam.page.locator('#tradeOffersList [data-property-offer-id]');
+    await expect(offerCard).toContainText('Alex wants to sell Illinois Avenue to MBS');
+    await expect(offerCard.locator('.trade-offer-sides')).toContainText('Worth $240');
+    await expect(offerCard.locator('.trade-offer-sides')).toContainText('2,667 new shares');
+    // MBS: $1,350 + $240 over 14,667 shares; Sam's 6,000 go from $675 to $650.
+    await expect(offerCard.locator('.offer-verdict')).toContainText('Alex is asking $60 more than Illinois Avenue is worth. Accepting costs you $25');
+    await expect(offerCard.locator('.share-deal-table')).toContainText('Your net worth−$25');
+    await expect(offerCard.locator('.offer-counter')).toBeHidden();
+    await offerCard.locator('[data-game-action="toggle-property-counter"]').click();
+    await expect(offerCard.locator('.offer-counter')).toBeVisible();
+    await offerCard.locator('[data-game-action="fill-property-counter"]').click();
+    await expect(offerCard.locator('.offer-counter-result')).toContainText('Alex would get 2,133 new shares. For you: $0');
+    await offerCard.locator('.offer-counter-input').fill('260');
+    await expect(offerCard.locator('[data-response="counter"]')).toHaveText('Send counter at $260');
     await offerCard.locator('[data-response="counter"]').click();
-    await expect(sam.page.locator('.corp-property-offers')).toContainText('Waiting for Alex');
+    await expect(offerCard).toContainText('Waiting on Alex');
+    await expect(offerCard).toContainText('You countered: MBS pays $260 for Illinois Avenue');
+    await expect(offerCard.locator('.offer-verdict')).toContainText('Your counter is $20 more than Illinois Avenue is worth. If it goes through, you lose $8');
 
-    await alex.page.click('[data-game-action="open-corporation"]');
-    const alexCard = alex.page.locator('.corp-property-offers .trade-offer-card');
-    await expect(alexCard).toContainText('$260 in new shares');
+    // Alex's Moves grid flags the counter.
+    await alex.page.locator('[data-game-action="open-trade-proposals"]').first().click({ timeout: 10000 });
+    const alexCard = alex.page.locator('#tradeOffersList [data-property-offer-id]');
+    await expect(alexCard).toContainText('2,311 new shares', { timeout: 10000 });
+    await expect(alexCard).toContainText('Sam countered: MBS pays $260 for Illinois Avenue');
+    await expect(alexCard.locator('.offer-verdict')).toContainText("Sam's counter is $20 more than Illinois Avenue is worth. Accepting gains you");
     await alexCard.locator('[data-response="accept"]').click();
 
     await expect.poll(async () => (await fetchState(request, game, users.Sam)).properties.find(p => p.id === 'prop-15').ownerId).toBe('corp-mbs');
@@ -275,6 +297,9 @@ test('the corporation sheet and offer sheet fit a 320px phone', async ({ browser
     overflow = await alex.page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
     expect(overflow).toBeLessThanOrEqual(0);
     await alex.page.screenshot({ path: 'test-results/property-offer-320.png', fullPage: false });
+    await alex.page.fill('#propertyOfferPriceInput', '300');
+    await alex.page.click('#send-property-offer-btn');
+    await expect(alex.page.locator('#propertyOfferModal')).not.toHaveClass(/active/);
     await alex.context.close();
 
     const sam = await openGame(browser, room, users.Sam, 320);
@@ -284,6 +309,14 @@ test('the corporation sheet and offer sheet fit a 320px phone', async ({ browser
     expect(overflow).toBeLessThanOrEqual(0);
     await sam.page.locator('.corp-rent-policy').scrollIntoViewIfNeeded();
     await sam.page.screenshot({ path: 'test-results/corporation-desk-320.png', fullPage: false });
+    await sam.page.click('.corp-offer-pointer [data-game-action="open-trade-proposals"]');
+    const card = sam.page.locator('#tradeOffersList [data-property-offer-id]');
+    await card.locator('[data-game-action="toggle-property-counter"]').click();
+    await expect(card.locator('.offer-counter')).toBeVisible();
+    overflow = await sam.page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+    expect(overflow).toBeLessThanOrEqual(0);
+    await card.scrollIntoViewIfNeeded();
+    await card.screenshot({ path: 'test-results/property-offer-card-320.png' });
     await sam.context.close();
 });
 
