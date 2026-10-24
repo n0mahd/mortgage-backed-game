@@ -2869,11 +2869,9 @@ input[type="radio"] {
     flex-shrink: 0;
 }
 
-.house-count-control span {
+.house-count-control .development-icons {
     min-width: 68px;
-    text-align: center;
-    font-size: var(--text-footnote);
-    font-weight: 600;
+    justify-content: center;
 }
 
 .house-count-control button {
