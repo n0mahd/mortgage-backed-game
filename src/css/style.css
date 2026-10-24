@@ -805,6 +805,30 @@ input[type="radio"] {
     color: var(--ink-3);
 }
 
+/* A section heading that shows and hides its list (Archived in My games). */
+.section-toggle {
+    width: calc(100% - 2 * var(--s1));
+    min-height: 44px;
+    padding: 0;
+    border: 0;
+    background: none;
+    color: inherit;
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+}
+
+.section-toggle > span {
+    font-weight: 600;
+    color: var(--emerald);
+}
+
+.section-heading h3 .section-count {
+    font-size: var(--text-body);
+    font-weight: 500;
+    color: var(--ink-3);
+}
+
 .badge,
 .player-badge {
     display: inline-flex;

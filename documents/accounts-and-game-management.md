@@ -16,6 +16,8 @@ to their seat, give an agent a fresh key for its existing seat, and transfer hos
 - **Usernames**: 3–24 characters, letters, digits, `_`, `.`, `-`; unique ignoring case
   (`username_key` = lower case).
 - **Archive is per user.** Archiving hides a game from that user's list only; it does not end it.
+  Completed games always list under Archived (no Archive/Unarchive button), and the Archived list
+  starts collapsed behind its heading.
 - **Seat links** belong to one seat (room member). Creating a new link for a seat revokes its older
   links. A link lasts 7 days. Redeeming a link for a guest seat signs that browser in as the seat
   (single use). A seat owned by an account is never handed out by link: the link sends them to sign

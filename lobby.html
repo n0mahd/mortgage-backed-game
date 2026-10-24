@@ -14,7 +14,7 @@
     <title>My games — Mortgage Backed Monopoly</title>
     <link rel="preload" href="src/assets/fonts/besley-latin.woff2" as="font" type="font/woff2" crossorigin>
     <link rel="stylesheet" href="src/css/tokens.css?v=13">
-    <link rel="stylesheet" href="src/css/style.css?v=49">
+    <link rel="stylesheet" href="src/css/style.css?v=50">
 </head>
 <body>
     <div class="container">
@@ -68,8 +68,10 @@
                 </div>
 
                 <div class="rooms-section" id="archived-rooms-section" hidden>
-                    <div class="section-heading"><h3>Archived</h3><span>Only hidden from your list</span></div>
-                    <div id="archived-rooms-list" class="rooms-list"></div>
+                    <button type="button" id="archived-rooms-toggle" class="section-heading section-toggle" aria-expanded="false" aria-controls="archived-rooms-list">
+                        <h3>Archived <span id="archived-rooms-count" class="section-count"></span></h3><span id="archived-rooms-toggle-label">Show</span>
+                    </button>
+                    <div id="archived-rooms-list" class="rooms-list" hidden></div>
                 </div>
             </div>
         </div>
@@ -168,6 +170,6 @@
     <script src="src/js/number-inputs.js?v=1"></script>
     <script src="src/js/ui.js?v=2"></script>
     <script src="src/js/manage-room.js?v=3"></script>
-    <script src="src/js/lobby.js?v=22"></script>
+    <script src="src/js/lobby.js?v=23"></script>
 </body>
 </html>

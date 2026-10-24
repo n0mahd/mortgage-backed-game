@@ -72,6 +72,7 @@ test.describe('My games stays live', () => {
         await expect(phone.page.locator('#archived-rooms-list')).toContainText('Two Device Archive', { timeout: POLL_TIMEOUT });
         await expect(phone.page.locator('#active-rooms-list')).not.toContainText('Two Device Archive');
 
+        await laptop.page.locator('#archived-rooms-toggle').click();
         await laptop.page.locator(`[data-room-unarchive="${room.id}"]`).click();
         await showPageAgain(phone.page);
         await expect(phone.page.locator('#active-rooms-list')).toContainText('Two Device Archive', { timeout: 5000 });
@@ -114,6 +115,12 @@ test.describe('My games stays live', () => {
             data: { actionId: `end-${Date.now()}`, type: 'host_end_game', payload: {}, expectedVersion: game.state_version },
         });
         await expect(card.locator('.room-status')).toHaveText('Completed', { timeout: 5000 });
+        // A finished game moves to the collapsed Archived list, with no Archive button.
+        await expect(bobs.page.locator(`#archived-rooms-list [data-room-id="${room.id}"]`)).toHaveCount(1);
+        await expect(card).toBeHidden();
+        await bobs.page.locator('#archived-rooms-toggle').click();
+        await expect(card).toBeVisible();
+        await expect(card.locator(`[data-room-archive], [data-room-unarchive]`)).toHaveCount(0);
 
         await bobs.context.close();
     });

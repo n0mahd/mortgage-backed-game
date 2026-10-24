@@ -138,10 +138,14 @@ test.describe('My games', () => {
 
         await page.locator(`[data-room-archive="${room.id}"]`).click();
         await expect(page.locator('#archived-rooms-section')).toBeVisible();
-        await expect(page.locator('#archived-rooms-list')).toContainText('Archive Me');
+        await expect(page.locator('#archived-rooms-count')).toHaveText('(1)');
+        await expect(page.locator('#archived-rooms-list')).toBeHidden();
         await expect(page.locator('#active-rooms-list')).not.toContainText('Archive Me');
 
         await page.reload();
+        await expect(page.locator('#archived-rooms-list')).toBeHidden();
+        await page.locator('#archived-rooms-toggle').click();
+        await expect(page.locator('#archived-rooms-list')).toBeVisible();
         await expect(page.locator('#archived-rooms-list')).toContainText('Archive Me');
 
         await page.locator(`[data-room-unarchive="${room.id}"]`).click();

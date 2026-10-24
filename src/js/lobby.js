@@ -190,8 +190,9 @@ async function loadUserRooms() {
     lobbyRoomsShown = shown;
     lobbyRooms = rooms;
 
-    const active = lobbyRooms.filter(room => !room.archived);
-    const archived = lobbyRooms.filter(room => room.archived);
+    // Finished games go straight to Archived; the list stays collapsed until opened.
+    const active = lobbyRooms.filter(room => !isArchivedRoom(room));
+    const archived = lobbyRooms.filter(isArchivedRoom);
 
     if (active.length === 0) {
         activeList.innerHTML = `
@@ -203,6 +204,7 @@ async function loadUserRooms() {
         activeList.innerHTML = active.map(renderRoomCard).join('');
     }
     document.getElementById('archived-rooms-section').hidden = archived.length === 0;
+    document.getElementById('archived-rooms-count').textContent = `(${archived.length})`;
     document.getElementById('archived-rooms-list').innerHTML = archived.map(renderRoomCard).join('');
 
     syncRoomSubscriptions();
@@ -257,6 +259,16 @@ function resyncLobby() {
     return lobbyResyncInFlight;
 }
 
+function isArchivedRoom(room) {
+    return room.archived || room.status === 'completed';
+}
+
+function setArchivedRoomsOpen(open) {
+    document.getElementById('archived-rooms-toggle').setAttribute('aria-expanded', String(open));
+    document.getElementById('archived-rooms-toggle-label').textContent = open ? 'Hide' : 'Show';
+    document.getElementById('archived-rooms-list').hidden = !open;
+}
+
 function renderRoomCard(room) {
     const memberCount = Array.isArray(room.room_members) ? room.room_members.length : 0;
     const maxPlayers = Number(room.max_players || 0);
@@ -277,9 +289,10 @@ function renderRoomCard(room) {
             <div class="room-card-actions">
                 <button class="btn btn-secondary btn-sm" data-room-open="${id}">Open</button>
                 ${canManage ? `<button class="btn btn-secondary btn-sm" data-room-manage="${id}">Manage</button>` : ''}
-                ${room.archived
-                    ? `<button class="btn btn-secondary btn-sm" data-room-unarchive="${id}">Unarchive</button>`
-                    : `<button class="btn btn-secondary btn-sm" data-room-archive="${id}">Archive</button>`}
+                ${room.status === 'completed' ? ''
+                    : room.archived
+                        ? `<button class="btn btn-secondary btn-sm" data-room-unarchive="${id}">Unarchive</button>`
+                        : `<button class="btn btn-secondary btn-sm" data-room-archive="${id}">Archive</button>`}
             </div>
         </div>
     `;
@@ -418,6 +431,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
     document.getElementById('active-rooms-list')?.addEventListener('click', onRoomListClick);
     document.getElementById('archived-rooms-list')?.addEventListener('click', onRoomListClick);
+    document.getElementById('archived-rooms-toggle')?.addEventListener('click', event => {
+        setArchivedRoomsOpen(event.currentTarget.getAttribute('aria-expanded') !== 'true');
+    });
     document.getElementById('host-offers-list')?.addEventListener('click', (event) => {
         const accept = event.target.closest('[data-host-offer-accept]');
         if (accept) return answerHostOffer(accept.dataset.hostOfferAccept, true, accept);

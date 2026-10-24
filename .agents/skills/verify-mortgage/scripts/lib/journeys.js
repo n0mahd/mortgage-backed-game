@@ -1175,11 +1175,15 @@ const JOURNEYS = [
             j.say('archive');
             await j.click(host, `[data-room-archive="${roomId}"]`);
             await j.see(host, '#archived-rooms-section');
+            j.say('the Archived list starts collapsed');
+            await j.gone(host, '#archived-rooms-list');
+            await j.click(host, '#archived-rooms-toggle');
             await j.see(host, `#archived-rooms-list [data-room-id="${roomId}"]`);
             await j.gone(host, `#active-rooms-list [data-room-id="${roomId}"]`);
             await j.shot(host, 'archived');
             await j.layout(host, 'My games (archived)');
             await host.page.reload();
+            await j.click(host, '#archived-rooms-toggle');
             await j.see(host, `#archived-rooms-list [data-room-id="${roomId}"]`, null, { what: 'the archived game after reload' });
             j.say('archiving is per user and does not end the game');
             await j.goto(guest, '/lobby.html');
@@ -1191,6 +1195,7 @@ const JOURNEYS = [
             await inGame(j, host);
             await j.goto(host, '/lobby.html');
             j.say('unarchive');
+            await j.click(host, '#archived-rooms-toggle');
             await j.click(host, `[data-room-unarchive="${roomId}"]`);
             await j.see(host, `#active-rooms-list [data-room-id="${roomId}"]`);
             await j.gone(host, '#archived-rooms-section');
