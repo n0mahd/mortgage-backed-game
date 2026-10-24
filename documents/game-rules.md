@@ -325,11 +325,16 @@ On a loan's last turn the whole balance is due when you end your turn, with or w
 
 ### The Debt page
 
-**Manage Debt → Your loans** lists each loan you can manage (your own and those of corporations you run) with its balance, term, turns left and next payment. For each loan you can:
+**Manage Debt → Your loans** starts with **When you end this turn**: a card for you and for each corporation you run that has loans, showing its cash, the loans due in full, the autopay payments, any unpaid interest that will be added, and the cash left after End Turn. If that would leave you bankrupt or the corporation insolvent, the card shows how much is missing, with buttons to refinance the loan that's due or to borrow the amount.
+
+Below it is each loan you can manage (your own and those of corporations you run) with its balance, term, turns left and next payment. For each loan you can:
 
 - switch **Autopay** on or off (any time, even when it isn't your turn: off your turn, open it from **Your Loans** in Moves);
 - **Pay an amount** of your choice;
-- **Pay off** the whole balance.
+- **Pay off** the whole balance;
+- **Refinance** it, which opens the refinance form with that loan selected.
+
+**Take a new loan** and **Refinance loans** show your borrowing limit as a sum (90% of book value, less what's already owed) and an **After** box. It shows cash, what End Turn takes, total owed and the cash left after End Turn, and updates as you type, so you can see whether the loan gets you through the turn.
 
 Payments are made on your turn. Paying more than is owed only takes what is owed.
 
