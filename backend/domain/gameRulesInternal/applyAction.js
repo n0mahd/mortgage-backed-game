@@ -34,6 +34,7 @@ const {
 } = require('./trades');
 const {
     addToCorporation,
+    payIntoCorporation,
     setRentPolicy,
     proposeRentPolicyChange,
     voteRentPolicyChange,
@@ -82,7 +83,8 @@ const ACTIONS = {
     propose_trade: { run: c => proposeTrade(c.state, c.actor, c.payload, c.events) },
     accept_trade: { run: c => acceptTrade(c.state, c.actor, c.payload, c.events) },
     cancel_trade: { run: c => cancelTrade(c.state, c.actor, c.payload, c.events) },
-    manual_payment: { run: c => manualPayment(c.state, c.actor, c.payload, c.events) },
+    // With toCorpId the cash goes into a company's treasury instead of to a player.
+    manual_payment: { run: c => (c.payload?.toCorpId ? payIntoCorporation : manualPayment)(c.state, c.actor, c.payload, c.events) },
 
     host_cancel_auction: { host: true, run: c => hostCancelAuction(c.state, c.actor, c.events) },
     host_cancel_trade_offer: { host: true, run: c => hostCancelTradeOffer(c.state, c.actor, c.payload, c.events) },

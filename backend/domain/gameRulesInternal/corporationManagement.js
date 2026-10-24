@@ -9,7 +9,6 @@
 
 const { v4: uuidv4 } = require('uuid');
 const {
-    MAX_CORPORATION_SHARES,
     RENT_POLICY_COOLDOWN_TURNS,
     splitByShares,
     sharesForPrice,
@@ -50,9 +49,9 @@ const {
     transferPropertiesToCorporation,
 } = require('./trades');
 
-// Whoever runs an LLC can put more of their own properties into it. If other
-// players hold shares, the runner can take new shares priced at the current
-// value per share, so the other stakes keep their value. Shares are whole,
+// Whoever runs an LLC can put more of their own properties into it, and can
+// take new shares priced at the current value per share, so the other stakes
+// (if any) keep their value. Shares are whole,
 // rounded to the nearest share, so stakes can move by up to half a share.
 function addToCorporation(state, player, payload, events) {
     const corp = state.corporations.find(c => c.id === payload.corpId);
@@ -74,12 +73,7 @@ function addToCorporation(state, player, payload, events) {
     const newShares = payload.issueShares === true ? quote.newShares : 0;
 
     transferPropertiesToCorporation(state, player, corp, assetIds);
-    // The chair stays put: the runner already chairs or holds a majority.
-    if (newShares > 0) {
-        corp.totalShares = Number(corp.totalShares || 0) + newShares;
-        addShareholderShares(corp, player, newShares);
-        normalizeCorporationShareLedger(state, corp);
-    }
+    issueContributionShares(state, corp, player, newShares);
     const names = assetIds.map(id => state.properties.find(p => p.id === id).name);
     events.push(makeEvent(player, 'corporation_assets_added', {
         actor: player.name,
@@ -96,32 +90,65 @@ function addToCorporation(state, player, payload, events) {
 }
 
 // How many whole new shares a contribution is worth at the LLC's current value
-// per share, rounded to the nearest share and kept within the share cap. The price defaults to
-// the properties' book value (price plus buildings); a property offer can name
-// another price. newShares is 0, with a reason, when shares can't or needn't
-// be issued.
+// per share, rounded to the nearest share. There is no cap on the share count,
+// and a sole owner gets shares too. The price defaults to the properties' book
+// value (price plus buildings); cash or a property offer names the price.
+// newShares is 0, with a reason, when shares can't be issued.
 function corporationContributionQuote(state, corp, userId, assetIds, price = null) {
     const value = assetIds.reduce((sum, id) => sum + propertyBookValue(state.properties.find(p => p.id === id)), 0);
     const agreedPrice = price == null ? value : Number(price);
     const totalShares = Number(corp.totalShares || 0);
-    const otherShares = totalShares - sharesFor(corp, userId);
     const netAssetValue = calculateCorporationNetAssetValue(state, corp);
-    const room = Math.max(0, MAX_CORPORATION_SHARES - totalShares);
     const quote = { value, price: agreedPrice, newShares: 0, fairShares: 0, noSharesReason: null };
-    if (otherShares <= 0) {
-        quote.noSharesReason = `You hold every ${corp.ticker} share, so new shares would change nothing`;
-    } else if (netAssetValue <= 0) {
+    if (netAssetValue <= 0 || totalShares <= 0) {
         quote.noSharesReason = `${corp.ticker} is worth $0 or less, so new shares can't be priced`;
     } else {
         quote.fairShares = sharesForPrice(agreedPrice, totalShares, netAssetValue);
-        quote.newShares = Math.min(quote.fairShares, room);
-        if (room === 0) {
-            quote.noSharesReason = `${corp.ticker} already has ${MAX_CORPORATION_SHARES.toLocaleString('en-US')} shares, the most allowed`;
-        } else if (quote.fairShares === 0) {
-            quote.noSharesReason = `That is worth less than half a ${corp.ticker} share`;
-        }
+        quote.newShares = quote.fairShares;
+        if (quote.fairShares === 0) quote.noSharesReason = `That is worth less than half a ${corp.ticker} share`;
     }
     return quote;
+}
+
+// Issues newShares to the player who paid for them. The chair stays put: only
+// the runner buys in this way, and they already chair or hold a majority.
+function issueContributionShares(state, corp, player, newShares) {
+    if (!(newShares > 0)) return;
+    corp.totalShares = Number(corp.totalShares || 0) + newShares;
+    addShareholderShares(corp, player, newShares);
+    normalizeCorporationShareLedger(state, corp);
+}
+
+// Cash from a player into a company's treasury (manual_payment with toCorpId).
+// Anyone can give a company cash; it raises every share's value. Whoever runs
+// it can instead take new shares at the current value per share
+// (issueShares), so the other holders keep their value.
+function payIntoCorporation(state, player, payload, events) {
+    const corp = state.corporations.find(c => c.id === payload.toCorpId);
+    if (!corp) throw new GameRuleError(404, 'Corporation not found');
+    if (payload.fromPlayerId && payload.fromPlayerId !== player.userId) throw new GameRuleError(403, 'Payment must be sent by actor');
+    if (corp.insolvent) throw new GameRuleError(400, `${corp.ticker} is insolvent and cannot take payments`);
+    const amount = positiveNumber(payload.amount, 'amount');
+    if (player.cash < amount) throw new GameRuleError(400, 'Insufficient funds');
+    requireNoOpenClaim(state, player, `pay into ${corp.ticker}`);
+    let newShares = 0;
+    if (payload.issueShares === true) {
+        if (!controlsCorporation(corp, player.userId)) {
+            throw new GameRuleError(403, `You don't run ${corp.ticker}, so you can't issue its shares. Offer ${corp.chairmanName || 'the chairman'} a trade for them instead.`);
+        }
+        const quote = corporationContributionQuote(state, corp, player.userId, [], amount);
+        if (quote.newShares === 0) throw new GameRuleError(400, quote.noSharesReason);
+        newShares = quote.newShares;
+    }
+    player.cash = roundCents(player.cash - amount);
+    corp.cash = roundCents(Number(corp.cash || 0) + amount);
+    recordCashFlow(state, player.userId, corp.id, amount);
+    issueContributionShares(state, corp, player, newShares);
+    events.push(makeEvent(player, 'payment', { from: player.name, to: corp.ticker, amount, newShares, totalShares: corp.totalShares }));
+    const sharesNote = newShares > 0
+        ? ` for ${newShares} new share${newShares === 1 ? '' : 's'} (${corp.ticker} now has ${corp.totalShares})`
+        : '';
+    log(state, `${player.name} paid $${amount.toFixed(2)} into ${corp.ticker}${sharesNote}`);
 }
 
 // Adding property never raises cash, so a player with an unpaid claim can't do
@@ -424,6 +451,7 @@ function expirePendingPropertyOffers(state, actor, events) {
 
 module.exports = {
     addToCorporation,
+    payIntoCorporation,
     setRentPolicy,
     normalizeRentPolicyVote,
     proposeRentPolicyChange,

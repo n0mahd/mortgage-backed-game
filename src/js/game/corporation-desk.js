@@ -46,7 +46,7 @@
     }
 
     function offerOptions(extra = {}) {
-        return { netAssetValue: global.getCorporationNetAssetValue, maxShares: MAX_CORPORATION_SHARES, ...extra };
+        return { netAssetValue: global.getCorporationNetAssetValue, ...extra };
     }
 
     // ---- Rent policy ------------------------------------------------------

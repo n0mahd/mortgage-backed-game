@@ -277,11 +277,10 @@ class Explore {
         const modal = await this.openCorporations(seat);
         await modal.locator(`[data-game-action="trade-as-corporation"][data-corp-id="${corp.id}"]`).click();
         await seat.page.locator('#market.section.active').waitFor({ state: 'visible' });
-        if ((await seat.page.locator('#player1As').inputValue().catch(() => '')) !== corp.id) {
-            this.ctx.finding({ severity: 'medium', category: 'ui', seat, title: `"Trade as ${corp.ticker}" did not set Trading as`, detail: '' });
+        if ((await seat.page.locator('#player1Select').inputValue().catch(() => '')) !== `corp:${corp.id}`) {
+            this.ctx.finding({ severity: 'medium', category: 'ui', seat, title: `"Trade as ${corp.ticker}" did not pick ${corp.ticker} in You give`, detail: '' });
         }
         await seat.page.locator('#player2Select').selectOption({ value: target.userId });
-        if (await seat.page.locator('#player2As').isVisible().catch(() => false)) await seat.page.locator('#player2As').selectOption('');
         const box = seat.page.locator('#player2Assets input[type="checkbox"]:not([disabled])');
         if (await box.count()) await box.nth(Math.floor(bot.rand() * await box.count())).check();
         await seat.page.locator('#player1Cash').fill(String(Math.max(1, Math.min(Math.floor(Number(corp.cash)) - 1, 150))));
