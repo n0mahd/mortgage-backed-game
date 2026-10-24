@@ -207,12 +207,12 @@ class Chaos {
             await p.locator('#ipoAssets input[type="checkbox"]').first().check().catch(() => {});
             await p.locator('#create-ipo-btn').click().catch(() => {});
         } else if (form === 'payment') {
-            await bot.marketTab(seat);
+            await bot.marketTab(seat, 'payment');
             await p.locator('#paymentAmount').fill(junk.value);
             await p.locator('#makePaymentBtn').click().catch(() => {});
             field = 'payment amount';
         } else if (form === 'trade') {
-            await bot.marketTab(seat);
+            await bot.marketTab(seat, 'trade');
             field = bot.pick(['#player1Cash', '#player2Cash']);
             await p.locator(field).fill(junk.value);
             await p.locator('#executeTradeBtn').click().catch(() => {});
@@ -277,7 +277,7 @@ class Chaos {
         const { state } = bot.server();
         const me = state.players.find(p => p.userId === seat.userId);
         const mine = !me.diceRolled ? 'roll-dice' : 'end-turn';
-        await bot.marketTab(other);
+        await bot.marketTab(other, 'payment');
         const to = state.players.find(p => p.userId !== other.userId && !p.bankrupt);
         await other.page.locator('#paymentToPlayer').selectOption({ value: to.userId }).catch(() => {});
         await other.page.locator('#paymentAmount').fill('3');

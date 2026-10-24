@@ -1827,7 +1827,63 @@ input[type="radio"] {
 
 .market-submit .btn { width: 100%; }
 
-.market-offers-section { margin-top: var(--s2); }
+/* Segmented control: in-page tabs (Market panes). Two by two on phones, one row when there is room. */
+.segmented {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 4px;
+    margin: var(--s3) 0 var(--s4);
+    padding: 4px;
+    border-radius: var(--r-control);
+    background: var(--note);
+    border: 1px solid var(--rule);
+}
+
+.segmented-option {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    min-height: 44px;
+    padding: 4px var(--s2);
+    border: 0;
+    border-radius: calc(var(--r-control) - 4px);
+    background: transparent;
+    color: var(--ink-2);
+    font: inherit;
+    font-size: var(--text-footnote);
+    font-weight: 600;
+    line-height: 1.2;
+    text-align: center;
+    cursor: pointer;
+}
+
+.segmented-option[aria-selected="true"] {
+    background: var(--forest);
+    color: var(--on-dark);
+}
+
+.segmented-option:focus-visible {
+    outline: 2px solid var(--emerald);
+    outline-offset: 2px;
+}
+
+.segmented-count {
+    min-width: 20px;
+    padding: 0 6px;
+    border-radius: var(--r-chip);
+    background: var(--mint-wash);
+    color: var(--forest);
+    font-size: var(--text-caption);
+    font-weight: 700;
+    line-height: 20px;
+}
+
+.segmented-count[hidden] { display: none; }
+
+@media (min-width: 480px) {
+    .segmented { grid-template-columns: repeat(4, 1fr); }
+}
 
 .trade-offers-list {
     display: flex;

@@ -1,6 +1,6 @@
 // @ts-check
 const { test, expect } = require('@playwright/test');
-const { BASE, BASE_API, apiJson, loginPage, playerState } = require('./helpers');
+const { BASE, BASE_API, apiJson, loginPage, playerState, showMarketPane } = require('./helpers');
 
 async function setupThreePlayerGame(request, opts = {}) {
     const host = await apiJson(request, 'post', `${BASE_API}/auth/anonymous`);
@@ -69,6 +69,7 @@ test.describe('Host cleanup controls', () => {
         await page.goto(`${BASE}/game.html?room=${setup.room.id}`);
         await page.waitForLoadState('domcontentloaded');
         await page.getByRole('button', { name: 'Market' }).click();
+        await showMarketPane(page, 'Trade proposals');
         await expect(page.locator('#tradeOffersList')).toContainText('Bob proposed a trade', { timeout: 5000 });
 
         page.once('dialog', dialog => dialog.accept());
@@ -111,6 +112,7 @@ test.describe('Host cleanup controls', () => {
         await page.goto(`${BASE}/game.html?room=${setup.room.id}`);
         await page.waitForLoadState('domcontentloaded');
         await page.getByRole('button', { name: 'Market' }).click();
+        await showMarketPane(page, 'Trade proposals');
         await expect(page.locator('#tradeOffersList')).toContainText('Bob proposed a trade', { timeout: 5000 });
         await expect(page.locator('#tradeOffersList')).toContainText('expired');
 

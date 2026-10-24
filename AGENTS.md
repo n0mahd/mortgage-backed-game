@@ -104,7 +104,7 @@ Other docs: player rules in `documents/game-rules.md` and `README.md`, open deci
   - `purchase.js` (buying and auctions), `houses.js`, `debt.js` (the Debt sheet), `corporations.js`
     (IPO and add-to-corporation sheets, the Corporations listing, chairman votes, buying treasury
     shares), `corporation-desk.js` (the chairman's tools: rent policy, dividends, property offers),
-    `market.js` (trade form, pending and past offers, payments, share-deal summary), `device-alerts.js` (another
+    `market.js` (the Market's panes: trade form, payments, trade proposals and past transactions; share-deal summary), `device-alerts.js` (another
     device, turn alerts).
   - `property-display.js` (player cards, property rows, colours), `valuation.js` (net worth and
     company values), `log-format.js` (Recent events wording).
@@ -127,7 +127,8 @@ Other docs: player rules in `documents/game-rules.md` and `README.md`, open deci
   `scripts/run-e2e.js` and `scripts/run-real-game-e2e.js`. `scripts/dev-static-server.js` (with
   `scripts/dev-server.js`): static files plus an `/api` proxy.
 - `scripts/check-static-assets.js` (every referenced asset exists; a script or stylesheet has the same
-  `?v=` on every page) and `scripts/check-architecture.js` (import boundaries, classic scripts only,
+  `?v=` on every page), `scripts/check-asset-versions.js` (a changed asset has a `?v=` above
+  `origin/main`'s, or with `--live`, above or byte-identical to the live site's) and `scripts/check-architecture.js` (import boundaries, classic scripts only,
   and every path named in this file exists).
 - Whole-app verification through the real UI: the `verify-mortgage` skill,
   `.agents/skills/verify-mortgage/SKILL.md`. `play` runs whole games (2/5/8 players, 20 rounds, sync
@@ -164,7 +165,10 @@ Other docs: player rules in `documents/game-rules.md` and `README.md`, open deci
   in `game.js`, give helpers unique names, and keep action handlers as top-level functions (the
   dispatcher looks them up on `window`). Use `apiFetch` for API calls.
 - **Cache keys.** Cloudflare caches `/src/` for 4 hours. When a file under `src/` changes, raise its
-  `?v=` on every page that loads it, higher than any value `origin/main` has used.
+  `?v=` on every page that loads it, higher than any value `origin/main` has used. Other threads bump
+  the same files: after merging `origin/main` in, `npm run test:static` fails if a changed file still
+  has `origin/main`'s `?v=`, and `npm run check:deploy` must pass right before copying files to
+  production (it compares with what the live site serves).
 - **Design system.** New UI uses the existing classes and tokens: no inline styles, no raw hex. Turn
   actions go in `renderActionButtons()`, optional moves in the moves grid, host-only controls in
   `renderHostPanel()`. Check 320, 375 and 390px widths; `tests/e2e/mobile-layout.spec.js` guards the
@@ -217,7 +221,8 @@ Production and development never share ports, data or services.
   `VAPID_*` and the mail key in `backend/.env`).
 - Code and data: `/mnt/ssd/projects/mortgage-backed`, not a git checkout. A deploy copies a `git archive`
   of `main` over it, keeping `backend/.env` and `backend/game.db*`, and runs `npm ci --omit=dev` in
-  `backend/`. Game state is only in SQLite and a restart takes about a second (browsers resync), so
+  `backend/`. Run `npm run check:deploy` from the release checkout first: another thread may have
+  deployed since you merged. Game state is only in SQLite and a restart takes about a second (browsers resync), so
   deploy between turns after `sqlite3 game.db ".backup …"`.
 - Never point dev servers, tests or scripts at any of this, and don't restart or change production
   unless the user asks.

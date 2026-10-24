@@ -162,6 +162,11 @@ name, type and value, then chips: set progress (gold when complete), buildings, 
 (IPO and trade pickers, auction, corporation assets, loan details), a small square in its
 board color goes before the name so groups are recognisable at a glance.
 
+**Segmented control** (`.segmented` with `.segmented-option` buttons, `role="tablist"`/`"tab"`). Tabs
+inside one page section, like the Market's New trade, Send money, Trade proposals and Past transactions.
+Two by two on phones, one row from 480px; the selected option is forest with white text. A
+`.segmented-count` pill shows how many items wait in a pane.
+
 **Badges** (`.badge`, `.badge-gold`, `.badge-danger`, `.badge-info`). Pills in sentence
 case.
 
