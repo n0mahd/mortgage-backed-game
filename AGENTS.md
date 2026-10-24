@@ -114,7 +114,7 @@ Other docs: player rules in `documents/game-rules.md` and `README.md`, open deci
     `gameRulesInternal/turns.js` and loan servicing in `gameRulesInternal/debt.js`).
   - `turn-alert.js` (vibrate when your turn starts) and `action-dispatcher.js` (routes
     `data-game-action` clicks to top-level handler functions).
-  - `src/js/board.js`: board data and drawing.
+  - `src/js/board.js`: board data and the Board tab (the square board, token animation, focus on a square).
 - Styles: `src/css/tokens.css` (all colours, sizes, layers) and `src/css/style.css` (one stylesheet,
   mobile first, numbered sections).
 

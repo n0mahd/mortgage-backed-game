@@ -144,8 +144,22 @@ Screen, the same page shows "Opening your game" while it signs in; if the code h
 risk, so it isn't red.
 
 **Turn ticket** (`.turn-ticket`). The signature element: `--banknote`, the guilloché (`--guilloche`)
-over the forest gradient. Don't reuse it elsewhere except the invite code, the hotseat hand-off, and the
-landing hero, which share its meaning: this is the money moment.
+over the forest gradient. Don't reuse it elsewhere except the invite code, the hotseat hand-off, the Board
+tab's turn strip, and the landing hero, which share its meaning: this is the money moment.
+
+**Board tab** (`renderBoard` in `board.js`, `.board-view`). A real square board, GO bottom-right, play
+clockwise, sized to fit: the screen's width on phones, the window's height on desktop (players and
+recent events beside it). No scaling transforms: everything inside scales with `--u`, one edge
+square's width. Rules that keep it readable:
+- Text stays upright on every side. Desktop squares show name and price; phone squares drop the name.
+- The set colour is only ever the band on the square's inner edge.
+- Ownership is the owner tag (`.board-owner-tag`): initials, or a corporation's ticker, in the owner's
+  player colour, replacing the price. It's squared off so it never reads as a round token.
+- Buildings: a green house with the count (`.board-house`) or a red H (`.board-hotel`).
+- Tokens sit in their own layer on the square's inner edge and step square by square after a roll.
+- The centre holds a small banknote strip (whose turn, dice, Roll Dice when that's the only move,
+  else "Go to turn"), then the square in focus (the mover's, or one you point at or tap) as one line,
+  then the last card. Keep it to that. The "It's your turn" pill stays hidden on this tab.
 
 **Sheets** (`.modal > .modal-content`). Bottom sheets on phones with a grabber, centered dialogs at 720px
 and up. Title in `.modal-header` (Besley), optional `.modal-hint`, actions in `.sheet-actions`, stacked
