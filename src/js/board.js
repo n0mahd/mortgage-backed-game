@@ -210,15 +210,40 @@ function describeOwner(gameState, ownerId, fallbackName) {
     return { label: fallbackName || 'another player', playerIndex: -1, corporation: null };
 }
 
+// Owner badge in the owner's (or corporation chair's) player colour.
+function renderSquareOwnerBadge(property, gameState) {
+    const owner = gameState
+        ? describeOwner(gameState, property.ownerId, property.ownerName)
+        : { label: property.ownerName || 'another player', playerIndex: -1, corporation: null };
+    const color = owner.playerIndex >= 0 ? PLAYER_COLORS[owner.playerIndex % PLAYER_COLORS.length] : 'var(--ink-3)';
+    const name = owner.corporation
+        ? `${escapeHtml(owner.corporation.ticker)}${owner.corporation.chairmanName || owner.playerIndex >= 0
+            ? ` <small>${escapeHtml(owner.corporation.chairmanName || gameState.players[owner.playerIndex].name)}'s corp</small>`
+            : ''}`
+        : escapeHtml(owner.label);
+    return `<span class="square-owner-badge" style="--owner-color:${color}" title="Owned by ${escapeHtml(owner.label)}"><i aria-hidden="true"></i>${name}</span>`;
+}
+
+// "Monopoly" (or "Complete set") when the owner holds the whole group, else "1/3 set".
+function renderSquareSetChip(property, gameState) {
+    const all = (gameState && gameState.properties) || [];
+    const status = getPropertyGroupStatus(property, all, all.filter(p => p.ownerId === property.ownerId), property.ownerId);
+    return `<span class="square-set-chip${status.complete ? ' complete' : ''}">${escapeHtml(status.label)}</span>`;
+}
+
 function renderMobileSquareMeta(square, property, gameState) {
     if (property) {
-        const owner = property.ownerId ? escapeHtml(gameState ? describeOwner(gameState, property.ownerId, property.ownerName).label : (property.ownerName || '')) : 'Unowned';
-        const price = property.price != null ? `$${property.price}` : '';
-        const houses = property.houses > 0 ? renderDevelopmentIcons(property) : '';
+        if (!property.ownerId) {
+            const price = property.price != null ? `<span class="square-for-sale">For sale $${property.price}</span>` : '';
+            return `<div class="mobile-square-meta">
+                <span class="square-unowned-chip">Unowned</span>
+                ${price}
+            </div>`;
+        }
         return `<div class="mobile-square-meta">
-            <span>${owner}</span>
-            ${price ? `<span>${price}</span>` : ''}
-            ${houses}
+            ${renderSquareOwnerBadge(property, gameState)}
+            ${renderSquareSetChip(property, gameState)}
+            ${property.houses > 0 ? renderDevelopmentIcons(property) : ''}
         </div>`;
     }
 
@@ -240,7 +265,7 @@ function renderMobileBoardSquare(square, gameState, currentUserId, options = {})
     const property = getSquareProperty(square, gameState);
     const playersHere = getPlayersOnSquare(gameState, square.position);
     const colorStyle = square.color ? ` style="--square-color:${square.color}"` : '';
-    const ownedClass = property && property.ownerId ? ' is-owned' : '';
+    const ownedClass = property ? (property.ownerId ? ' is-owned' : ' is-unowned') : '';
     const currentClass = options.current ? ' is-current-square' : '';
     const upcomingClass = options.upcoming ? ' is-upcoming-square' : '';
 

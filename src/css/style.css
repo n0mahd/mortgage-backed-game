@@ -2421,12 +2421,31 @@ input[type="radio"] {
     display: flex;
     flex-wrap: wrap;
     align-items: center;
-    gap: 0 var(--s3);
+    gap: 4px 6px;
+    margin-top: 3px;
     font-size: var(--text-caption);
     color: var(--ink-3);
 }
 
 .mobile-board-square.is-current-square { background: var(--mint-wash); }
+
+.square-owner-badge,
+.square-unowned-chip,
+.square-set-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 1px 8px;
+    border-radius: var(--r-chip);
+}
+
+.square-owner-badge { padding-left: 6px; background: var(--paper); color: var(--ink); font-weight: 700; }
+.square-owner-badge i { flex: none; width: 9px; height: 9px; border-radius: 50%; background: var(--owner-color); }
+.square-owner-badge small { font-size: inherit; font-weight: 500; color: var(--ink-3); }
+.square-unowned-chip { box-shadow: inset 0 0 0 1px var(--rule-strong); font-weight: 600; }
+.square-set-chip { background: var(--paper); }
+.square-set-chip.complete { background: var(--gold-wash); color: var(--gold-ink); font-weight: 700; }
+.mobile-board-square.is-unowned .mobile-square-name { color: var(--ink-3); }
 
 .mobile-square-tokens {
     display: flex;
