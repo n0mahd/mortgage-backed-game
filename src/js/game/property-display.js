@@ -83,18 +83,20 @@ function getPropertyDevelopmentLabel(property) {
     return 'No houses';
 }
 
+// Green house pips or one red hotel pip, labelled for screen readers, so a
+// count reads at a glance instead of as "2 houses".
 function renderDevelopmentIcons(property) {
     const houses = Number(property.houses || 0);
     if (getPropertyKind(property) !== 'Street') {
         return '<span class="building-na" aria-hidden="true"></span>';
     }
-    if (houses === 5) {
-        return '<span class="hotel-pip" aria-hidden="true"></span>';
-    }
-    if (houses > 0) {
-        return Array.from({ length: houses }, () => '<span class="house-pip" aria-hidden="true"></span>').join('');
-    }
-    return '<span class="empty-house-pip" aria-hidden="true"></span>';
+    const label = escapeHtml(getPropertyDevelopmentLabel(property));
+    const pips = houses === 5
+        ? '<span class="hotel-pip"></span>'
+        : houses > 0
+            ? Array.from({ length: houses }, () => '<span class="house-pip"></span>').join('')
+            : '<span class="empty-house-pip"></span>';
+    return `<span class="development-icons" role="img" aria-label="${label}" title="${label}">${pips}</span>`;
 }
 
 function getPropertyRentLabel(property, allProperties, ownedProperties, ownerId) {
@@ -150,8 +152,9 @@ function renderOwnedProperties(player, ownedProperties) {
                                 <div class="owned-property-chips">
                                     <span class="owned-property-chip set-chip ${groupClass}">${escapeHtml(groupStatus.label)}</span>
                                     <span class="owned-property-chip">
-                                        <span class="development-icons">${renderDevelopmentIcons(property)}</span>
-                                        ${escapeHtml(developmentLabel)}
+                                        ${getPropertyKind(property) === 'Street'
+                                            ? renderDevelopmentIcons(property)
+                                            : escapeHtml(developmentLabel)}
                                     </span>
                                     <span class="owned-property-chip rent-chip">${escapeHtml(rentLabel)}</span>
                                 </div>

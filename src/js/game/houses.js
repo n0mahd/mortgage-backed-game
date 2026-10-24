@@ -69,7 +69,6 @@ function openHouseModal(corpId = null) {
             const currentHouses = prop.houses || 0;
             const newHouses = currentHouses + delta;
             const costPer = HOUSE_COSTS[prop.color] || 0;
-            const developmentLabel = getPropertyDevelopmentLabel({ ...prop, houses: newHouses });
             const isAtHotel = newHouses >= 5;
             return `
                 <div class="house-property-row">
@@ -80,7 +79,7 @@ function openHouseModal(corpId = null) {
                     </div>
                     <div class="house-count-control">
                         <button data-game-action="adjust-house" data-property-id="${escapeHtml(prop.id)}" data-delta="-1" ${delta <= 0 ? 'disabled' : ''}>−</button>
-                        <span>${escapeHtml(developmentLabel)}</span>
+                        ${renderDevelopmentIcons({ ...prop, houses: newHouses })}
                         <button data-game-action="adjust-house" data-property-id="${escapeHtml(prop.id)}" data-delta="1" ${isAtHotel ? 'disabled' : ''}>+</button>
                     </div>
                 </div>`;
