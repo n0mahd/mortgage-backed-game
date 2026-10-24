@@ -32,6 +32,7 @@
         'cancel-trade-offer': button => global.cancelTradeOffer(button.dataset.offerId),
         'counter-trade-offer': button => global.counterTradeOffer(button.dataset.offerId),
         'stop-trade-counter': () => global.stopTradeCounter(),
+        'show-more-past-trades': () => global.showMorePastTrades(),
         'host-cancel-trade-offer': button => global.hostCancelTradeOffer(button.dataset.offerId),
         'adjust-house': button => global.houseModalAdjust(button.dataset.propertyId, Number(button.dataset.delta)),
         'open-house': () => global.openHouseModal(),

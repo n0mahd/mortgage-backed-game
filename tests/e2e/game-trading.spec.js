@@ -419,3 +419,90 @@ test.describe('Trading — counteroffers', () => {
         if (process.env.COUNTER_SHOT) await page.screenshot({ path: process.env.COUNTER_SHOT, fullPage: true });
     });
 });
+
+test.describe('Trading — past transactions filter', () => {
+    test('shows your trades by default, and everyone or one player on request', async ({ page, request }) => {
+        const users = {};
+        for (const name of ['Alice', 'Bob', 'Carol']) users[name] = await apiJson(request, 'post', `${BASE_API}/auth/anonymous`);
+        const auth = name => ({ Authorization: `Bearer ${users[name].token}` });
+        const room = await apiJson(request, 'post', `${BASE_API}/rooms`, { headers: auth('Alice'), data: { name: 'Filter Room', player_name: 'Alice', max_players: 4 } });
+        for (const name of ['Bob', 'Carol']) await apiJson(request, 'post', `${BASE_API}/rooms/${room.id}/join`, { headers: auth(name), data: { player_name: name } });
+        const id = name => users[name].user.id;
+        let game = await apiJson(request, 'post', `${BASE_API}/games`, {
+            headers: auth('Alice'),
+            data: { room_id: room.id, game_state: {
+                currentPlayerIndex: 0,
+                players: ['Alice', 'Bob', 'Carol'].map(name => playerState(id(name), name)),
+                properties: [], corporations: [], debts: [], marketOffers: [], gameLog: [],
+                lastDiceRoll: null, lastCardDrawn: null, settings: { passGoAmount: 200, startingCash: 1500 },
+            } },
+        });
+        const act = async (name, type, payload) => {
+            const current = await apiJson(request, 'get', `${BASE_API}/games/${game.id}`, { headers: auth(name) });
+            await apiJson(request, 'post', `${BASE_API}/games/${game.id}/actions`, {
+                headers: auth(name),
+                data: { actionId: `e2e-filter-${type}-${Date.now()}-${Math.random()}`, type, payload, expectedVersion: current.state_version },
+            });
+            return (await apiJson(request, 'get', `${BASE_API}/games/${game.id}`, { headers: auth(name) })).game_state;
+        };
+        const cash = (from, to, amount) => ({ player1Id: id(from), player2Id: id(to), player1Cash: amount, player2Cash: 0, player1AssetIds: [], player2AssetIds: [] });
+        let state = await act('Bob', 'propose_trade', cash('Bob', 'Carol', 30));
+        await act('Carol', 'accept_trade', { offerId: state.marketOffers.find(o => o.status === 'pending').id });
+        state = await act('Alice', 'propose_trade', cash('Alice', 'Carol', 20));
+        await act('Carol', 'cancel_trade', { offerId: state.marketOffers.find(o => o.status === 'pending').id });
+
+        await page.setViewportSize({ width: 375, height: 812 });
+        await loginPage(page, users.Alice.token);
+        await page.goto(`${BASE}/game.html?room=${room.id}`);
+        await expect(page.locator('.game-header')).toBeVisible();
+        await page.getByRole('button', { name: 'Market' }).click();
+        await showMarketPane(page, 'Past transactions');
+        const cards = page.locator('#pastTradesList .trade-history-card');
+
+        await expect(page.locator('#pastTradesFilter')).toHaveValue('mine');
+        await expect(cards).toHaveCount(1);
+        await expect(cards.first()).toContainText('Alice to Carol');
+
+        await page.selectOption('#pastTradesFilter', 'all');
+        await expect(cards).toHaveCount(2);
+        await expect(cards.nth(1)).toContainText('Bob to Carol');
+        await expect(cards.nth(1).locator('.badge')).toHaveText('Accepted');
+
+        await page.selectOption('#pastTradesFilter', { label: "Bob's trades" });
+        await expect(cards).toHaveCount(1);
+        await expect(cards.first()).toContainText('Bob to Carol');
+
+        // The choice survives a game update.
+        await act('Bob', 'manual_payment', { fromPlayerId: id('Bob'), toPlayerId: id('Carol'), amount: 1 });
+        await page.evaluate(() => resyncGame());
+        await expect(page.locator('#pastTradesFilter')).toHaveValue(id('Bob'));
+        await expect(cards).toHaveCount(1);
+    });
+
+    test('long histories page in tens', async ({ page, request }) => {
+        const { room, game, hostToken, guestToken, hostId, guestId } = await setupTradingGame(request);
+        for (let i = 0; i < 12; i++) {
+            const current = await apiJson(request, 'get', `${BASE_API}/games/${game.id}`, { headers: { Authorization: `Bearer ${guestToken}` } });
+            await apiJson(request, 'post', `${BASE_API}/games/${game.id}/actions`, {
+                headers: { Authorization: `Bearer ${guestToken}` },
+                data: { actionId: `e2e-page-${i}-${Date.now()}`, type: 'propose_trade', payload: { player1Id: guestId, player2Id: hostId, player1Cash: i + 1, player2Cash: 0, player1AssetIds: [], player2AssetIds: [] }, expectedVersion: current.state_version },
+            });
+            const next = await apiJson(request, 'get', `${BASE_API}/games/${game.id}`, { headers: { Authorization: `Bearer ${guestToken}` } });
+            await apiJson(request, 'post', `${BASE_API}/games/${game.id}/actions`, {
+                headers: { Authorization: `Bearer ${guestToken}` },
+                data: { actionId: `e2e-page-cancel-${i}-${Date.now()}`, type: 'cancel_trade', payload: { offerId: next.game_state.marketOffers.find(o => o.status === 'pending').id }, expectedVersion: next.state_version },
+            });
+        }
+        await loginPage(page, hostToken);
+        await page.goto(`${BASE}/game.html?room=${room.id}`);
+        await expect(page.locator('.game-header')).toBeVisible();
+        await page.getByRole('button', { name: 'Market' }).click();
+        await showMarketPane(page, 'Past transactions');
+        const cards = page.locator('#pastTradesList .trade-history-card');
+        await expect(cards).toHaveCount(10);
+        await expect(page.locator('.trade-history-more')).toContainText('Showing 10 of 12 trades.');
+        await page.getByRole('button', { name: 'Show more' }).click();
+        await expect(cards).toHaveCount(12);
+        await expect(page.locator('.trade-history-more')).toHaveCount(0);
+    });
+});

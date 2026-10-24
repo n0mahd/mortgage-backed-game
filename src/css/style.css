@@ -1934,10 +1934,16 @@ input[type="radio"] {
 .trade-history-card .trade-offer-meta { margin-top: 2px; }
 
 .trade-history-more {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--s2);
     font-size: var(--text-caption);
     color: var(--ink-3);
     text-align: center;
 }
+
+.past-trades-filter { margin-bottom: var(--s3); }
 
 .trade-offer-header {
     display: flex;

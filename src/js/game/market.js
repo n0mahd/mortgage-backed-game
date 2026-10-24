@@ -723,20 +723,31 @@ function renderTradeOffers() {
     }).join('');
 }
 
-const PAST_TRADES_SHOWN = 8;
+const PAST_TRADES_PAGE = 10;
+let pastTradesFilter = 'mine'; // 'mine', 'all', or a player's userId
+let pastTradesShown = PAST_TRADES_PAGE;
 
-// Resolved trade offers, newest first, each with how it ended.
+// Every resolved trade offer in the game, newest first, each with how it ended.
+// The filter picks your trades (the default), everyone's, or one player's.
 function renderPastTrades() {
     const container = document.getElementById('pastTradesList');
     if (!container || !currentGame) return;
+    const players = currentGame.game_state.players || [];
+    renderPastTradesFilter(players);
+    const involves = (offer, userId) => offer.player1Id === userId || offer.player2Id === userId;
     const past = (currentGame.game_state.marketOffers || [])
         .filter(offer => offer.status !== 'pending')
+        .filter(offer => pastTradesFilter === 'all' || involves(offer, pastTradesFilter === 'mine' ? currentUser.id : pastTradesFilter))
         .sort((a, b) => String(b.resolvedAt || b.createdAt || '').localeCompare(String(a.resolvedAt || a.createdAt || '')));
     if (past.length === 0) {
-        container.innerHTML = '<p class="empty-state">No past trades yet</p>';
+        const name = players.find(p => p.userId === pastTradesFilter)?.name;
+        const empty = pastTradesFilter === 'mine' ? "You haven't been in any finished trades yet."
+            : pastTradesFilter === 'all' ? 'No past trades yet.'
+            : `${name || 'This player'} hasn't been in any finished trades yet.`;
+        container.innerHTML = `<p class="empty-state">${escapeHtml(empty)}</p>`;
         return;
     }
-    const shown = past.slice(0, PAST_TRADES_SHOWN);
+    const shown = past.slice(0, pastTradesShown);
     container.innerHTML = shown.map(offer => {
         const outcome = pastTradeOutcome(offer);
         const when = offer.resolvedAt ? formatTimeAgo(offer.resolvedAt) : '';
@@ -762,9 +773,40 @@ function renderPastTrades() {
                 </div>
             </div>
         `;
-    }).join('') + (past.length > shown.length
-        ? `<p class="trade-history-more">Showing the ${shown.length} most recent of ${past.length} trades.</p>`
-        : '');
+    }).join('') + (past.length > shown.length ? `
+        <div class="trade-history-more">
+            <p>Showing ${shown.length} of ${past.length} trades.</p>
+            <button type="button" class="btn btn-secondary btn-sm" data-game-action="show-more-past-trades">Show more</button>
+        </div>` : '');
+}
+
+function renderPastTradesFilter(players) {
+    const select = document.getElementById('pastTradesFilter');
+    if (!select) return;
+    if (pastTradesFilter !== 'mine' && pastTradesFilter !== 'all' && !players.some(p => p.userId === pastTradesFilter)) {
+        pastTradesFilter = 'mine';
+    }
+    const options = [['mine', 'Your trades'], ['all', 'Everyone'],
+        ...players.filter(p => p.userId !== currentUser.id).map(p => [p.userId, `${p.name}'s trades`])];
+    const html = options.map(([value, label]) => `<option value="${escapeHtml(value)}">${escapeHtml(label)}</option>`).join('');
+    if (select.dataset.html !== html) {
+        select.innerHTML = html;
+        select.dataset.html = html;
+    }
+    select.value = pastTradesFilter;
+    if (!select.dataset.bound) {
+        select.addEventListener('change', () => {
+            pastTradesFilter = select.value;
+            pastTradesShown = PAST_TRADES_PAGE;
+            renderPastTrades();
+        });
+        select.dataset.bound = 'true';
+    }
+}
+
+function showMorePastTrades() {
+    pastTradesShown += PAST_TRADES_PAGE;
+    renderPastTrades();
 }
 
 function pastTradeOutcome(offer) {
