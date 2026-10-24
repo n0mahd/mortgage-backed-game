@@ -9,6 +9,7 @@
 
     let roomId = null;
     let data = null;
+    let shown = null;
     let options = {};
     let wired = false;
 
@@ -46,6 +47,7 @@
         roomId = id;
         options = openOptions;
         data = null;
+        shown = null;
         el('manage-room-name').textContent = '';
         el('manage-transfer').hidden = true;
         el('manage-player-list').innerHTML = '<div class="loading"><div class="spinner"></div></div>';
@@ -63,12 +65,23 @@
         if (options.onClose) options.onClose();
     }
 
+    // Also runs on lobby.js's resync (room events, page shown again, slow
+    // poll), so it re-renders only when something changed and ignores an
+    // answer for a sheet that has since closed or moved to another room.
     async function refresh() {
-        if (!roomId) return;
+        const id = roomId;
+        if (!id) return;
         try {
-            data = await getRoomManagement(roomId);
+            const next = await getRoomManagement(id);
+            if (id !== roomId) return;
+            const json = JSON.stringify(next);
+            if (json === shown) return;
+            shown = json;
+            data = next;
             render();
         } catch (error) {
+            if (id !== roomId) return;
+            shown = null;
             el('manage-player-list').innerHTML = `<p class="turn-warning danger">${escapeHtml(error.status === 403
                 ? 'Only the host can manage players in this game.'
                 : `Could not load the players: ${error.message}`)}</p>`;
@@ -271,7 +284,8 @@
         status.classList.toggle('error', isError);
     }
 
-    // A room event (offer answered elsewhere, player joined) for the open sheet.
+    // A change elsewhere (offer answered, player joined or left, agent seat
+    // claimed) for the open sheet; no id means whichever room is open.
     function refreshIfOpen(id) {
         if (roomId && (!id || String(id) === String(roomId))) refresh();
     }

@@ -161,6 +161,8 @@ function setupRealtimeSubscriptions() {
     RejoinPrompts.watch(currentRoom.id);
     // Host rights can move to another player mid-game (Manage players).
     getSocket().on('room:member_change', room => applyRoomUpdate(room));
+    // Signed in as someone else in another tab: don't keep acting as them.
+    if (!isHotseatMode) reloadOnSignInChange(() => currentUser && currentUser.id);
 
     // Phones drop the socket when the screen locks or the browser goes to the
     // background, so catch up whenever the page comes back. The server also

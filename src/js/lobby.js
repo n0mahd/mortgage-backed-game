@@ -2,6 +2,9 @@
 // archive is per user), host offers made to them, the guest's invitation to
 // create an account, and an email account's "Set password". The host's Manage
 // sheet is src/js/manage-room.js; ?manage=<roomId> opens it on load.
+// Everything here can change elsewhere (another device archives a game or
+// makes one, a game starts or ends, a host offer, a player joins), so one
+// coalesced resyncLobby refetches it all; see "Staying live" below.
 
 const ROOM_STATUS_LABELS = {
     waiting: 'Waiting',
@@ -14,6 +17,10 @@ let lobbyUser = null;
 let lobbyRooms = [];
 const lobbyRoomSubscriptions = new Map();
 let lobbyReloadTimer = null;
+let lobbyRoomsShown = null;
+let lobbyOffersShown = null;
+let lobbyResyncInFlight = null;
+let lobbyResyncAgain = false;
 
 async function initLobby() {
     const user = await requireAuth();
@@ -22,13 +29,11 @@ async function initLobby() {
     renderAccount();
 
     // An offer made, cancelled or answered changes both lists.
-    getSocket().on('room:host_transfer', event => {
-        loadHostOffers();
-        scheduleRoomsReload();
-        ManageRoom.refreshIfOpen(event && event.roomId);
-    });
+    getSocket().on('room:host_transfer', scheduleRoomsReload);
 
     await Promise.all([loadUserRooms(), loadHostOffers()]);
+    watchForMissedUpdates(resyncLobby);
+    reloadOnSignInChange(() => lobbyUser && lobbyUser.id, scheduleRoomsReload);
 
     const manageRoomId = new URLSearchParams(window.location.search).get('manage');
     if (manageRoomId) openManageSheet(manageRoomId);
@@ -48,6 +53,20 @@ function renderAccount() {
     document.getElementById('account-name').textContent = name;
     // Email accounts sign in with codes; a password lets them use a username too.
     document.getElementById('set-password-btn').hidden = isGuest || !!user.has_password;
+}
+
+// The account can change elsewhere too (a password set on another device, a
+// guest upgraded in another tab).
+async function refreshLobbyAccount() {
+    try {
+        const user = await getCurrentUser();
+        if (user && user.id === lobbyUser.id) {
+            lobbyUser = user;
+            renderAccount();
+        }
+    } catch (error) {
+        console.warn('Could not refresh the account:', error.message || error);
+    }
 }
 
 function showSetPasswordModal() {
@@ -106,6 +125,9 @@ async function loadHostOffers() {
         console.warn('Could not load host offers:', error.message || error);
         return;
     }
+    const shown = JSON.stringify(offers);
+    if (shown === lobbyOffersShown) return;
+    lobbyOffersShown = shown;
     section.hidden = offers.length === 0;
     document.getElementById('host-offers-list').innerHTML = offers.map(offer => `
         <div class="host-offer" data-host-offer="${escapeHtml(offer.id)}">
@@ -145,9 +167,15 @@ async function answerHostOffer(offerId, accept, button) {
 
 async function loadUserRooms() {
     const activeList = document.getElementById('active-rooms-list');
+    let rooms;
     try {
-        lobbyRooms = await apiFetch('/rooms/mine');
+        rooms = await apiFetch('/rooms/mine');
     } catch (error) {
+        // A failed resync keeps the list already on screen.
+        if (lobbyRoomsShown !== null) {
+            console.warn('Could not refresh your games:', error.message || error);
+            return;
+        }
         console.error('Error loading rooms:', error);
         activeList.innerHTML = `
             <div class="loading">
@@ -156,6 +184,11 @@ async function loadUserRooms() {
         `;
         return;
     }
+    // Unchanged on a poll: leave the cards (and any button being pressed) alone.
+    const shown = JSON.stringify(rooms);
+    if (shown === lobbyRoomsShown) return;
+    lobbyRoomsShown = shown;
+    lobbyRooms = rooms;
 
     const active = lobbyRooms.filter(room => !room.archived);
     const archived = lobbyRooms.filter(room => room.archived);
@@ -175,7 +208,8 @@ async function loadUserRooms() {
     syncRoomSubscriptions();
 }
 
-// One subscription per room; any change in any of them reloads the list once.
+// One subscription per room; any event in any of them, or a socket (re)join,
+// resyncs the page once.
 function syncRoomSubscriptions() {
     const ids = new Set(lobbyRooms.map(room => room.id));
     lobbyRoomSubscriptions.forEach((sub, id) => {
@@ -186,14 +220,41 @@ function syncRoomSubscriptions() {
     });
     ids.forEach(id => {
         if (!lobbyRoomSubscriptions.has(id)) {
-            lobbyRoomSubscriptions.set(id, subscribeToRoom(id, scheduleRoomsReload, scheduleRoomsReload));
+            lobbyRoomSubscriptions.set(id, subscribeToRoom(id, scheduleRoomsReload, scheduleRoomsReload, scheduleRoomsReload));
         }
     });
 }
 
+// ── Staying live ────────────────────────────────────────────────
+// Room events and socket rejoins come in bursts, so they wait 200ms and share
+// one resync. watchForMissedUpdates (api.js) also resyncs when the page is
+// shown again, comes back online, and every 15 seconds while visible: per-user
+// archiving and games made or joined on another device emit no event here.
+
 function scheduleRoomsReload() {
     clearTimeout(lobbyReloadTimer);
-    lobbyReloadTimer = setTimeout(loadUserRooms, 200);
+    lobbyReloadTimer = setTimeout(resyncLobby, 200);
+}
+
+// A call while one runs asks for one more run, so a change made mid-fetch is
+// not lost.
+function resyncLobby() {
+    if (lobbyResyncInFlight) {
+        lobbyResyncAgain = true;
+        return lobbyResyncInFlight;
+    }
+    lobbyResyncInFlight = (async () => {
+        try {
+            do {
+                lobbyResyncAgain = false;
+                await Promise.all([refreshLobbyAccount(), loadUserRooms(), loadHostOffers()]);
+                ManageRoom.refreshIfOpen();
+            } while (lobbyResyncAgain);
+        } finally {
+            lobbyResyncInFlight = null;
+        }
+    })();
+    return lobbyResyncInFlight;
 }
 
 function renderRoomCard(room) {
