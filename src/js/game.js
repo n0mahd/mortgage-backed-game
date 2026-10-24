@@ -65,6 +65,10 @@ document.addEventListener('DOMContentLoaded', async () => {
             return;
         }
 
+        // Tabs and dialogs work from the first paint; the game header shows
+        // before the log finishes loading, and a tap then must not be lost.
+        bindStaticGameControls();
+
         // Load room and game data
         await loadGameData(roomId);
 
@@ -724,7 +728,6 @@ function switchToGameTab() {
 
 // Wire up the page's static controls once the game has loaded.
 function setupUIListeners() {
-    bindStaticGameControls();
     // Populate player dropdowns
     populatePlayerDropdowns();
     window.addEventListener('resize', scaleBoardToFit);

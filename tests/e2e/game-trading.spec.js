@@ -352,3 +352,165 @@ test.describe('Trading — past transactions', () => {
         if (process.env.PAST_TRADES_SHOT) await page.locator('#pastTradesList').screenshot({ path: process.env.PAST_TRADES_SHOT });
     });
 });
+
+test.describe('Trading — counteroffers', () => {
+    test('Counter opens the offer in the trade form and sends the changed terms back', async ({ page, request }) => {
+        const { room, game, hostToken, guestToken, hostId, guestId } = await setupTradingGame(request);
+        // Bob offers $10 for Alice's Mediterranean Ave.
+        await apiJson(request, 'post', `${BASE_API}/games/${game.id}/actions`, {
+            headers: { Authorization: `Bearer ${guestToken}` },
+            data: {
+                actionId: `e2e-counter-offer-${Date.now()}`,
+                type: 'propose_trade',
+                payload: { player1Id: guestId, player2Id: hostId, player1Cash: 10, player2Cash: 0, player1AssetIds: [], player2AssetIds: ['prop-0'] },
+                expectedVersion: game.state_version,
+            },
+        });
+
+        await page.setViewportSize({ width: 320, height: 700 });
+        await loginPage(page, hostToken);
+        await page.goto(`${BASE}/game.html?room=${room.id}`);
+        await expect(page.locator('.game-header')).toBeVisible();
+        await page.getByRole('button', { name: 'Market' }).click();
+        const offers = page.locator('#tradeOffersList');
+        await expect(offers.getByRole('button', { name: 'Counter' })).toBeVisible({ timeout: 5000 });
+
+        // On a 320px phone, Accept, Counter and Decline all sit inside the card.
+        const card = await offers.locator('.trade-offer-card').boundingBox();
+        for (const name of ['Accept', 'Counter', 'Decline']) {
+            const button = await offers.getByRole('button', { name }).boundingBox();
+            expect(button.x + button.width).toBeLessThanOrEqual(card.x + card.width);
+        }
+        await offers.getByRole('button', { name: 'Counter' }).click();
+
+        // The form holds Bob's terms with Alice's side under You give.
+        await expect(page.getByRole('tab', { name: 'New trade' })).toHaveAttribute('aria-selected', 'true');
+        await expect(page.locator('#tradeCounterBanner')).toContainText("Countering Bob's offer");
+        await expect(page.locator('#player1Select')).toHaveValue(hostId);
+        await expect(page.locator('#player2Select')).toHaveValue(guestId);
+        await expect(page.locator('#player1-asset-prop-0')).toBeChecked();
+        await expect(page.locator('#player2Cash')).toHaveValue('10');
+        await expect(page.locator('#executeTradeBtn')).toHaveText('Send Counteroffer');
+
+        // Stop countering clears the form; Counter again brings the terms back.
+        await page.getByRole('button', { name: 'Stop countering' }).click();
+        await expect(page.locator('#tradeCounterBanner')).toBeHidden();
+        await expect(page.locator('#player1-asset-prop-0')).not.toBeChecked();
+        await expect(page.locator('#executeTradeBtn')).toHaveText('Propose Transaction');
+        await page.getByRole('tab', { name: /Trade proposals/ }).click();
+        await offers.getByRole('button', { name: 'Counter' }).click();
+        await expect(page.locator('#player1-asset-prop-0')).toBeChecked();
+
+        await page.fill('#player2Cash', '40');
+        await page.click('#executeTradeBtn');
+        await expect(page.locator('#market-status')).toContainText('Counteroffer sent to Bob', { timeout: 5000 });
+        await expect(offers).toContainText('Alice sent a counteroffer');
+        await expect(page.locator('#tradeCounterBanner')).toBeHidden();
+
+        await page.getByRole('tab', { name: 'Past transactions' }).click();
+        await expect(page.locator('#market-status')).toBeEmpty();
+        const past = page.locator('#pastTradesList .trade-history-card').first();
+        await expect(past.locator('.badge')).toHaveText('Countered');
+        await expect(past).toContainText('Alice countered');
+
+        // Bob accepts the counter: $40 for Mediterranean Ave.
+        const current = await apiJson(request, 'get', `${BASE_API}/games/${game.id}`, { headers: { Authorization: `Bearer ${guestToken}` } });
+        const reply = current.game_state.marketOffers.find(o => o.status === 'pending');
+        expect(reply).toMatchObject({ proposedById: hostId, recipientId: guestId, player2Cash: 40, player1AssetIds: ['prop-0'] });
+        expect(current.game_state.marketOffers.find(o => o.id === reply.counterToOfferId).status).toBe('countered');
+        await apiJson(request, 'post', `${BASE_API}/games/${game.id}/actions`, {
+            headers: { Authorization: `Bearer ${guestToken}` },
+            data: { actionId: `e2e-counter-accept-${Date.now()}`, type: 'accept_trade', payload: { offerId: reply.id }, expectedVersion: current.state_version },
+        });
+        const after = await apiJson(request, 'get', `${BASE_API}/games/${game.id}`, { headers: { Authorization: `Bearer ${hostToken}` } });
+        expect(after.game_state.properties.find(p => p.id === 'prop-0').ownerId).toBe(guestId);
+        if (process.env.COUNTER_SHOT) await page.screenshot({ path: process.env.COUNTER_SHOT, fullPage: true });
+    });
+});
+
+test.describe('Trading — past transactions filter', () => {
+    test('shows your trades by default, and everyone or one player on request', async ({ page, request }) => {
+        const users = {};
+        for (const name of ['Alice', 'Bob', 'Carol']) users[name] = await apiJson(request, 'post', `${BASE_API}/auth/anonymous`);
+        const auth = name => ({ Authorization: `Bearer ${users[name].token}` });
+        const room = await apiJson(request, 'post', `${BASE_API}/rooms`, { headers: auth('Alice'), data: { name: 'Filter Room', player_name: 'Alice', max_players: 4 } });
+        for (const name of ['Bob', 'Carol']) await apiJson(request, 'post', `${BASE_API}/rooms/${room.id}/join`, { headers: auth(name), data: { player_name: name } });
+        const id = name => users[name].user.id;
+        let game = await apiJson(request, 'post', `${BASE_API}/games`, {
+            headers: auth('Alice'),
+            data: { room_id: room.id, game_state: {
+                currentPlayerIndex: 0,
+                players: ['Alice', 'Bob', 'Carol'].map(name => playerState(id(name), name)),
+                properties: [], corporations: [], debts: [], marketOffers: [], gameLog: [],
+                lastDiceRoll: null, lastCardDrawn: null, settings: { passGoAmount: 200, startingCash: 1500 },
+            } },
+        });
+        const act = async (name, type, payload) => {
+            const current = await apiJson(request, 'get', `${BASE_API}/games/${game.id}`, { headers: auth(name) });
+            await apiJson(request, 'post', `${BASE_API}/games/${game.id}/actions`, {
+                headers: auth(name),
+                data: { actionId: `e2e-filter-${type}-${Date.now()}-${Math.random()}`, type, payload, expectedVersion: current.state_version },
+            });
+            return (await apiJson(request, 'get', `${BASE_API}/games/${game.id}`, { headers: auth(name) })).game_state;
+        };
+        const cash = (from, to, amount) => ({ player1Id: id(from), player2Id: id(to), player1Cash: amount, player2Cash: 0, player1AssetIds: [], player2AssetIds: [] });
+        let state = await act('Bob', 'propose_trade', cash('Bob', 'Carol', 30));
+        await act('Carol', 'accept_trade', { offerId: state.marketOffers.find(o => o.status === 'pending').id });
+        state = await act('Alice', 'propose_trade', cash('Alice', 'Carol', 20));
+        await act('Carol', 'cancel_trade', { offerId: state.marketOffers.find(o => o.status === 'pending').id });
+
+        await page.setViewportSize({ width: 375, height: 812 });
+        await loginPage(page, users.Alice.token);
+        await page.goto(`${BASE}/game.html?room=${room.id}`);
+        await expect(page.locator('.game-header')).toBeVisible();
+        await page.getByRole('button', { name: 'Market' }).click();
+        await showMarketPane(page, 'Past transactions');
+        const cards = page.locator('#pastTradesList .trade-history-card');
+
+        await expect(page.locator('#pastTradesFilter')).toHaveValue('mine');
+        await expect(cards).toHaveCount(1);
+        await expect(cards.first()).toContainText('Alice to Carol');
+
+        await page.selectOption('#pastTradesFilter', 'all');
+        await expect(cards).toHaveCount(2);
+        await expect(cards.nth(1)).toContainText('Bob to Carol');
+        await expect(cards.nth(1).locator('.badge')).toHaveText('Accepted');
+
+        await page.selectOption('#pastTradesFilter', { label: "Bob's trades" });
+        await expect(cards).toHaveCount(1);
+        await expect(cards.first()).toContainText('Bob to Carol');
+
+        // The choice survives a game update.
+        await act('Bob', 'manual_payment', { fromPlayerId: id('Bob'), toPlayerId: id('Carol'), amount: 1 });
+        await page.evaluate(() => resyncGame());
+        await expect(page.locator('#pastTradesFilter')).toHaveValue(id('Bob'));
+        await expect(cards).toHaveCount(1);
+    });
+
+    test('long histories page in tens', async ({ page, request }) => {
+        const { room, game, hostToken, guestToken, hostId, guestId } = await setupTradingGame(request);
+        for (let i = 0; i < 12; i++) {
+            const current = await apiJson(request, 'get', `${BASE_API}/games/${game.id}`, { headers: { Authorization: `Bearer ${guestToken}` } });
+            await apiJson(request, 'post', `${BASE_API}/games/${game.id}/actions`, {
+                headers: { Authorization: `Bearer ${guestToken}` },
+                data: { actionId: `e2e-page-${i}-${Date.now()}`, type: 'propose_trade', payload: { player1Id: guestId, player2Id: hostId, player1Cash: i + 1, player2Cash: 0, player1AssetIds: [], player2AssetIds: [] }, expectedVersion: current.state_version },
+            });
+            const next = await apiJson(request, 'get', `${BASE_API}/games/${game.id}`, { headers: { Authorization: `Bearer ${guestToken}` } });
+            await apiJson(request, 'post', `${BASE_API}/games/${game.id}/actions`, {
+                headers: { Authorization: `Bearer ${guestToken}` },
+                data: { actionId: `e2e-page-cancel-${i}-${Date.now()}`, type: 'cancel_trade', payload: { offerId: next.game_state.marketOffers.find(o => o.status === 'pending').id }, expectedVersion: next.state_version },
+            });
+        }
+        await loginPage(page, hostToken);
+        await page.goto(`${BASE}/game.html?room=${room.id}`);
+        await expect(page.locator('.game-header')).toBeVisible();
+        await page.getByRole('button', { name: 'Market' }).click();
+        await showMarketPane(page, 'Past transactions');
+        const cards = page.locator('#pastTradesList .trade-history-card');
+        await expect(cards).toHaveCount(10);
+        await expect(page.locator('.trade-history-more')).toContainText('Showing 10 of 12 trades.');
+        await page.getByRole('button', { name: 'Show more' }).click();
+        await expect(cards).toHaveCount(12);
+        await expect(page.locator('.trade-history-more')).toHaveCount(0);
+    });
+});

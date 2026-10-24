@@ -115,7 +115,9 @@ function formatLogEvent(type, data) {
         case 'turn_end':
             return `${data.player} ended their turn — it's now ${data.nextPlayer}'s turn`;
         case 'trade_offer_proposed':
-            return `${data.proposer} proposed a trade with ${data.recipient}`;
+            return data.counterOfferId
+                ? `${data.proposer} countered ${data.recipient}'s trade offer`
+                : `${data.proposer} proposed a trade with ${data.recipient}`;
         case 'trade_offer_accepted':
             return `${data.accepter} accepted ${data.proposer}'s trade offer`;
         case 'trade_offer_canceled':

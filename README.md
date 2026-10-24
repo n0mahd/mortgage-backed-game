@@ -136,7 +136,7 @@ If a corporation can't repay a loan when it comes due, the corporation becomes i
 
 ### Trade (Secondary Market)
 
-Open the **Market** tab. Pick two players and enter what each side offers — any combination of cash, properties and corporation shares. Click **Propose Transaction** to send a pending trade offer; leave one side empty to send shares or property as a gift. To buy into someone's LLC with a property, tap **Offer a property for shares** on its card in **Corporations** (or choose **Into <ticker>** under *Where should your properties go?*); the property goes into the LLC and you ask for its shares in return. The other involved player must accept before cash or properties move.
+Open the **Market** tab. Pick two players and enter what each side offers — any combination of cash, properties and corporation shares. Click **Propose Transaction** to send a pending trade offer; leave one side empty to send shares or property as a gift. To buy into someone's LLC with a property, tap **Offer a property for shares** on its card in **Corporations** (or choose **Into <ticker>** under *Where should your properties go?*); the property goes into the LLC and you ask for its shares in return. The other involved player must accept before cash or properties move; they can also **Counter**, which opens the form with the offer's terms to change and send back, and closes the original as countered.
 
 Pending trade offers expire after the configured trade-offer timeout. Expired offers never move cash or property; the next game action clears them. The host can also cancel abandoned pending trade offers. Host cancellation does not move cash or properties.
 
