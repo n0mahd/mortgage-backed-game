@@ -212,7 +212,7 @@ class Explore {
         const corp = (state.corporations || []).find(c => this.runs(c, me) && !c.rentPolicyVote && !Number(c.rentPolicyLockedTurns || 0));
         if (!corp) return false;
         const bot = this.bot;
-        const modal = await this.openCorporations(seat);
+        const modal = await this.openCorporations(seat, corp.id);
         const button = modal.locator(`[data-game-action="set-rent-policy"][data-corp-id="${corp.id}"]`);
         if (!(await bot.usable(button))) {
             this.ctx.finding({ severity: 'medium', category: 'ui', seat, title: 'Chairman sees no usable rent policy switch before rolling', detail: `${corp.ticker}: policy ${corp.rentPolicy || 'reinvest'}, lock ${corp.rentPolicyLockedTurns || 0}` });
@@ -230,7 +230,7 @@ class Explore {
         const bot = this.bot;
         const corp = (state.corporations || []).find(c => this.runs(c, me) && Number(c.cash) >= 1);
         if (!corp) return;
-        const modal = await this.openCorporations(seat);
+        const modal = await this.openCorporations(seat, corp.id);
         const input = seat.page.locator(`#dividend-${corp.id}`);
         if (!(await input.count())) return bot.closeModals(seat);
         await input.fill(String(Math.max(1, Math.floor(Number(corp.cash) / 3))));
@@ -243,7 +243,7 @@ class Explore {
         const bot = this.bot;
         const corp = this.voteCorp(state, me);
         if (!corp) return;
-        const modal = await this.openCorporations(seat);
+        const modal = await this.openCorporations(seat, corp.id);
         const button = modal.locator(`[data-game-action="propose-rent-policy"][data-corp-id="${corp.id}"]`);
         if (await bot.usable(button)) {
             await bot.act(seat, `ask ${corp.ticker} shareholders to switch rent policy`, () => button.click(), { allowRejection: true });
@@ -258,7 +258,7 @@ class Explore {
         const bot = this.bot;
         const corp = (state.corporations || []).find(c => this.runs(c, me) && Number(c.cash) >= 100 && this.corpGroup(state, c));
         if (!corp) return;
-        const modal = await this.openCorporations(seat);
+        const modal = await this.openCorporations(seat, corp.id);
         const button = modal.locator(`[data-game-action="build-for-corporation"][data-corp-id="${corp.id}"]`);
         if (!(await bot.usable(button))) {
             this.ctx.finding({ severity: 'medium', category: 'ui', seat, title: 'Build houses for the company is not usable', detail: `${corp.ticker} owns the whole ${this.corpGroup(state, corp)} group with $${corp.cash}` });
@@ -274,7 +274,7 @@ class Explore {
         const targets = state.players.filter(p => !p.bankrupt && p.userId !== me.userId && (p.properties || []).length && !this.runs(corp, p));
         if (!corp || !targets.length) return;
         const target = bot.pick(targets);
-        const modal = await this.openCorporations(seat);
+        const modal = await this.openCorporations(seat, corp.id);
         await modal.locator(`[data-game-action="trade-as-corporation"][data-corp-id="${corp.id}"]`).click();
         await seat.page.locator('#market.section.active').waitFor({ state: 'visible' });
         if ((await seat.page.locator('#player1Select').inputValue().catch(() => '')) !== `corp:${corp.id}`) {
@@ -296,7 +296,7 @@ class Explore {
         const corps = (state.corporations || []).filter(c => !c.insolvent && c.chairmanId && !this.runs(c, me));
         const corp = bot.pick(corps);
         if (!corp) return;
-        const modal = await this.openCorporations(seat);
+        const modal = await this.openCorporations(seat, corp.id);
         const open = modal.locator(`[data-game-action="open-property-offer"][data-corp-id="${corp.id}"]`);
         if (!(await bot.usable(open))) {
             this.ctx.finding({ severity: 'medium', category: 'ui', seat, title: `No "Offer a property to ${corp.ticker}" button for a player who owns property`, detail: `${me.name} owns ${(me.properties || []).length}` });
@@ -337,7 +337,7 @@ class Explore {
         const corp = bot.pick((state.corporations || []).filter(c => !c.insolvent && c.chairmanId && !this.runs(c, me)
             && (c.shareholders || []).some(h => h.userId === c.chairmanId && Number(h.shares) > 1)));
         if (!corp) return;
-        const modal = await this.openCorporations(seat);
+        const modal = await this.openCorporations(seat, corp.id);
         const open = modal.locator(`[data-game-action="offer-property-for-shares"][data-corp-id="${corp.id}"]`);
         if (!(await bot.usable(open))) return bot.closeModals(seat);
         await open.click();
@@ -375,7 +375,7 @@ class Explore {
             const approve = this.wantsAny('desk.rent-vote-reject', 'desk.rent-vote-passes', 'desk.rent-vote-support') ? !reject : bot.chance(0.7);
             const seat = bot.seatById(holder.userId);
             await bot.gameTab(seat);
-            const modal = await this.openCorporations(seat);
+            const modal = await this.openCorporations(seat, corp.id);
             const button = modal.locator(`[data-game-action="vote-rent-policy"][data-corp-id="${corp.id}"][data-approve="${approve}"]`);
             if (await bot.usable(button)) {
                 await bot.act(seat, `${approve ? 'agree to' : 'reject'} a ${corp.ticker} rent policy switch`, () => button.click(), { allowRejection: true });
@@ -489,19 +489,17 @@ class Explore {
         await bot.closeModals(seat);
     }
 
-    async openCorporations(seat) {
-        const bot = this.bot;
-        await bot.gameButton(seat, 'open-corporation').click();
-        const modal = seat.page.locator('#corporationModal');
-        await modal.waitFor({ state: 'visible' });
-        return modal;
+    // The Corporations sheet lists every corporation; tapping one shows its
+    // detail, split into tabs on phones (every panel shows from 720px).
+    async openCorporations(seat, corpId, tab = null) {
+        return this.bot.openCorporation(seat, corpId, tab);
     }
 
     async changeChairman(seat, me, state) {
         const bot = this.bot;
         const corp = state.corporations.find(c => !c.insolvent && this.holds(c, me) * 2 > c.totalShares);
         if (!corp) return;
-        const modal = await this.openCorporations(seat);
+        const modal = await this.openCorporations(seat, corp.id, 'owners');
         const select = seat.page.locator(`#chairmanMajority-${corp.id}`);
         if (await select.count()) {
             const values = await select.locator('option').evaluateAll(os => os.map(o => o.value));
@@ -520,7 +518,7 @@ class Explore {
         const open = state.corporations.filter(c => !c.insolvent && this.holds(c, me) > 0 && !(c.chairmanVotes || []).some(v => v.status === 'open'));
         const corp = open.find(c => this.holds(c, me) * 2 <= Number(c.totalShares)) || open[0];
         if (!corp) return;
-        const modal = await this.openCorporations(seat);
+        const modal = await this.openCorporations(seat, corp.id, 'owners');
         const select = seat.page.locator(`#chairmanVoteCandidate-${corp.id}`);
         if (await select.count()) {
             await select.selectOption(me.userId).catch(() => {});
@@ -541,7 +539,7 @@ class Explore {
                 if (!holder || !bot.chance(this.wants('corp.vote-support') ? 1 : 0.7)) continue;
                 const seat = bot.seatById(holder.userId);
                 await bot.gameTab(seat);
-                const modal = await this.openCorporations(seat);
+                const modal = await this.openCorporations(seat, corp.id, 'owners');
                 const button = modal.locator(`[data-game-action="support-chairman-vote"][data-vote-id="${vote.id}"]`);
                 if (await bot.usable(button)) await bot.act(seat, 'support chairman vote', () => button.click(), { allowRejection: true });
                 await bot.closeModals(seat);
@@ -685,7 +683,7 @@ class Explore {
             }
         } else if (probe === 'force-buy') {
             // Shares a player holds are sold only by a trade they accept: the sheet must not sell them.
-            const modal = await this.openCorporations(seat);
+            const modal = await this.openCorporations(seat, heldCorp.id);
             const buy = modal.locator(`[data-game-action="buy-shares"][data-corp-id="${heldCorp.id}"]`);
             if (await buy.count()) {
                 this.ctx.finding({ severity: 'medium', category: 'ui', seat, title: `Corporations offers to buy ${heldCorp.ticker} shares though it has none in its treasury`, detail: '' });

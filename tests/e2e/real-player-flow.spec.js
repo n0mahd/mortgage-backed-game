@@ -85,7 +85,7 @@ test.describe('thorough real-player UI game flow', () => {
             await createIpo(pages.Alice, 'BRWN', 'prop-0');
             await shot(testInfo, pages.Alice, '13-alice-creates-ipo');
 
-            await expectCorporationDetails(pages.Alice, 'BRWN', /Alice:\s*12,000 shares \(100\.0%\)/i);
+            await expectCorporationDetails(pages.Alice, 'BRWN', /Alice \(you\)[\s\S]*12,000 · 100\.0%/i);
             await expectCorporationDetails(pages.Alice, 'BRWN', /No treasury shares for sale/i);
             await issueCorporationDebt(pages.Alice, 'BRWN', 100);
             await shot(testInfo, pages.Alice, '13b-alice-issues-corporation-debt');
@@ -109,7 +109,7 @@ test.describe('thorough real-player UI game flow', () => {
             await reloadGamePages(pages, ['Bob', 'Carol']);
             await proposeChairmanVote(pages.Bob, 'BRWN', 'Bob');
             await supportChairmanVote(pages.Carol, 'BRWN');
-            await expectCorporationDetails(pages.Carol, 'BRWN', /Chairman:\s*Bob/i);
+            await expectCorporationDetails(pages.Carol, 'BRWN', /Chairman Bob/i);
             await shot(testInfo, pages.Carol, '14b-carol-supports-chairman-vote');
 
             // Brown went into BRWN with its houses; trade an unbuilt street instead.
@@ -371,13 +371,23 @@ async function createIpo(page, ticker, assetId) {
     await expect(page.locator('#gameContent')).toContainText(ticker, { timeout: 10000 });
 }
 
+// Corporations sheet: the list, then this ticker's detail (and a tab on phones).
+async function openCorporationDetail(page, ticker, tab = null) {
+    await activeGameButton(page, 'open-corporation').click();
+    await expect(page.locator('#corporationModal')).toBeVisible();
+    await page.locator('#corporationModal .corp-summary').filter({ hasText: ticker }).first().click();
+    const card = page.locator('#corporationModal .corp-detail');
+    await expect(card).toBeVisible({ timeout: 10000 });
+    const tabButton = card.locator(`[data-game-action="corporation-tab"][data-tab="${tab}"]`);
+    if (tab && await tabButton.isVisible()) await tabButton.click();
+    return card;
+}
+
 async function expectCorporationDetails(page, ticker, shareholderText) {
     await openTab(page, 'Game');
-    await activeGameButton(page, 'open-corporation').click();
-    const card = page.locator('.corporation-card').filter({ hasText: ticker }).first();
-    await expect(card).toBeVisible({ timeout: 10000 });
-    await expect(card).toContainText(/Chairman:/i);
-    await expect(card).toContainText(/Treasury Cash:/i);
+    const card = await openCorporationDetail(page, ticker);
+    await expect(card).toContainText(/Chairman|chairman/);
+    await expect(card).toContainText(/Treasury cash/i);
     await expect(card).toContainText(shareholderText);
     await page.locator('#corporationModal').getByRole('button', { name: /close/i }).click();
     await expect(page.locator('#corporationModal')).toBeHidden({ timeout: 10000 });
@@ -397,9 +407,7 @@ async function issueCorporationDebt(page, ticker, amount) {
 
 async function proposeChairmanVote(page, ticker, candidateName) {
     await openTab(page, 'Game');
-    await activeGameButton(page, 'open-corporation').click();
-    await expect(page.locator('#corporationModal')).toBeVisible();
-    const card = page.locator('.corporation-card').filter({ hasText: ticker }).first();
+    const card = await openCorporationDetail(page, ticker, 'owners');
     await selectByVisibleText(card.locator('select[id^="chairmanVoteCandidate-"]'), candidateName);
     await clickAndWaitForGameVersion(page, card.getByRole('button', { name: /propose/i }));
     await expect(card).toContainText(candidateName, { timeout: 10000 });
@@ -410,11 +418,9 @@ async function proposeChairmanVote(page, ticker, candidateName) {
 
 async function supportChairmanVote(page, ticker) {
     await openTab(page, 'Game');
-    await activeGameButton(page, 'open-corporation').click();
-    await expect(page.locator('#corporationModal')).toBeVisible();
-    const card = page.locator('.corporation-card').filter({ hasText: ticker }).first();
+    const card = await openCorporationDetail(page, ticker, 'owners');
     await clickAndWaitForGameVersion(page, card.getByRole('button', { name: /support/i }).first());
-    await expect(card).toContainText(/Chairman:\s*Bob/i, { timeout: 10000 });
+    await expect(card).toContainText(/Chairman Bob/i, { timeout: 10000 });
     await page.locator('#corporationModal').getByRole('button', { name: /close/i }).click();
     await expect(page.locator('#corporationModal')).toBeHidden({ timeout: 10000 });
 }

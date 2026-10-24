@@ -3,7 +3,7 @@
 // property offers (offer, counter, accept), trading as the company, buying a
 // property for it, all through the real UI.
 const { test, expect } = require('@playwright/test');
-const { BASE, BASE_API, apiJson, loginPage, playerState, showMarketPane } = require('./helpers');
+const { BASE, BASE_API, apiJson, loginPage, playerState, openCorporation, showMarketPane } = require('./helpers');
 
 const PARK = { id: 'prop-25', name: 'Park Place', color: 'Dark Blue', price: 350, rent: [35, 175, 500, 1100, 1300, 1500] };
 const BOARDWALK = { id: 'prop-26', name: 'Boardwalk', color: 'Dark Blue', price: 400, rent: [50, 200, 600, 1400, 1700, 2000] };
@@ -105,14 +105,14 @@ test('the chairman switches to Payout and pays a dividend', async ({ browser, re
     const alex = await openGame(browser, room, users.Alex);
 
     // Alex holds 30% but doesn't run MBS: he sees the policy, not the switch.
-    await alex.page.click('[data-game-action="open-corporation"]');
-    await expect(alex.page.locator('.corp-rent-policy')).toContainText('Rent policy: Reinvest');
+    await openCorporation(alex.page, 'corp-mbs');
+    await expect(alex.page.locator('.corp-rent-policy .policy-option.is-current')).toContainText('Reinvest');
     await expect(alex.page.locator('[data-game-action="set-rent-policy"]')).toHaveCount(0);
     await expect(alex.page.locator('[data-game-action="pay-dividend"]')).toHaveCount(0);
 
-    await sam.page.click('[data-game-action="open-corporation"]');
+    await openCorporation(sam.page, 'corp-mbs');
     await sam.page.click('[data-game-action="set-rent-policy"][data-policy="payout"]');
-    await expect(sam.page.locator('.corp-rent-policy')).toContainText('Rent policy: Payout');
+    await expect(sam.page.locator('.corp-rent-policy .policy-option.is-current')).toContainText('Payout');
     // Now locked: Sam can't flip it back alone for his next 5 turns.
     await expect(sam.page.locator('.corp-rent-policy')).toContainText("can't change it alone for 5 more of their turns");
     await expect(sam.page.locator('[data-game-action="set-rent-policy"]')).toHaveCount(0);
@@ -120,7 +120,7 @@ test('the chairman switches to Payout and pays a dividend', async ({ browser, re
     // Alex reopens the sheet and reads that his stake cuts the rent he pays.
     await expect.poll(() => alex.page.evaluate(() => currentGame.game_state.corporations[0].rentPolicy)).toBe('payout');
     await alex.page.click('[data-close-modal="corporationModal"]');
-    await alex.page.click('[data-game-action="open-corporation"]');
+    await openCorporation(alex.page, 'corp-mbs');
     await expect(alex.page.locator('.corp-rent-policy')).toContainText(/You hold 30%.*only the other 70%/);
 
     await sam.page.fill('#dividend-corp-mbs', '300');
@@ -141,26 +141,26 @@ test('during the lock, the policy changes when every shareholder agrees', async 
     const alex = await openGame(browser, room, users.Alex);
     const kim = await openGame(browser, room, users.Kim);
 
-    await sam.page.click('[data-game-action="open-corporation"]');
+    await openCorporation(sam.page, 'corp-mbs');
     await sam.page.click('[data-game-action="set-rent-policy"][data-policy="payout"]');
-    await expect(sam.page.locator('.corp-rent-policy')).toContainText('Rent policy: Payout');
+    await expect(sam.page.locator('.corp-rent-policy .policy-option.is-current')).toContainText('Payout');
 
     // Alex asks to go back to Reinvest; Kim and Sam agree.
     await expect.poll(() => alex.page.evaluate(() => currentGame.game_state.corporations[0].rentPolicy)).toBe('payout');
-    await alex.page.click('[data-game-action="open-corporation"]');
+    await openCorporation(alex.page, 'corp-mbs');
     await alex.page.click('[data-game-action="propose-rent-policy"][data-policy="reinvest"]');
     await expect(alex.page.locator('.corp-rent-policy')).toContainText('Waiting for: Sam, Kim');
 
     await expect(kim.page.locator('[data-game-action="open-corporation"]').first()).toContainText('1 waiting for your answer', { timeout: 10000 });
-    await kim.page.click('[data-game-action="open-corporation"]');
+    await openCorporation(kim.page, 'corp-mbs');
     await kim.page.click('[data-game-action="vote-rent-policy"][data-approve="true"]');
     await expect(kim.page.locator('.corp-rent-policy')).toContainText('Waiting for: Sam');
 
     await expect.poll(() => sam.page.evaluate(() => currentGame.game_state.corporations[0].rentPolicyVote?.supporterIds?.length || 0)).toBe(2);
     await sam.page.click('[data-close-modal="corporationModal"]');
-    await sam.page.click('[data-game-action="open-corporation"]');
+    await openCorporation(sam.page, 'corp-mbs');
     await sam.page.click('[data-game-action="vote-rent-policy"][data-approve="true"]');
-    await expect(sam.page.locator('.corp-rent-policy')).toContainText('Rent policy: Reinvest');
+    await expect(sam.page.locator('.corp-rent-policy .policy-option.is-current')).toContainText('Reinvest');
     const mbs = (await fetchState(request, game, users.Sam)).corporations[0];
     expect(mbs).toMatchObject({ rentPolicy: 'reinvest', rentPolicyVote: null, rentPolicyLockedTurns: 5 });
 
@@ -174,7 +174,7 @@ test('a player offers a property, the chairman counters and the offerer accepts'
     const sam = await openGame(browser, room, users.Sam);
     const alex = await openGame(browser, room, users.Alex);
 
-    await alex.page.click('[data-game-action="open-corporation"]');
+    await openCorporation(alex.page, 'corp-mbs');
     await alex.page.click('[data-game-action="open-property-offer"][data-corp-id="corp-mbs"]');
     await expect(alex.page.locator('#propertyOfferModal')).toHaveClass(/active/);
     await expect(alex.page.locator('#send-property-offer-btn')).toBeDisabled();
@@ -197,7 +197,7 @@ test('a player offers a property, the chairman counters and the offerer accepts'
     await expect(proposalsTile).toContainText('1 waiting for your answer', { timeout: 10000 });
     await expect(sam.page.locator('[data-game-action="open-corporation"]').first()).toContainText('Shares and chairmen');
     // The Corporations sheet only points to it.
-    await sam.page.click('[data-game-action="open-corporation"]');
+    await openCorporation(sam.page, 'corp-mbs');
     await expect(sam.page.locator('.corp-offer-pointer')).toContainText('1 property offer waiting for you');
     await sam.page.click('.corp-offer-pointer [data-game-action="open-trade-proposals"]');
     await expect(sam.page.locator('#marketTab-proposals')).toHaveAttribute('aria-selected', 'true');
@@ -257,7 +257,7 @@ test('the chairman trades as the company and buys a property for it', async ({ b
     await expect.poll(async () => (await fetchState(request, game, users.Sam)).properties.find(p => p.id === 'prop-15').ownerId).toBe('corp-mbs');
 
     // Trade as MBS: $200 of treasury cash for Kim's Kentucky Ave.
-    await sam.page.click('[data-game-action="open-corporation"]');
+    await openCorporation(sam.page, 'corp-mbs');
     await sam.page.click('[data-game-action="trade-as-corporation"][data-corp-id="corp-mbs"]');
     await expect(sam.page.locator('#player1Select')).toHaveValue('corp:corp-mbs');
     await sam.page.selectOption('#player2Select', ids.kim);
@@ -286,7 +286,7 @@ test('the chairman trades as the company and buys a property for it', async ({ b
 test('the corporation sheet and offer sheet fit a 320px phone', async ({ browser, request }) => {
     const { room, users } = await setupGame(request);
     const alex = await openGame(browser, room, users.Alex, 320);
-    await alex.page.click('[data-game-action="open-corporation"]');
+    await openCorporation(alex.page, 'corp-mbs');
     await expect(alex.page.locator('.corp-rent-policy')).toBeVisible();
     let overflow = await alex.page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
     expect(overflow).toBeLessThanOrEqual(0);
@@ -303,7 +303,7 @@ test('the corporation sheet and offer sheet fit a 320px phone', async ({ browser
     await alex.context.close();
 
     const sam = await openGame(browser, room, users.Sam, 320);
-    await sam.page.click('[data-game-action="open-corporation"]');
+    await openCorporation(sam.page, 'corp-mbs');
     await expect(sam.page.locator('.corp-runner-tools')).toBeVisible();
     overflow = await sam.page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
     expect(overflow).toBeLessThanOrEqual(0);
@@ -323,8 +323,9 @@ test('the corporation sheet and offer sheet fit a 320px phone', async ({ browser
 test('a corporation lists its properties grouped by colour, in board order', async ({ browser, request }) => {
     const { room, users } = await setupGame(request, { mbsOwnsKentucky: true });
     const kim = await openGame(browser, room, users.Kim);
-    await kim.page.click('[data-game-action="open-corporation"]');
+    await openCorporation(kim.page, 'corp-mbs', 'assets');
     const groups = kim.page.locator('.corp-asset-group');
+    await expect(groups.first()).toBeVisible();
     await expect(groups).toHaveCount(2);
     await expect(groups.nth(0).locator('.corp-asset-group-head')).toContainText('Red');
     await expect(groups.nth(0).locator('.corp-asset-group-head')).toContainText('1 of 3');
@@ -383,4 +384,37 @@ test('the chairman picks the company under They give to add a property, and send
     await expect(alex.page.locator('#paymentReturn')).toContainText('as a gift');
     await expect(alex.page.locator('input[name="paymentReturnChoice"]')).toHaveCount(0);
     await alex.context.close();
+});
+
+test('the sheet lists corporations, then shows one in tabs on a phone and in two columns on desktop', async ({ browser, request }) => {
+    const { room, users } = await setupGame(request);
+    const alex = await openGame(browser, room, users.Alex);
+    await alex.page.click('[data-game-action="open-corporation"]');
+    const summary = alex.page.locator('#corporationModal .corp-summary');
+    await expect(summary).toHaveCount(1);
+    await expect(summary).toContainText('MBS');
+    await expect(summary).toContainText('Chairman Sam, you own 30%');
+    await summary.click();
+    const detail = alex.page.locator('#corporationModal .corp-detail');
+    await expect(detail.locator('[data-corp-panel="overview"]')).toBeVisible();
+    await expect(detail.locator('[data-corp-panel="owners"]')).toBeHidden();
+    await detail.locator('[data-game-action="corporation-tab"][data-tab="owners"]').click();
+    await expect(detail.locator('[data-corp-panel="owners"]')).toBeVisible();
+    await expect(detail.locator('[data-corp-panel="overview"]')).toBeHidden();
+    await alex.page.screenshot({ path: 'test-results/corporation-detail-390.png' });
+    await detail.locator('[data-game-action="corporation-list"]').click();
+    await expect(summary).toBeVisible();
+    await alex.context.close();
+
+    const wide = await openGame(browser, room, users.Sam, 1280);
+    await openCorporation(wide.page, 'corp-mbs');
+    const desk = wide.page.locator('#corporationModal .corp-detail');
+    await expect(desk.locator('.corp-tabs')).toBeHidden();
+    for (const panel of ['overview', 'owners', 'assets', 'debt']) {
+        await expect(desk.locator(`[data-corp-panel="${panel}"]`)).toBeVisible();
+    }
+    const width = await wide.page.locator('#corporationModal .modal-content').evaluate(el => el.getBoundingClientRect().width);
+    expect(width).toBeGreaterThan(800);
+    await wide.page.screenshot({ path: 'test-results/corporation-detail-1280.png' });
+    await wide.context.close();
 });

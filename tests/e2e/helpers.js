@@ -55,4 +55,15 @@ async function showMarketPane(page, name) {
     await page.getByRole('tab', { name }).click();
 }
 
-module.exports = { BASE, BASE_API, BASE_URL, apiJson, loginPage, playerState, showMarketPane };
+// Corporations sheet: open the list, then one corporation's detail, and on a
+// phone the given tab (from 720px every panel shows and the tabs are hidden).
+async function openCorporation(page, corpId, tab = null) {
+    await page.locator('[data-game-action="open-corporation"]').first().click();
+    await page.click(`#corporationModal [data-game-action="open-corporation-detail"][data-corp-id="${corpId}"]`);
+    if (tab) {
+        const button = page.locator(`#corporationModal [data-game-action="corporation-tab"][data-tab="${tab}"]`);
+        if (await button.isVisible()) await button.click();
+    }
+}
+
+module.exports = { BASE, BASE_API, BASE_URL, apiJson, loginPage, playerState, showMarketPane, openCorporation };

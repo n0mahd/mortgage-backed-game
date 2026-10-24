@@ -800,6 +800,8 @@ test.describe('Game mechanics — UI', () => {
 
         const modal = page.locator('#corporationModal');
         await expect(modal).toBeVisible({ timeout: 5000 });
+        await expect(modal.locator('.corp-summary')).toContainText('Insolvent');
+        await modal.locator('.corp-summary').first().click();
         await expect(modal).toContainText('Insolvent');
         await expect(modal).toContainText('Properties returned to the Bank');
         await expect(modal).toContainText('Governance closed after insolvency');

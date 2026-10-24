@@ -151,6 +151,17 @@ landing hero, which share its meaning: this is the money moment.
 and up. Title in `.modal-header` (Besley), optional `.modal-hint`, actions in `.sheet-actions`, stacked
 full width with the primary action first.
 
+**Corporations sheet** (`#corporationModal`, `.corp-sheet`, rendered by `openCorporationModal` in
+`corporations.js`). Two levels. The list has one `.corp-summary` card per corporation: ticker, policy
+badge, share price, the viewer's role and stake, an ownership bar (`.corp-owners-bar`, one segment per
+shareholder in their player colour) and a gold line for anything waiting on the viewer. Tapping a card
+shows its detail: four stat tiles (`.corp-stats`), then panels for Overview (called "Run it" for the
+chairman), Owners, Properties and Debt. On phones the panels are tabs (a four-across `.segmented`);
+from 720px the sheet widens to 920px, the tabs hide and every panel shows in two columns, so nothing
+needs scrolling. The rent policy is a two-way toggle (`.policy-toggle`): the current policy is the
+forest half, the other half is the switch when the viewer may use it. Actions inside the detail keep
+the corporation and tab in view when the sheet re-renders.
+
 **Grouped lists.** Rows sit in one `.group`-style surface separated by hairlines (players, log, deeds,
 rooms, steps), not in separate cards. Cards are reserved for things that stand alone (auction, trade
 offer, corporation).
