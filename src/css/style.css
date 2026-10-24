@@ -1733,20 +1733,20 @@ input[type="radio"] {
 
 .rent-chip { font-variant-numeric: tabular-nums; }
 
-.development-icons { display: inline-flex; gap: 2px; }
+.development-icons { display: inline-flex; align-items: flex-end; gap: 2px; }
 
 .house-pip,
 .hotel-pip,
 .empty-house-pip {
     display: inline-block;
-    width: 8px;
-    height: 8px;
-    border-radius: 2px;
+    width: 10px;
+    height: 10px;
     background: var(--emerald);
+    clip-path: polygon(50% 0, 100% 45%, 100% 100%, 0 100%, 0 45%);
 }
 
-.hotel-pip { width: 14px; background: var(--danger); }
-.empty-house-pip { background: transparent; box-shadow: inset 0 0 0 1.5px var(--rule-strong); }
+.hotel-pip { width: 18px; height: 12px; background: var(--danger); }
+.empty-house-pip { background: var(--rule-strong); opacity: 0.5; }
 .building-na { display: none; }
 
 .player-corporations,
@@ -2420,12 +2420,32 @@ input[type="radio"] {
 .mobile-square-meta {
     display: flex;
     flex-wrap: wrap;
-    gap: 0 var(--s3);
+    align-items: center;
+    gap: 4px 6px;
+    margin-top: 3px;
     font-size: var(--text-caption);
     color: var(--ink-3);
 }
 
 .mobile-board-square.is-current-square { background: var(--mint-wash); }
+
+.square-owner-badge,
+.square-unowned-chip,
+.square-set-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 1px 8px;
+    border-radius: var(--r-chip);
+}
+
+.square-owner-badge { padding-left: 6px; background: var(--paper); color: var(--ink); font-weight: 700; }
+.square-owner-badge i { flex: none; width: 9px; height: 9px; border-radius: 50%; background: var(--owner-color); }
+.square-owner-badge small { font-size: inherit; font-weight: 500; color: var(--ink-3); }
+.square-unowned-chip { box-shadow: inset 0 0 0 1px var(--rule-strong); font-weight: 600; }
+.square-set-chip { background: var(--paper); }
+.square-set-chip.complete { background: var(--gold-wash); color: var(--gold-ink); font-weight: 700; }
+.mobile-board-square.is-unowned .mobile-square-name { color: var(--ink-3); }
 
 .mobile-square-tokens {
     display: flex;
@@ -2868,11 +2888,9 @@ input[type="radio"] {
     flex-shrink: 0;
 }
 
-.house-count-control span {
+.house-count-control .development-icons {
     min-width: 68px;
-    text-align: center;
-    font-size: var(--text-footnote);
-    font-weight: 600;
+    justify-content: center;
 }
 
 .house-count-control button {
