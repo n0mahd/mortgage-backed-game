@@ -1,6 +1,7 @@
-// The Debt sheet: your loans and your LLCs' (balances, autopay, payments), new
-// loans and refinancing. Loan terms, quotes and status wording come from
-// loans.js (LoanMath), which mirrors the server's loan rules.
+// The Debt sheet: your loans and your corporations' (balances, autopay,
+// payments), new loans and refinancing. Loan terms, quotes and status wording
+// come from loans.js (LoanMath), which mirrors the server's loan rules; the End
+// Turn previews and the limit sum are in debt-outlook.js.
 // Part of the game page; reads game.js's state. Buttons run via action-dispatcher.js.
 
 // Debt page: your loans (balances, autopay, payments), new loans and refinancing.
@@ -17,6 +18,7 @@ function openDebtModal() {
     document.getElementById('debtIssuer').innerHTML = debtIssuerOptionsHtml();
     document.getElementById('loanAmount').value = '';
     document.getElementById('loanAutopay').checked = true;
+    document.getElementById('refinanceAutopay').checked = true;
     renderLoanList();
     renderBorrowingLimit();
     renderLoanTerms('loanTerms', 'loanAmount');
@@ -38,6 +40,7 @@ function getManagedLoans() {
 function renderLoanList() {
     const container = document.getElementById('loanList');
     if (!container) return;
+    renderEndTurnOutlook();
     const loans = getManagedLoans();
     if (!loans.length) {
         container.innerHTML = '<p class="empty-state">No loans. Choose "Take a new loan" to borrow against a property.</p>';
@@ -48,8 +51,7 @@ function renderLoanList() {
 }
 
 function renderLoanRow(debt, corp, isMyTurn) {
-    // A corporation's loans count down on its chairman's turn.
-    const status = LoanMath.loanStatus(debt, { dueThisTurn: isMyTurn && (!corp || corp.chairmanId === currentUser.id) });
+    const status = LoanMath.loanStatus(debt, { dueThisTurn: loanDueOnMyTurn(corp, isMyTurn) });
     const cash = corp ? Number(corp.cash || 0) : Number(currentPlayerData?.cash || 0);
     const borrower = corp ? `${corp.ticker} (corporation)` : 'Personal';
     const autopayId = `loan-autopay-${debt.id}`;
@@ -85,11 +87,19 @@ function renderLoanRow(debt, corp, isMyTurn) {
                     <input type="number" inputmode="decimal" min="0" step="0.01" id="${escapeHtml(amountId)}" placeholder="Up to ${escapeHtml(formatMoney(Math.min(cash, status.balance)))}"${payDisabled}>
                     <button type="button" class="btn btn-secondary btn-sm" data-loan-pay ${ids}${payDisabled}>Pay</button>
                 </div>
-                <button type="button" class="btn btn-success btn-sm btn-block" data-loan-payoff ${ids}${payDisabled || (cash < status.balance ? ' disabled' : '')}>Pay off ${formatMoney(status.balance)}</button>
+                <div class="loan-row-actions">
+                    <button type="button" class="btn btn-success btn-sm" data-loan-payoff ${ids}${payDisabled || (cash < status.balance ? ' disabled' : '')}>Pay off ${formatMoney(status.balance)}</button>
+                    <button type="button" class="btn ${status.dueInFull ? 'btn-primary' : 'btn-secondary'} btn-sm" data-loan-refinance ${ids}${payDisabled}>Refinance</button>
+                </div>
                 ${isMyTurn ? (cash < status.balance ? `<p class="debt-detail">Paying off needs ${formatMoney(status.balance)}; ${corp ? `${corp.ticker} has` : 'you have'} ${formatMoney(cash)}.</p>` : '') : '<p class="debt-detail">You can make payments on your turn. Autopay can be changed any time.</p>'}
             </div>
         </article>
     `;
+}
+
+// A corporation's loans count down on the turn of whoever services them (its chairman).
+function loanDueOnMyTurn(corp, isMyTurn = isCurrentUsersTurn()) {
+    return isMyTurn && (!corp || TurnEndOutlook.servicesLoansOf(corp, currentUser.id));
 }
 
 function findManagedLoan(element) {
@@ -99,10 +109,14 @@ function findManagedLoan(element) {
 }
 
 async function handleLoanListClick(event) {
-    const button = event.target.closest('[data-loan-pay], [data-loan-payoff]');
+    const button = event.target.closest('[data-loan-pay], [data-loan-payoff], [data-loan-refinance]');
     if (!button) return;
     const loan = findManagedLoan(button);
     if (!loan) return;
+    if (button.hasAttribute('data-loan-refinance')) {
+        openRefinanceFor(loan.corp ? `corporation:${loan.corp.id}` : 'player', [loan.debt.id]);
+        return;
+    }
     let amount;
     if (button.hasAttribute('data-loan-payoff')) {
         amount = Number(loan.debt.principal || 0);
@@ -157,13 +171,9 @@ function selectedLoanTerm(containerId) {
 }
 
 function debtIssuerOptionsHtml() {
-    const corporationOptions = getEligibleDebtCorporations().map(corp =>
-        `<option value="corporation:${escapeHtml(corp.id)}">${escapeHtml(corp.ticker)} Corporation</option>`
-    );
-    return [
-        '<option value="player">Personal</option>',
-        ...corporationOptions,
-    ].join('');
+    return debtBorrowers().map(borrower =>
+        `<option value="${escapeHtml(borrower.key)}">${escapeHtml(borrower.corp ? `${borrower.corp.ticker} Corporation` : 'Personal')}</option>`
+    ).join('');
 }
 
 function getEligibleDebtCorporations() {
@@ -180,49 +190,68 @@ function canManageCorporationDebtUi(corp, userId) {
 // 90% of the book value of their properties and shares (a corporation: its properties).
 function selectedBorrower() {
     const issuer = document.getElementById('debtIssuer')?.value || 'player';
-    if (!issuer.startsWith('corporation:')) return { account: currentPlayerData, corp: null };
-    const corp = currentGame.game_state.corporations.find(item => item.id === issuer.split(':')[1]);
-    return { account: corp, corp };
+    return debtBorrowers().find(borrower => borrower.key === issuer) || debtBorrowers()[0];
 }
 
-function borrowingLimitText(account, corp, replacedOwed = 0) {
-    const borrowing = account?.borrowing;
-    if (!borrowing) return '';
-    const owed = Math.max(0, Number(borrowing.owed || 0) - replacedOwed);
-    const available = Math.max(0, Number(borrowing.limit || 0) - owed);
-    const whose = corp ? `${corp.ticker}'s properties` : 'your properties and shares';
-    const owing = owed > 0 ? `, less ${formatMoney(owed)} already owed` : '';
-    return `You can borrow up to ${formatMoney(available)}: 90% of the ${formatMoney(borrowing.bookValue)} book value of ${whose}${owing}.`;
-}
-
+// The limit, and what the loan typed would leave at End Turn.
 function renderBorrowingLimit() {
-    const { account, corp } = selectedBorrower();
-    document.getElementById('loanLimit').textContent = borrowingLimitText(account, corp);
+    const borrower = selectedBorrower();
+    document.getElementById('loanLimit').innerHTML = borrowingLimitHtml(borrower.account, borrower.corp);
+    const shortfall = borrowerOutlook(borrower).shortfall;
+    const hint = document.getElementById('loanShortfallHint');
+    hint.hidden = !(shortfall > 0);
+    hint.textContent = shortfall > 0
+        ? `As things stand, ${borrower.corp ? `${borrower.corp.ticker} is` : 'you are'} ${formatMoney(shortfall)} short at End Turn: borrow at least that much${(borrower.account.debts || []).some(debt => Number(debt.turnsRemaining || 0) <= 1) ? ', or refinance the loan that\'s due instead' : ''}.`
+        : '';
+    const amount = parseFloat(document.getElementById('loanAmount').value);
+    renderDebtPreview('loanPreview', borrower, amount > 0 ? {
+        cash: Number(borrower.account.cash || 0) + amount,
+        debts: [...(borrower.account.debts || []), proposedLoan(amount, selectedLoanTerm('loanTerms'), document.getElementById('loanAutopay').checked)],
+    } : null, amount > 0 ? overLimitProblem(borrower.account, amount) : '');
+}
+
+// Opens Take a new loan for a borrower, with an amount filled in.
+function openNewLoanFor(key, amount) {
+    document.getElementById('debtAction').value = 'issue';
+    document.getElementById('debtIssuer').value = key;
+    document.getElementById('loanAmount').value = amount > 0 ? (Math.ceil(amount * 100) / 100).toFixed(2) : '';
+    renderLoanTerms('loanTerms', 'loanAmount');
+    toggleDebtForm();
+    document.querySelector('#debtModal .modal-content').scrollTop = 0;
 }
 
 // Refinancing: pick a borrower (you, or a corporation you run), one or more of
 // its loans, and the new loan amount. More than the selected balance pays out
 // the difference; less pays the balance down from the borrower's cash.
 function refinanceBorrowers() {
-    const borrowers = [];
-    if (getPersonalDebts().length) borrowers.push({ value: 'player', label: 'Personal', account: currentPlayerData, corp: null });
-    getEligibleDebtCorporations()
-        .filter(corp => !ShareDeals.isInsolvent(corp) && (corp.debts || []).length)
-        .forEach(corp => borrowers.push({ value: `corporation:${corp.id}`, label: `${corp.ticker} (corporation)`, account: corp, corp }));
-    return borrowers;
+    return debtBorrowers().filter(borrower => (borrower.account?.debts || []).length);
 }
 
 function selectedRefinanceBorrower() {
     const value = document.getElementById('refinanceBorrower')?.value;
-    return refinanceBorrowers().find(borrower => borrower.value === value) || null;
+    return refinanceBorrowers().find(borrower => borrower.key === value) || null;
+}
+
+// Opens Refinance loans for a borrower with these loans ticked.
+function openRefinanceFor(key, debtIds) {
+    document.getElementById('debtAction').value = 'refinance';
+    toggleDebtForm();
+    document.getElementById('refinanceBorrower').value = key;
+    document.getElementById('refinanceBorrowerGroup').style.display = refinanceBorrowers().length > 1 ? '' : 'none';
+    renderRefinanceDebtOptions();
+    document.querySelectorAll('#debtsToRefinance input[type="checkbox"]').forEach(input => {
+        input.checked = debtIds.includes(input.dataset.debtId);
+    });
+    handleRefinanceSelectionChange();
+    document.querySelector('#debtModal .modal-content').scrollTop = 0;
 }
 
 function renderRefinanceBorrowerOptions() {
     const select = document.getElementById('refinanceBorrower');
     const previous = select.value;
     const borrowers = refinanceBorrowers();
-    select.innerHTML = borrowers.map(borrower => `<option value="${escapeHtml(borrower.value)}">${escapeHtml(borrower.label)}</option>`).join('');
-    if (borrowers.some(borrower => borrower.value === previous)) select.value = previous;
+    select.innerHTML = borrowers.map(borrower => `<option value="${escapeHtml(borrower.key)}">${escapeHtml(borrower.corp ? `${borrower.corp.ticker} (corporation)` : 'Personal')}</option>`).join('');
+    if (borrowers.some(borrower => borrower.key === previous)) select.value = previous;
     document.getElementById('refinanceBorrowerGroup').style.display = borrowers.length > 1 ? '' : 'none';
     renderRefinanceDebtOptions();
 }
@@ -234,7 +263,7 @@ function renderRefinanceDebtOptions() {
         <div class="asset-checkbox">
             <input type="checkbox" id="refinance-debt-${index}" value="${index}" data-debt-id="${escapeHtml(debt.id || '')}"${debts.length === 1 ? ' checked' : ''}>
             <label for="refinance-debt-${index}">
-                ${debtOptionLabel(debt, index)}
+                ${debtOptionLabel(debt, index, borrower.corp)}
             </label>
         </div>
     `).join('');
@@ -269,8 +298,8 @@ function debtPrincipal(debt) {
     return Number(debt?.principal || 0);
 }
 
-function debtOptionLabel(debt, index) {
-    const status = LoanMath.loanStatus(debt);
+function debtOptionLabel(debt, index, corp) {
+    const status = LoanMath.loanStatus(debt, { dueThisTurn: loanDueOnMyTurn(corp) });
     return `Loan #${index + 1}: ${formatMoney(debtPrincipal(debt))}, ${escapeHtml(status.termLabel)}, ${escapeHtml(status.turnsLabel.toLowerCase())}`;
 }
 
@@ -292,11 +321,13 @@ function updateRefinanceSummary() {
     const summary = document.getElementById('refinanceSummary');
     if (!summary) return;
     const borrower = selectedRefinanceBorrower();
-    document.getElementById('refinanceLimit').textContent = borrower
-        ? borrowingLimitText(borrower.account, borrower.corp, getRefinancePayoffAmount())
+    const selected = getSelectedRefinanceDebtItems();
+    document.getElementById('refinanceLimit').innerHTML = borrower
+        ? borrowingLimitHtml(borrower.account, borrower.corp, getRefinancePayoffAmount())
         : '';
     summary.classList.remove('debt-flow-warning');
-    if (!borrower || !getSelectedRefinanceDebtItems().length) {
+    renderRefinancePreview(borrower, selected);
+    if (!borrower || !selected.length) {
         summary.textContent = borrower ? 'Select the loans to replace.' : '';
         return;
     }
@@ -324,6 +355,28 @@ function updateRefinanceSummary() {
     }
 }
 
+// What the account would look like after the refinance, at the amount, term and autopay chosen.
+function renderRefinancePreview(borrower, selected) {
+    const amount = parseFloat(document.getElementById('refinanceAmount').value);
+    if (!borrower || !selected.length || !(amount > 0)) {
+        renderDebtPreview('refinancePreview', null, null);
+        return;
+    }
+    const replaced = new Set(selected.map(item => item.debt));
+    const payoff = sumPrincipal(selected.map(item => item.debt));
+    const cash = Number(borrower.account.cash || 0);
+    let problem = '';
+    if (amount > payoff) problem = overLimitProblem(borrower.account, amount, payoff);
+    else if (payoff - amount > cash + 0.005) problem = `Paying down ${formatMoney(payoff - amount)} needs more than the ${formatMoney(cash)} cash there is, so it would be refused.`;
+    renderDebtPreview('refinancePreview', borrower, {
+        cash: Number(borrower.account.cash || 0) + amount - payoff,
+        debts: [
+            ...(borrower.account.debts || []).filter(debt => !replaced.has(debt)),
+            proposedLoan(amount, selectedLoanTerm('refinanceTerms'), document.getElementById('refinanceAutopay').checked),
+        ],
+    }, problem);
+}
+
 function toggleDebtForm() {
     const action = document.getElementById('debtAction').value;
     document.getElementById('loansView').style.display = action === 'loans' ? 'block' : 'none';
@@ -335,7 +388,7 @@ function toggleDebtForm() {
     if (action === 'loans') renderLoanList();
     // Paying a loan off frees borrowing room; redraw it whenever the form opens.
     if (action === 'issue') renderBorrowingLimit();
-    if (action === 'refinance') updateRefinanceSummary();
+    if (action === 'refinance') renderRefinanceBorrowerOptions();
 }
 
 async function processDebt() {
@@ -390,6 +443,7 @@ async function refinanceDebt() {
         amount: refinanceAmount,
         termTurns: selectedLoanTerm('refinanceTerms'),
         debtIds: selectedItems.map(item => item.debt.id).filter(Boolean),
+        autopay: document.getElementById('refinanceAutopay').checked,
         corpId: borrower.corp ? borrower.corp.id : undefined,
     }, {
         errorText: 'Failed to refinance debt',

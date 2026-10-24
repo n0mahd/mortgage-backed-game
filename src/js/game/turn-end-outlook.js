@@ -22,10 +22,13 @@
         return false;
     }
 
+    // interestAdded: interest a loan doesn't get paid this turn (autopay off or
+    // short of cash), which End Turn adds to its balance.
     function loanPaymentsAtTurnEnd(debts, cash) {
         let remaining = cash;
         let paid = 0;
         let maturing = 0;
+        let interestAdded = 0;
         let shortAutopay = false;
         (debts || []).forEach(debt => {
             const due = Number(debt.nextPayment || 0);
@@ -33,14 +36,18 @@
             if (Number(debt.turnsRemaining || 0) <= 1) {
                 payment = due;
                 maturing += due;
-            } else if (debt.autopay !== false) {
-                payment = Math.min(due, Math.max(0, remaining));
-                if (payment < due) shortAutopay = true;
+            } else {
+                if (debt.autopay !== false) {
+                    payment = Math.min(due, Math.max(0, remaining));
+                    if (payment < due) shortAutopay = true;
+                }
+                const interest = Math.round(Number(debt.principal || 0) * Number(debt.interestRate || 0)) / 100;
+                interestAdded += Math.max(0, interest - payment);
             }
             remaining -= payment;
             paid += payment;
         });
-        return { paid, maturing, shortAutopay };
+        return { paid, maturing, interestAdded, shortAutopay };
     }
 
     function servicesLoansOf(corp, userId) {
@@ -54,20 +61,26 @@
         if (!player) return [];
         return (gameState?.corporations || [])
             .filter(corp => !corp.insolvent && (corp.debts || []).length && servicesLoansOf(corp, player.userId))
-            .map(corp => {
-                const cash = Number(corp.cash || 0);
-                const loans = loanPaymentsAtTurnEnd(corp.debts, cash);
-                const cashAfter = cash - loans.paid;
-                return {
-                    ticker: corp.ticker,
-                    cash,
-                    cashAfter,
-                    maturing: loans.maturing,
-                    // Autopay can't cover a payment: the rest is added to the loan as unpaid interest.
-                    shortAutopay: loans.shortAutopay,
-                    goesInsolvent: cashAfter < 0,
-                };
-            });
+            .map(getCompanyOutlook);
+    }
+
+    // What the next End Turn that services this corporation's loans does to it.
+    function getCompanyOutlook(corp) {
+        const cash = Number(corp.cash || 0);
+        const loans = loanPaymentsAtTurnEnd(corp.debts, cash);
+        const cashAfter = cash - loans.paid;
+        return {
+            ticker: corp.ticker,
+            cash,
+            cashAfter,
+            loanPayments: loans.paid,
+            maturing: loans.maturing,
+            interestAdded: loans.interestAdded,
+            // Autopay can't cover a payment: the rest is added to the loan as unpaid interest.
+            shortAutopay: loans.shortAutopay,
+            goesInsolvent: cashAfter < 0,
+            shortfall: Math.max(0, -cashAfter),
+        };
     }
 
     function getTurnEndOutlook(gameState, player) {
@@ -89,6 +102,7 @@
             loanPayments: loans.paid,
             // Loans on their last turn: their whole balance is due at End Turn.
             maturing: loans.maturing,
+            interestAdded: loans.interestAdded,
             cash,
             cashAfter,
             // Cash to raise before End Turn to avoid bankruptcy.
@@ -100,5 +114,5 @@
         };
     }
 
-    global.TurnEndOutlook = { forPlayer: getTurnEndOutlook, forCompanies: getCompanyOutlooks };
+    global.TurnEndOutlook = { forPlayer: getTurnEndOutlook, forCompanies: getCompanyOutlooks, forCompany: getCompanyOutlook, servicesLoansOf };
 })(window);
