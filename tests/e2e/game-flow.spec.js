@@ -252,3 +252,54 @@ async function socketJoinAck(page, roomId) {
         }
     }), roomId);
 }
+
+// Cloudflare answers with its own HTML error page while the tunnel to the
+// server reconnects; the action never reached the game server.
+test.describe('Game flow — tunnel outage', () => {
+    const CLOUDFLARE_502 = '<!DOCTYPE html>\n<!--[if lt IE 7]> <html class="no-js ie6 oldie" lang="en-US"> <![endif]-->\n<title>Bad gateway | mortgage.abdlh.com | Cloudflare</title>';
+    let setup;
+
+    test.beforeEach(async ({ request }) => {
+        setup = await setupGame(request);
+    });
+
+    async function openRollReady(page) {
+        await loginPage(page, setup.hostToken);
+        await page.goto(`${BASE}/game.html?room=${setup.room.id}`);
+        const rollButton = page.locator('#game.section.active button[data-game-action="roll-dice"]').first();
+        await expect(rollButton).toBeVisible({ timeout: 5000 });
+        await page.evaluate(() => { window.__E2E_NEXT_DICE = [1, 2]; });
+        const dialogs = [];
+        page.on('dialog', async dialog => {
+            dialogs.push(dialog.message());
+            await dialog.accept();
+        });
+        return { rollButton, dialogs };
+    }
+
+    test('an action retries through a short outage and is saved', async ({ page }) => {
+        const { rollButton, dialogs } = await openRollReady(page);
+        let failures = 3;
+        await page.route('**/api/games/*/actions', route => (failures-- > 0
+            ? route.fulfill({ status: 502, contentType: 'text/html', body: CLOUDFLARE_502 })
+            : route.continue()));
+
+        await rollButton.click();
+
+        await expect(page.locator('.recent-log')).toContainText(/rolled/i, { timeout: 15000 });
+        expect(dialogs).toEqual([]);
+    });
+
+    test('a longer outage explains itself without showing the HTML page', async ({ page }) => {
+        test.setTimeout(60000);
+        const { rollButton, dialogs } = await openRollReady(page);
+        await page.route('**/api/games/*/actions', route =>
+            route.fulfill({ status: 502, contentType: 'text/html', body: CLOUDFLARE_502 }));
+
+        await rollButton.click();
+
+        await expect.poll(() => dialogs.length, { timeout: 40000 }).toBe(1);
+        expect(dialogs[0]).toMatch(/Couldn't reach the game server/);
+        expect(dialogs[0]).not.toContain('<');
+    });
+});

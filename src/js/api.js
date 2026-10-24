@@ -58,7 +58,12 @@ async function apiFetch(path, options = {}) {
     if (token && refreshedToken) replaceStoredToken(token, refreshedToken);
     if (!res.ok) {
         const text = await res.text();
-        let message = text || `HTTP ${res.status}`;
+        // Only the backend's JSON errors are shown to players. Anything else,
+        // such as Cloudflare's HTML page when the tunnel is down, gets a
+        // plain message instead of its raw body.
+        let message = res.status >= 500
+            ? `The game server is having trouble right now (HTTP ${res.status}). Try again in a moment.`
+            : `Request failed (HTTP ${res.status}).`;
         let code = null;
         try {
             const parsed = JSON.parse(text);
