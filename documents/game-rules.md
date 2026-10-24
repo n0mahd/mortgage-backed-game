@@ -212,14 +212,14 @@ Any player may bundle one or more of their properties into a corporation and sel
 
 If you run a corporation (you're its chairman or hold more than half its shares), you can move more of your own properties into it on your turn.
 
-1. Open **Corporations** from the Game tab and tap **Add properties to MBS** on that corporation's card. **Create IPO** also lists the companies you run.
+1. Open **Corporations** from the Game tab and tap **Add properties to MBS** on that corporation's card. **Create IPO** also lists the companies you run. Or, in the Market tab, keep yourself under **You give** and pick MBS under **They give**: the form becomes **Add to MBS**.
 2. Tick the properties to add. A color group with buildings goes in whole: ticking one of its streets ticks the rest.
-3. If other players hold shares, choose what you get back:
+3. Choose what you get back:
    - **New shares** (the usual choice). You get new shares at today's value per share, so the other holders' stakes keep their value. For example, MBS has 12,000 shares and is worth $1,200, so one share is worth $0.10. Illinois Ave ($240) gets you 2,400 new shares, and MBS then has 14,400. Shares are whole numbers rounded to the nearest share, so rounding can move up to half a share's value between you and the other holders; the screen shows how much before you confirm. A property worth less than half a share gets no new shares and can only go in as a gift. Corporations created before shares went to 12,000 keep their share counts. Any value the new shares don't cover goes to every shareholder, and the screen tells you how much the others gain before you confirm.
    - **Nothing, it's a gift.** Every share rises in value, including the other holders'.
 4. Check **Before you confirm** for the corporation's value, your shares and your net-worth change, then tap **Add**. Nobody else has to agree.
 
-If you hold every share, the property simply moves into the corporation; your net worth doesn't change. New shares can't be priced while a corporation is worth $0 or less. You can't add properties while you owe an unpaid claim.
+There is no cap on how many shares a corporation can have, and you get new shares even if you already hold every share (your stake stays 100%, and your net worth doesn't change either way). New shares can't be priced while a corporation is worth $0 or less. You can't add properties while you owe an unpaid claim.
 
 To put a property into a corporation someone else runs, make it a **property offer** (below), or trade it for the chairman's own shares (see **Trading a Property for Shares** in section 12).
 
@@ -242,7 +242,7 @@ Debt interest is still charged to the treasury in Payout mode, so a corporation 
 
 **Buying and building.** When the chairman lands on an unowned property, the Buy sheet asks **Who's buying?** and can buy it for the corporation from its treasury. **Build Houses** has a **Build for** choice for groups the corporation owns whole, paid from its treasury. A group split between the chairman and the corporation can't be built on.
 
-**Trading as the corporation.** In the Market, **Trading as** lets the chairman trade for the corporation: its treasury cash, its properties and its own treasury shares. It can buy its own shares back into the treasury, and trade with another corporation (that one's chairman accepts). Built groups still can't be traded. A runner can't trade personally with their own corporation: treasury cash reaches players only through a dividend every holder shares.
+**Trading as the corporation.** In the Market, picking the corporation in a side's **Player** dropdown trades for the corporation: its treasury cash, its properties and its own treasury shares. It can buy its own shares back into the treasury, and trade with another corporation (that one's chairman accepts). Built groups still can't be traded. A runner can't trade personally with their own corporation: treasury cash reaches players only through a dividend every holder shares.
 
 ### Property Offers
 
@@ -379,7 +379,7 @@ Bank, tax, card, jail bail, and loan bankruptcies return your directly owned pro
 Trades let two players exchange any combination of cash, properties, corporation (LLC) shares, and Get Out of Jail Free cards after both involved players agree.
 
 1. Go to the **Market** tab.
-2. Select **Player 1** and **Player 2** from the dropdowns. If a player runs a corporation, **Trading as** lets that side trade for the corporation instead (see **Running a Corporation** in section 9).
+2. Choose who gives on each side from the **Player** dropdowns. Corporations are listed there too, under **Companies**: picking one trades for that corporation with its chairman (see **Running a Corporation** in section 9). Picking yourself under **You give** and a corporation you run under **They give** adds your properties to it instead (see **Adding Properties to a Corporation You Run** in section 9).
 3. Enter how much cash each player contributes to the swap.
 4. Check the properties each player is transferring. A player holding a Get Out of Jail Free card can check it too, so the card can be sold for cash or swapped as part of a deal. For each corporation a player holds shares in, enter how many shares they are transferring (up to the number they hold).
 5. Click **Propose Transaction** — the offer appears under **Pending Trade Offers**.
@@ -409,9 +409,11 @@ Trades can be proposed and accepted at any time, not only on your turn. The acti
 
 For simple cash transfers (rent side-deals, fines, gifts):
 
-1. Go to the **Market** tab → **Direct Payment** section.
-2. Select the recipient and amount.
-3. Click **Pay** — funds move instantly.
+1. Go to the **Market** tab → **Send money**.
+2. Select the recipient (a player, or a corporation under **Companies**) and the amount.
+3. Click **Make Payment**: funds move instantly.
+
+Paying a corporation puts the cash into its treasury. If you run it, you choose what you get back, as when adding properties: **new shares** at today's value per share, or **nothing, it's a gift**. Anyone else's payment is a gift: no shares come back, but every share is worth more, including theirs. Payments to a corporation can be made any time, but not while you owe an unpaid claim.
 
 ---
 

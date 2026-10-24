@@ -1851,6 +1851,21 @@ input[type="radio"] {
 
 .trade-offer-card.trade-offer-expired { opacity: 0.7; }
 
+.trade-history-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--s2);
+}
+
+.trade-history-card .trade-offer-meta { margin-top: 2px; }
+
+.trade-history-more {
+    font-size: var(--text-caption);
+    color: var(--ink-3);
+    text-align: center;
+}
+
 .trade-offer-header {
     display: flex;
     flex-direction: column;

@@ -236,7 +236,7 @@ test('the chairman trades as the company and buys a property for it', async ({ b
     // Trade as MBS: $200 of treasury cash for Kim's Kentucky Ave.
     await sam.page.click('[data-game-action="open-corporation"]');
     await sam.page.click('[data-game-action="trade-as-corporation"][data-corp-id="corp-mbs"]');
-    await expect(sam.page.locator('#player1As')).toHaveValue('corp-mbs');
+    await expect(sam.page.locator('#player1Select')).toHaveValue('corp:corp-mbs');
     await sam.page.selectOption('#player2Select', ids.kim);
     await expect(sam.page.locator('#player1CashMax')).toHaveText('(max $360)');
     await sam.page.fill('#player1Cash', '200');
@@ -283,4 +283,52 @@ test('the corporation sheet and offer sheet fit a 320px phone', async ({ browser
     await sam.page.locator('.corp-rent-policy').scrollIntoViewIfNeeded();
     await sam.page.screenshot({ path: 'test-results/corporation-desk-320.png', fullPage: false });
     await sam.context.close();
+});
+
+test('the chairman picks the company under They give to add a property, and sends it cash for shares', async ({ browser, request }) => {
+    // Sam owns Illinois ($240) and runs MBS ($1,350 over 12,000 shares).
+    const { room, game, users, ids } = await setupGame(request, { illinoisOwner: 'sam' });
+    const sam = await openGame(browser, room, users.Sam);
+    await sam.page.locator('.nav-tab[data-section="market"]').click();
+
+    await sam.page.selectOption('#player2Select', 'corp:corp-mbs');
+    await expect(sam.page.locator('#player2Heading')).toHaveText('You get back');
+    await expect(sam.page.locator('#player1CashGroup')).toBeHidden();
+    await expect(sam.page.locator('#executeTradeBtn')).toHaveText('Add to MBS');
+    await expect(sam.page.locator('#executeTradeBtn')).toBeDisabled();
+    await sam.page.check('#player1Assets input[value="prop-15"]');
+    await expect(sam.page.locator('#player2Destination')).toContainText('2,133 new shares');
+    await expect(sam.page.locator('#tradePreview')).toContainText('Before you confirm');
+    await sam.page.click('#executeTradeBtn');
+    await expect(sam.page.locator('#market-status')).toContainText('Added to MBS');
+    await expect.poll(async () => (await fetchState(request, game, users.Sam)).corporations[0].totalShares).toBe(14133);
+    let state = await fetchState(request, game, users.Sam);
+    expect(state.properties.find(p => p.id === 'prop-15').ownerId).toBe('corp-mbs');
+
+    // Back to a normal trade: the headings and cash boxes return.
+    await sam.page.selectOption('#player2Select', ids.kim);
+    await expect(sam.page.locator('#player2Heading')).toHaveText('They give');
+    await expect(sam.page.locator('#executeTradeBtn')).toHaveText('Propose Transaction');
+    await expect(sam.page.locator('#player1CashGroup')).toBeVisible();
+
+    // Send money into MBS for new shares: $135 at $1,590 over 14,133 shares.
+    await sam.page.selectOption('#paymentToPlayer', 'corp:corp-mbs');
+    await sam.page.fill('#paymentAmount', '135');
+    await expect(sam.page.locator('#paymentReturn')).toContainText('1,200 new shares');
+    await sam.page.click('#makePaymentBtn');
+    await expect(sam.page.locator('#market-status')).toContainText('Paid into MBS');
+    await expect.poll(async () => (await fetchState(request, game, users.Sam)).corporations[0].totalShares).toBe(15333);
+    state = await fetchState(request, game, users.Sam);
+    expect(state.corporations[0].cash).toBe(735);
+    expect(state.corporations[0].shareholders.find(h => h.userId === ids.sam).shares).toBe(6000 + 2133 + 1200);
+    await sam.context.close();
+
+    // Alex doesn't run MBS: cash he sends is a gift, with no shares choice.
+    const alex = await openGame(browser, room, users.Alex);
+    await alex.page.locator('.nav-tab[data-section="market"]').click();
+    await alex.page.selectOption('#paymentToPlayer', 'corp:corp-mbs');
+    await alex.page.fill('#paymentAmount', '10');
+    await expect(alex.page.locator('#paymentReturn')).toContainText('as a gift');
+    await expect(alex.page.locator('input[name="paymentReturnChoice"]')).toHaveCount(0);
+    await alex.context.close();
 });

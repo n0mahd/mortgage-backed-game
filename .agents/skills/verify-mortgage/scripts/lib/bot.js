@@ -562,15 +562,11 @@ class Autoplay {
         await this.gameTab(seat);
     }
 
-    // Market: who trades with whom, each for themselves. "Trading as" keeps its last
-    // choice, so a personal trade after a company one must set it back to Yourself.
+    // Market: who trades with whom, each for themselves. A company is its own
+    // option ("corp:<id>") in the same dropdowns, so picking a player trades personally.
     async tradeParties(seat, player1Id, player2Id) {
         await seat.page.locator('#player1Select').selectOption({ value: player1Id });
         await seat.page.locator('#player2Select').selectOption({ value: player2Id });
-        for (const side of ['player1', 'player2']) {
-            const as = seat.page.locator(`#${side}As`);
-            if (await as.isVisible().catch(() => false) && (await as.inputValue()) !== '') await as.selectOption('');
-        }
     }
 
     async proposeTrade(seat, me, state) {

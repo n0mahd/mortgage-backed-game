@@ -11,7 +11,6 @@ const DEFAULT_RENT_POLICY = 'reinvest';
 // quarters, sixths and eighths, and is fine enough that a single property can
 // be swapped for new shares.
 const DEFAULT_CORPORATION_SHARES = 12000;
-const MAX_CORPORATION_SHARES = 1000000;
 // After the runner changes the rent policy on their own, it stays put for
 // their next RENT_POLICY_COOLDOWN_TURNS turns unless every shareholder agrees.
 const RENT_POLICY_COOLDOWN_TURNS = 5;
@@ -62,7 +61,6 @@ module.exports = {
     RENT_POLICIES,
     DEFAULT_RENT_POLICY,
     DEFAULT_CORPORATION_SHARES,
-    MAX_CORPORATION_SHARES,
     RENT_POLICY_COOLDOWN_TURNS,
     normalizeRentPolicy,
     splitByShares,

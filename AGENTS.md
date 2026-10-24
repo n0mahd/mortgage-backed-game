@@ -102,7 +102,7 @@ Other docs: player rules in `documents/game-rules.md` and `README.md`, open deci
   - `purchase.js` (buying and auctions), `houses.js`, `debt.js` (the Debt sheet), `corporations.js`
     (IPO and add-to-corporation sheets, the Corporations listing, chairman votes, buying treasury
     shares), `corporation-desk.js` (the chairman's tools: rent policy, dividends, property offers),
-    `market.js` (trade form, offers, payments, share-deal summary), `device-alerts.js` (another
+    `market.js` (trade form, pending and past offers, payments, share-deal summary), `device-alerts.js` (another
     device, turn alerts).
   - `property-display.js` (player cards, property rows, colours), `valuation.js` (net worth and
     company values), `log-format.js` (Recent events wording).
