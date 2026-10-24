@@ -818,6 +818,13 @@ function bindStaticGameControls() {
     CorporationDesk.bind();
     document.getElementById('debtAction')?.addEventListener('change', toggleDebtForm);
     document.getElementById('debtIssuer')?.addEventListener('change', renderBorrowingLimit);
+    document.getElementById('loanOutlook')?.addEventListener('click', handleOutlookClick);
+    ['loanAmount', 'loanTerms', 'loanAutopay'].forEach(id => {
+        document.getElementById(id)?.addEventListener(id === 'loanAmount' ? 'input' : 'change', renderBorrowingLimit);
+    });
+    ['refinanceTerms', 'refinanceAutopay'].forEach(id => {
+        document.getElementById(id)?.addEventListener('change', updateRefinanceSummary);
+    });
     document.getElementById('loanList')?.addEventListener('click', handleLoanListClick);
     document.getElementById('loanList')?.addEventListener('change', handleLoanAutopayChange);
     document.getElementById('loanAmount')?.addEventListener('input', () => renderLoanTerms('loanTerms', 'loanAmount'));
