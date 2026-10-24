@@ -343,7 +343,7 @@ Payments are made on your turn. Paying more than is owed only takes what is owed
 1. Go to **Manage Debt** → **Refinance loans**.
 2. If you run a corporation with loans, choose whose loans: yours or the corporation's.
 3. Select one or more of those loans. The new amount starts at their combined balance.
-4. Enter the new loan amount and pick a term:
+4. Enter the new loan amount, pick a term and set Autopay (on by default):
    - **More than the balance** takes out the difference as cash. It follows the same 90% limit, with the loans being replaced not counted as owed.
    - **Less than the balance** pays the difference down from the borrower's cash (yours, or the corporation's treasury), which must cover it.
    - **The same amount** just moves the balance onto the new term.
