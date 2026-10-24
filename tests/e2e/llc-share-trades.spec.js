@@ -2,7 +2,7 @@
 // Shares in an LLC (corporation) can be traded or sent through the Market tab,
 // not just whole properties.
 const { test, expect } = require('@playwright/test');
-const { BASE, BASE_API, apiJson, loginPage, playerState } = require('./helpers');
+const { BASE, BASE_API, apiJson, loginPage, playerState, showMarketPane } = require('./helpers');
 
 async function setupGameWithLlc(request) {
     const users = {};
@@ -72,11 +72,14 @@ test('a player can sell LLC shares through the Market tab', async ({ browser, re
     await alice.page.click('#executeTradeBtn');
     await expect(alice.page.locator('#tradeOffersList')).toContainText('4 ALC shares');
 
-    await expect(bob.page.locator('#tradeOffersList')).toContainText('4 ALC shares', { timeout: 10000 });
+    await expect(bob.page.locator('#marketProposalsCount')).toHaveText('1', { timeout: 10000 });
+    await showMarketPane(bob.page, 'Trade proposals');
+    await expect(bob.page.locator('#tradeOffersList')).toContainText('4 ALC shares');
     await bob.page.click('[data-game-action="accept-trade-offer"]');
     await expect(bob.page.locator('#market-status')).toContainText('Trade accepted');
 
     // Bob can now offer the shares he holds; Alice's side shows what she kept.
+    await showMarketPane(bob.page, 'New trade');
     await bob.page.selectOption('#player1Select', users.Bob.user.id);
     await bob.page.selectOption('#player2Select', users.Alice.user.id);
     await expect(bob.page.locator('#player1Assets')).toContainText('ALC shares (holds 4 of 10)');

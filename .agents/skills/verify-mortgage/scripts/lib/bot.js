@@ -79,10 +79,12 @@ class Autoplay {
         if (!(await tab.getAttribute('class') || '').includes('active')) await tab.click();
     }
 
-    async marketTab(seat) {
+    // pane: 'trade', 'payment', 'proposals' or 'history' (the Market's tabs).
+    async marketTab(seat, pane) {
         await this.closeModals(seat);
         const tab = seat.page.locator('.nav-tab[data-section="market"]');
         if (!(await tab.getAttribute('class') || '').includes('active')) await tab.click();
+        if (pane) await seat.page.locator(`#marketTab-${pane}`).click();
     }
 
     gameButton(seat, action) {
@@ -260,7 +262,7 @@ class Autoplay {
             const recipientId = offer.proposedById === offer.player1Id ? offer.player2Id : offer.player1Id;
             const seat = this.seatById(recipientId);
             if (!seat || seat.human) continue;
-            await this.marketTab(seat);
+            await this.marketTab(seat, 'proposals');
             await this.firstTime('trade-offer-received', [seat], 'trade-offer-recipient');
             let accept = this.chance(0.55);
             if (this.explore?.wants('trade.decline') && !this.explore.wants('trade.accept')) accept = false;
@@ -550,7 +552,7 @@ class Autoplay {
         const shares = Math.min(wanted, Number(holder.shares));
         const cash = Math.min(Math.floor(Number(me.cash) * 0.5), Math.round(shares * 50 * (0.8 + this.rand() * 0.6)));
         if (cash <= 0) return;
-        await this.marketTab(seat);
+        await this.marketTab(seat, 'trade');
         await this.tradeParties(seat, seat.userId, holder.userId);
         await seat.page.locator('#player1Cash').fill(String(cash));
         await seat.page.locator('#player2Cash').fill('0');
@@ -580,7 +582,7 @@ class Autoplay {
         const wanted = choice.p;
         const offer = Math.min(Math.floor(Number(me.cash) * 0.4), Math.round(Number(wanted.value || 100) * (1 + this.rand() * 0.5)));
         if (offer <= 0) return;
-        await this.marketTab(seat);
+        await this.marketTab(seat, 'trade');
         await this.tradeParties(seat, me.userId, target.userId);
         await seat.page.locator('#player1Cash').fill(String(offer));
         await seat.page.locator('#player2Cash').fill('0');
@@ -596,7 +598,7 @@ class Autoplay {
         const others = state.players.filter(p => !p.bankrupt && p.userId !== seat.userId);
         if (!others.length) return;
         const to = this.pick(others);
-        await this.marketTab(seat);
+        await this.marketTab(seat, 'payment');
         await seat.page.locator('#paymentToPlayer').selectOption({ value: to.userId });
         await seat.page.locator('#paymentAmount').fill(String(5 + Math.floor(this.rand() * 20)));
         await this.act(seat, 'manual payment', () => seat.page.locator('#makePaymentBtn').click(), { allowRejection: true });

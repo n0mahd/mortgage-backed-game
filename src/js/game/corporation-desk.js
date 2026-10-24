@@ -205,12 +205,11 @@
 
     function tradeAsCorporation(corpId) {
         global.closeModal('corporationModal');
-        const marketTab = document.querySelector('.nav-tab[data-section="market"]');
-        if (marketTab) global.showSection(marketTab, 'market');
+        global.openMarketPane('trade');
         global.setTradingAs('player1', me(), corpId);
         const corp = corpById(corpId);
         global.showMarketStatus(`You're trading for ${corp?.ticker || 'the company'}: its treasury cash, properties and treasury shares. Pick who to trade with.`, 'info');
-        document.querySelector('#market .transaction-form')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        document.querySelector('#market .market-tabs')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }
 
     // ---- Property offers --------------------------------------------------

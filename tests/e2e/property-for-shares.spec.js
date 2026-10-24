@@ -2,7 +2,7 @@
 // A player can trade a property into someone else's LLC in exchange for part
 // of its shares, starting from the Corporations modal.
 const { test, expect } = require('@playwright/test');
-const { BASE, BASE_API, apiJson, loginPage, playerState } = require('./helpers');
+const { BASE, BASE_API, apiJson, loginPage, playerState, showMarketPane } = require('./helpers');
 
 // Sam runs MBS (12 shares, worth $1,200: Pennsylvania Ave $320 + $880 cash).
 // Alex owns Boardwalk ($400).
@@ -98,6 +98,7 @@ test('a player trades a property into an LLC for its shares', async ({ browser, 
 
     // Sam sees the deal from his side, with what it means for him.
     await sam.page.click('.nav-tab[data-section="market"]');
+    await showMarketPane(sam.page, 'Trade proposals');
     const offer = sam.page.locator('#tradeOffersList .trade-offer-card');
     await expect(offer).toContainText('Alex puts Boardwalk into MBS.', { timeout: 10000 });
     await expect(offer).toContainText('You give Alex 3 of 12 MBS shares (25%).');
