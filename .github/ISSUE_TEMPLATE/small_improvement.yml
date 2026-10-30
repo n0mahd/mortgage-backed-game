@@ -1,0 +1,48 @@
+name: Small improvement
+description: Track small UX, product polish, or quality-of-life improvements.
+title: "[Improvement]: "
+labels:
+  - improvement
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What small annoyance, rough edge, or clarity gap should be improved?
+      placeholder: Describe the polish opportunity.
+    validations:
+      required: true
+  - type: textarea
+    id: current-behavior
+    attributes:
+      label: Current behavior
+      description: What happens now?
+      placeholder: Include the current screen, flow, wording, or state.
+    validations:
+      required: true
+  - type: textarea
+    id: desired-behavior
+    attributes:
+      label: Desired behavior
+      description: What should happen instead?
+      placeholder: Describe the small, concrete improvement.
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance-criteria
+    attributes:
+      label: Acceptance criteria
+      description: What must be true before this is done?
+      placeholder: |
+        - [ ] ...
+        - [ ] ...
+    validations:
+      required: true
+  - type: textarea
+    id: codex-notes
+    attributes:
+      label: Notes for Codex
+      description: Implementation hints, test expectations, or files to inspect first.
+      placeholder: Mention likely files, routes, tests, edge cases, or dev ports.
+    validations:
+      required: false

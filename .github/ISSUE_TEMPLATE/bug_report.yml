@@ -1,0 +1,48 @@
+name: Bug report
+description: Report broken, incorrect, or surprising behavior.
+title: "[Bug]: "
+labels:
+  - bug
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What user-visible problem does this bug cause?
+      placeholder: Describe the player, host, or operator problem.
+    validations:
+      required: true
+  - type: textarea
+    id: current-behavior
+    attributes:
+      label: Current behavior
+      description: What happens now?
+      placeholder: Include steps, screenshots, logs, browser/device, or room/game context when useful.
+    validations:
+      required: true
+  - type: textarea
+    id: desired-behavior
+    attributes:
+      label: Desired behavior
+      description: What should happen instead?
+      placeholder: Describe the expected behavior.
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance-criteria
+    attributes:
+      label: Acceptance criteria
+      description: What must be true before this is done?
+      placeholder: |
+        - [ ] ...
+        - [ ] ...
+    validations:
+      required: true
+  - type: textarea
+    id: codex-notes
+    attributes:
+      label: Notes for Codex
+      description: Implementation hints, risky areas, test expectations, or files to inspect first.
+      placeholder: Mention likely files, routes, tests, edge cases, or dev ports.
+    validations:
+      required: false
