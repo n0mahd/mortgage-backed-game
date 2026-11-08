@@ -203,8 +203,9 @@
     function buildButton(corp) {
         const myTurn = isMyTurn();
         const ownsGroup = global.getCompleteGroupProperties(corp.id, state()).length > 0;
-        const note = !ownsGroup ? 'Needs a whole colour group' : (myTurn ? `On ${esc(corp.ticker)}'s full sets` : 'On your turn');
-        return `<button class="btn btn-secondary btn-sm" data-game-action="build-for-corporation" data-corp-id="${esc(corp.id)}"${myTurn && ownsGroup ? '' : ' disabled'}>Build houses<small>${note}</small></button>`;
+        // Only a disabled button says why.
+        const note = !ownsGroup ? 'Needs a whole colour group' : (myTurn ? '' : 'On your turn');
+        return `<button class="btn btn-secondary btn-sm" data-game-action="build-for-corporation" data-corp-id="${esc(corp.id)}"${myTurn && ownsGroup ? '' : ' disabled'}>Build houses${note ? `<small>${note}</small>` : ''}</button>`;
     }
 
     // PROTOTYPE: borrowing for a corporation from its sheet. Loans need the

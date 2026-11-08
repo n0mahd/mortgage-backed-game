@@ -130,7 +130,7 @@ test('the chairman builds houses for the corporation from its Properties tab', a
     await openCorporation(sam.page, 'corp-mbs', 'assets');
     const build = sam.page.locator('#corporationModal [data-corp-panel="assets"] [data-game-action="build-for-corporation"]');
     await expect(build).toBeEnabled();
-    await expect(build).toContainText("On MBS's full sets");
+    await expect(build).toHaveText('Build houses');
     await build.click();
 
     // The house sheet opens building for MBS, on its Dark Blues.
