@@ -98,7 +98,6 @@
 
     /* Stacking order, lowest first (in-component layering uses -1 and 1) */
     --z-app-bar: 50;            /* sticky app bar; desktop tabs sit one below it */
-    --z-turn-banner: 55;
     --z-dock: 58;
     --z-tab-bar: 60;
     --z-sheet: 1000;

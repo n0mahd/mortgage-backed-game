@@ -100,8 +100,13 @@ for (const screen of SCREENS) {
             expect(size).toBeGreaterThanOrEqual(10);
         }
 
-        // It's Alice's turn, but the board says so itself: no floating banner over it.
-        await expect(page.locator('#turn-banner')).toBeHidden();
+        // It's Alice's turn: the Game tab says so, and nothing floats over the board.
+        const gameTab = page.locator('.nav-tab[data-section="game"]');
+        await expect(gameTab).toHaveClass(/is-turn/);
+        await expect(gameTab).toHaveText('Your turn');
+        await gameTab.click();
+        await expect(gameTab).not.toHaveClass(/is-turn/);
+        await expect(gameTab).toHaveText('Game');
         await context.close();
     });
 }

@@ -1,6 +1,6 @@
 // @ts-check
 // Rule proposals through the real UI, in two browsers: Alice proposes a new Pass GO
-// amount in Market › Rule proposals, Bob gets the Vote pill and agrees, and both
+// amount in Market › Rule proposals, Bob sees the vote badge on Market and agrees, and both
 // screens show the rule changed. Carol is bankrupt and has no vote.
 const { test, expect } = require('@playwright/test');
 const { BASE, BASE_API, apiJson, playerState } = require('./helpers');
@@ -90,14 +90,14 @@ test('Alice proposes Pass GO $300, Bob votes yes, and the rule changes on both s
     await expect(pane.locator('#ruleProposalCard')).toContainText('1 of 2');
     await expect(pane.locator('[data-game-action="rule-withdraw"]')).toBeVisible();
 
-    // Bob, on the Game tab, gets the pill, a featured move and a dot on Market.
-    await expect(bobPage.locator('#rule-vote-banner')).toBeVisible({ timeout: 10000 });
-    await expect(bobPage.locator('#rule-vote-banner')).toContainText('Alice proposes Pass GO → $300');
-    await expect(bobPage.locator('.nav-tab[data-section="market"] .tab-dot')).toHaveCount(1);
-    await expect(bobPage.locator('#game [data-game-action="open-rule-proposals"]')).toBeVisible();
-    await bobPage.click('#rule-vote-banner-btn');
+    // Bob, on the Game tab, gets a 📜 badge on Market and a featured move. No pill floats over the page.
+    const bobMarket = bobPage.locator('.nav-tab[data-section="market"]');
+    await expect(bobMarket.locator('.tab-badge')).toHaveCount(1, { timeout: 10000 });
+    await expect(bobMarket).toHaveAttribute('aria-label', 'Market, a rule vote is waiting');
+    await expect(bobPage.locator('#tab-alerts')).toHaveText('Alice proposes a rule change. Vote in Market.');
+    await bobPage.locator('#game [data-game-action="open-rule-proposals"]').click();
     await expect(bobPage.locator('#marketPane-rules')).toBeVisible();
-    await expect(bobPage.locator('#rule-vote-banner')).toBeHidden();
+    await expect(bobMarket.locator('.tab-badge')).toHaveCount(0);
     await expect(bobPage.locator('#marketRulesCount')).toHaveText('1');
     const bobPane = bobPage.locator('#ruleProposalsPane');
     await expect(bobPane.locator('.rule-sentence')).toContainText('Alice: change Pass GO from $200 to $300.');
@@ -109,7 +109,8 @@ test('Alice proposes Pass GO $300, Bob votes yes, and the rule changes on both s
         await expect(rule).toContainText('Changed by vote');
         await expect(page.locator('#ruleProposalsPane .rule-history')).toContainText('Pass GO: $200 → $300');
     }
-    await expect(bobPage.locator('.nav-tab[data-section="market"] .tab-dot')).toHaveCount(0);
+    await bobPage.click('.nav-tab[data-section="game"]');
+    await expect(bobMarket.locator('.tab-badge')).toHaveCount(0);
     const saved = await apiJson(request, 'get', `${BASE_API}/games/${game.id}`, { headers: { Authorization: `Bearer ${alice.token}` } });
     expect(saved.game_state.settings.passGoAmount).toBe(300);
 });

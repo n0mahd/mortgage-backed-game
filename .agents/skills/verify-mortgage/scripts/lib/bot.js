@@ -311,7 +311,7 @@ class Autoplay {
 
     // ----- house rules and rule votes (Market › Rule proposals, src/js/game/rule-proposals.js) -----
 
-    // A rule vote waiting on bot seats, answered on or off their turn through the Vote pill.
+    // A rule vote waiting on bot seats, answered on or off their turn from the badge on Market.
     // Explore decides yes / no / hold (leave it to expire or be withdrawn) to reach unreached paths.
     async handleRuleVotes() {
         const { state } = this.server();
@@ -340,19 +340,17 @@ class Autoplay {
     async voteOnRule(seat, proposal, approve, state) {
         const page = seat.page;
         await this.gameTab(seat);
-        // The Vote pill shows anywhere but Market › Rule proposals, and the Market tab has a dot.
-        const pill = page.locator('#rule-vote-banner');
-        const pillShown = await pill.waitFor({ state: 'visible', timeout: 5000 }).then(() => true).catch(() => false);
-        const dot = await page.locator('.nav-tab[data-section="market"] .tab-dot').count();
-        if (!dot) this.ctx.finding({ severity: 'low', category: 'ui', seat, title: 'No dot on the Market tab while a rule vote waits for this player', detail: '' });
-        if (pillShown) {
-            await this.firstTime('rule-vote-pill', [seat], 'rule-vote-pill');
-            await page.locator('#rule-vote-banner-btn').click();
-            if (await page.locator('#marketPane-rules').isVisible().catch(() => false)) this.ctx.markUi('rules.vote-pill');
-            else this.ctx.finding({ severity: 'medium', category: 'ui', seat, title: 'The Vote pill did not open Market › Rule proposals', detail: '' });
+        // Away from Market › Rule proposals, the Market tab carries a 📜 badge.
+        const badge = page.locator('.nav-tab[data-section="market"] .tab-badge');
+        const badgeShown = await badge.waitFor({ state: 'visible', timeout: 5000 }).then(() => true).catch(() => false);
+        if (badgeShown) {
+            await this.firstTime('rule-vote-badge', [seat], 'rule-vote-badge');
+            await this.marketTab(seat, 'rules');
+            if (!(await badge.count())) this.ctx.markUi('rules.vote-badge');
+            else this.ctx.finding({ severity: 'medium', category: 'ui', seat, title: 'The vote badge stayed on Market with Rule proposals open', detail: '' });
         } else {
-            this.ctx.finding({ severity: 'medium', category: 'ui', seat, title: 'No Vote pill for a rule vote waiting on this player', detail: `${proposal.proposedByName}: ${proposal.rule} → ${proposal.value}` });
-            await this.ctx.shot(seat, 'rule-vote-no-pill');
+            this.ctx.finding({ severity: 'medium', category: 'ui', seat, title: 'No vote badge on the Market tab for a rule vote waiting on this player', detail: `${proposal.proposedByName}: ${proposal.rule} → ${proposal.value}` });
+            await this.ctx.shot(seat, 'rule-vote-no-badge');
             await this.marketTab(seat, 'rules');
         }
         const button = page.locator(`#ruleProposalsPane [data-game-action="rule-vote"][data-approve="${approve}"]`);

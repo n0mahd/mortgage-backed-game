@@ -326,7 +326,7 @@ function renderGameState(gameState) {
     `;
 
     RuleProposals.render();
-    updateTurnBanner();
+    updateTabAlerts();
 }
 
 // Whole seconds until an ISO time (0 once it has passed), or null if unset or invalid.
@@ -699,37 +699,32 @@ function showSection(tab, sectionName) {
         openMarketOnWaitingOffer();
     }
 
-    updateTurnBanner();
+    updateTabAlerts();
 }
 
-function updateTurnBanner() {
-    const banner = document.getElementById('turn-banner');
-    if (!banner || !currentGame || !currentUser) return;
+// Alerts live on the tab they lead to, so nothing floats over the page: away from
+// the Game tab on your turn it turns gold and reads "Your turn", and a rule vote
+// waiting on you puts a badge on Market (RuleProposals.updateVoteBadge).
+function updateTabAlerts() {
+    if (!currentGame || !currentUser) return;
     const gameState = currentGame.game_state;
     const currentPlayer = gameState.players[gameState.currentPlayerIndex];
     const isMyTurn = !!currentPlayer && currentPlayer.userId === currentUser.id && !gameState.paused && !gameState.ended;
-    // The Board tab shows whose turn it is (and Roll Dice) in its centre.
-    const onTurnTab = ['game', 'board'].some(id => document.getElementById(id)?.classList.contains('active'));
-    banner.style.display = isMyTurn && !onTurnTab ? 'flex' : 'none';
-    RuleProposals.updateVoteBanner();
-
     const gameTab = document.querySelector('.nav-tab[data-section="game"]');
     if (gameTab) {
-        let dot = gameTab.querySelector('.tab-dot');
-        if (isMyTurn && !dot) {
-            dot = document.createElement('span');
-            dot.className = 'tab-dot';
-            dot.setAttribute('aria-hidden', 'true');
-            gameTab.appendChild(dot);
-        } else if (!isMyTurn && dot) {
-            dot.remove();
-        }
+        const alert = isMyTurn && !gameTab.classList.contains('active');
+        const wasAlert = gameTab.classList.contains('is-turn');
+        gameTab.classList.toggle('is-turn', alert);
+        gameTab.querySelector('.nav-tab-label').textContent = alert ? 'Your turn' : 'Game';
+        if (alert && !wasAlert) announceTabAlert("It's your turn");
     }
+    RuleProposals.updateVoteBadge();
 }
 
-function switchToGameTab() {
-    const gameTabBtn = document.querySelector('.nav-tab[data-section="game"]');
-    if (gameTabBtn) gameTabBtn.click();
+// Screen readers hear a tab alert once, when it appears.
+function announceTabAlert(message) {
+    const status = document.getElementById('tab-alerts');
+    if (status) status.textContent = message;
 }
 
 // Wire up the page's static controls once the game has loaded.
@@ -834,7 +829,6 @@ function bindStaticGameControls() {
         }
     });
 
-    document.getElementById('go-to-actions-btn')?.addEventListener('click', switchToGameTab);
     RuleProposals.bind();
     document.getElementById('executeTradeBtn')?.addEventListener('click', executeTransaction);
     document.getElementById('makePaymentBtn')?.addEventListener('click', makePayment);

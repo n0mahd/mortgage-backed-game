@@ -238,7 +238,7 @@
             count.textContent = needsMyVote() ? '1' : '';
             count.hidden = !needsMyVote();
         }
-        updateVoteBanner();
+        updateVoteBadge();
     }
 
     // Keeps a value being typed when an update re-renders the pane.
@@ -253,38 +253,27 @@
         }
     }
 
-    // The "Vote" pill (like "It's your turn") and a dot on the Market tab while
-    // a vote waits for you, unless you're already looking at it.
-    function updateVoteBanner() {
-        const banner = document.getElementById('rule-vote-banner');
-        const proposal = openProposal();
-        const waiting = needsMyVote();
-        const onRulesPane = document.getElementById('market')?.classList.contains('active')
-            && !document.getElementById('marketPane-rules')?.hidden;
-        if (banner) {
-            if (waiting && !onRulesPane) {
-                const spec = RULES[proposal.rule];
-                document.getElementById('rule-vote-banner-text').textContent =
-                    `${proposal.proposedByName} proposes ${spec.label} → ${formatValue(proposal.rule, proposal.value).replace(' per turn', '')}`;
-                banner.hidden = false;
-            } else {
-                banner.hidden = true;
-            }
-            const turnBanner = document.getElementById('turn-banner');
-            banner.classList.toggle('is-stacked', !!turnBanner && turnBanner.style.display === 'flex');
-        }
+    // A 📜 badge on the Market tab while a vote waits for you, unless you're already
+    // looking at Rule proposals (whose sub-tab carries the count).
+    function updateVoteBadge() {
         const marketTab = document.querySelector('.nav-tab[data-section="market"]');
-        if (marketTab) {
-            let dot = marketTab.querySelector('.tab-dot');
-            if (waiting && !dot) {
-                dot = document.createElement('span');
-                dot.className = 'tab-dot';
-                dot.setAttribute('aria-hidden', 'true');
-                marketTab.appendChild(dot);
-            } else if (!waiting && dot) {
-                dot.remove();
-            }
+        if (!marketTab) return;
+        const onRulesPane = marketTab.classList.contains('active')
+            && !document.getElementById('marketPane-rules')?.hidden;
+        const show = needsMyVote() && !onRulesPane;
+        let badge = marketTab.querySelector('.tab-badge');
+        if (show && !badge) {
+            badge = document.createElement('span');
+            badge.className = 'tab-badge';
+            badge.textContent = '📜';
+            badge.setAttribute('aria-hidden', 'true');
+            marketTab.appendChild(badge);
+            const proposal = openProposal();
+            global.announceTabAlert?.(`${proposal.proposedByName} proposes a rule change. Vote in Market.`);
+        } else if (!show && badge) {
+            badge.remove();
         }
+        marketTab.setAttribute('aria-label', show ? 'Market, a rule vote is waiting' : 'Market');
     }
 
     function open() {
@@ -388,7 +377,6 @@
         pane.addEventListener('input', event => {
             if (event.target.id === 'ruleValueInput') typed(event.target.value);
         });
-        document.getElementById('rule-vote-banner-btn')?.addEventListener('click', open);
     }
 
     global.RuleProposals = {
@@ -404,6 +392,6 @@
         vote,
         withdraw,
         needsMyVote,
-        updateVoteBanner,
+        updateVoteBadge,
     };
 })(window);

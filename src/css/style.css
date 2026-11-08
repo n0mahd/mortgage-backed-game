@@ -324,11 +324,9 @@ ul { padding-left: 1.1em; }
     --btn-press: var(--mint-wash);
 }
 
-/* Gold and on-dark: only on forest backgrounds (landing hero, invite code, turn banner) */
+/* Gold and on-dark: only on forest backgrounds (landing hero, invite code) */
 .btn-gold,
-.invite-code-display .btn,
-#turn-banner .btn,
-#rule-vote-banner .btn {
+.invite-code-display .btn {
     --btn-bg: var(--gold-bright);
     --btn-ink: var(--forest-deep);
     --btn-press: var(--gold-press);
@@ -1033,82 +1031,47 @@ input[type="radio"] {
 .turn-ticket :focus-visible,
 .landing-hero :focus-visible,
 .invite-code-display :focus-visible,
-#turn-banner :focus-visible,
-#rule-vote-banner :focus-visible,
 #hotseat-interstitial :focus-visible { outline-color: var(--mint); }
 
-.nav-tab .tab-dot {
-    position: absolute;
-    top: 9px;
-    left: calc(50% + 8px);
-    width: 9px;
-    height: 9px;
-    border-radius: 50%;
+/* Tab alerts: the tab you need lights up instead of a pill floating over the page.
+   On your turn, away from Game, the Game tab turns gold and reads "Your turn";
+   a rule vote waiting on you puts a 📜 badge on Market. Both pulse as they appear. */
+.nav-tab.is-turn {
+    margin: 6px 4px;
+    height: calc(var(--tabbar-h) - 12px);
+    border-radius: 12px;
     background: var(--gold-bright);
+    color: var(--forest-deep);
+    font-weight: 700;
+    animation: tab-alert-pulse 1.2s var(--ease-out) 2;
+}
+
+.nav-tab.is-turn:active { background: var(--gold-press); color: var(--forest-deep); }
+
+.nav-tab .tab-badge {
+    position: absolute;
+    top: 5px;
+    left: calc(50% + 6px);
+    display: grid;
+    place-items: center;
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    background: var(--on-dark);
     box-shadow: 0 0 0 2px var(--forest);
+    font-size: 12px;
+    line-height: 1;
+    animation: tab-alert-pulse 1.2s var(--ease-out) 2;
 }
 
-/* "It's your turn" pill when you are on another tab (top on phones, bottom on desktop).
-   #rule-vote-banner is the same pill for a rule vote waiting on you; it sits below
-   the turn pill when both show. */
-#rule-vote-banner {
-    display: flex;
-    position: fixed;
-    left: 50%;
-    transform: translateX(-50%);
-    top: calc(var(--topbar-h) + var(--safe-top) + var(--s2));
-    z-index: var(--z-turn-banner);
-    align-items: center;
-    gap: var(--s3);
-    width: max-content;
-    max-width: calc(100vw - 32px);
-    padding: 6px 6px 6px var(--s4);
-    border-radius: var(--r-chip);
-    background: var(--forest-deep);
-    color: var(--on-dark);
-    font-size: var(--text-sub);
-    font-weight: 600;
-    box-shadow: var(--lift-toast);
-    animation: toast-in var(--dur) var(--ease-out);
+@keyframes tab-alert-pulse {
+    0% { box-shadow: 0 0 0 0 rgba(212, 160, 23, 0.7); }
+    100% { box-shadow: 0 0 0 10px rgba(212, 160, 23, 0); }
 }
 
-#rule-vote-banner[hidden] { display: none; }
-#rule-vote-banner.is-stacked { top: calc(var(--topbar-h) + var(--safe-top) + var(--s2) + 56px); }
-#rule-vote-banner span { min-width: 0; }
-
-#rule-vote-banner .btn {
-    min-height: 36px;
-    flex-shrink: 0;
-    border-radius: var(--r-chip);
-    padding: 0 var(--s4);
-}
-
-#turn-banner {
-    display: none;
-    position: fixed;
-    left: 50%;
-    transform: translateX(-50%);
-    /* Under the app bar: at the bottom it would cover Accept/Decline and form buttons */
-    top: calc(var(--topbar-h) + var(--safe-top) + var(--s2));
-    z-index: var(--z-turn-banner);
-    align-items: center;
-    gap: var(--s3);
-    width: max-content;
-    max-width: calc(100vw - 32px);
-    padding: 6px 6px 6px var(--s4);
-    border-radius: var(--r-chip);
-    background: var(--forest-deep);
-    color: var(--on-dark);
-    font-size: var(--text-sub);
-    font-weight: 600;
-    box-shadow: var(--lift-toast);
-    animation: toast-in var(--dur) var(--ease-out);
-}
-
-#turn-banner .btn {
-    min-height: 36px;
-    border-radius: var(--r-chip);
-    padding: 0 var(--s4);
+@media (prefers-reduced-motion: reduce) {
+    .nav-tab.is-turn,
+    .nav-tab .tab-badge { animation: none; }
 }
 
 /* ── 9. Game: turn ticket (the signature element) ──────────────── */
@@ -4452,14 +4415,12 @@ button.policy-option:active:not(:disabled) { background: var(--mint-wash); }
     .nav-tab svg { width: 18px; height: 18px; }
     .nav-tab.active { background: rgba(255, 255, 255, 0.14); }
     .nav-tab.active::before { display: none; }
-    .nav-tab .tab-dot { top: 6px; left: auto; right: 10px; }
+    .nav-tab.is-turn { margin: 0; height: 40px; border-radius: var(--r-chip); }
+    .nav-tab .tab-badge { position: static; width: 20px; height: 20px; margin-left: calc(-1 * var(--s1)); }
 
     .game-page .container,
     .game-page.is-my-turn .container { padding-bottom: var(--s10); }
 
-    #turn-banner { top: auto; bottom: var(--s6); }
-    #rule-vote-banner { top: auto; bottom: var(--s6); }
-    #rule-vote-banner.is-stacked { top: auto; bottom: calc(var(--s6) + 56px); }
 
     /* Turn layout: ticket + actions left, players right */
     #gameContent > .game-layout {

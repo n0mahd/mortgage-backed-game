@@ -520,8 +520,8 @@ function showMarketPane(name) {
         tab?.setAttribute('tabindex', selected ? '0' : '-1');
         document.getElementById(`marketPane-${pane}`)?.toggleAttribute('hidden', !selected);
     });
-    // Looking at Rule proposals hides the "Vote" pill.
-    RuleProposals.updateVoteBanner();
+    // Looking at Rule proposals clears the vote badge on the Market tab.
+    RuleProposals.updateVoteBadge();
 }
 
 // Opens the Market tab on one pane, from elsewhere on the page.

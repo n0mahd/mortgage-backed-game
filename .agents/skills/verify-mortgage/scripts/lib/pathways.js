@@ -99,7 +99,7 @@ const PATHWAYS = [
     { id: 'rules.pass-go-new-amount', group: 'House rules', label: 'Collect a Pass GO amount other than $200', match: ev('pass_go', d => Number(d.amount) !== 200) },
     { id: 'rules.loan-at-voted-rate', group: 'House rules', label: 'Take a loan at a rate set by a vote', state: s => (s.ruleChanges || []).some(c => c.rule === 'loanRate') && allDebts(s).some(d => (s.ruleChanges || []).some(c => c.rule === 'loanRate' && Number(c.to) === Number(d.interestRate))), hint: 'After a loan-rate vote passes, Manage Debt → Take a new loan.' },
     { id: 'rules.old-loan-keeps-rate', group: 'House rules', label: 'A loan taken before a rate vote keeps its old rate', state: s => (s.ruleChanges || []).some(c => c.rule === 'loanRate') && allBorrowers(s).some(b => new Set((b.debts || []).map(d => Number(d.interestRate))).size > 1), hint: 'Hold a loan, pass a loan-rate vote, then borrow again.' },
-    { id: 'rules.vote-pill', group: 'House rules', label: 'See the Vote pill and tap it to open the vote', ui: true },
+    { id: 'rules.vote-badge', group: 'House rules', label: 'See the vote badge on Market and open the vote', ui: true },
     { id: 'rules.vote-off-turn', group: 'House rules', label: 'Vote on a rule change off your turn', ui: true },
     { id: 'rules.vote-during-auction', group: 'House rules', label: 'Vote on a rule change while an auction is open', ui: true },
     { id: 'rules.review-marks', group: 'House rules', label: 'Review shows a mark per player (yes, not yet, bankrupt)', ui: true },

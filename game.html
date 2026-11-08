@@ -14,8 +14,8 @@
     <link rel="manifest" href="/manifest.webmanifest">
     <title>Game — Mortgage Backed Monopoly</title>
     <link rel="preload" href="src/assets/fonts/besley-latin.woff2" as="font" type="font/woff2" crossorigin>
-    <link rel="stylesheet" href="src/css/tokens.css?v=13">
-    <link rel="stylesheet" href="src/css/style.css?v=51">
+    <link rel="stylesheet" href="src/css/tokens.css?v=14">
+    <link rel="stylesheet" href="src/css/style.css?v=52">
 </head>
 <body class="game-page">
     <div class="container">
@@ -39,7 +39,7 @@
         <nav class="nav-tabs" aria-label="Game sections">
             <button class="nav-tab active" data-section="game">
                 <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="3.5" width="17" height="17" rx="4"/><circle cx="8.5" cy="8.5" r="1.2" fill="currentColor" stroke="none"/><circle cx="15.5" cy="15.5" r="1.2" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="1.2" fill="currentColor" stroke="none"/></svg>
-                <span>Game</span>
+                <span class="nav-tab-label">Game</span>
             </button>
             <button class="nav-tab" data-section="market">
                 <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 8h13l-3.5-3.5M20 16H7l3.5 3.5"/></svg>
@@ -55,15 +55,7 @@
             </button>
         </nav>
 
-        <div id="turn-banner" role="status">
-            <span>It's your turn</span>
-            <button id="go-to-actions-btn" class="btn btn-sm">Back to turn</button>
-        </div>
-
-        <div id="rule-vote-banner" role="status" hidden>
-            <span id="rule-vote-banner-text"></span>
-            <button id="rule-vote-banner-btn" class="btn btn-sm">Vote</button>
-        </div>
+        <p id="tab-alerts" class="sr-only" role="status"></p>
 
         <div class="content">
             <!-- Game Section -->
@@ -493,9 +485,9 @@
     <script src="src/js/game/debt-outlook.js?v=2"></script>
     <script src="src/js/game/debt.js?v=5"></script>
     <script src="src/js/game/corporations.js?v=5"></script>
-    <script src="src/js/game/market.js?v=7"></script>
-    <script src="src/js/game/rule-proposals.js?v=2"></script>
+    <script src="src/js/game/market.js?v=8"></script>
+    <script src="src/js/game/rule-proposals.js?v=3"></script>
     <script src="src/js/game/device-alerts.js?v=1"></script>
-    <script src="src/js/game.js?v=63"></script>
+    <script src="src/js/game.js?v=64"></script>
 </body>
 </html>

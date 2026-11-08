@@ -99,12 +99,14 @@ for (const phone of PHONES) {
     });
 }
 
-test('players waiting for their turn see no dock, and the Game tab shows the turn dot only on their turn', async ({ browser, request }) => {
+test('players waiting for their turn see no dock, and the Game tab only says "Your turn" on their turn', async ({ browser, request }) => {
     const { room, bob } = await setupGame(request);
     const { context, page } = await openGameAs(browser, PHONES[2].viewport, room, bob);
     await expect(page.locator('.turn-dock')).toHaveCount(0);
     await expect(page.locator('.waiting-indicator')).toBeVisible();
-    await expect(page.locator('.nav-tab[data-section="game"] .tab-dot')).toHaveCount(0);
+    await page.click('.nav-tab[data-section="market"]');
+    await expect(page.locator('.nav-tab[data-section="game"]')).not.toHaveClass(/is-turn/);
+    await expect(page.locator('.nav-tab[data-section="game"]')).toHaveText('Game');
     await context.close();
 });
 

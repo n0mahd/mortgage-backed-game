@@ -512,7 +512,7 @@ Only one proposal can be open at a time, and each one changes one rule.
 
 ### Voting
 
-Every other player gets a **Vote** pill at the top of the screen (the same pill as *It's your turn*) and a push notification if the game isn't open. The Market tab shows a dot, and **Rule proposals** shows a count.
+Every other player sees a 📜 badge on the Market tab and gets a push notification if the game isn't open. **Rule proposals** shows a count.
 
 The proposal lists every player with a mark: ✓ agreed, ✕ rejected, an empty ring for not voted yet, and ⊘ for a bankrupt player, who doesn't vote. Answer with **✓ Yes** or **✕ No**. You can vote at any time, including off your turn and during an auction. AI players vote too.
 

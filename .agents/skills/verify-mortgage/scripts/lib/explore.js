@@ -16,7 +16,7 @@ const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
 const RULE_PROPOSE_PATHS = [
     'rules.propose-pass-go', 'rules.propose-loan-rate', 'rules.agree', 'rules.passed-pass-go', 'rules.passed-loan-rate',
     'rules.rejected', 'rules.withdrawn', 'rules.expired', 'rules.pass-go-new-amount', 'rules.loan-at-voted-rate',
-    'rules.old-loan-keeps-rate', 'rules.vote-pill', 'rules.vote-off-turn', 'rules.vote-during-auction', 'rules.review-marks',
+    'rules.old-loan-keeps-rate', 'rules.vote-badge', 'rules.vote-off-turn', 'rules.vote-during-auction', 'rules.review-marks',
 ];
 
 class Explore {
@@ -206,7 +206,7 @@ class Explore {
         else if (botProposer && this.wants('rules.withdrawn')) plan = 'hold';
         else if (this.wants('rules.vote-during-auction') && this.bot.chance(0.5)) plan = 'auction';
         else if (this.wants('rules.rejected') && (!this.wants(passed) || this.bot.chance(0.4))) plan = 'no';
-        else if (this.wantsAny(passed, 'rules.agree', 'rules.pass-go-new-amount', 'rules.loan-at-voted-rate', 'rules.old-loan-keeps-rate', 'rules.vote-pill', 'rules.vote-off-turn')) plan = 'yes';
+        else if (this.wantsAny(passed, 'rules.agree', 'rules.pass-go-new-amount', 'rules.loan-at-voted-rate', 'rules.old-loan-keeps-rate', 'rules.vote-badge', 'rules.vote-off-turn')) plan = 'yes';
         this.rulePlans.set(proposal.id, plan);
         const said = { hold: 'leave it unanswered', auction: 'vote yes once an auction opens' }[plan] || `vote ${plan}`;
         if (plan) this.ctx.log(`    rule vote ${proposal.rule} → ${proposal.value}: bots will ${said}`);

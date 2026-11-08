@@ -108,7 +108,7 @@ Other docs: player rules in `documents/game-rules.md` and `README.md`, open deci
     corporation's detail in tabs; chairman votes, buying treasury shares), `corporation-desk.js` (the chairman's tools: rent policy, dividends, Build houses and Borrow for buttons; property offers, whose cards `market.js` lists under Trade proposals),
     `market.js` (the Market's panes: trade form, payments, trade proposals and past transactions; share-deal summary),
     `rule-proposals.js` (`RuleProposals`: Market › Rule proposals, the house rules, the open vote, the
-    proposal form, and the Vote pill), `device-alerts.js` (another
+    proposal form, and the 📜 badge on the Market tab), `device-alerts.js` (another
     device, turn alerts).
   - `property-display.js` (player cards, property rows, colours), `valuation.js` (net worth and
     company values), `log-format.js` (Recent events wording).
