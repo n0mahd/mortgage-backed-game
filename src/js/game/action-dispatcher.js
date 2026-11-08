@@ -50,6 +50,15 @@
         'toggle-property-counter': button => global.CorporationDesk.togglePropertyCounter(button.dataset.offerId),
         'fill-property-counter': button => global.CorporationDesk.fillPropertyCounter(button.dataset.offerId, Number(button.dataset.price)),
         'open-trade-proposals': () => global.openTradeProposals(),
+        'open-rule-proposals': () => global.RuleProposals.open(),
+        'rule-start': () => global.RuleProposals.start(),
+        'rule-adjust': button => global.RuleProposals.adjust(Number(button.dataset.delta)),
+        'rule-review': () => global.RuleProposals.review(),
+        'rule-edit': () => global.RuleProposals.edit(),
+        'rule-cancel': () => global.RuleProposals.cancel(),
+        'rule-send': () => global.RuleProposals.send(),
+        'rule-vote': button => global.RuleProposals.vote(button.dataset.approve === 'true', button.dataset.proposalId),
+        'rule-withdraw': () => global.RuleProposals.withdraw(),
         'respond-property-offer': button => global.CorporationDesk.respondPropertyOffer(button.dataset.offerId, button.dataset.response),
     };
 

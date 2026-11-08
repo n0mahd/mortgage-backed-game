@@ -14,8 +14,8 @@
     <link rel="manifest" href="/manifest.webmanifest">
     <title>Game — Mortgage Backed Monopoly</title>
     <link rel="preload" href="src/assets/fonts/besley-latin.woff2" as="font" type="font/woff2" crossorigin>
-    <link rel="stylesheet" href="src/css/tokens.css?v=13">
-    <link rel="stylesheet" href="src/css/style.css?v=50">
+    <link rel="stylesheet" href="src/css/tokens.css?v=14">
+    <link rel="stylesheet" href="src/css/style.css?v=52">
 </head>
 <body class="game-page">
     <div class="container">
@@ -39,7 +39,7 @@
         <nav class="nav-tabs" aria-label="Game sections">
             <button class="nav-tab active" data-section="game">
                 <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="3.5" width="17" height="17" rx="4"/><circle cx="8.5" cy="8.5" r="1.2" fill="currentColor" stroke="none"/><circle cx="15.5" cy="15.5" r="1.2" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="1.2" fill="currentColor" stroke="none"/></svg>
-                <span>Game</span>
+                <span class="nav-tab-label">Game</span>
             </button>
             <button class="nav-tab" data-section="market">
                 <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 8h13l-3.5-3.5M20 16H7l3.5 3.5"/></svg>
@@ -55,10 +55,7 @@
             </button>
         </nav>
 
-        <div id="turn-banner" role="status">
-            <span>It's your turn</span>
-            <button id="go-to-actions-btn" class="btn btn-sm">Back to turn</button>
-        </div>
+        <p id="tab-alerts" class="sr-only" role="status"></p>
 
         <div class="content">
             <!-- Game Section -->
@@ -80,6 +77,7 @@
                     <button type="button" class="segmented-option" role="tab" id="marketTab-trade" aria-controls="marketPane-trade" aria-selected="false" data-market-pane="trade">New trade</button>
                     <button type="button" class="segmented-option" role="tab" id="marketTab-payment" aria-controls="marketPane-payment" aria-selected="false" data-market-pane="payment">Send money</button>
                     <button type="button" class="segmented-option" role="tab" id="marketTab-proposals" aria-controls="marketPane-proposals" aria-selected="false" data-market-pane="proposals">Trade proposals <span class="segmented-count" id="marketProposalsCount" hidden></span></button>
+                    <button type="button" class="segmented-option" role="tab" id="marketTab-rules" aria-controls="marketPane-rules" aria-selected="false" data-market-pane="rules">Rule proposals <span class="segmented-count" id="marketRulesCount" hidden></span></button>
                     <button type="button" class="segmented-option" role="tab" id="marketTab-history" aria-controls="marketPane-history" aria-selected="false" data-market-pane="history">Past transactions</button>
                 </div>
 
@@ -149,6 +147,10 @@
                     <div id="tradeOffersList" class="trade-offers-list">
                         <p class="empty-state">No pending trade offers</p>
                     </div>
+                </div>
+
+                <div class="market-pane" id="marketPane-rules" role="tabpanel" aria-labelledby="marketTab-rules" hidden>
+                    <div id="ruleProposalsPane" class="rule-proposals"></div>
                 </div>
 
                 <div class="market-pane" id="marketPane-history" role="tabpanel" aria-labelledby="marketTab-history" hidden>
@@ -306,16 +308,21 @@
                     <p class="debt-flow-summary debt-flow-warning" id="loanShortfallHint" hidden></p>
                     <div class="loan-limit" id="loanLimit" aria-live="polite"></div>
                 </div>
-                <div class="form-group">
-                    <span class="field-label" id="loanTermLabel">Term</span>
-                    <div class="asset-list loan-terms" id="loanTerms" role="radiogroup" aria-labelledby="loanTermLabel"></div>
-                </div>
-                <div class="form-group asset-list">
-                    <div class="asset-checkbox">
-                        <input type="checkbox" id="loanAutopay" checked>
-                        <label for="loanAutopay">Autopay<span class="debt-detail">Takes each payment from your cash at the end of your turn. Turn it off to pay when you like: unpaid interest is added to the loan.</span></label>
+                <div class="loan-term-fields">
+                    <div class="form-group">
+                        <label for="loanTerm">Term</label>
+                        <select id="loanTerm"></select>
+                    </div>
+                    <div class="form-group">
+                        <label for="loanAutopay">Autopay each turn</label>
+                        <select id="loanAutopay">
+                            <option value="pay_down">Pay down loan</option>
+                            <option value="interest_only">Interest only</option>
+                            <option value="off">Off</option>
+                        </select>
                     </div>
                 </div>
+                <p class="debt-detail loan-term-quote" id="loanTermQuote" aria-live="polite"></p>
                 <div class="form-group">
                     <span class="field-label">After this loan</span>
                     <div class="debt-preview" id="loanPreview" aria-live="polite" hidden></div>
@@ -336,16 +343,21 @@
                     <div class="debt-flow-summary" id="refinanceSummary"></div>
                     <div class="loan-limit" id="refinanceLimit" aria-live="polite"></div>
                 </div>
-                <div class="form-group">
-                    <span class="field-label" id="refinanceTermLabel">Term</span>
-                    <div class="asset-list loan-terms" id="refinanceTerms" role="radiogroup" aria-labelledby="refinanceTermLabel"></div>
-                </div>
-                <div class="form-group asset-list">
-                    <div class="asset-checkbox">
-                        <input type="checkbox" id="refinanceAutopay" checked>
-                        <label for="refinanceAutopay">Autopay<span class="debt-detail">Takes each payment from the borrower's cash at End Turn. Off: unpaid interest is added to the loan.</span></label>
+                <div class="loan-term-fields">
+                    <div class="form-group">
+                        <label for="refinanceTerm">Term</label>
+                        <select id="refinanceTerm"></select>
+                    </div>
+                    <div class="form-group">
+                        <label for="refinanceAutopay">Autopay each turn</label>
+                        <select id="refinanceAutopay">
+                            <option value="pay_down">Pay down loan</option>
+                            <option value="interest_only">Interest only</option>
+                            <option value="off">Off</option>
+                        </select>
                     </div>
                 </div>
+                <p class="debt-detail loan-term-quote" id="refinanceTermQuote" aria-live="polite"></p>
                 <div class="form-group">
                     <span class="field-label">After refinancing</span>
                     <div class="debt-preview" id="refinancePreview" aria-live="polite" hidden></div>
@@ -456,25 +468,26 @@
     <script src="src/js/number-inputs.js?v=1"></script>
     <script src="src/js/ui.js?v=2"></script>
     <script src="src/js/rejoin-prompts.js?v=2"></script>
-    <script src="src/js/board.js?v=15"></script>
-    <script src="src/js/game/action-dispatcher.js?v=9"></script>
+    <script src="src/js/board.js?v=16"></script>
+    <script src="src/js/game/action-dispatcher.js?v=10"></script>
     <script src="src/js/game/turn-alert.js?v=1"></script>
-    <script src="src/js/game/turn-end-outlook.js?v=5"></script>
-    <script src="src/js/game/loans.js?v=2"></script>
+    <script src="src/js/game/turn-end-outlook.js?v=6"></script>
+    <script src="src/js/game/loans.js?v=3"></script>
     <script src="src/js/game/share-deals.js?v=7"></script>
     <script src="src/js/game/corporation-desk.js?v=9"></script>
     <script src="src/js/turn-notifications.js?v=1"></script>
-    <script src="src/js/game/log-format.js?v=3"></script>
+    <script src="src/js/game/log-format.js?v=4"></script>
     <script src="src/js/game/valuation.js?v=1"></script>
     <script src="src/js/game/property-display.js?v=2"></script>
-    <script src="src/js/game/turn-panel.js?v=8"></script>
+    <script src="src/js/game/turn-panel.js?v=9"></script>
     <script src="src/js/game/purchase.js?v=1"></script>
     <script src="src/js/game/houses.js?v=2"></script>
-    <script src="src/js/game/debt-outlook.js?v=1"></script>
-    <script src="src/js/game/debt.js?v=4"></script>
+    <script src="src/js/game/debt-outlook.js?v=2"></script>
+    <script src="src/js/game/debt.js?v=5"></script>
     <script src="src/js/game/corporations.js?v=5"></script>
-    <script src="src/js/game/market.js?v=6"></script>
+    <script src="src/js/game/market.js?v=8"></script>
+    <script src="src/js/game/rule-proposals.js?v=3"></script>
     <script src="src/js/game/device-alerts.js?v=1"></script>
-    <script src="src/js/game.js?v=62"></script>
+    <script src="src/js/game.js?v=64"></script>
 </body>
 </html>

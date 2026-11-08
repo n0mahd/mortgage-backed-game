@@ -13,8 +13,8 @@
     <link rel="manifest" href="/manifest.webmanifest">
     <title>Waiting room — Mortgage Backed Monopoly</title>
     <link rel="preload" href="src/assets/fonts/besley-latin.woff2" as="font" type="font/woff2" crossorigin>
-    <link rel="stylesheet" href="src/css/tokens.css?v=13">
-    <link rel="stylesheet" href="src/css/style.css?v=50">
+    <link rel="stylesheet" href="src/css/tokens.css?v=14">
+    <link rel="stylesheet" href="src/css/style.css?v=52">
 </head>
 <body>
     <div class="container">
@@ -86,22 +86,17 @@
                     <a class="quiet-link" href="lobby.html" data-manage-room-link>Manage players</a>
 
                     <div class="invite-email-panel" id="loan-rates-panel">
-                        <h4>Loan rates</h4>
-                        <p class="agent-invites-help">Interest per turn for each loan term. Players pick the term when they borrow; the rates are fixed once the game starts.</p>
-                        <div class="loan-rates">
-                            <div class="form-group">
-                                <label for="loan-rate-5">5 turns (%)</label>
-                                <input type="number" id="loan-rate-5" inputmode="decimal" min="0" max="25" step="0.5" value="4">
-                            </div>
-                            <div class="form-group">
-                                <label for="loan-rate-10">10 turns (%)</label>
-                                <input type="number" id="loan-rate-10" inputmode="decimal" min="0" max="25" step="0.5" value="5">
-                            </div>
-                            <div class="form-group">
-                                <label for="loan-rate-15">15 turns (%)</label>
-                                <input type="number" id="loan-rate-15" inputmode="decimal" min="0" max="25" step="0.5" value="6">
-                            </div>
+                        <h4>House rules</h4>
+                        <p class="agent-invites-help">Interest per turn on every loan. Players pick how many turns (5 to 30, in steps of 5) when they borrow, and whether autopay pays the loan down or covers the interest only.</p>
+                        <div class="form-group loan-rate-field">
+                            <label for="loan-rate">Interest per turn (%)</label>
+                            <input type="number" id="loan-rate" inputmode="decimal" min="0" max="25" step="0.5" value="5">
                         </div>
+                        <div class="form-group loan-rate-field">
+                            <label for="pass-go-amount">Pass GO ($)</label>
+                            <input type="number" id="pass-go-amount" inputmode="numeric" min="0" max="1000" step="50" value="200">
+                        </div>
+                        <p class="agent-invites-help">What everyone collects for passing GO, $0 to $1,000. Players can change either rule during the game if everyone agrees (Market › Rule proposals).</p>
                     </div>
 
                     <!-- Invite AI agents: one invite per agent (src/js/agent-invites.js) -->
@@ -168,7 +163,7 @@
     <script src="src/js/room-resume.js?v=1"></script>
     <script src="src/js/rejoin-prompts.js?v=2"></script>
     <script src="src/js/agent-invites.js?v=2"></script>
-    <script src="src/js/waiting.js?v=26"></script>
+    <script src="src/js/waiting.js?v=27"></script>
     <script src="src/js/manage-link.js?v=1"></script>
 </body>
 </html>

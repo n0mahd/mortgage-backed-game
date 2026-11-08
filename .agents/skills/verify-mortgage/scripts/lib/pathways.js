@@ -69,17 +69,43 @@ const PATHWAYS = [
     // ----- debt -----
     { id: 'debt.issue', group: 'Debt', label: 'Issue personal debt', match: ev('debt_issued', d => !String(d.issuer).startsWith('[')), hint: 'Manage Debt → Issue New Debt.' },
     { id: 'debt.issue-corporate', group: 'Debt', label: 'Issue debt as a corporation', match: ev('debt_issued', d => String(d.issuer).startsWith('[')), hint: 'Manage Debt → Issuer: <your corporation>. Needs a corporation you chair.' },
-    { id: 'debt.term-short', group: 'Debt', label: 'Borrow on a 5-turn term', match: ev('debt_issued', d => Number(d.termTurns) === 5), hint: 'Manage Debt → Take a new loan → 5 turns.' },
-    { id: 'debt.term-long', group: 'Debt', label: 'Borrow on a 15-turn term', match: ev('debt_issued', d => Number(d.termTurns) === 15), hint: 'Manage Debt → Take a new loan → 15 turns.' },
+    { id: 'debt.term-short', group: 'Debt', label: 'Borrow on a 5-turn term', match: ev('debt_issued', d => Number(d.termTurns) === 5), hint: 'Manage Debt → Take a new loan → Term: 5 turns.' },
+    { id: 'debt.term-long', group: 'Debt', label: 'Borrow on a 15-turn term', match: ev('debt_issued', d => Number(d.termTurns) === 15), hint: 'Manage Debt → Take a new loan → Term: 15 turns.' },
     { id: 'debt.pay', group: 'Debt', label: 'Pay part of a loan', match: ev('debt_payment', d => !d.paidOff), hint: 'Manage Debt → Your loans → Pay an amount.' },
     { id: 'debt.payoff', group: 'Debt', label: 'Pay a loan off early', match: ev('debt_payment', d => d.paidOff), hint: 'Manage Debt → Your loans → Pay off.' },
-    { id: 'debt.autopay-off', group: 'Debt', label: 'Turn autopay off for a loan', match: ev('debt_autopay', d => d.autopay === false), hint: 'Manage Debt → Your loans → Autopay switch (works off-turn too).' },
+    { id: 'debt.autopay-off', group: 'Debt', label: 'Turn autopay off for a loan', match: ev('debt_autopay', d => d.autopay === 'off'), hint: 'Manage Debt → Your loans → Autopay each turn: Off (works off-turn too).' },
+    { id: 'debt.autopay-interest-only', group: 'Debt', label: 'Switch a loan to interest-only autopay', match: ev('debt_autopay', d => d.autopay === 'interest_only'), hint: 'Manage Debt → Your loans → Autopay each turn: Interest only (works off-turn too).' },
     { id: 'debt.refinance', group: 'Debt', label: 'Refinance debt', match: ev('debt_refinanced'), hint: 'Manage Debt → Refinance loans: pick loans, a term and a new amount above the payoff.' },
     { id: 'debt.interest', group: 'Debt', label: 'Loan payment at end of turn', match: ev('interest_accrual', d => Number(d.interestCharged) > 0) },
     { id: 'debt.unpaid-interest', group: 'Debt', label: 'Unpaid interest added to a loan (autopay off)', match: ev('interest_accrual', d => Number(d.unpaidInterest) > 0), hint: 'Turn autopay off, then end your turn.' },
     { id: 'debt.matured-repaid', group: 'Debt', label: 'Repay a loan in full at maturity', match: ev('loan_matured', d => d.repaid), stage: 'loan-due' },
     { id: 'debt.matured-default', group: 'Debt', label: "Go bankrupt on a loan you can't repay at maturity", match: ev('loan_matured', d => !d.repaid && !String(d.borrower).startsWith('[')), stage: 'loan-default' },
     { id: 'debt.corporate-interest', group: 'Debt', label: 'Corporation charged interest', match: ev('interest_accrual', d => String(d.player).startsWith('[') && Number(d.interestCharged) > 0) },
+
+    { id: 'debt.term-max', group: 'Debt', label: 'Borrow on the longest term (30 turns)', match: ev('debt_issued', d => Number(d.termTurns) === 30), hint: 'Manage Debt → Take a new loan → Term: 30 turns.' },
+
+    // ----- house rules and rule votes (Market › Rule proposals) -----
+    { id: 'rules.host-set', group: 'House rules', label: 'Host sets Pass GO and the loan rate in the waiting room', ui: true },
+    { id: 'rules.propose-pass-go', group: 'House rules', label: 'Propose a new Pass GO amount', match: ev('rule_change_proposed', d => d.rule === 'passGoAmount'), hint: 'Market › Rule proposals → Propose a change → Pass GO.' },
+    { id: 'rules.propose-loan-rate', group: 'House rules', label: 'Propose a new loan rate', match: ev('rule_change_proposed', d => d.rule === 'loanRate'), hint: 'Market › Rule proposals → Propose a change → Loan interest rate.' },
+    { id: 'rules.agree', group: 'House rules', label: 'Agree to a rule change', match: ev('rule_change_supported'), hint: 'Market › Rule proposals → ✓ Yes on an open vote.' },
+    { id: 'rules.passed-pass-go', group: 'House rules', label: 'Pass GO changed by a unanimous vote', match: ev('rule_change_passed', d => d.rule === 'passGoAmount') },
+    { id: 'rules.passed-loan-rate', group: 'House rules', label: 'Loan rate changed by a unanimous vote', match: ev('rule_change_passed', d => d.rule === 'loanRate') },
+    { id: 'rules.rejected', group: 'House rules', label: 'One No ends a rule vote', match: ev('rule_change_rejected'), hint: 'Market › Rule proposals → ✕ No on an open vote.' },
+    { id: 'rules.withdrawn', group: 'House rules', label: 'Proposer withdraws their rule proposal', match: ev('rule_change_withdrawn', d => !d.reason), hint: 'Market › Rule proposals → Withdraw proposal on your own open vote.' },
+    { id: 'rules.expired', group: 'House rules', label: "Rule vote expires when the proposer's turn comes round", match: ev('rule_change_expired'), hint: 'Propose a change and leave it unanswered until your next turn.' },
+    { id: 'rules.passed-on-bankruptcy', group: 'House rules', label: 'A voter goes bankrupt and everyone left had agreed: the change passes', seq: events => bankruptcyThen(events, 'rule_change_passed'), stage: 'rule-vote-bankrupt-voter' },
+    { id: 'rules.dropped-bankrupt', group: 'House rules', label: "A proposer goes bankrupt: their vote is dropped", match: ev('rule_change_withdrawn', d => d.reason === 'bankrupt'), stage: 'rule-vote-bankrupt-proposer' },
+    { id: 'rules.pass-go-new-amount', group: 'House rules', label: 'Collect a Pass GO amount other than $200', match: ev('pass_go', d => Number(d.amount) !== 200) },
+    { id: 'rules.loan-at-voted-rate', group: 'House rules', label: 'Take a loan at a rate set by a vote', state: s => (s.ruleChanges || []).some(c => c.rule === 'loanRate') && allDebts(s).some(d => (s.ruleChanges || []).some(c => c.rule === 'loanRate' && Number(c.to) === Number(d.interestRate))), hint: 'After a loan-rate vote passes, Manage Debt → Take a new loan.' },
+    { id: 'rules.old-loan-keeps-rate', group: 'House rules', label: 'A loan taken before a rate vote keeps its old rate', state: s => (s.ruleChanges || []).some(c => c.rule === 'loanRate') && allBorrowers(s).some(b => new Set((b.debts || []).map(d => Number(d.interestRate))).size > 1), hint: 'Hold a loan, pass a loan-rate vote, then borrow again.' },
+    { id: 'rules.vote-badge', group: 'House rules', label: 'See the vote badge on Market and open the vote', ui: true },
+    { id: 'rules.vote-off-turn', group: 'House rules', label: 'Vote on a rule change off your turn', ui: true },
+    { id: 'rules.vote-during-auction', group: 'House rules', label: 'Vote on a rule change while an auction is open', ui: true },
+    { id: 'rules.review-marks', group: 'House rules', label: 'Review shows a mark per player (yes, not yet, bankrupt)', ui: true },
+    { id: 'refuse.rule-out-of-range', group: 'Refusals', label: 'Try to propose a rule value out of range or off the step', match: act('propose_rule_change', (d, s) => s.refused && /must be/i.test(s.error || '')), uiAlso: true, hint: 'Rule proposals: type 1050 or 225 for Pass GO (Review should stay disabled).' },
+    { id: 'refuse.rule-locked', group: 'Refusals', label: 'Try to propose again too soon (rule just changed, or your proposal was rejected)', match: act('propose_rule_change', (d, s) => s.refused && /full round|next turn/i.test(s.error || '')), uiAlso: true, hint: 'Right after a vote passes or your proposal is rejected, open Propose a change.' },
+    { id: 'refuse.rule-one-at-a-time', group: 'Refusals', label: 'No second proposal while a vote is open', match: act('propose_rule_change', (d, s) => s.refused && /already open/i.test(s.error || '')), uiAlso: true, hint: 'While a vote is open, the pane offers no Propose a change.' },
 
     // ----- corporations -----
     { id: 'corp.ipo', group: 'Corporations', label: 'Create an IPO', match: ev('ipo_created'), hint: 'Create IPO: ticker, shares, price, at least one property.' },
@@ -167,6 +193,28 @@ for (const [deck, cards] of [['chance', rules.CHANCE_CARDS], ['community_chest',
     }
 }
 
+// Every player and company that can hold loans.
+function allBorrowers(s) {
+    return [...(s.players || []), ...(s.corporations || [])];
+}
+
+function allDebts(s) {
+    return allBorrowers(s).flatMap(b => b.debts || []);
+}
+
+// A bankruptcy followed by `type` before that End Turn's turn_end (one action's events).
+function bankruptcyThen(events, type) {
+    let hits = 0;
+    events.forEach((e, i) => {
+        if (e.event_type !== 'bankruptcy') return;
+        for (const next of events.slice(i + 1, i + 12)) {
+            if (next.event_type === type) { hits++; break; }
+            if (next.event_type === 'turn_end' || next.event_type === 'game_ended') break;
+        }
+    });
+    return hits;
+}
+
 function rentKind(d) {
     if (!/^Rent for /.test(d.reason || '')) return null;
     const prop = propByName.get(d.propertyName) || rules.MONOPOLY_PROPERTIES.find(p => d.reason.endsWith(p.name));
@@ -195,7 +243,9 @@ function coverage(events, state, uiMarks = new Set(), actions = []) {
     return PATHWAYS.map(p => {
         let hits = 0;
         if (p.ui) hits = uiMarks.has(p.id) ? 1 : 0;
-        else if (p.state) hits = state && safe(() => p.state(state)) ? 1 : 0;
+        // State pathways count if the final state shows them, or the bot saw them after any turn.
+        else if (p.state) hits = (state && safe(() => p.state(state))) || uiMarks.has(p.id) ? 1 : 0;
+        else if (p.seq) hits = Number(safe(() => p.seq(events))) || 0;
         else {
             const counts = matchesAny(p.match, events, actions);
             hits = p.all ? Math.min(...counts) : counts.reduce((a, b) => a + b, 0);

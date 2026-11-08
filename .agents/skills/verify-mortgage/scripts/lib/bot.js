@@ -26,7 +26,7 @@ function mulberry32(seed) {
 
 const { Chaos } = require('./chaos');
 const { Explore } = require('./explore');
-const { rules } = require('./pathways');
+const { rules, PATHWAYS } = require('./pathways');
 const { transferDevice, rejoinAsGuest, declineStrayRejoin } = require('./table');
 
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
@@ -47,6 +47,8 @@ class Autoplay {
         this.actionMs = {};
         this.firstSeen = new Set();
         this.invariantSeen = new Set();
+        // Rule votes already answered per seat: a refused answer is not retried every step.
+        this.ruleAnswered = new Set();
         this.resilienceDone = { reload: false, offline: false, pause: false, moves: false };
         this.status = { phase: 'starting', round: 0, turnsTotal: 0 };
         this.stopRequested = false;
@@ -79,7 +81,7 @@ class Autoplay {
         if (!(await tab.getAttribute('class') || '').includes('active')) await tab.click();
     }
 
-    // pane: 'trade', 'payment', 'proposals' or 'history' (the Market's tabs).
+    // pane: 'trade', 'payment', 'proposals', 'rules' or 'history' (the Market's tabs).
     async marketTab(seat, pane) {
         await this.closeModals(seat);
         const tab = seat.page.locator('.nav-tab[data-section="market"]');
@@ -227,6 +229,27 @@ class Autoplay {
                 if (!group.every(g => g.ownerId && g.ownerId === prop.ownerId)) problems.push(`${prop.name} has houses but its ${prop.color} group is not owned by one owner`);
             }
         }
+        // House rules stay in range, and an open rule vote belongs to a player still in the game.
+        const passGo = Number(state.settings?.passGoAmount);
+        if (!(passGo >= 0 && passGo <= 1000) || passGo % 50 !== 0) problems.push(`Pass GO is ${state.settings?.passGoAmount}`);
+        const rate = Number(state.settings?.loanRate);
+        if (!(rate >= 0 && rate <= 25)) problems.push(`loan rate is ${state.settings?.loanRate}`);
+        const vote = state.ruleProposal;
+        if (vote) {
+            const proposer = state.players.find(p => p.userId === vote.proposedById);
+            if (!proposer || proposer.bankrupt) problems.push(`rule vote open for a proposer who is ${proposer ? 'bankrupt' : 'not a player'}`);
+            if (!(vote.supporterIds || []).includes(vote.proposedById)) problems.push('rule vote proposer is not counted as agreeing');
+            if (state.ended) problems.push('rule vote still open after the game ended');
+            if (Number(vote.value) === Number(state.settings?.[vote.rule])) problems.push(`rule vote to set ${vote.rule} to its current value ${vote.value}`);
+            const holdouts = state.players.filter(p => !p.bankrupt && !(vote.supporterIds || []).includes(p.userId));
+            if (!holdouts.length) problems.push('rule vote every player agreed to is still open');
+        }
+        for (const rule of ['passGoAmount', 'loanRate']) {
+            const last = [...(state.ruleChanges || [])].reverse().find(c => c.rule === rule);
+            if (last && Number(last.to) !== Number(state.settings?.[rule])) {
+                problems.push(`${rule} is ${state.settings?.[rule]} but the last vote set it to ${last.to}`);
+            }
+        }
         const engineProblem = rules.validateStateInvariants(state);
         if (engineProblem) problems.push(`engine invariant: ${engineProblem}`);
         const current = state.players[state.currentPlayerIndex];
@@ -244,6 +267,12 @@ class Autoplay {
 
     runInvariants(context) {
         const { state } = this.server();
+        // Pathways read from the state (a hotel, a voted loan rate beside an old one) may be
+        // gone by the end of the game, so note them as they happen.
+        for (const p of PATHWAYS) {
+            if (!p.state) continue;
+            try { if (p.state(state)) this.ctx.markUi(p.id); } catch { /* a partial state */ }
+        }
         for (const problem of this.checkInvariants(state)) {
             if (this.invariantSeen.has(problem)) continue;
             this.invariantSeen.add(problem);
@@ -277,6 +306,178 @@ class Autoplay {
             }
             await this.gameTab(seat);
         }
+        await this.handleRuleVotes();
+    }
+
+    // ----- house rules and rule votes (Market › Rule proposals, src/js/game/rule-proposals.js) -----
+
+    // A rule vote waiting on bot seats, answered on or off their turn from the badge on Market.
+    // Explore decides yes / no / hold (leave it to expire or be withdrawn) to reach unreached paths.
+    async handleRuleVotes() {
+        const { state } = this.server();
+        const proposal = state.ruleProposal;
+        if (!proposal || state.ended || state.paused) return;
+        const policy = this.explore ? this.explore.ruleVotePolicy(state, proposal) : null;
+        if (policy === 'hold') return;
+        const waiting = state.players.filter(p => !p.bankrupt && !(proposal.supporterIds || []).includes(p.userId));
+        for (const player of waiting) {
+            const seat = this.seatById(player.userId);
+            // A seat cut off by the resilience test answers once it is back online.
+            if (!seat || seat.human || seat.offline) continue;
+            const key = `rule:${proposal.id}:${player.userId}`;
+            if (this.ruleAnswered.has(key)) continue;
+            this.ruleAnswered.add(key);
+            const approve = policy === 'no' ? false : policy === 'yes' ? true : this.chance(0.75);
+            await this.voteOnRule(seat, proposal, approve, state);
+            const after = this.server().state;
+            if (!after.ruleProposal || after.ruleProposal.id !== proposal.id) {
+                if ((after.ruleChanges || []).length > (state.ruleChanges || []).length) await this.checkRulesShown('after a rule vote passed');
+                return;
+            }
+        }
+    }
+
+    async voteOnRule(seat, proposal, approve, state) {
+        const page = seat.page;
+        await this.gameTab(seat);
+        // Away from Market › Rule proposals, the Market tab carries a 📜 badge.
+        const badge = page.locator('.nav-tab[data-section="market"] .tab-badge');
+        const badgeShown = await badge.waitFor({ state: 'visible', timeout: 5000 }).then(() => true).catch(() => false);
+        if (badgeShown) {
+            await this.firstTime('rule-vote-badge', [seat], 'rule-vote-badge');
+            await this.marketTab(seat, 'rules');
+            if (!(await badge.count())) this.ctx.markUi('rules.vote-badge');
+            else this.ctx.finding({ severity: 'medium', category: 'ui', seat, title: 'The vote badge stayed on Market with Rule proposals open', detail: '' });
+        } else {
+            this.ctx.finding({ severity: 'medium', category: 'ui', seat, title: 'No vote badge on the Market tab for a rule vote waiting on this player', detail: `${proposal.proposedByName}: ${proposal.rule} → ${proposal.value}` });
+            await this.ctx.shot(seat, 'rule-vote-no-badge');
+            await this.marketTab(seat, 'rules');
+        }
+        const button = page.locator(`#ruleProposalsPane [data-game-action="rule-vote"][data-approve="${approve}"]`);
+        if (!(await this.usable(button))) {
+            this.ctx.finding({ severity: 'medium', category: 'ui', seat, title: 'No Yes/No buttons on a rule vote waiting for this player', detail: `${proposal.rule} → ${proposal.value}` });
+            await this.ctx.shot(seat, 'rule-vote-no-buttons');
+            return this.gameTab(seat);
+        }
+        await this.firstTime('rule-vote', [seat], 'rule-vote-card');
+        const current = state.players[state.currentPlayerIndex];
+        const auctionOpen = state.auction?.status === 'open';
+        const result = await this.act(seat, `${approve ? 'agree to' : 'reject'} a rule change`, () => button.click(), { allowRejection: true });
+        if (result.changed) {
+            if (current.userId !== seat.userId) this.ctx.markUi('rules.vote-off-turn');
+            if (auctionOpen) this.ctx.markUi('rules.vote-during-auction');
+        }
+        await this.gameTab(seat);
+    }
+
+    // Every seat's House rules (rendered even while the pane is hidden) shows the server's values.
+    async checkRulesShown(context) {
+        const { state } = this.server();
+        const passGo = `$${Number(state.settings.passGoAmount).toLocaleString('en-US')}`;
+        const rate = `${Number(state.settings.loanRate)}% per turn`;
+        await sleep(1500);
+        for (const seat of this.seats) {
+            const text = await seat.page.locator('#ruleProposalsPane .house-rules').textContent({ timeout: 3000 }).catch(() => '');
+            if (!text.includes(passGo) || !text.includes(rate)) {
+                this.ctx.finding({ severity: 'medium', category: 'sync', seat, title: 'House rules on screen differ from the server', detail: `${context}: expected ${passGo} and ${rate}, screen says "${text.replace(/\s+/g, ' ').trim()}"` });
+                await this.ctx.shot(seat, 'house-rules-stale');
+            }
+        }
+    }
+
+    // Market › Rule proposals → Propose a change → Review → Send. rule: 'passGoAmount' or 'loanRate'.
+    async proposeRule(seat, me, rule) {
+        const page = seat.page;
+        const { state } = this.server();
+        await this.marketTab(seat, 'rules');
+        const pane = page.locator('#ruleProposalsPane');
+        const start = pane.locator('[data-game-action="rule-start"]');
+        if (!(await this.usable(start))) {
+            if (state.ruleProposal) return this.gameTab(seat);
+            this.ctx.finding({ severity: 'medium', category: 'ui', seat, title: 'No "Propose a change" in Market › Rule proposals with no vote open', detail: '' });
+            await this.ctx.shot(seat, 'rule-propose-missing');
+            return this.gameTab(seat);
+        }
+        await start.click();
+        await pane.locator(`input[name="ruleChoice"][value="${rule}"]`).check();
+        const review = pane.locator('[data-game-action="rule-review"]');
+        if (await pane.locator('.rule-note.is-warning').count()) {
+            // A vote lock: the form says why and Review stays disabled.
+            if (await review.isDisabled()) this.ctx.markUi('refuse.rule-locked');
+            else this.ctx.finding({ severity: 'medium', category: 'ui', seat, title: 'Rule proposal form warns of a lock but Review is enabled', detail: rule });
+            await this.firstTime('rule-locked', [seat], 'rule-propose-locked');
+            await pane.locator('[data-game-action="rule-cancel"]').click();
+            return this.gameTab(seat);
+        }
+        const dir = this.chance(0.5) ? 1 : -1;
+        const steps = 1 + Math.floor(this.rand() * 3);
+        for (let i = 0; i < steps; i++) await pane.locator(`[data-game-action="rule-adjust"][data-delta="${dir}"]`).click();
+        // At a limit the value may be back to today's: go the other way.
+        if (await review.isDisabled()) {
+            for (let i = 0; i < steps + 1; i++) await pane.locator(`[data-game-action="rule-adjust"][data-delta="${-dir}"]`).click();
+        }
+        await this.firstTime('rule-form', [seat], 'rule-propose-form');
+        if (await review.isDisabled()) {
+            this.ctx.finding({ severity: 'medium', category: 'ui', seat, title: 'Review stays disabled for a valid rule value', detail: `${rule}: ${await page.locator('#ruleValueInput').inputValue()}` });
+            await pane.locator('[data-game-action="rule-cancel"]').click();
+            return this.gameTab(seat);
+        }
+        await review.click();
+        // The review lists every player: ✓ for the proposer, a ring for the rest, ⊘ for the bankrupt.
+        const marks = await pane.locator('.rule-voter .vote-mark').evaluateAll(els => els.map(el => el.className));
+        const expected = state.players.map(p => (p.bankrupt ? 'is-out' : p.userId === me.userId ? 'is-yes' : 'is-wait'));
+        if (marks.length === expected.length && marks.every((cls, i) => cls.includes(expected[i]))) this.ctx.markUi('rules.review-marks');
+        else this.ctx.finding({ severity: 'medium', category: 'ui', seat, title: 'Rule proposal review shows the wrong vote marks', detail: `expected ${expected.join(',')}, saw ${marks.join(',')}` });
+        const sentence = (await pane.locator('.rule-sentence').textContent().catch(() => '')) || '';
+        await this.firstTime('rule-review', [seat], 'rule-propose-review');
+        await this.act(seat, `propose a ${rule === 'loanRate' ? 'loan rate' : 'Pass GO'} change`, () => pane.locator('[data-game-action="rule-send"]').click(), { allowRejection: true });
+        const sent = this.server().state.ruleProposal;
+        if (sent && sent.proposedById === me.userId && !sentence.includes(sent.rule === 'loanRate' ? `${sent.value}%` : `$${Number(sent.value).toLocaleString('en-US')}`)) {
+            this.ctx.finding({ severity: 'medium', category: 'ui', seat, title: 'Rule proposal review sentence does not name the value sent', detail: `"${sentence.trim()}" vs ${sent.rule} ${sent.value}` });
+        }
+        await this.firstTime('rule-open', [seat], 'rule-vote-open');
+        await this.gameTab(seat);
+    }
+
+    async withdrawRule(seat) {
+        await this.marketTab(seat, 'rules');
+        const button = seat.page.locator('#ruleProposalsPane [data-game-action="rule-withdraw"]');
+        if (await this.usable(button)) {
+            await this.act(seat, 'withdraw a rule proposal', () => button.click(), { allowRejection: true });
+        } else {
+            this.ctx.finding({ severity: 'medium', category: 'ui', seat, title: 'No Withdraw on my own open rule proposal', detail: '' });
+            await this.ctx.shot(seat, 'rule-withdraw-missing');
+        }
+        await this.gameTab(seat);
+    }
+
+    // The form must refuse what the server would: out of range, off the step, a second open vote.
+    async probeRules(seat) {
+        const page = seat.page;
+        const { state } = this.server();
+        await this.marketTab(seat, 'rules');
+        const pane = page.locator('#ruleProposalsPane');
+        if (state.ruleProposal) {
+            if (await pane.locator('[data-game-action="rule-start"]').count()) {
+                this.ctx.finding({ severity: 'medium', category: 'ui', seat, title: 'Propose a change offered while a rule vote is open', detail: '' });
+            } else {
+                this.ctx.markUi('refuse.rule-one-at-a-time');
+            }
+            return this.gameTab(seat);
+        }
+        const start = pane.locator('[data-game-action="rule-start"]');
+        if (!(await this.usable(start))) return this.gameTab(seat);
+        await start.click();
+        let refused = 0;
+        for (const [rule, junk] of [['passGoAmount', '1050'], ['passGoAmount', '225'], ['loanRate', '4.25'], ['loanRate', '-1']]) {
+            await pane.locator(`input[name="ruleChoice"][value="${rule}"]`).check();
+            await page.locator('#ruleValueInput').fill(junk);
+            if (await pane.locator('[data-game-action="rule-review"]').isDisabled()) refused++;
+            else this.ctx.finding({ severity: 'medium', category: 'ui', seat, title: `Rule proposal form accepts ${rule} = ${junk}`, detail: 'Review is enabled for a value the server refuses' });
+        }
+        if (refused === 4) this.ctx.markUi('refuse.rule-out-of-range');
+        await pane.locator('[data-game-action="rule-cancel"]').click();
+        await this.gameTab(seat);
     }
 
     async handleAuction() {
@@ -287,6 +488,11 @@ class Autoplay {
             const { state } = this.server();
             const auction = state.auction;
             if (!auction || auction.status !== 'open') return true;
+            // Rule votes may be answered while the auction is open.
+            if (state.ruleProposal && guard === 0) {
+                await this.handleRuleVotes();
+                continue;
+            }
             const prop = state.properties.find(p => p.id === auction.propertyId) || {};
             const bidders = state.players.filter(p => !p.bankrupt && !(auction.passedPlayerIds || []).includes(p.userId) && auction.highBidderId !== p.userId);
             const botBidders = bidders.map(p => this.seatById(p.userId)).filter(s => s && !s.human);
@@ -427,7 +633,7 @@ class Autoplay {
     // loans can total 90% of the borrower's portfolio. Whole dollars, or null.
     async borrowingLimit(seat, textId = 'loanLimit') {
         const text = await seat.page.locator(`#${textId}`).innerText().catch(() => '');
-        const limit = Number((/up to \$([\d,.]+)/.exec(text) || [])[1]?.replace(/,/g, ''));
+        const limit = Number((/up to\s*\$([\d,.]+)/.exec(text) || [])[1]?.replace(/,/g, ''));
         return Number.isFinite(limit) ? Math.floor(limit) : null;
     }
 
@@ -443,18 +649,24 @@ class Autoplay {
             return this.closeModals(seat);
         }
         await seat.page.locator('#loanAmount').fill(String(limit ? Math.min(amount, limit) : amount));
-        await this.pickLoanTerm(seat, 'loanTerms', opts);
-        const autopay = opts.autopay ?? this.chance(0.8);
-        await seat.page.locator('#loanAutopay').setChecked(autopay);
-        await this.act(seat, `issue debt (autopay ${autopay ? 'on' : 'off'})`, () => seat.page.locator('#process-debt-btn').click(), { allowRejection: true });
+        await this.pickLoanTerm(seat, 'loanTerm', opts);
+        const autopay = opts.autopay ?? (this.chance(0.7) ? 'pay_down' : this.pick(['interest_only', 'off']));
+        await seat.page.locator('#loanAutopay').selectOption(autopay);
+        await this.act(seat, `issue debt (autopay ${autopay})`, () => seat.page.locator('#process-debt-btn').click(), { allowRejection: true });
         await this.closeModals(seat);
     }
 
-    // Picks a loan term (5, 10 or 15 turns) in a term list, at random unless given.
-    async pickLoanTerm(seat, containerId, opts = {}) {
-        const term = opts.term || this.pick([5, 10, 15]);
-        const radio = seat.page.locator(`#${containerId}-${term}`);
-        if (await radio.count()) await radio.check();
+    // Picks a loan term (5 to 30 turns, in steps of 5) in a term dropdown, at random unless given.
+    async pickLoanTerm(seat, selectId, opts = {}) {
+        const term = opts.term || 5 * (1 + Math.floor(this.rand() * 6));
+        const select = seat.page.locator(`#${selectId}`);
+        if (!(await select.count())) return term;
+        const offered = await select.locator('option').evaluateAll(os => os.map(o => o.value).join(','));
+        if (offered !== '5,10,15,20,25,30' && !this.firstSeen.has(`terms-${selectId}`)) {
+            this.firstSeen.add(`terms-${selectId}`);
+            this.ctx.finding({ severity: 'medium', category: 'ui', seat, title: `#${selectId} does not offer 5 to 30 turns in steps of 5`, detail: `options: ${offered}` });
+        }
+        await select.selectOption(String(term));
         return term;
     }
 
@@ -484,13 +696,13 @@ class Autoplay {
         await this.closeModals(seat);
     }
 
-    // Flips autopay on the first loan (allowed off-turn too).
-    async toggleAutopay(seat, on) {
+    // Sets autopay on the first loan to 'pay_down', 'interest_only' or 'off' (allowed off-turn too).
+    async setAutopay(seat, mode) {
         const row = await this.openLoans(seat);
         if (!row) return this.closeModals(seat);
-        const toggle = row.locator('[data-loan-autopay]');
-        if (await this.usable(toggle) && (await toggle.isChecked()) !== on) {
-            await this.act(seat, `turn autopay ${on ? 'on' : 'off'}`, () => toggle.setChecked(on), { allowRejection: true });
+        const select = row.locator('[data-loan-autopay]');
+        if (await this.usable(select) && (await select.inputValue()) !== mode) {
+            await this.act(seat, `set autopay to ${mode}`, () => select.selectOption(mode), { allowRejection: true });
         }
         await this.closeModals(seat);
     }
@@ -727,7 +939,11 @@ class Autoplay {
             }
             await this.gameTab(seat);
 
-            if (!me.diceRolled) {
+            // After doubles, rent you can't pay blocks rolling again: raise the cash or end the turn
+            // (which declares bankruptcy), like the turn screen says.
+            const blockedByClaim = !me.diceRolled && Number(state.bankruptcyClaims?.[me.userId]?.unpaidAmount || 0) > 0 && Array.isArray(state.lastDiceRoll)
+                && !(await this.usable(this.gameButton(seat, 'roll-dice')));
+            if (!me.diceRolled && !blockedByClaim) {
                 if (me.inJail) {
                     await this.firstTime('jail', [seat], 'in-jail');
                     const guided = this.explore ? this.explore.jailChoice(me) : null;
@@ -787,6 +1003,10 @@ class Autoplay {
             }
 
             const options = [];
+            // A player who owes an unpaid claim and isn't raising cash only ends the turn
+            // (payments and trades are refused while a claim is open).
+            const owing = Number(me.cash) < 0 || claim > 0;
+            if (owing) optionalDone.add('pay').add('trade').add('rule');
             if (!optionalDone.has('houses') && Number(me.cash) > 450 && await this.usable(this.gameButton(seat, 'open-house'))) options.push(['houses', 0.7]);
             if (!optionalDone.has('debt') && (me.debts || []).length < 2) options.push(['debt', Number(me.cash) < 250 ? 0.5 : 0.04]);
             if (!optionalDone.has('settle') && Number(me.cash) > 900 && (me.debts || []).length) options.push(['settle', 0.5]);
@@ -797,12 +1017,14 @@ class Autoplay {
             if (!optionalDone.has('addcorp') && runCorps.length && (me.properties || []).length) options.push(['addcorp', 0.15]);
             if (!optionalDone.has('trade')) options.push(['trade', 0.1]);
             if (!optionalDone.has('pay')) options.push(['pay', 0.02]);
+            // Now and then a player asks the table to change a house rule; the others vote off-turn.
+            if (!optionalDone.has('rule') && !state.ruleProposal) options.push(['rule', 0.03]);
             const host = this.seats[0];
             if (!this.resilienceDone.pause && seat === host && this.status.round >= Math.ceil(this.rounds / 2)) options.push(['pause', 1]);
 
             // Exploration adds actions that lead to unreached pathways, ahead of the usual ones.
             const base = new Set(options.map(([k]) => k));
-            if (this.explore) options.unshift(...this.explore.options(me, state, optionalDone).filter(([k]) => !base.has(k) || k === 'houses'));
+            if (this.explore && !owing) options.unshift(...this.explore.options(me, state, optionalDone).filter(([k]) => !base.has(k) || k === 'houses'));
             const chosen = options.find(([, p]) => this.chance(p));
             if (chosen) {
                 const [kind] = chosen;
@@ -827,6 +1049,7 @@ class Autoplay {
                     if (kind === 'addcorp') await this.addToCorporation(seat, this.pick(runCorps));
                     if (kind === 'trade') await this.proposeTrade(seat, me, state);
                     if (kind === 'pay') await this.manualPayment(seat, state);
+                    if (kind === 'rule') await this.proposeRule(seat, me, this.chance(0.5) ? 'passGoAmount' : 'loanRate');
                     if (kind === 'pause') { this.resilienceDone.pause = true; await this.pauseAndResume(seat); }
                 } catch (err) {
                     this.ctx.finding({ severity: 'low', category: 'harness', seat, title: `Optional action "${kind}" failed`, detail: String(err.message || err).split('\n')[0] });

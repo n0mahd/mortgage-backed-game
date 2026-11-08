@@ -22,7 +22,7 @@ function snapshotInPage({ maxTextChars }) {
     const activeSection = document.querySelector('.section.active');
     const scopes = modal
         ? [modal]
-        : [document.querySelector('.header'), document.querySelector('.nav-tabs'), document.getElementById('turn-banner'), activeSection]
+        : [document.querySelector('.header'), document.querySelector('.nav-tabs'), activeSection]
             .filter(Boolean);
     const scopeRoots = scopes.length && document.querySelector('.nav-tabs') ? scopes : [document.body];
 

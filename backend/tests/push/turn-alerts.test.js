@@ -214,6 +214,24 @@ test('each player keeps at most five devices', async () => {
     expect(rows.some(e => e.endsWith('/device-0'))).toBe(false);
 });
 
+test('a new rule vote alerts the other players, once', async () => {
+    const { alice, bob, game } = await startTwoPlayerGame();
+    await subscribe(alice, fakeBrowserSubscription('alice-phone'));
+    await subscribe(bob, fakeBrowserSubscription('bob-phone'));
+    expect((await act(alice, game, 'roll_dice', ROLL_THREE)).status).toBe(200);
+    received = [];
+    expect((await act(alice, game, 'propose_rule_change', { rule: 'passGoAmount', value: 300 })).status).toBe(200);
+    expect((await waitForPushes(1)).map(p => p.path)).toEqual(['/push/bob-phone']);
+    // Later actions while the same vote is open alert only for the turn.
+    received = [];
+    expect((await act(alice, game, 'end_turn')).status).toBe(200);
+    expect((await waitForPushes(1)).map(p => p.path)).toEqual(['/push/bob-phone']);
+    expect((await act(bob, game, 'vote_rule_change', { approve: true })).status).toBe(200);
+    received = [];
+    await waitForPushes(0);
+    expect(received).toEqual([]);
+});
+
 describe('alerts only go to players who are not looking at the game', () => {
     const { io: ioClient } = require('socket.io-client');
 

@@ -123,7 +123,7 @@ function movePlayer(state, player, spaces, events) {
     const oldPos = player.position || 0;
     const newPos = (oldPos + spaces) % 40;
     if (newPos < oldPos) {
-        const amount = state.settings.passGoAmount || 200;
+        const amount = state.settings.passGoAmount ?? 200;
         player.cash += amount;
         recordCashFlow(state, null, player.userId, amount);
         events.push(makeEvent(player, 'pass_go', { player: player.name, amount }));
@@ -166,11 +166,17 @@ function processLanding(state, player, square, diceTotal, events, options = {}) 
     }
 }
 
+// "Advance to GO. Collect $200." names the Pass GO amount this game pays.
+function cardWithHouseRules(state, card) {
+    if (card.action?.type !== 'advance_to' || card.action.position !== 0) return card;
+    return { ...card, text: card.text.replace('$200', `$${Number(state.settings.passGoAmount ?? 200)}`) };
+}
+
 function drawCard(state, player, deckType, events) {
     const key = deckType === 'chance' ? 'chanceCards' : 'communityChestCards';
     const source = deckType === 'chance' ? CHANCE_CARDS : COMMUNITY_CHEST_CARDS;
     if (!state[key] || state[key].length === 0) state[key] = shuffleDeck(source);
-    const card = state[key].shift();
+    const card = cardWithHouseRules(state, state[key].shift());
     const before = snapshotCardState(state, player);
     applyCardEffect(state, player, card, events);
     const effect = summarizeCardEffect(before, state, player);
@@ -193,8 +199,8 @@ function applyCardEffect(state, player, card, events) {
             const old = player.position;
             player.position = action.position;
             if (action.position < old || (action.position === 0 && old !== 0)) {
-                player.cash += state.settings.passGoAmount || 200;
-                recordCashFlow(state, null, player.userId, state.settings.passGoAmount || 200);
+                player.cash += state.settings.passGoAmount ?? 200;
+                recordCashFlow(state, null, player.userId, state.settings.passGoAmount ?? 200);
             }
             processLanding(state, player, BOARD_SQUARES[player.position], state.lastDiceRoll ? state.lastDiceRoll[0] + state.lastDiceRoll[1] : 0, events);
             break;
@@ -202,8 +208,8 @@ function applyCardEffect(state, player, card, events) {
         case 'advance_nearest': {
             const nearest = findNearestType(player.position, action.nearestType);
             if (nearest < player.position) {
-                player.cash += state.settings.passGoAmount || 200;
-                recordCashFlow(state, null, player.userId, state.settings.passGoAmount || 200);
+                player.cash += state.settings.passGoAmount ?? 200;
+                recordCashFlow(state, null, player.userId, state.settings.passGoAmount ?? 200);
             }
             player.position = nearest;
             processLanding(state, player, BOARD_SQUARES[player.position], state.lastDiceRoll ? state.lastDiceRoll[0] + state.lastDiceRoll[1] : 0, events, {

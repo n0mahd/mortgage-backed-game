@@ -72,6 +72,11 @@ const HOUSE_COSTS = {
     'Red': 150, 'Yellow': 150, 'Green': 200, 'Dark Blue': 200
 };
 
+// What passing GO pays in this game: the host's amount, or a rule vote's.
+function passGoAmountOf(gameState) {
+    return Number(gameState?.settings?.passGoAmount ?? 200);
+}
+
 function getSquareProperty(square, gameState) {
     if (!square.propertyId || !gameState.properties) return null;
     return gameState.properties.find(p => p.id === square.propertyId) || null;
@@ -206,7 +211,7 @@ function renderBoardCell(square, gameState, focusPosition) {
         </button>`;
     }
     if (square.position % 10 === 0) {
-        const titles = { 0: ['GO', 'Collect $200'], 20: ['Free Parking', ''], 30: ['Go to Jail', ''] };
+        const titles = { 0: ['GO', `Collect ${formatMoney(passGoAmountOf(gameState))}`], 20: ['Free Parking', ''], 30: ['Go to Jail', ''] };
         const [title, note] = titles[square.position];
         return `<button type="button" ${attrs}>
             <span class="board-corner-title">${title}</span>${note ? `<span class="board-corner-note">${note}</span>` : ''}
@@ -286,7 +291,7 @@ function renderBoardFocus(gameState, position) {
     } else {
         const jailed = gameState.players.filter(p => p.inJail && !p.bankrupt).map(p => p.name);
         facts = {
-            go: 'Collect $200 each time you pass',
+            go: `Collect ${formatMoney(passGoAmountOf(gameState))} each time you pass`,
             jail: jailed.length ? `In jail: ${escapeHtml(jailed.join(', '))}` : 'Just visiting',
             free_parking: 'Nothing happens here',
             go_to_jail: 'Go straight to jail',

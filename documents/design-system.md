@@ -159,7 +159,7 @@ square's width. Rules that keep it readable:
 - Tokens sit in their own layer on the square's inner edge and step square by square after a roll.
 - The centre holds a small banknote strip (whose turn, dice, Roll Dice when that's the only move,
   else "Go to turn"), then the square in focus (the mover's, or one you point at or tap) as one line,
-  then the last card. Keep it to that. The "It's your turn" pill stays hidden on this tab.
+  then the last card. Keep it to that. Nothing floats over it; the Game tab turns gold and reads "Your turn".
 
 **Sheets** (`.modal > .modal-content`). Bottom sheets on phones with a grabber, centered dialogs at 720px
 and up. Title in `.modal-header` (Besley), optional `.modal-hint`, actions in `.sheet-actions`, stacked
@@ -188,9 +188,21 @@ name, type and value, then chips: set progress (gold when complete), buildings, 
 board color goes before the name so groups are recognisable at a glance.
 
 **Segmented control** (`.segmented` with `.segmented-option` buttons, `role="tablist"`/`"tab"`). Tabs
-inside one page section, like the Market's New trade, Send money, Trade proposals and Past transactions.
-Two by two on phones, one row from 480px; the selected option is forest with white text. A
-`.segmented-count` pill shows how many items wait in a pane.
+inside one page section, like the Market's New trade, Send money, Trade proposals, Rule proposals and
+Past transactions. Two by two on phones, one row from 480px (the Market's fifth tab runs across the
+bottom on phones); the selected option is forest with white text. A `.segmented-count` pill shows how
+many items wait in a pane.
+
+**Vote marks** (`.vote-mark` with `is-yes`, `is-no`, `is-wait`, `is-out`). One per player in a
+unanimous vote (`.rule-voters`, Market › Rule proposals): a filled emerald ✓, a filled red ✕, an
+empty dashed ring for not voted yet, and a grey ⊘ for a bankrupt player with no vote, whose row is
+greyed and struck through. Each mark has an `aria-label`.
+
+**Tab alerts** (`.nav-tab.is-turn`, `.nav-tab .tab-badge`). Alerts sit on the tab they lead to,
+never floating over the page. On your turn, away from Game, the Game tab turns gold-bright with
+forest-deep text and reads "Your turn". A rule vote waiting for you puts a 📜 badge on Market until
+you open Rule proposals. Both pulse twice as they appear (none with reduced motion) and are read out
+once through the `#tab-alerts` status line.
 
 **Badges** (`.badge`, `.badge-gold`, `.badge-danger`, `.badge-info`). Pills in sentence
 case.

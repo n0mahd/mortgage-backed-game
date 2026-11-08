@@ -487,8 +487,8 @@ function useEvenShares() {
     updateMarketActionState();
 }
 
-// Market panes: New trade, Send money, Trade proposals, Past transactions.
-const MARKET_PANES = ['trade', 'payment', 'proposals', 'history'];
+// Market panes: New trade, Send money, Trade proposals, Rule proposals, Past transactions.
+const MARKET_PANES = ['trade', 'payment', 'proposals', 'rules', 'history'];
 let marketPane = null;
 
 function bindMarketTabs() {
@@ -520,6 +520,8 @@ function showMarketPane(name) {
         tab?.setAttribute('tabindex', selected ? '0' : '-1');
         document.getElementById(`marketPane-${pane}`)?.toggleAttribute('hidden', !selected);
     });
+    // Looking at Rule proposals clears the vote badge on the Market tab.
+    RuleProposals.updateVoteBadge();
 }
 
 // Opens the Market tab on one pane, from elsewhere on the page.
@@ -544,20 +546,28 @@ function hasTradeOfferAwaitingMe() {
     return tradeProposalsAwaitingMe() > 0;
 }
 
-// The Market opens on New trade, or on Trade proposals while an offer is waiting
-// on you. Otherwise the pane only changes when the player picks one.
+// The pane a vote or offer waiting on you opens: Rule proposals, then Trade proposals.
+function marketPaneWaitingOnMe() {
+    if (RuleProposals.needsMyVote()) return 'rules';
+    if (hasTradeOfferAwaitingMe()) return 'proposals';
+    return null;
+}
+
+// The Market opens on New trade, or on the pane where something waits on you.
+// Otherwise the pane only changes when the player picks one.
 function updateMarketTabs(pendingCount) {
     const count = document.getElementById('marketProposalsCount');
     if (count) {
         count.textContent = String(pendingCount);
         count.hidden = pendingCount === 0;
     }
-    if (!marketPane) showMarketPane(hasTradeOfferAwaitingMe() ? 'proposals' : 'trade');
+    if (!marketPane) showMarketPane(marketPaneWaitingOnMe() || 'trade');
 }
 
 // Called when the Market tab is opened from the tab bar.
 function openMarketOnWaitingOffer() {
-    if (hasTradeOfferAwaitingMe()) showMarketPane('proposals');
+    const pane = marketPaneWaitingOnMe();
+    if (pane) showMarketPane(pane);
 }
 
 // From the Corporations modal: start a trade that puts one of your properties

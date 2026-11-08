@@ -44,6 +44,7 @@ const {
     expirePendingPropertyOffers,
 } = require('./corporationManagement');
 const { endTurn, finishGame, pauseGame, resumeGame } = require('./turns');
+const { proposeRuleChange, voteRuleChange, withdrawRuleChange, settleRuleProposal } = require('./ruleChanges');
 const { normalizeState, validateStateInvariants, syncDerivedPortfolios } = require('./state');
 
 
@@ -86,6 +87,10 @@ const ACTIONS = {
     // With toCorpId the cash goes into a company's treasury instead of to a player.
     manual_payment: { run: c => (c.payload?.toCorpId ? payIntoCorporation : manualPayment)(c.state, c.actor, c.payload, c.events) },
 
+    propose_rule_change: { run: c => proposeRuleChange(c.state, c.actor, c.payload, c.events) },
+    vote_rule_change: { run: c => voteRuleChange(c.state, c.actor, c.payload, c.events) },
+    withdraw_rule_change: { run: c => withdrawRuleChange(c.state, c.actor, c.payload, c.events) },
+
     host_cancel_auction: { host: true, run: c => hostCancelAuction(c.state, c.actor, c.events) },
     host_cancel_trade_offer: { host: true, run: c => hostCancelTradeOffer(c.state, c.actor, c.payload, c.events) },
     host_pause_game: { host: true, run: c => pauseGame(c.state, c.actor, c.payload, c.events) },
@@ -96,9 +101,10 @@ const ACTIONS = {
 // Host actions also work while the game is paused, for a bankrupt host, and
 // for a host who only watches (no seat).
 const HOST_ACTION_TYPES = new Set(Object.keys(ACTIONS).filter(type => ACTIONS[type].host));
-// The only actions allowed while an auction is open.
+// The only actions allowed while an auction is open. A rule vote doesn't touch
+// the auction, so players can answer one meanwhile.
 const AUCTION_OPEN_ACTION_TYPES = new Set([
-    'start_auction', 'place_bid', 'pass_auction',
+    'start_auction', 'place_bid', 'pass_auction', 'vote_rule_change', 'withdraw_rule_change',
     'host_cancel_auction', 'host_pause_game', 'host_resume_game', 'host_end_game',
 ]);
 // Actions that resolve a trade offer; if the offer just expired they stop there.
@@ -154,6 +160,8 @@ function applyAction(inputState, actorUserId, action, options = {}) {
 
     if (!TRADE_OFFER_ACTION_TYPES.has(type)) expirePendingTradeOffersIfNeeded(state, actor, events);
     expirePendingPropertyOffers(state, actor, events);
+    // A bankruptcy can leave every remaining player agreed, or remove the proposer.
+    settleRuleProposal(state, events);
     return finish();
 }
 

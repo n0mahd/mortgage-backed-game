@@ -611,7 +611,7 @@ async function applyStage(name, { reason = 'auto', rand, uncovered } = {}) {
             }, dice);
         }
     }
-    const entry = { name, note: built.note, reason, round: autoplay ? autoplay.status.round : null, at: new Date().toISOString(), restoreAfter: built.restoreAfter || null, restored: false, auctionWait: !!built.auctionWait };
+    const entry = { name, note: built.note, reason, round: autoplay ? autoplay.status.round : null, at: new Date().toISOString(), restoreAfter: built.restoreAfter || null, restored: false, auctionWait: !!built.auctionWait, ruleHold: !!built.ruleHold };
     entry.restore = built.restore || null;
     stagesApplied.push(entry);
     log(`  STAGED ${name} (${reason}): ${built.note}`);

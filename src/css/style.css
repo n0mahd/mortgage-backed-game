@@ -324,10 +324,9 @@ ul { padding-left: 1.1em; }
     --btn-press: var(--mint-wash);
 }
 
-/* Gold and on-dark: only on forest backgrounds (landing hero, invite code, turn banner) */
+/* Gold and on-dark: only on forest backgrounds (landing hero, invite code) */
 .btn-gold,
-.invite-code-display .btn,
-#turn-banner .btn {
+.invite-code-display .btn {
     --btn-bg: var(--gold-bright);
     --btn-ink: var(--forest-deep);
     --btn-press: var(--gold-press);
@@ -680,13 +679,24 @@ input[type="radio"] {
 
 .loan-limit:empty { display: none; }
 
-.loan-rates {
+/* Term and autopay side by side (stacked on the narrowest phones), with what they cost underneath */
+.loan-term-fields {
     display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(9.5rem, 1fr));
     gap: var(--s2);
 }
 
-.loan-rates .form-group { margin-bottom: 0; }
+.loan-term-fields .form-group { margin-bottom: 0; }
+
+.loan-term-quote { margin: var(--s2) 0 var(--s4); }
+
+.loan-autopay {
+    display: flex;
+    flex-direction: column;
+    gap: var(--s1);
+}
+
+.loan-rate-field { max-width: 10rem; }
 
 /* ── 5. Feedback ───────────────────────────────────────────────── */
 
@@ -1021,47 +1031,47 @@ input[type="radio"] {
 .turn-ticket :focus-visible,
 .landing-hero :focus-visible,
 .invite-code-display :focus-visible,
-#turn-banner :focus-visible,
 #hotseat-interstitial :focus-visible { outline-color: var(--mint); }
 
-.nav-tab .tab-dot {
-    position: absolute;
-    top: 9px;
-    left: calc(50% + 8px);
-    width: 9px;
-    height: 9px;
-    border-radius: 50%;
+/* Tab alerts: the tab you need lights up instead of a pill floating over the page.
+   On your turn, away from Game, the Game tab turns gold and reads "Your turn";
+   a rule vote waiting on you puts a 📜 badge on Market. Both pulse as they appear. */
+.nav-tab.is-turn {
+    margin: 6px 4px;
+    height: calc(var(--tabbar-h) - 12px);
+    border-radius: 12px;
     background: var(--gold-bright);
+    color: var(--forest-deep);
+    font-weight: 700;
+    animation: tab-alert-pulse 1.2s var(--ease-out) 2;
+}
+
+.nav-tab.is-turn:active { background: var(--gold-press); color: var(--forest-deep); }
+
+.nav-tab .tab-badge {
+    position: absolute;
+    top: 5px;
+    left: calc(50% + 6px);
+    display: grid;
+    place-items: center;
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    background: var(--on-dark);
     box-shadow: 0 0 0 2px var(--forest);
+    font-size: 12px;
+    line-height: 1;
+    animation: tab-alert-pulse 1.2s var(--ease-out) 2;
 }
 
-/* "It's your turn" pill when you are on another tab (top on phones, bottom on desktop) */
-#turn-banner {
-    display: none;
-    position: fixed;
-    left: 50%;
-    transform: translateX(-50%);
-    /* Under the app bar: at the bottom it would cover Accept/Decline and form buttons */
-    top: calc(var(--topbar-h) + var(--safe-top) + var(--s2));
-    z-index: var(--z-turn-banner);
-    align-items: center;
-    gap: var(--s3);
-    width: max-content;
-    max-width: calc(100vw - 32px);
-    padding: 6px 6px 6px var(--s4);
-    border-radius: var(--r-chip);
-    background: var(--forest-deep);
-    color: var(--on-dark);
-    font-size: var(--text-sub);
-    font-weight: 600;
-    box-shadow: var(--lift-toast);
-    animation: toast-in var(--dur) var(--ease-out);
+@keyframes tab-alert-pulse {
+    0% { box-shadow: 0 0 0 0 rgba(212, 160, 23, 0.7); }
+    100% { box-shadow: 0 0 0 10px rgba(212, 160, 23, 0); }
 }
 
-#turn-banner .btn {
-    min-height: 36px;
-    border-radius: var(--r-chip);
-    padding: 0 var(--s4);
+@media (prefers-reduced-motion: reduce) {
+    .nav-tab.is-turn,
+    .nav-tab .tab-badge { animation: none; }
 }
 
 /* ── 9. Game: turn ticket (the signature element) ──────────────── */
@@ -1978,6 +1988,15 @@ input[type="radio"] {
     .segmented { grid-template-columns: repeat(4, 1fr); }
 }
 
+/* The Market has five panes: two by two on phones with Past transactions across the
+   bottom, one row when there is room. */
+.market-tabs .segmented-option:last-child { grid-column: 1 / -1; }
+
+@media (min-width: 480px) {
+    .market-tabs { grid-template-columns: repeat(5, 1fr); }
+    .market-tabs .segmented-option:last-child { grid-column: auto; }
+}
+
 .trade-offers-list {
     display: flex;
     flex-direction: column;
@@ -2276,6 +2295,175 @@ input[type="radio"] {
     margin-top: var(--s3);
     font-size: var(--text-footnote);
 }
+
+/* Market > Rule proposals: house rules, the open vote, the proposal form */
+.rule-proposals {
+    display: flex;
+    flex-direction: column;
+    gap: var(--s3);
+}
+
+.rule-card {
+    padding: var(--s4);
+    border-radius: var(--r-group);
+    background: var(--note);
+    border: 1px solid var(--rule);
+}
+
+.rule-card.is-open { border-color: var(--emerald); }
+
+.rule-card-head h4 {
+    margin: 0 0 var(--s2);
+    font-size: var(--text-sub);
+}
+
+.house-rules { margin: 0; }
+
+.house-rule {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--s3);
+    padding: var(--s2) 0;
+    border-top: 1px solid var(--rule);
+}
+
+.house-rule:first-child { border-top: 0; }
+.house-rule dt { color: var(--ink-2); font-size: var(--text-footnote); }
+
+.house-rule dd {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: flex-end;
+    gap: var(--s2);
+    margin: 0;
+    font-weight: 700;
+}
+
+.rule-sentence {
+    margin: 0;
+    font-size: var(--text-body);
+    line-height: 1.45;
+}
+
+.rule-sentence strong { color: var(--forest); }
+
+.rule-tally {
+    margin: var(--s3) 0 var(--s2);
+    font-size: var(--text-footnote);
+    font-weight: 700;
+}
+
+.rule-note {
+    margin: var(--s2) 0 0;
+    font-size: var(--text-caption);
+    color: var(--ink-3);
+}
+
+.rule-note.is-warning {
+    padding: var(--s2) var(--s3);
+    border-radius: var(--r-control);
+    background: var(--gold-wash);
+    color: var(--gold-ink);
+}
+
+.rule-centered { text-align: center; }
+.rule-propose-btn { width: 100%; }
+
+.rule-voters {
+    display: flex;
+    flex-direction: column;
+    gap: var(--s2);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.rule-voter {
+    display: flex;
+    align-items: center;
+    gap: var(--s2);
+    font-size: var(--text-footnote);
+}
+
+.rule-voter .avatar { width: 28px; height: 28px; font-size: 11px; }
+.rule-voter-name { flex: 1 1 auto; min-width: 0; }
+.rule-voter.is-out { color: var(--ink-3); }
+.rule-voter.is-out .rule-voter-name { text-decoration: line-through; }
+.rule-voter.is-out .avatar { filter: grayscale(1); opacity: 0.5; }
+
+/* A player's answer: yes, no, not yet (an empty dashed ring), or no vote (bankrupt) */
+.vote-mark {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 26px;
+    height: 26px;
+    flex-shrink: 0;
+    border-radius: 50%;
+    font-size: var(--text-footnote);
+    font-weight: 800;
+}
+
+.vote-mark.is-yes { background: var(--emerald); color: var(--on-dark); }
+.vote-mark.is-no { background: var(--danger); color: var(--on-dark); }
+.vote-mark.is-wait { border: 2px dashed var(--rule-strong); }
+.vote-mark.is-out { background: var(--rule); color: var(--ink-3); }
+
+.rule-choices {
+    display: flex;
+    flex-direction: column;
+    gap: var(--s2);
+    margin: 0 0 var(--s3);
+    padding: 0;
+    border: 0;
+}
+
+.rule-choice {
+    display: flex;
+    align-items: center;
+    gap: var(--s3);
+    padding: var(--s3);
+    border-radius: var(--r-control);
+    border: 1px solid var(--rule-strong);
+    background: var(--note);
+    cursor: pointer;
+}
+
+.rule-choice:has(input:checked) { border-color: var(--emerald); background: var(--mint-wash); }
+.rule-choice span { display: flex; flex-direction: column; }
+.rule-choice small { color: var(--ink-3); font-size: var(--text-caption); }
+
+.rule-stepper {
+    display: flex;
+    align-items: center;
+    gap: var(--s2);
+}
+
+.rule-stepper input { flex: 1 1 auto; min-width: 0; text-align: center; }
+.rule-stepper .btn { flex: 0 0 48px; min-height: 44px; padding: 0; font-size: var(--text-title3); }
+
+.rule-history {
+    display: flex;
+    flex-direction: column;
+    gap: var(--s2);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    font-size: var(--text-footnote);
+}
+
+.rule-history li {
+    display: flex;
+    flex-direction: column;
+    padding: var(--s3);
+    border-radius: var(--r-control);
+    background: var(--note);
+    border: 1px solid var(--rule);
+}
+
+.rule-history small { color: var(--ink-3); font-size: var(--text-caption); }
 
 .payment-panel {
     padding: var(--s4);
@@ -4227,12 +4415,12 @@ button.policy-option:active:not(:disabled) { background: var(--mint-wash); }
     .nav-tab svg { width: 18px; height: 18px; }
     .nav-tab.active { background: rgba(255, 255, 255, 0.14); }
     .nav-tab.active::before { display: none; }
-    .nav-tab .tab-dot { top: 6px; left: auto; right: 10px; }
+    .nav-tab.is-turn { margin: 0; height: 40px; border-radius: var(--r-chip); }
+    .nav-tab .tab-badge { position: static; width: 20px; height: 20px; margin-left: calc(-1 * var(--s1)); }
 
     .game-page .container,
     .game-page.is-my-turn .container { padding-bottom: var(--s10); }
 
-    #turn-banner { top: auto; bottom: var(--s6); }
 
     /* Turn layout: ticket + actions left, players right */
     #gameContent > .game-layout {
