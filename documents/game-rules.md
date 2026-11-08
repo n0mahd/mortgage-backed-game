@@ -240,7 +240,7 @@ Debt interest is still charged to the treasury in Payout mode, so a corporation 
 
 **Dividends.** On their turn the chairman can pay any amount of treasury cash to the shareholders, split by shares held. The slice for treasury shares stays in the treasury.
 
-**Buying and building.** When the chairman lands on an unowned property, the Buy sheet asks **Who's buying?** and can buy it for the corporation from its treasury. **Build Houses** has a **Build for** choice for groups the corporation owns whole, paid from its treasury. A group split between the chairman and the corporation can't be built on.
+**Buying and building.** When the chairman lands on an unowned property, the Buy sheet asks **Who's buying?** and can buy it for the corporation from its treasury. **Build Houses** has a **Build for** choice for groups the corporation owns whole, paid from its treasury; **Build houses** on the corporation's card opens it for the corporation. Other shareholders see on its Debt tab that only the chairman can borrow for it. A group split between the chairman and the corporation can't be built on.
 
 **Trading as the corporation.** In the Market, picking the corporation in a side's **Player** dropdown trades for the corporation: its treasury cash, its properties and its own treasury shares. It can buy its own shares back into the treasury, and trade with another corporation (that one's chairman accepts). Built groups still can't be traded. A runner can't trade personally with their own corporation: treasury cash reaches players only through a dividend every holder shares.
 
@@ -308,7 +308,7 @@ Before the game starts, the host sets one interest rate per turn in the waiting 
 4. Choose what **Autopay** takes each turn: **Pay down loan** (the default), **Interest only**, or **Off**. Below the two choices the form shows what the loan costs: the payment per turn and the total you'd repay.
 5. Tap **Take loan**: the cash is added to your balance immediately.
 
-A corporation's chairman can borrow for the corporation the same way; its limit is 90% of the book value of the corporation's properties, less what it owes. The limit is checked only when a loan is taken (or refinanced): a portfolio that later loses value doesn't call in existing loans, but it does stop new ones.
+A corporation's chairman can borrow for the corporation the same way (pick it under **Borrow as**, or tap **Borrow for** on the corporation's card, which opens the loan form with it chosen); its limit is 90% of the book value of the corporation's properties, less what it owes. The limit is checked only when a loan is taken (or refinanced): a portfolio that later loses value doesn't call in existing loans, but it does stop new ones.
 
 ### Each turn
 

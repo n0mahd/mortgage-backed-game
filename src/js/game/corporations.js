@@ -245,6 +245,13 @@ function renderCorporationOwners(corp) {
     `;
 }
 
+// the chairman can build from the Properties tab too, above the
+// list so it's in view without scrolling.
+function renderCorporationBuildMove(corp) {
+    if (!ShareDeals.runsCorporation(corp, currentUser.id)) return '';
+    return `<div class="moves-grid corp-moves">${CorporationDesk.buildButton(corp)}</div>`;
+}
+
 function renderCorporationDebts(corp) {
     const gameState = currentGame.game_state;
     const debts = Array.isArray(corp.debts) ? corp.debts : [];
@@ -255,7 +262,13 @@ function renderCorporationDebts(corp) {
             return `<li>${formatMoney(d.principal)}, ${escapeHtml(status.termLabel)}: ${escapeHtml(status.turnsLabel.toLowerCase())}. ${escapeHtml(LoanMath.paymentNote(d, dueThisTurn))}.</li>`;
         }).join('')
         : '<li class="empty-state">No corporation debt</li>';
-    return `<h4>Debt</h4><ul class="corp-debt-list">${rows}</ul>`;
+    // say who can borrow for the corporation, and let them do it here.
+    const who = ShareDeals.isInsolvent(corp)
+        ? ''
+        : ShareDeals.runsCorporation(corp, currentUser.id)
+            ? `<div class="moves-grid corp-moves">${CorporationDesk.borrowButton(corp)}</div>`
+            : `<p class="corp-hint">Only ${escapeHtml(corp.ticker)}'s chairman${corp.chairmanName ? `, ${escapeHtml(corp.chairmanName)},` : ''} can borrow for it.</p>`;
+    return `<h4>Debt</h4><ul class="corp-debt-list">${rows}</ul>${who}`;
 }
 
 // What the viewer can do here, by role: the chairman runs it; anyone with
@@ -323,7 +336,7 @@ function renderCorporationDetail(corp) {
                 </div>
                 <div class="corp-col">
                     <section class="corp-panel" data-corp-panel="owners">${renderCorporationOwners(corp)}</section>
-                    <section class="corp-panel" data-corp-panel="assets"><h4>Properties <span class="corp-heading-note">${(corp.assets || []).length}</span></h4>${renderCorporationAssetGroups(Array.isArray(corp.assets) ? corp.assets : [])}</section>
+                    <section class="corp-panel" data-corp-panel="assets">${renderCorporationBuildMove(corp)}<h4>Properties <span class="corp-heading-note">${(corp.assets || []).length}</span></h4>${renderCorporationAssetGroups(Array.isArray(corp.assets) ? corp.assets : [])}</section>
                     <section class="corp-panel" data-corp-panel="debt">${renderCorporationDebts(corp)}</section>
                 </div>
             </div>
