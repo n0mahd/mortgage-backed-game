@@ -179,7 +179,6 @@
         if (global.ShareDeals.isInsolvent(corp) || !global.ShareDeals.runsCorporation(corp, me())) return '';
         const myTurn = isMyTurn();
         const cash = Number(corp.cash || 0);
-        const ownsGroup = global.getCompleteGroupProperties(corp.id, state()).length > 0;
         return `
             <div class="corp-runner-tools">
                 <h4>Chairman moves <span class="corp-heading-note">${money(cash)} to spend</span></h4>
@@ -189,7 +188,7 @@
                     <button class="btn btn-primary btn-sm" data-game-action="pay-dividend" data-corp-id="${esc(corp.id)}"${myTurn && cash >= 1 ? '' : ' disabled'}>Pay dividend</button>
                 </div>
                 <div class="moves-grid corp-moves">
-                    <button class="btn btn-secondary btn-sm" data-game-action="build-for-corporation" data-corp-id="${esc(corp.id)}"${myTurn && ownsGroup ? '' : ' disabled'}>Build houses<small>${ownsGroup ? `On ${esc(corp.ticker)}'s full sets` : 'Needs a whole colour group'}</small></button>
+                    ${buildButton(corp)}
                     <button class="btn btn-secondary btn-sm" data-game-action="trade-as-corporation" data-corp-id="${esc(corp.id)}">Trade as ${esc(corp.ticker)}<small>Opens the Market</small></button>
                     ${borrowButton(corp)}
                     ${extraMoves}
@@ -197,6 +196,15 @@
                 <small>${myTurn ? '' : 'Dividends and building happen on your turn. '}To buy a property for ${esc(corp.ticker)}, land on it and choose ${esc(corp.ticker)} when you buy.</small>
             </div>
         `;
+    }
+
+    // PROTOTYPE: Build houses, in Chairman moves and the Properties tab. Opens
+    // the house sheet for the corporation's complete colour groups.
+    function buildButton(corp) {
+        const myTurn = isMyTurn();
+        const ownsGroup = global.getCompleteGroupProperties(corp.id, state()).length > 0;
+        const note = !ownsGroup ? 'Needs a whole colour group' : (myTurn ? `On ${esc(corp.ticker)}'s full sets` : 'On your turn');
+        return `<button class="btn btn-secondary btn-sm" data-game-action="build-for-corporation" data-corp-id="${esc(corp.id)}"${myTurn && ownsGroup ? '' : ' disabled'}>Build houses<small>${note}</small></button>`;
     }
 
     // PROTOTYPE: borrowing for a corporation from its sheet. Loans need the
@@ -627,6 +635,7 @@
         buildForCorporation,
         tradeAsCorporation,
         borrowButton,
+        buildButton,
         borrowForCorporation,
         openPropertyOffer,
         respondPropertyOffer,

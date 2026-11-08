@@ -123,3 +123,27 @@ test('off their turn, the chairman sees the move disabled', async ({ browser, re
     await expect(borrow).toContainText('On your turn');
     await sam.context.close();
 });
+
+test('the chairman builds houses for the corporation from its Properties tab', async ({ browser, request }) => {
+    const { room, users } = await setupGame(request);
+    const sam = await openGame(browser, room, users.Sam);
+    await openCorporation(sam.page, 'corp-mbs', 'assets');
+    const build = sam.page.locator('#corporationModal [data-corp-panel="assets"] [data-game-action="build-for-corporation"]');
+    await expect(build).toBeEnabled();
+    await expect(build).toContainText("On MBS's full sets");
+    await build.click();
+
+    // The house sheet opens building for MBS, on its Dark Blues.
+    await expect(sam.page.locator('#corporationModal')).not.toHaveClass(/active/);
+    await expect(sam.page.locator('#houseModal')).toHaveClass(/active/);
+    await expect(sam.page.locator('#houseBuildFor')).toHaveValue('corp-mbs');
+    await expect(sam.page.locator('#houseModalProperties')).toContainText('Park Place');
+    await expect(sam.page.locator('#houseModalProperties')).toContainText('Boardwalk');
+    await sam.context.close();
+
+    // Alex doesn't run MBS: no build move in its Properties tab.
+    const alex = await openGame(browser, room, users.Alex);
+    await openCorporation(alex.page, 'corp-mbs', 'assets');
+    await expect(alex.page.locator('[data-game-action="build-for-corporation"]')).toHaveCount(0);
+    await alex.context.close();
+});
