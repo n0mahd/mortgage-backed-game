@@ -58,7 +58,7 @@ function requireBorrowingCapacity(state, borrower, amount, exceptDebts) {
 const AUTOPAY_CHOICE_ERROR = "Choose autopay 'pay_down', 'interest_only' or 'off'.";
 const AUTOPAY_LABELS = { pay_down: 'pay down loan', interest_only: 'interest only', off: 'off' };
 
-// The borrower picks the term (1 to 30 turns) and the autopay mode; the rate is
+// The borrower picks the term (5 to 30 turns, in steps of 5) and the autopay mode; the rate is
 // the one the host set when the game started. Without a term (older clients,
 // agents) a loan runs 10 turns; without a mode, autopay pays it down.
 function loanTerms(state, payload) {
@@ -66,7 +66,7 @@ function loanTerms(state, payload) {
         ? loans.DEFAULT_LOAN_TERM
         : Number(payload.termTurns);
     if (!loans.isLoanTerm(termTurns)) {
-        throw new GameRuleError(400, `Choose a loan term of ${loans.MIN_LOAN_TERM} to ${loans.MAX_LOAN_TERM} turns.`);
+        throw new GameRuleError(400, `Choose a loan term of ${loans.MIN_LOAN_TERM} to ${loans.MAX_LOAN_TERM} turns, in steps of ${loans.LOAN_TERM_STEP}.`);
     }
     const autopay = payload.autopay === undefined ? 'pay_down' : loans.parseAutopay(payload.autopay);
     if (!autopay) throw new GameRuleError(400, AUTOPAY_CHOICE_ERROR);

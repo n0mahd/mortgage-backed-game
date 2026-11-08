@@ -13,7 +13,7 @@ function openDebtModal() {
     });
     select.value = isMyTurn && !getManagedLoans().length ? 'issue' : 'loans';
     document.getElementById('loanRatesHint').textContent =
-        `Loans this game cost ${LoanMath.loanRate(currentGame.game_state)}% interest per turn, for 1 to ${LoanMath.MAX_LOAN_TERM} turns. Paying the loan down every turn clears it by the last turn; with interest only, the whole balance is due then.`;
+        `Loans this game cost ${LoanMath.loanRate(currentGame.game_state)}% interest per turn, for ${LoanMath.MIN_LOAN_TERM} to ${LoanMath.MAX_LOAN_TERM} turns. Paying the loan down every turn clears it by the last turn; with interest only, the whole balance is due then.`;
     document.getElementById('debtIssuer').innerHTML = debtIssuerOptionsHtml();
     document.getElementById('loanAmount').value = '';
     ['loan', 'refinance'].forEach(prefix => {
@@ -153,11 +153,12 @@ async function handleLoanAutopayChange(event) {
     renderLoanList();
 }
 
-// The term dropdown: 1 to 30 turns.
+// The term dropdown: 5 to 30 turns, in steps of 5.
 function fillLoanTermOptions(selectId) {
     const select = document.getElementById(selectId);
     if (select.options.length) return;
-    const terms = Array.from({ length: LoanMath.MAX_LOAN_TERM - LoanMath.MIN_LOAN_TERM + 1 }, (_, i) => LoanMath.MIN_LOAN_TERM + i);
+    const terms = [];
+    for (let term = LoanMath.MIN_LOAN_TERM; term <= LoanMath.MAX_LOAN_TERM; term += LoanMath.LOAN_TERM_STEP) terms.push(term);
     select.innerHTML = terms.map(term => `<option value="${term}">${term} turn${term === 1 ? '' : 's'}</option>`).join('');
 }
 
@@ -173,9 +174,7 @@ function renderLoanTerms(prefix) {
         return;
     }
     const q = LoanMath.loanQuote(amount, rate, turns);
-    if (turns === 1) {
-        quote.textContent = `${formatMoney(q.finalPayment)} is due in full at the end of the turn.`;
-    } else if (autopay === 'pay_down') {
+    if (autopay === 'pay_down') {
         quote.textContent = `${formatMoney(q.payment)} a turn for ${turns} turns, ${formatMoney(q.total)} in total. Nothing is owed after the last payment.`;
     } else if (autopay === 'interest_only') {
         quote.textContent = `${formatMoney(q.interest)} interest a turn, then ${formatMoney(q.finalPayment)} on the last turn: ${formatMoney(q.interestOnlyTotal)} in total.`;

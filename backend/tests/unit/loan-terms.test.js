@@ -64,20 +64,19 @@ function refusedWith(fn, message) {
 }
 
 describe('loan terms', () => {
-    test('the borrower picks any term from 1 to 30 turns, all at the host rate', () => {
+    test('the borrower picks a term from 5 to 30 turns in steps of 5, all at the host rate', () => {
         const short = alice(borrow(makeState(), { termTurns: 5 })).debts[0];
-        const long = alice(borrow(makeState(), { termTurns: 23 })).debts[0];
+        const long = alice(borrow(makeState(), { termTurns: 25 })).debts[0];
         expect(short).toMatchObject({ termTurns: 5, turnsRemaining: 5, interestRate: 4, autopay: 'pay_down' });
-        expect(long).toMatchObject({ termTurns: 23, turnsRemaining: 23, interestRate: 4 });
+        expect(long).toMatchObject({ termTurns: 25, turnsRemaining: 25, interestRate: 4 });
         // A longer term means a smaller installment each turn.
         expect(long.nextPayment).toBeLessThan(short.nextPayment);
     });
 
-    test('a term outside 1-30 turns is refused; no term means 10', () => {
-        refusedWith(() => borrow(makeState(), { termTurns: 31 }), /1 to 30 turns/);
-        refusedWith(() => borrow(makeState(), { termTurns: 0 }), /1 to 30 turns/);
-        refusedWith(() => borrow(makeState(), { termTurns: 2.5 }), /1 to 30 turns/);
-        expect(alice(borrow(makeState(), { termTurns: 1 })).debts[0].nextPayment).toBe(312);
+    test('a term that is not 5, 10, ... 30 turns is refused; no term means 10', () => {
+        for (const termTurns of [0, 1, 4, 7, 2.5, 31, 35]) {
+            refusedWith(() => borrow(makeState(), { termTurns }), /5 to 30 turns, in steps of 5/);
+        }
         expect(alice(borrow(makeState(), { termTurns: 30 })).debts[0].termTurns).toBe(30);
         expect(alice(borrow(makeState(), {})).debts[0]).toMatchObject({ termTurns: 10, interestRate: 4 });
     });
@@ -101,19 +100,18 @@ describe('loan terms', () => {
     });
 
     test('interest only keeps the balance level, then the whole balance is due at the end', () => {
-        let state = borrow(makeState(), { termTurns: 3, autopay: 'interest_only' });
+        let state = borrow(makeState(), { termTurns: 5, autopay: 'interest_only' });
         const debt = alice(state).debts[0];
         expect(debt).toMatchObject({ autopay: 'interest_only', nextPayment: 12, interestDue: 12 });
-        expect(debt.installment).toBeGreaterThan(100);
+        expect(debt.installment).toBeGreaterThan(60);
         const cash = alice(state).cash;
-        state = round(state);
-        state = round(state);
+        for (let turn = 0; turn < 4; turn += 1) state = round(state);
         expect(alice(state).debts[0].principal).toBe(300);
-        expect(alice(state).cash).toBe(cash - 24);
+        expect(alice(state).cash).toBe(cash - 48);
         expect(alice(state).debts[0].nextPayment).toBe(312);
         state = round(state);
         expect(alice(state).debts).toHaveLength(0);
-        expect(alice(state).cash).toBe(cash - 24 - 312);
+        expect(alice(state).cash).toBe(cash - 48 - 312);
     });
 
     test('with autopay off nothing is taken and the interest compounds', () => {
@@ -231,9 +229,12 @@ describe('loan terms', () => {
         const state = makeState();
         state.players[0].debts.push({ id: 'old', principal: 100, interestRate: 5 });
         state.players[0].debts.push({ id: 'old-off', principal: 100, interestRate: 5, termTurns: 15, turnsRemaining: 3, autopay: false });
-        const [debt, off] = alice(normalizeState(state)).debts;
+        state.players[0].debts.push({ id: 'odd-term', principal: 100, interestRate: 5, termTurns: 3, turnsRemaining: 2 });
+        const [debt, off, odd] = alice(normalizeState(state)).debts;
         expect(debt).toMatchObject({ termTurns: 10, turnsRemaining: 10, autopay: 'pay_down' });
         expect(off).toMatchObject({ termTurns: 15, turnsRemaining: 3, autopay: 'off', interestRate: 5 });
+        // A loan already taken keeps its term, even one new loans can't choose.
+        expect(odd).toMatchObject({ termTurns: 3, turnsRemaining: 2 });
     });
 });
 

@@ -108,7 +108,7 @@ The chairman also runs the corporation from its card: a **rent policy** (Reinves
 
 ### Take a Loan (Mortgage-Backed Securities)
 
-Tap **Manage Debt → Take a new loan**. Set a **loan amount** (you receive this cash immediately) and choose a **term of 1 to 30 turns**. Nothing is pledged: all your loans together can reach 90% of the book value of what you own (properties at price plus buildings, shares at book value per share), and the form shows how much you can still borrow. The host sets one interest rate per turn for every loan in the waiting room before the game starts (default 5%).
+Tap **Manage Debt → Take a new loan**. Set a **loan amount** (you receive this cash immediately) and choose a **term of 5 to 30 turns, in steps of 5**. Nothing is pledged: all your loans together can reach 90% of the book value of what you own (properties at price plus buildings, shares at book value per share), and the form shows how much you can still borrow. The host sets one interest rate per turn for every loan in the waiting room before the game starts (default 5%).
 
 Every time you end your turn a loan charges a turn of interest. **Autopay** takes a payment from your cash: **Pay down loan** (the default) takes the installment that pays the loan off by the end of its term, so after the last payment you owe nothing; **Interest only** takes just the interest, leaving the balance due at the end; **Off** takes nothing and the unpaid interest is added to the balance, where it compounds. On the last turn the whole balance is due, and if you can't pay it you go bankrupt.
 

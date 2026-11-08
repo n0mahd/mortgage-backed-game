@@ -1,7 +1,7 @@
 // Loan display helpers for the Debt page, player cards and corporation cards.
 //
 // Mirrors backend/domain/gameRulesInternal/loans.js: one host rate per turn,
-// terms of 1 to 30 turns, the autopay modes, and the installment that pays a
+// terms of 5 to 30 turns in steps of 5, the autopay modes, and the installment that pays a
 // loan off on schedule. The server is authoritative and sends each loan's
 // nextPayment (what autopay takes), installment and interestDue; this file only
 // quotes new loans and words the status of existing ones. Classic browser
@@ -9,7 +9,8 @@
 (function (global) {
     'use strict';
 
-    const MIN_LOAN_TERM = 1;
+    const MIN_LOAN_TERM = 5;
+    const LOAN_TERM_STEP = 5;
     const MAX_LOAN_TERM = 30;
     const DEFAULT_LOAN_TERM = 10;
     const DEFAULT_LOAN_RATE = 5;
@@ -98,6 +99,7 @@
 
     global.LoanMath = {
         MIN_LOAN_TERM,
+        LOAN_TERM_STEP,
         MAX_LOAN_TERM,
         DEFAULT_LOAN_TERM,
         AUTOPAY_MODES,

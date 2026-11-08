@@ -4,7 +4,7 @@
 // engine decides who pays, from which cash, and what happens when they can't.
 //
 // The host sets one interest rate per turn for the game. A borrower picks how
-// many of their turns the loan runs (1 to 30) and what autopay takes at each End
+// many of their turns the loan runs (5 to 30, in steps of 5) and what autopay takes at each End
 // Turn:
 // - pay_down: the installment that pays the loan off exactly at maturity. It is
 //   recomputed every turn, so skipped payments make later ones bigger and extra
@@ -14,7 +14,8 @@
 // Each End Turn charges one turn of interest on the balance, takes the autopay
 // payment and counts down. On the last turn the whole balance is due.
 
-const MIN_LOAN_TERM = 1;
+const MIN_LOAN_TERM = 5;
+const LOAN_TERM_STEP = 5;
 const MAX_LOAN_TERM = 30;
 const DEFAULT_LOAN_TERM = 10;
 const DEFAULT_LOAN_RATE = 5;
@@ -26,8 +27,14 @@ function roundCents(value) {
     return Math.round(Number(value) * 100) / 100;
 }
 
+// A term a new loan (or refinancing) may choose.
 function isLoanTerm(value) {
-    return Number.isInteger(value) && value >= MIN_LOAN_TERM && value <= MAX_LOAN_TERM;
+    return Number.isInteger(value) && value >= MIN_LOAN_TERM && value <= MAX_LOAN_TERM && value % LOAN_TERM_STEP === 0;
+}
+
+// Loans already taken keep the term they were taken with, even one no longer offered.
+function isStoredLoanTerm(value) {
+    return Number.isInteger(value) && value >= 1 && value <= MAX_LOAN_TERM;
 }
 
 // Returns the host's rate per turn, or an error message players can read.
@@ -58,7 +65,7 @@ function normalizeDebt(debt) {
     debt.principal = Number(debt.principal || 0);
     debt.interestRate = Number(debt.interestRate || 0);
     const term = Number(debt.termTurns);
-    debt.termTurns = isLoanTerm(term) ? term : DEFAULT_LOAN_TERM;
+    debt.termTurns = isStoredLoanTerm(term) ? term : DEFAULT_LOAN_TERM;
     const remaining = Number(debt.turnsRemaining);
     debt.turnsRemaining = Number.isInteger(remaining) && remaining > 0 ? Math.min(remaining, debt.termTurns) : debt.termTurns;
     debt.autopay = parseAutopay(debt.autopay === undefined ? DEFAULT_AUTOPAY : debt.autopay) || DEFAULT_AUTOPAY;
@@ -109,6 +116,7 @@ function serviceLoan(debt, cashAvailable) {
 
 module.exports = {
     MIN_LOAN_TERM,
+    LOAN_TERM_STEP,
     MAX_LOAN_TERM,
     DEFAULT_LOAN_TERM,
     DEFAULT_LOAN_RATE,

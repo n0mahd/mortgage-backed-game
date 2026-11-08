@@ -450,9 +450,9 @@ class Autoplay {
         await this.closeModals(seat);
     }
 
-    // Picks a loan term (1 to 30 turns) in a term dropdown, at random unless given.
+    // Picks a loan term (5 to 30 turns, in steps of 5) in a term dropdown, at random unless given.
     async pickLoanTerm(seat, selectId, opts = {}) {
-        const term = opts.term || 1 + Math.floor(this.rand() * 30);
+        const term = opts.term || 5 * (1 + Math.floor(this.rand() * 6));
         const select = seat.page.locator(`#${selectId}`);
         if (await select.count()) await select.selectOption(String(term));
         return term;

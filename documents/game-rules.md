@@ -9,7 +9,7 @@
 Mortgage Backed Monopoly is a fully-digital, multiplayer parody of Monopoly layered with Wall Street financial mechanics. On top of buying properties and collecting rent, players can:
 
 - **IPO their properties** — bundle them into corporations, issue shares, and sell equity to other players
-- **Borrow** — take loans against property for 1 to 30 turns at the host's rate, paid down or interest only, with compounding interest on anything unpaid
+- **Borrow** — take loans against property for 5 to 30 turns at the host's rate, paid down or interest only, with compounding interest on anything unpaid
 - **Trade freely** — swap cash, properties and corporation shares through the Market tab
 
 The game runs entirely in the browser; there are no physical components, no banker, and no manual bookkeeping. All state is shared in real time.
@@ -304,7 +304,7 @@ Before the game starts, the host sets one interest rate per turn in the waiting 
    ```
 
    Cash doesn't count. The form shows how much you can still borrow.
-3. Pick a term from the dropdown: **1 to 30 turns** (10 by default). A longer term means smaller payments but more interest overall.
+3. Pick a term from the dropdown: **5 to 30 turns, in steps of 5** (10 by default). A longer term means smaller payments but more interest overall.
 4. Choose what **Autopay** takes each turn: **Pay down loan** (the default), **Interest only**, or **Off**. Below the two choices the form shows what the loan costs: the payment per turn and the total you'd repay.
 5. Tap **Take loan**: the cash is added to your balance immediately.
 
@@ -501,7 +501,7 @@ Property value is recorded at purchase price plus houses/hotels. Corporation sha
 | Luxury Tax | $100 |
 | Jail bail (forced, turn 3) | $50 |
 | End Turn gate | Current player must roll first |
-| Loan terms | 1 to 30 turns, one rate per turn set by the host |
+| Loan terms | 5 to 30 turns in steps of 5, one rate per turn set by the host |
 | Loan payments | End of your turn (autopay: pay down, interest only or off), whole balance at maturity |
 | Bankruptcy trigger | Cash < $0 at turn end |
 | Win condition | Last solvent player OR host ends game |

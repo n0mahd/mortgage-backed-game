@@ -55,6 +55,7 @@ module.exports = {
     GameRuleError,
     JAIL_CARD_ASSET_ID,
     MIN_LOAN_TERM: loans.MIN_LOAN_TERM,
+    LOAN_TERM_STEP: loans.LOAN_TERM_STEP,
     MAX_LOAN_TERM: loans.MAX_LOAN_TERM,
     DEFAULT_LOAN_RATE: loans.DEFAULT_LOAN_RATE,
     MAX_LOAN_RATE: loans.MAX_LOAN_RATE,
