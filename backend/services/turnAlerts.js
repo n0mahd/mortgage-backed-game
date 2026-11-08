@@ -54,7 +54,7 @@ function ruleValueText(rule, value) {
 }
 
 // A rule vote that has just opened: alert every other active player who
-// doesn't have the game on screen (the page shows them a Vote prompt).
+// doesn't have the game on screen (the page shows them a badge on Market).
 function notifyRuleProposal(previousGame, updatedGame) {
     const state = parseState(updatedGame);
     const proposal = state?.ruleProposal;
