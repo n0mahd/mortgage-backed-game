@@ -332,9 +332,9 @@ async function sendInviteEmail() {
     emailInput.value = '';
 }
 
-// The host's interest rate per loan term; the server checks the range.
-function readLoanRates() {
-    return Object.fromEntries([5, 10, 15].map(term => [term, document.getElementById(`loan-rate-${term}`).value]));
+// The host's interest rate per turn for every loan; the server checks the range.
+function readLoanRate() {
+    return document.getElementById('loan-rate').value;
 }
 
 async function startGameFromLobby() {
@@ -354,7 +354,7 @@ async function startGameFromLobby() {
         startBtn.textContent = 'Starting game...';
 
         const activeRoomId = currentRoom.id;
-        await startGame(activeRoomId, { loanRates: readLoanRates() });
+        await startGame(activeRoomId, { loanRate: readLoanRate() });
 
         logActivity('Game started! Redirecting...');
 

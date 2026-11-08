@@ -30,7 +30,7 @@ const { normalizeRentPolicyVote } = require('./corporationManagement');
 const { normalizePauseState } = require('./turns');
 
 function createInitialGame(roomMembers, options = {}) {
-    const { rates: loanRates, error } = loans.validateLoanRates(options.loanRates);
+    const { rate: loanRate, error } = loans.validateLoanRate(options.loanRate, options.loanRates);
     if (error) throw new GameRuleError(400, error);
     const players = roomMembers.map(member => ({
         userId: member.user_id,
@@ -59,7 +59,7 @@ function createInitialGame(roomMembers, options = {}) {
         })),
         corporations: [],
         gameLog: [],
-        settings: { loanRates, passGoAmount: 200, startingCash: 1500 },
+        settings: { loanRate, passGoAmount: 200, startingCash: 1500 },
         chanceCards: shuffleDeck(CHANCE_CARDS),
         communityChestCards: shuffleDeck(COMMUNITY_CHEST_CARDS),
         lastDiceRoll: null,
@@ -110,7 +110,8 @@ function normalizeState(raw) {
         tradeOfferTimeoutMs: 600000,
         ...(state.settings || {}),
     };
-    state.settings.loanRates = loans.normalizeLoanRates(state.settings.loanRates);
+    state.settings.loanRate = loans.normalizeLoanRate(state.settings.loanRate, state.settings.loanRates);
+    delete state.settings.loanRates;
     delete state.settings.interestRate;
     state.paused = !!state.paused;
     state.pause = state.paused ? normalizePauseState(state.pause) : null;
@@ -197,7 +198,11 @@ function validateStateInvariants(state) {
 
 function syncDerivedPortfolios(state) {
     [...state.players, ...state.corporations].forEach(account => (account.debts || []).forEach(debt => {
-        debt.nextPayment = loans.scheduledPayment(debt);
+        // nextPayment: what the next End Turn takes; the other two are the
+        // amounts of each autopay mode, so screens can show the choice.
+        debt.nextPayment = loans.autopayPayment(debt);
+        debt.installment = loans.scheduledPayment(debt);
+        debt.interestDue = loans.interestDue(debt);
     }));
     state.players.forEach(player => {
         player.properties = state.properties

@@ -9,7 +9,7 @@
 Mortgage Backed Monopoly is a fully-digital, multiplayer parody of Monopoly layered with Wall Street financial mechanics. On top of buying properties and collecting rent, players can:
 
 - **IPO their properties** — bundle them into corporations, issue shares, and sell equity to other players
-- **Borrow** — take loans against property on 5, 10 or 15-turn terms at the host's rates, with compounding interest on anything unpaid
+- **Borrow** — take loans against property for 1 to 30 turns at the host's rate, paid down or interest only, with compounding interest on anything unpaid
 - **Trade freely** — swap cash, properties and corporation shares through the Market tab
 
 The game runs entirely in the browser; there are no physical components, no banker, and no manual bookkeeping. All state is shared in real time.
@@ -289,9 +289,9 @@ The Corporations modal shows an **Insolvent** badge and explains that assets, de
 
 Players can borrow against their properties — simulating leveraged buyouts, margin loans, or mortgage-backed instruments. Every loan has a term, and the whole balance is due when it ends, so a loan can't be carried forever.
 
-### Loan rates
+### Loan rate
 
-Before the game starts, the host sets an interest rate per turn for each loan term in the waiting room (defaults: **5 turns at 4%**, **10 turns at 5%**, **15 turns at 6%**; each between 0% and 25%). The rates are fixed for the rest of the game and shown at the top of the Debt page.
+Before the game starts, the host sets one interest rate per turn in the waiting room (default **5%**, between 0% and 25%). Every loan pays that rate, whatever its term. A longer term doesn't change the rate; it spreads the payments over more turns, so interest compounds for longer and the loan costs more overall. The rate is fixed for the rest of the game and shown at the top of the Debt page.
 
 ### Taking a loan
 
@@ -304,8 +304,8 @@ Before the game starts, the host sets an interest rate per turn for each loan te
    ```
 
    Cash doesn't count. The form shows how much you can still borrow.
-3. Pick a term: **5, 10 or 15 turns**. Each choice shows the payment per turn and the total you'd repay. A longer term means smaller payments but more interest overall.
-4. Leave **Autopay** on, or turn it off to pay when you like.
+3. Pick a term from the dropdown: **1 to 30 turns** (10 by default). A longer term means smaller payments but more interest overall.
+4. Choose what **Autopay** takes each turn: **Pay down loan** (the default), **Interest only**, or **Off**. Below the two choices the form shows what the loan costs: the payment per turn and the total you'd repay.
 5. Tap **Take loan**: the cash is added to your balance immediately.
 
 A corporation's chairman can borrow for the corporation the same way; its limit is 90% of the book value of the corporation's properties, less what it owes. The limit is checked only when a loan is taken (or refinanced): a portfolio that later loses value doesn't call in existing loans, but it does stop new ones.
@@ -315,8 +315,12 @@ A corporation's chairman can borrow for the corporation the same way; its limit 
 Every time you end your turn, each of your loans:
 
 1. Charges one turn of interest on its balance: `interest = balance × rate / 100`.
-2. With **autopay on**, takes the scheduled payment from your cash. The payment is the amount that pays the loan off exactly when its term ends, so it is recalculated each turn: skip a payment and later ones get bigger, pay extra and they get smaller. Autopay never takes more than the cash you have; whatever it can't take stays on the loan.
-3. With **autopay off**, takes nothing. The interest is added to the balance and earns interest itself from then on.
+2. Takes the autopay payment from your cash:
+   - **Pay down loan** takes the installment that pays the loan off exactly when its term ends. Make every payment and the balance is zero after the last one. It is recalculated each turn: skip a payment and later ones get bigger, pay extra and they get smaller.
+   - **Interest only** takes just that turn's interest, so the balance stays the same and the whole of it is due on the last turn.
+   - **Off** takes nothing. The interest is added to the balance and earns interest itself from then on.
+
+   Autopay never takes more than the cash you have; whatever it can't take stays on the loan.
 4. Counts down one turn.
 
 ### Maturity
@@ -329,7 +333,7 @@ On a loan's last turn the whole balance is due when you end your turn, with or w
 
 Below it is each loan you can manage (your own and those of corporations you run) with its balance, term, turns left and next payment. For each loan you can:
 
-- switch **Autopay** on or off (any time, even when it isn't your turn: off your turn, open it from **Your Loans** in Moves);
+- change **Autopay each turn** between Pay down loan, Interest only and Off; each choice shows what it takes (any time, even when it isn't your turn: off your turn, open it from **Your Loans** in Moves);
 - **Pay an amount** of your choice;
 - **Pay off** the whole balance;
 - **Refinance** it, which opens the refinance form with that loan selected.
@@ -343,17 +347,17 @@ Payments are made on your turn. Paying more than is owed only takes what is owed
 1. Go to **Manage Debt** → **Refinance loans**.
 2. If you run a corporation with loans, choose whose loans: yours or the corporation's.
 3. Select one or more of those loans. The new amount starts at their combined balance.
-4. Enter the new loan amount, pick a term and set Autopay (on by default):
+4. Enter the new loan amount, pick a term and choose Autopay (Pay down loan by default):
    - **More than the balance** takes out the difference as cash. It follows the same 90% limit, with the loans being replaced not counted as owed.
    - **Less than the balance** pays the difference down from the borrower's cash (yours, or the corporation's treasury), which must cover it.
    - **The same amount** just moves the balance onto the new term.
-5. The selected loans are replaced by one new loan on the new term at its rate.
+5. The selected loans are replaced by one new loan on the new term at the game's rate.
 
 ### Corporation loans
 
 A corporation's loans work the same way, paid from its treasury cash. They count down at the end of its chairman's turn (or, with the chair vacant, its majority holder's), once per round. A corporation that can't repay a loan when it comes due becomes insolvent.
 
-Loans taken before terms existed were given a 10-turn term with autopay on.
+Loans taken before terms existed were given a 10-turn term, paid down. Loans taken when autopay was a plain on/off switch kept their setting (on became Pay down loan) and their rate.
 
 ---
 
@@ -497,8 +501,8 @@ Property value is recorded at purchase price plus houses/hotels. Corporation sha
 | Luxury Tax | $100 |
 | Jail bail (forced, turn 3) | $50 |
 | End Turn gate | Current player must roll first |
-| Loan terms | 5, 10 or 15 turns; rates set by the host |
-| Loan payments | End of your turn (autopay), whole balance at maturity |
+| Loan terms | 1 to 30 turns, one rate per turn set by the host |
+| Loan payments | End of your turn (autopay: pay down, interest only or off), whole balance at maturity |
 | Bankruptcy trigger | Cash < $0 at turn end |
 | Win condition | Last solvent player OR host ends game |
 | Shares per new corporation | 12,000 (120 shares = 1%) |

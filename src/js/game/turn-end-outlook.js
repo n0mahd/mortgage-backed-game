@@ -2,7 +2,8 @@
 //
 // Display only. It mirrors the order in endTurn (backend/domain/gameRulesInternal/turns.js):
 // any unpaid claim is paid from cash first, then personal loans are serviced (serviceLoan in
-// loans.js: autopay takes each loan's nextPayment as far as cash allows, and a loan on its
+// loans.js: autopay takes each loan's nextPayment (the pay-down installment, the interest
+// only, or nothing when off) as far as cash allows, and a loan on its
 // last turn takes its whole balance), then the player goes bankrupt if cash is below zero or
 // the claim is still unpaid. Then each corporation whose loans this player services
 // (loanServicerId in debt.js: the chairman, or the majority holder when the chair is
@@ -37,7 +38,7 @@
                 payment = due;
                 maturing += due;
             } else {
-                if (debt.autopay !== false) {
+                if (debt.autopay !== 'off') {
                     payment = Math.min(due, Math.max(0, remaining));
                     if (payment < due) shortAutopay = true;
                 }

@@ -680,13 +680,24 @@ input[type="radio"] {
 
 .loan-limit:empty { display: none; }
 
-.loan-rates {
+/* Term and autopay side by side (stacked on the narrowest phones), with what they cost underneath */
+.loan-term-fields {
     display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(9.5rem, 1fr));
     gap: var(--s2);
 }
 
-.loan-rates .form-group { margin-bottom: 0; }
+.loan-term-fields .form-group { margin-bottom: 0; }
+
+.loan-term-quote { margin: var(--s2) 0 var(--s4); }
+
+.loan-autopay {
+    display: flex;
+    flex-direction: column;
+    gap: var(--s1);
+}
+
+.loan-rate-field { max-width: 10rem; }
 
 /* ── 5. Feedback ───────────────────────────────────────────────── */
 

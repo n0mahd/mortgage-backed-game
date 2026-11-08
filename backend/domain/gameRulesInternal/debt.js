@@ -55,25 +55,31 @@ function requireBorrowingCapacity(state, borrower, amount, exceptDebts) {
     }
 }
 
-// The borrower picks the term; the rate for that term was set by the host when
-// the game started. Without a term (older clients, agents) a loan runs 10 turns.
+const AUTOPAY_CHOICE_ERROR = "Choose autopay 'pay_down', 'interest_only' or 'off'.";
+const AUTOPAY_LABELS = { pay_down: 'pay down loan', interest_only: 'interest only', off: 'off' };
+
+// The borrower picks the term (1 to 30 turns) and the autopay mode; the rate is
+// the one the host set when the game started. Without a term (older clients,
+// agents) a loan runs 10 turns; without a mode, autopay pays it down.
 function loanTerms(state, payload) {
     const termTurns = payload.termTurns === undefined || payload.termTurns === null || payload.termTurns === ''
-        ? loans.LEGACY_LOAN_TERM
+        ? loans.DEFAULT_LOAN_TERM
         : Number(payload.termTurns);
-    if (!loans.LOAN_TERMS.includes(termTurns)) {
-        throw new GameRuleError(400, `Choose a loan term of ${loans.LOAN_TERMS.join(', ').replace(/, (\d+)$/, ' or $1')} turns.`);
+    if (!loans.isLoanTerm(termTurns)) {
+        throw new GameRuleError(400, `Choose a loan term of ${loans.MIN_LOAN_TERM} to ${loans.MAX_LOAN_TERM} turns.`);
     }
+    const autopay = payload.autopay === undefined ? 'pay_down' : loans.parseAutopay(payload.autopay);
+    if (!autopay) throw new GameRuleError(400, AUTOPAY_CHOICE_ERROR);
     return {
         termTurns,
         turnsRemaining: termTurns,
-        interestRate: Number(state.settings.loanRates[termTurns]),
-        autopay: payload.autopay !== false,
+        interestRate: Number(state.settings.loanRate),
+        autopay,
     };
 }
 
 function describeLoan(amount, terms) {
-    return `$${amount.toFixed(2)} over ${terms.termTurns} turns at ${terms.interestRate}%${terms.autopay ? '' : ', autopay off'}`;
+    return `$${amount.toFixed(2)} over ${terms.termTurns} turn${terms.termTurns === 1 ? '' : 's'} at ${terms.interestRate}%${terms.autopay === 'pay_down' ? '' : `, autopay ${AUTOPAY_LABELS[terms.autopay]}`}`;
 }
 
 function issueDebt(state, player, payload, events) {
@@ -238,11 +244,12 @@ function payDebt(state, player, payload, events) {
 
 function setDebtAutopay(state, player, payload, events) {
     const { debt, name, eventName } = findBorrowerLoan(state, player, payload);
-    if (typeof payload.autopay !== 'boolean') throw new GameRuleError(400, 'Choose autopay on or off');
-    if (debt.autopay === payload.autopay) return;
-    debt.autopay = payload.autopay;
-    events.push(makeEvent(player, 'debt_autopay', { borrower: eventName, autopay: debt.autopay }));
-    log(state, `${name} turned autopay ${debt.autopay ? 'on' : 'off'} for a loan.`);
+    const autopay = loans.parseAutopay(payload.autopay);
+    if (!autopay) throw new GameRuleError(400, AUTOPAY_CHOICE_ERROR);
+    if (debt.autopay === autopay) return;
+    debt.autopay = autopay;
+    events.push(makeEvent(player, 'debt_autopay', { borrower: eventName, autopay }));
+    log(state, `${name} set autopay to ${AUTOPAY_LABELS[autopay]} for a loan.`);
 }
 
 // A corporation's loans count down on its chairman's turns (or, with the chair

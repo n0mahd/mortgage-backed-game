@@ -58,7 +58,7 @@ function formatLogEvent(type, data) {
         case 'chairman_vote_supported':
             return `${data.supporter} supported ${data.candidate} for ${data.ticker} chairman`;
         case 'debt_issued':
-            return `${data.actor ? `${data.actor} borrowed for ${data.issuer}` : `${data.issuer} borrowed`} $${Number(data.amount).toFixed(2)}${data.termTurns ? ` over ${data.termTurns} turns` : ''} at ${data.interestRate}% per turn`;
+            return `${data.actor ? `${data.actor} borrowed for ${data.issuer}` : `${data.issuer} borrowed`} $${Number(data.amount).toFixed(2)}${data.termTurns ? ` over ${data.termTurns} turn${Number(data.termTurns) === 1 ? '' : 's'}` : ''} at ${data.interestRate}% per turn`;
         case 'debt_payment':
             return data.paidOff
                 ? `${data.payer} paid off a loan ($${Number(data.amount).toFixed(2)})`
@@ -66,7 +66,8 @@ function formatLogEvent(type, data) {
         case 'debt_refinanced':
             return `${data.borrower} refinanced ${data.refinancedDebtCount} debt(s) into $${Number(data.amount).toFixed(2)}${data.termTurns ? ` over ${data.termTurns} turns` : ''} at ${data.interestRate}% per turn and ${Number(data.netProceeds || 0) < 0 ? `paid $${(-Number(data.netProceeds)).toFixed(2)} down from cash` : `received $${Number(data.netProceeds || 0).toFixed(2)} net cash`}`;
         case 'debt_autopay':
-            return `${data.borrower} turned autopay ${data.autopay ? 'on' : 'off'} for a loan`;
+            if (typeof data.autopay === 'boolean') return `${data.borrower} turned autopay ${data.autopay ? 'on' : 'off'} for a loan`;
+            return `${data.borrower} set autopay to ${LoanMath.autopayLabel(data.autopay).toLowerCase()} for a loan`;
         case 'loan_matured':
             return data.repaid
                 ? `${data.borrower} repaid a loan in full at maturity ($${Number(data.amount).toFixed(2)})`

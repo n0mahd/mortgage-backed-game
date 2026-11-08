@@ -112,7 +112,7 @@ function summarizeGame({ room, members, game, userId }) {
         state_version: game.state_version,
         room: roomSummary,
         current_turn: current ? { player: clip(current.name), player_id: current.userId, is_you: current.userId === userId } : null,
-        loan_rates_percent: state.settings?.loanRates || null,
+        loan_rate_percent: state.settings?.loanRate ?? null,
         you: me ? {
             player_id: me.userId,
             name: clip(me.name),
@@ -133,7 +133,9 @@ function summarizeGame({ room, members, game, userId }) {
                 term_turns: debt.termTurns,
                 turns_remaining: debt.turnsRemaining,
                 next_payment: round(debt.nextPayment),
-                autopay: debt.autopay !== false,
+                pay_down_payment: round(debt.installment),
+                interest_only_payment: round(debt.interestDue),
+                autopay: debt.autopay,
             })),
             borrowing: me.borrowing ? { book_value: round(me.borrowing.bookValue), owed: round(me.borrowing.owed), available: round(me.borrowing.available) } : null,
             shares: state.corporations
