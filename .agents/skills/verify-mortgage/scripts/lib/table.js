@@ -234,12 +234,23 @@ async function buildTable(ctx, { players, emailSeats }) {
     await ctx.shot(host, 'waiting-room-full');
     if (others.length) await ctx.shot(others[0], 'waiting-room-guest');
 
+    // House rules: the host sets Pass GO and the loan rate (varied by table size, so games differ).
+    const houseRules = [{ passGo: 250, rate: 4.5 }, { passGo: 150, rate: 6 }, { passGo: 300, rate: 5 }][Math.floor(players / 3) % 3];
+    await host.page.locator('#pass-go-amount').fill(String(houseRules.passGo));
+    await host.page.locator('#loan-rate').fill(String(houseRules.rate));
+
     await host.page.locator('#start-game-btn').click();
     await Promise.all(seats.map(seat => seat.page.waitForURL(/game\.html\?room=/, { timeout: 20000 })));
     await Promise.all(seats.map(seat => seat.page.locator('#gameContent').filter({ hasText: 'Current Turn:' }).waitFor({ timeout: 20000 })));
     for (const seat of seats) seat.userId = await seatUserId(seat);
     const roomId = new URL(host.page.url()).searchParams.get('room');
-    const game = ctx.sql(`SELECT id FROM games WHERE room_id = ?`, [roomId])[0];
+    const game = ctx.sql(`SELECT id, game_state FROM games WHERE room_id = ?`, [roomId])[0];
+    const settings = game ? JSON.parse(game.game_state).settings || {} : {};
+    if (Number(settings.passGoAmount) === houseRules.passGo && Number(settings.loanRate) === houseRules.rate) {
+        ctx.markUi('rules.host-set');
+    } else {
+        ctx.finding({ severity: 'high', category: 'game-rule', title: "The host's house rules did not reach the game", detail: `set Pass GO $${houseRules.passGo} and ${houseRules.rate}%, game has $${settings.passGoAmount} and ${settings.loanRate}%` });
+    }
     return { seats, inviteCode, roomId, gameId: game && game.id };
 }
 

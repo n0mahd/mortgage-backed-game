@@ -6,7 +6,7 @@ const { test, expect } = require('@playwright/test');
 const { BASE, BASE_API, apiJson, playerState } = require('./helpers');
 const { MONOPOLY_PROPERTIES } = require('../../backend/domain/gameRules');
 
-async function seedGame(request, { aliceDebts = [] } = {}) {
+async function seedGame(request, { aliceDebts = [], passGoAmount = 200 } = {}) {
     const users = [];
     for (const name of ['Alice', 'Bob', 'Carol']) {
         const auth = await apiJson(request, 'post', `${BASE_API}/auth/anonymous`);
@@ -38,7 +38,7 @@ async function seedGame(request, { aliceDebts = [] } = {}) {
                 corporations: [],
                 lastDiceRoll: null,
                 lastCardDrawn: null,
-                settings: { passGoAmount: 200, startingCash: 1500, loanRate: 5 },
+                settings: { passGoAmount, startingCash: 1500, loanRate: 5 },
             },
         },
     });
@@ -141,5 +141,19 @@ test('a loan-rate proposal says loans already taken keep their rate, and one No 
     await expect(pane.locator('[data-game-action="rule-start"]')).toBeVisible({ timeout: 10000 });
     await pane.locator('[data-game-action="rule-start"]').click();
     await expect(pane).toContainText('You can propose again from your next turn');
+    await expect(pane.locator('[data-game-action="rule-review"]')).toBeDisabled();
+});
+
+test('at the top of the range the form starts one step down, so Review works', async ({ page, request }) => {
+    const { room, alice } = await seedGame(request, { passGoAmount: 1000 });
+    await openGame(page, room, alice);
+    await openRuleProposals(page);
+    const pane = page.locator('#ruleProposalsPane');
+    await pane.locator('[data-game-action="rule-start"]').click();
+    await expect(page.locator('#ruleValueInput')).toHaveValue('950');
+    await expect(pane.locator('[data-game-action="rule-review"]')).toBeEnabled();
+    // + stops at $1,000, today's value: nothing to propose.
+    await pane.locator('[data-game-action="rule-adjust"][data-delta="1"]').click();
+    await expect(page.locator('#ruleValueInput')).toHaveValue('1000');
     await expect(pane.locator('[data-game-action="rule-review"]')).toBeDisabled();
 });

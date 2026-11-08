@@ -86,6 +86,23 @@ function corporation(s, chair, { holders = [], cash = 600, policy = 'reinvest', 
     return corp;
 }
 
+// An open Pass GO proposal by `proposer`, already agreed by `supporterIds`; replaces any open one
+// and clears the vote locks so the stage always applies.
+function stagedProposal(s, proposer, supporterIds) {
+    const current = Number(s.settings.passGoAmount ?? 200);
+    s.ruleLocks = [];
+    return {
+        id: `rule-staged-${Date.now()}`,
+        rule: 'passGoAmount',
+        value: current >= 1000 ? current - 50 : current + 50,
+        previousValue: current,
+        proposedById: proposer.userId,
+        proposedByName: proposer.name,
+        supporterIds,
+        createdAt: new Date().toISOString(),
+    };
+}
+
 // A street nobody owns and no stage is about to hand out, or null.
 function unownedStreet(s, avoid = []) {
     const square = [1, 3, 6, 8, 9, 11, 13, 14, 16, 18, 19, 21, 23, 24, 26, 27, 29, 31, 32, 34, 37, 39]
@@ -152,6 +169,24 @@ const STAGES = {
     'broke-to-bank': (s, { current }) => {
         current.cash = 30;
         return { state: s, dice: landOn(s, current, 4), note: `${current.name} has $30 and will land on Income Tax` };
+    },
+    // ----- rule votes and bankruptcy (need 3+ players left, so the game goes on) -----
+    // Another player's Pass GO vote that everyone but the current player has agreed to; the
+    // current player goes bankrupt to the bank, which should pass it. Bots leave it unanswered.
+    'rule-vote-bankrupt-voter': (s, { current, other }) => {
+        const active = s.players.filter(p => !p.bankrupt);
+        if (!other || active.length < 3) return null;
+        s.ruleProposal = stagedProposal(s, other, active.filter(p => p.userId !== current.userId).map(p => p.userId));
+        current.cash = 30;
+        return { state: s, dice: landOn(s, current, 4), ruleHold: true, note: `${other.name} proposed Pass GO $${s.ruleProposal.value}, agreed by all but ${current.name}, who has $30 and will land on Income Tax` };
+    },
+    // The current player's own open vote; they go bankrupt to the bank, which should drop it.
+    'rule-vote-bankrupt-proposer': (s, { current }) => {
+        const active = s.players.filter(p => !p.bankrupt);
+        if (active.length < 3) return null;
+        s.ruleProposal = stagedProposal(s, current, [current.userId]);
+        current.cash = 30;
+        return { state: s, dice: landOn(s, current, 4), ruleHold: true, note: `${current.name} proposed Pass GO $${s.ruleProposal.value} and has $30; will land on Income Tax` };
     },
     'insolvent-corporation': (s, { current }) => {
         const corp = (s.corporations || []).find(c => c.chairmanId === current.userId && !c.insolvent);

@@ -293,19 +293,23 @@
         render();
     }
 
+    // A fresh form starts one step up from today's value, or one step down at the top of the range.
+    function firstValue(rule) {
+        const current = ruleValue(state(), rule);
+        const up = Math.round((current + RULES[rule].step) * 100) / 100;
+        return up <= RULES[rule].max ? up : Math.round((current - RULES[rule].step) * 100) / 100;
+    }
+
     function start() {
-        const gameState = state();
         const rule = RULE_KEYS[0];
-        draft = { rule, value: ruleValue(gameState, rule) + RULES[rule].step, step: 'form' };
+        draft = { rule, value: firstValue(rule), step: 'form' };
         render();
         document.getElementById('ruleValueInput')?.focus();
     }
 
     function pick(rule) {
         if (!draft || !RULES[rule]) return;
-        const current = ruleValue(state(), rule);
-        const up = Math.round((current + RULES[rule].step) * 100) / 100;
-        draft = { rule, value: up <= RULES[rule].max ? up : current - RULES[rule].step, step: 'form' };
+        draft = { rule, value: firstValue(rule), step: 'form' };
         render();
     }
 

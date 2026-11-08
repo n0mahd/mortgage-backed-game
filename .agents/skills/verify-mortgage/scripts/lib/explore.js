@@ -12,6 +12,13 @@
 
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
 
+// Pathways a new rule proposal can lead to.
+const RULE_PROPOSE_PATHS = [
+    'rules.propose-pass-go', 'rules.propose-loan-rate', 'rules.agree', 'rules.passed-pass-go', 'rules.passed-loan-rate',
+    'rules.rejected', 'rules.withdrawn', 'rules.expired', 'rules.pass-go-new-amount', 'rules.loan-at-voted-rate',
+    'rules.old-loan-keeps-rate', 'rules.vote-pill', 'rules.vote-off-turn', 'rules.vote-during-auction', 'rules.review-marks',
+];
+
 class Explore {
     constructor(bot, { stageRate = 0.35, maxStageTries = 2 } = {}) {
         this.bot = bot;
@@ -56,8 +63,8 @@ class Explore {
         const candidates = this.cov
             .filter(c => !c.hits && c.stage && (this.stageTries[c.stage] || 0) < this.maxStageTries)
             // Bankruptcy stages end games: keep them for the last third, and never with 2 players left unless it is the point.
-            .filter(c => !/near-bankrupt|broke-to-bank|bankrupt-chairman|last-two/.test(c.stage) || bot.status.round >= Math.floor(bot.rounds * 2 / 3))
-            .filter(c => !(/near-bankrupt|broke-to-bank/.test(c.stage) && active <= 2 && !this.wants('end.last-player')));
+            .filter(c => !/near-bankrupt|broke-to-bank|bankrupt-chairman|last-two|rule-vote-bankrupt/.test(c.stage) || bot.status.round >= Math.floor(bot.rounds * 2 / 3))
+            .filter(c => !(/near-bankrupt|broke-to-bank|rule-vote-bankrupt/.test(c.stage) && active <= 2 && !this.wants('end.last-player')));
         if (!candidates.length) return null;
         const pick = bot.pick(candidates);
         this.stageTries[pick.stage] = (this.stageTries[pick.stage] || 0) + 1;
@@ -91,6 +98,9 @@ class Explore {
         this.refresh();
         const kind = prop.color === 'Railroad' ? 'buy.railroad' : prop.color === 'Utility' ? 'buy.utility' : 'buy.street';
         if (this.wants(kind)) return false;
+        // A rule vote is waiting for an auction to be answered in.
+        const vote = this.bot.server().state.ruleProposal;
+        if (vote && this.rulePlans?.get(vote.id) === 'auction') return true;
         return this.wantsAny('auction.start', 'auction.no-sale', 'auction.host-cancel', 'auction.won', 'auction.timeout') && this.bot.chance(0.6);
     }
 
@@ -105,6 +115,8 @@ class Explore {
 
     rescue() {
         // Survive a bankruptcy claim unless an unreached bankruptcy pathway is the point.
+        // The rule-vote bankruptcy stages exist to go bankrupt.
+        if (this.active && /rule-vote-bankrupt/.test(this.active.name)) return false;
         if (this.active && /near-bankrupt|broke-to-bank|bankrupt-chairman/.test(this.active.name)) {
             return this.wants('bankrupt.claim-settled') || this.wants('bankrupt.claim-payment');
         }
@@ -129,7 +141,15 @@ class Explore {
         if (!done.has('jail-card-trade') && me.hasGetOutOfJailCard && this.wants('trade.jail-card')) out.push(['jail-card-trade', 0.8]);
         if (!done.has('pay') && this.wants('payment.manual')) out.push(['pay', 0.5]);
         if (!done.has('ipo') && (me.properties || []).length && this.wantsAny('corp.ipo', 'debt.issue-corporate', 'corp.insolvent')) out.push(['ipo', 0.5]);
-        if (!done.has('debt') && this.wantsAny('debt.issue', 'debt.interest', 'debt.pay', 'debt.refinance', 'debt.term-short', 'debt.term-long')) out.push(['debt', 0.6]);
+        if (!done.has('debt') && this.wantsAny('debt.issue', 'debt.interest', 'debt.pay', 'debt.refinance', 'debt.term-short', 'debt.term-long', 'debt.term-max')) out.push(['debt', 0.6]);
+        // A loan-rate vote has passed: borrow at the new rate (beside an older loan, ideally).
+        if (!done.has('debt') && (state.ruleChanges || []).some(c => c.rule === 'loanRate') && this.wantsAny('rules.loan-at-voted-rate', 'rules.old-loan-keeps-rate')) out.push(['debt', 0.9]);
+        // House rules: propose, withdraw our own, probe the form's refusals.
+        const vote = state.ruleProposal;
+        if (!done.has('rule-propose') && !vote && this.wantsAny(...RULE_PROPOSE_PATHS)) out.push(['rule-propose', 0.6]);
+        if (!done.has('rule-withdraw') && vote && vote.proposedById === me.userId && this.wants('rules.withdrawn')) out.push(['rule-withdraw', 0.9]);
+        if (!done.has('rule-probe') && this.wantsAny('refuse.rule-out-of-range', 'refuse.rule-one-at-a-time') && (vote ? this.wants('refuse.rule-one-at-a-time') : this.wants('refuse.rule-out-of-range'))) out.push(['rule-probe', 0.5]);
+        if (!done.has('rule-propose') && !vote && (state.ruleLocks || []).length && this.wants('refuse.rule-locked')) out.push(['rule-propose', 0.8]);
         if (!done.has('settle') && (me.debts || []).length && this.wantsAny('debt.pay', 'debt.payoff')) out.push(['settle', 0.7]);
         if (!done.has('autopay') && (me.debts || []).some(d => d.autopay !== 'off') && this.wantsAny('debt.autopay-off', 'debt.autopay-interest-only', 'debt.unpaid-interest')) out.push(['autopay', 0.7]);
         if (!done.has('probe') && this.wantsAny('refuse.bid-over-cash', 'refuse.pay-over-cash', 'refuse.junk-amount', 'refuse.trade-not-owned', 'refuse.loan-over-limit', 'refuse.trade-built-group', 'refuse.force-buy-shares')) out.push(['probe', 0.5]);
@@ -148,6 +168,49 @@ class Explore {
             if (!done.has('into-corp-trade') && this.wants('desk.property-for-shares-trade')) out.push(['into-corp-trade', 0.6]);
         }
         return out.filter(([, p]) => p > 0 && bot);
+    }
+
+    // ----- house rules -----
+
+    // Which rule to propose: a locked one when the lock refusal is unreached, else the one whose
+    // pathways are still missing.
+    ruleToPropose(state, me) {
+        const locks = state.ruleLocks || [];
+        if (this.wants('refuse.rule-locked')) {
+            const ruleLock = locks.find(l => l.rule);
+            if (ruleLock) return ruleLock.rule;
+            if (locks.some(l => l.userId === me.userId)) return 'passGoAmount';
+        }
+        const loan = this.wantsAny('rules.propose-loan-rate', 'rules.passed-loan-rate', 'rules.loan-at-voted-rate', 'rules.old-loan-keeps-rate');
+        const passGo = this.wantsAny('rules.propose-pass-go', 'rules.passed-pass-go', 'rules.pass-go-new-amount');
+        const free = rule => !locks.some(l => l.rule === rule);
+        if (loan && free('loanRate') && (!passGo || this.bot.chance(0.5))) return 'loanRate';
+        if (free('passGoAmount')) return 'passGoAmount';
+        return 'loanRate';
+    }
+
+    // How bots answer an open rule vote: 'yes', 'no', 'hold' (leave it to expire, or for the
+    // proposer to withdraw) or null (the bot's own odds). Decided once per vote.
+    ruleVotePolicy(state, proposal) {
+        if (this.active?.ruleHold) return 'hold';
+        this.rulePlans = this.rulePlans || new Map();
+        // 'auction': answer only once an auction is open (votes are allowed during one).
+        const resolve = plan => (plan === 'auction' ? (state.auction?.status === 'open' ? 'yes' : 'hold') : plan);
+        if (this.rulePlans.has(proposal.id)) return resolve(this.rulePlans.get(proposal.id));
+        this.refresh();
+        const proposer = this.bot.seatById(proposal.proposedById);
+        const botProposer = proposer && !proposer.human;
+        const passed = proposal.rule === 'loanRate' ? 'rules.passed-loan-rate' : 'rules.passed-pass-go';
+        let plan = null;
+        if (botProposer && this.wants('rules.expired')) plan = 'hold';
+        else if (botProposer && this.wants('rules.withdrawn')) plan = 'hold';
+        else if (this.wants('rules.vote-during-auction') && this.bot.chance(0.5)) plan = 'auction';
+        else if (this.wants('rules.rejected') && (!this.wants(passed) || this.bot.chance(0.4))) plan = 'no';
+        else if (this.wantsAny(passed, 'rules.agree', 'rules.pass-go-new-amount', 'rules.loan-at-voted-rate', 'rules.old-loan-keeps-rate', 'rules.vote-pill', 'rules.vote-off-turn')) plan = 'yes';
+        this.rulePlans.set(proposal.id, plan);
+        const said = { hold: 'leave it unanswered', auction: 'vote yes once an auction opens' }[plan] || `vote ${plan}`;
+        if (plan) this.ctx.log(`    rule vote ${proposal.rule} → ${proposal.value}: bots will ${said}`);
+        return resolve(plan);
     }
 
     holds(corp, me) {
@@ -186,8 +249,11 @@ class Explore {
         if (kind === 'jail-card-trade') return this.jailCardTrade(seat, me, state);
         if (kind === 'pay') return bot.manualPayment(seat, state);
         if (kind === 'ipo') return bot.createIpo(seat, me);
+        if (kind === 'rule-propose') return bot.proposeRule(seat, me, this.ruleToPropose(state, me));
+        if (kind === 'rule-withdraw') return bot.withdrawRule(seat);
+        if (kind === 'rule-probe') return bot.probeRules(seat);
         if (kind === 'debt') {
-            const term = this.wants('debt.term-short') ? 5 : (this.wants('debt.term-long') ? 15 : undefined);
+            const term = this.wants('debt.term-short') ? 5 : (this.wants('debt.term-long') ? 15 : (this.wants('debt.term-max') ? 30 : undefined));
             return bot.issueDebt(seat, 100 + Math.floor(bot.rand() * 200), true, { term });
         }
         if (kind === 'settle') return bot.settleDebt(seat, { partial: !this.wants('debt.payoff') && bot.chance(0.5) });
@@ -259,7 +325,7 @@ class Explore {
         const corp = (state.corporations || []).find(c => this.runs(c, me) && Number(c.cash) >= 100 && this.corpGroup(state, c));
         if (!corp) return;
         const modal = await this.openCorporations(seat, corp.id);
-        const button = modal.locator(`[data-game-action="build-for-corporation"][data-corp-id="${corp.id}"]`);
+        const button = modal.locator(`[data-game-action="build-for-corporation"][data-corp-id="${corp.id}"]:visible`).first(); // one in Chairman moves, one on the Properties tab
         if (!(await bot.usable(button))) {
             this.ctx.finding({ severity: 'medium', category: 'ui', seat, title: 'Build houses for the company is not usable', detail: `${corp.ticker} owns the whole ${this.corpGroup(state, corp)} group with $${corp.cash}` });
             return bot.closeModals(seat);
