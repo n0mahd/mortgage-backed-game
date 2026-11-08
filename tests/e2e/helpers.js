@@ -50,7 +50,7 @@ async function apiJson(request, method, url, options = {}) {
     return body;
 }
 
-// The Market tab has panes: 'New trade', 'Send money', 'Trade proposals', 'Past transactions'.
+// The Market tab has panes: 'New trade', 'Send money', 'Trade proposals', 'Rule proposals', 'Past transactions'.
 async function showMarketPane(page, name) {
     await page.getByRole('tab', { name }).click();
 }

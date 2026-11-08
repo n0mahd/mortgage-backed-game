@@ -26,7 +26,9 @@ Other docs: player rules in `documents/game-rules.md` and `README.md`, open deci
   - `gameRulesInternal/`: one module per topic, layered so each imports only earlier ones:
     `board`, `util` → `ledger` (cash flow, rent, net worth, built groups) → `corporateFinance`,
     `loans` (pure maths) → `corporations` (IPOs, shares, treasury, chairman) → `bankruptcy`,
-    `auctions`, `trades`, `debt` (loans, capacity, autopay, per-turn servicing) → `movement` (dice,
+    `auctions`, `trades`, `debt` (loans, capacity, autopay, per-turn servicing), `ruleChanges`
+    (house rules and their unanimous votes: the `RULES` table, propose/vote/withdraw, expiry and
+    locks) → `movement` (dice,
     jail, landing, cards, buying, corporation rent) → `corporationManagement` (adding property, rent
     policy and its votes, dividends, property offers) → `turns` (end turn, end game, pause) → `state`
     (initial state, normalizing, invariants) → `applyAction`.
@@ -62,8 +64,8 @@ Other docs: player rules in `documents/game-rules.md` and `README.md`, open deci
     `services/hostTransfers.js`: offering host rights; only `rooms.host_id` changes.
   - `services/roomEmails.js`, `services/mailer.js`: room-code emails through a Resend-compatible API.
   - `services/push.js` (subscriptions, VAPID, push-service host allowlist), `services/turnAlerts.js`
-    (who to alert when the turn changes), `services/presence.js` (players with the game on screen
-    get no push): Web Push turn alerts.
+    (who to alert when the turn changes, and when a rule vote opens), `services/presence.js` (players
+    with the game on screen get no push): Web Push turn alerts.
   - `services/audit.js`: one log line per game action.
 - `routes/`: HTTP only (authenticate, call a service, answer): `routes/auth.js` (accounts, email
   codes, guests, one-time device transfer codes), `routes/rooms.js` (including rejoin requests, My
@@ -104,7 +106,9 @@ Other docs: player rules in `documents/game-rules.md` and `README.md`, open deci
   - `purchase.js` (buying and auctions), `houses.js`, `debt.js` (the Debt sheet) and `debt-outlook.js` (its End Turn cards, before/after previews and limit sum, built on `TurnEndOutlook`), `corporations.js`
     (IPO and add-to-corporation sheets, the Corporations sheet: a list of every corporation, then one
     corporation's detail in tabs; chairman votes, buying treasury shares), `corporation-desk.js` (the chairman's tools: rent policy, dividends, Build houses and Borrow for buttons; property offers, whose cards `market.js` lists under Trade proposals),
-    `market.js` (the Market's panes: trade form, payments, trade proposals and past transactions; share-deal summary), `device-alerts.js` (another
+    `market.js` (the Market's panes: trade form, payments, trade proposals and past transactions; share-deal summary),
+    `rule-proposals.js` (`RuleProposals`: Market › Rule proposals, the house rules, the open vote, the
+    proposal form, and the Vote pill), `device-alerts.js` (another
     device, turn alerts).
   - `property-display.js` (player cards, property rows, colours), `valuation.js` (net worth and
     company values), `log-format.js` (Recent events wording).

@@ -188,9 +188,20 @@ name, type and value, then chips: set progress (gold when complete), buildings, 
 board color goes before the name so groups are recognisable at a glance.
 
 **Segmented control** (`.segmented` with `.segmented-option` buttons, `role="tablist"`/`"tab"`). Tabs
-inside one page section, like the Market's New trade, Send money, Trade proposals and Past transactions.
-Two by two on phones, one row from 480px; the selected option is forest with white text. A
-`.segmented-count` pill shows how many items wait in a pane.
+inside one page section, like the Market's New trade, Send money, Trade proposals, Rule proposals and
+Past transactions. Two by two on phones, one row from 480px (the Market's fifth tab runs across the
+bottom on phones); the selected option is forest with white text. A `.segmented-count` pill shows how
+many items wait in a pane.
+
+**Vote marks** (`.vote-mark` with `is-yes`, `is-no`, `is-wait`, `is-out`). One per player in a
+unanimous vote (`.rule-voters`, Market › Rule proposals): a filled emerald ✓, a filled red ✕, an
+empty dashed ring for not voted yet, and a grey ⊘ for a bankrupt player with no vote, whose row is
+greyed and struck through. Each mark has an `aria-label`.
+
+**Floating pills** (`#turn-banner`, `#rule-vote-banner`). A forest-deep pill with one gold button,
+under the app bar on phones and at the bottom on desktop: "It's your turn" off the turn tabs, and a
+rule vote waiting for you anywhere but Market › Rule proposals. When both show, the vote pill sits
+below the turn pill.
 
 **Badges** (`.badge`, `.badge-gold`, `.badge-danger`, `.badge-info`). Pills in sentence
 case.

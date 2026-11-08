@@ -72,13 +72,14 @@ function actionSaved(page) {
     return page.waitForResponse(response => response.url().includes('/actions') && response.status() === 200);
 }
 
-test('the host sets the loan rate in the waiting room', async ({ page, request }) => {
+test('the host sets the loan rate and Pass GO in the waiting room', async ({ page, request }) => {
     const { room, alice } = await makeRoom(request);
     await page.goto(`${BASE}/index.html`);
     await page.evaluate(token => localStorage.setItem('auth_token', token), alice.token);
     await page.goto(`${BASE}/waiting.html?room=${room.id}`);
     await expect(page.locator('#loan-rates-panel')).toBeVisible({ timeout: 5000 });
     await page.fill('#loan-rate', '4.5');
+    await page.fill('#pass-go-amount', '250');
     await page.click('#start-game-btn');
     await page.waitForURL(/game\.html/, { timeout: 10000 });
 
@@ -86,9 +87,10 @@ test('the host sets the loan rate in the waiting room', async ({ page, request }
         headers: { Authorization: `Bearer ${alice.token}` },
     });
     expect(game.game_state.settings.loanRate).toBe(4.5);
+    expect(game.game_state.settings.passGoAmount).toBe(250);
     await page.click('.nav-tab[data-section="game"]');
     await page.click('#game [data-game-action="open-debt"]');
-    await expect(page.locator('#loanRatesHint')).toContainText('4.5% interest per turn, for 1 to 30 turns');
+    await expect(page.locator('#loanRatesHint')).toContainText('4.5% interest per turn, for 5 to 30 turns');
 });
 
 test('a rate out of range is refused before the game starts', async ({ page, request }) => {
@@ -96,6 +98,9 @@ test('a rate out of range is refused before the game starts', async ({ page, req
     await page.goto(`${BASE}/index.html`);
     await page.evaluate(token => localStorage.setItem('auth_token', token), alice.token);
     await page.goto(`${BASE}/waiting.html?room=${room.id}`);
+    // Start works once the room has loaded (with both players) and the host controls show.
+    await expect(page.locator('#loan-rates-panel')).toBeVisible({ timeout: 5000 });
+    await expect(page.locator('#start-game-btn')).toBeEnabled();
     await page.fill('#loan-rate', '40');
     const dialog = page.waitForEvent('dialog');
     await page.click('#start-game-btn');
@@ -113,8 +118,8 @@ test('take a loan on a chosen term, change autopay and pay it off', async ({ pag
     await expect(page.locator('#loanLimit')).toContainText('90% of the $400 book value of your properties and shares $360');
     await expect(page.locator('#loanLimit')).toContainText('You can borrow up to $360');
     await page.fill('#loanAmount', '300');
-    // Every term up to 30 turns is in the dropdown, all at the one rate.
-    await expect(page.locator('#loanTerm option')).toHaveCount(30);
+    // Terms of 5 to 30 turns in steps of 5 are in the dropdown, all at the one rate.
+    await expect(page.locator('#loanTerm option')).toHaveText(['5 turns', '10 turns', '15 turns', '20 turns', '25 turns', '30 turns']);
     await page.selectOption('#loanTerm', '5');
     await expect(page.locator('#loanTermQuote')).toContainText('$69.29 a turn for 5 turns, $346.45 in total. Nothing is owed after the last payment.');
     await page.selectOption('#loanAutopay', 'interest_only');

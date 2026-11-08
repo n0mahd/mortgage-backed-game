@@ -262,7 +262,6 @@ async function applyGameUpdate(game, options = {}) {
     await loadGameLog();
     renderBoardTab();
     populatePlayerDropdowns();
-    RuleProposals.render();
 
     if (gameState.ended && !options.suppressWinner) {
         showWinnerFromState(gameState, winnerReasonFromState(gameState));
@@ -326,6 +325,7 @@ function renderGameState(gameState) {
         </div>
     `;
 
+    RuleProposals.render();
     updateTurnBanner();
 }
 

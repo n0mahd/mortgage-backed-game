@@ -189,6 +189,19 @@ describe('rule proposals', () => {
         }
     });
 
+    test('Advance to GO names and pays the amount this game uses', () => {
+        let state = propose(makeState(), 'alice', 'passGoAmount', 300);
+        state = vote(vote(state, 'bob', true), 'carol', true);
+        state.players[0].diceRolled = false;
+        state.players[0].position = 4;
+        state.chanceCards = [{ id: 'ch-1', text: 'Advance to GO. Collect $200.', action: { type: 'advance_to', position: 0 } }];
+        const cash = byId(state, 'alice').cash;
+        state = run(state, 'alice', 'roll_dice', {}, { dice: [1, 2] }).state;
+        expect(state.lastCardDrawn.card).toBe('Advance to GO. Collect $300.');
+        expect(byId(state, 'alice').position).toBe(0);
+        expect(byId(state, 'alice').cash).toBe(cash + 300);
+    });
+
     test('a new loan rate applies to new loans; loans already taken keep theirs', () => {
         let state = act(makeState(), 'alice', 'issue_debt', { amount: 100, termTurns: 10 });
         state = propose(state, 'bob', 'loanRate', 2.5);

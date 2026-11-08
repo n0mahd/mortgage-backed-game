@@ -166,11 +166,17 @@ function processLanding(state, player, square, diceTotal, events, options = {}) 
     }
 }
 
+// "Advance to GO. Collect $200." names the Pass GO amount this game pays.
+function cardWithHouseRules(state, card) {
+    if (card.action?.type !== 'advance_to' || card.action.position !== 0) return card;
+    return { ...card, text: card.text.replace('$200', `$${Number(state.settings.passGoAmount ?? 200)}`) };
+}
+
 function drawCard(state, player, deckType, events) {
     const key = deckType === 'chance' ? 'chanceCards' : 'communityChestCards';
     const source = deckType === 'chance' ? CHANCE_CARDS : COMMUNITY_CHEST_CARDS;
     if (!state[key] || state[key].length === 0) state[key] = shuffleDeck(source);
-    const card = state[key].shift();
+    const card = cardWithHouseRules(state, state[key].shift());
     const before = snapshotCardState(state, player);
     applyCardEffect(state, player, card, events);
     const effect = summarizeCardEffect(before, state, player);
