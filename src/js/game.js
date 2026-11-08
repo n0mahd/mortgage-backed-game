@@ -262,6 +262,7 @@ async function applyGameUpdate(game, options = {}) {
     await loadGameLog();
     renderBoardTab();
     populatePlayerDropdowns();
+    RuleProposals.render();
 
     if (gameState.ended && !options.suppressWinner) {
         showWinnerFromState(gameState, winnerReasonFromState(gameState));
@@ -710,6 +711,7 @@ function updateTurnBanner() {
     // The Board tab shows whose turn it is (and Roll Dice) in its centre.
     const onTurnTab = ['game', 'board'].some(id => document.getElementById(id)?.classList.contains('active'));
     banner.style.display = isMyTurn && !onTurnTab ? 'flex' : 'none';
+    RuleProposals.updateVoteBanner();
 
     const gameTab = document.querySelector('.nav-tab[data-section="game"]');
     if (gameTab) {
@@ -833,6 +835,7 @@ function bindStaticGameControls() {
     });
 
     document.getElementById('go-to-actions-btn')?.addEventListener('click', switchToGameTab);
+    RuleProposals.bind();
     document.getElementById('executeTradeBtn')?.addEventListener('click', executeTransaction);
     document.getElementById('makePaymentBtn')?.addEventListener('click', makePayment);
     document.getElementById('confirm-purchase-btn')?.addEventListener('click', confirmPurchase);

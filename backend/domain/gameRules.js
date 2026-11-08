@@ -6,7 +6,7 @@
 // The rules live in gameRulesInternal/, one module per topic, each importing
 // only the ones listed before it:
 //   board, util, loans, corporateFinance → ledger → corporations →
-//   bankruptcy, movement, auctions, debt, trades → corporationManagement →
+//   bankruptcy, movement, auctions, debt, trades, ruleChanges → corporationManagement →
 //   turns → state → applyAction
 // loans.js and corporateFinance.js are pure maths (loan terms and schedules,
 // share splits); the other modules move the cash. applyAction is the only
@@ -33,6 +33,7 @@ const {
     validateRepairedState,
 } = require('./gameRulesInternal/state');
 const { applyAction, ACTION_TYPES } = require('./gameRulesInternal/applyAction');
+const ruleChanges = require('./gameRulesInternal/ruleChanges');
 
 module.exports = {
     MONOPOLY_PROPERTIES,
@@ -61,4 +62,8 @@ module.exports = {
     MAX_LOAN_RATE: loans.MAX_LOAN_RATE,
     AUTOPAY_MODES: loans.AUTOPAY_MODES,
     validateLoanRate: loans.validateLoanRate,
+    RULE_KEYS: ruleChanges.RULE_KEYS,
+    houseRules: ruleChanges.houseRules,
+    ruleProposalHoldouts: ruleChanges.ruleProposalHoldouts,
+    validatePassGoAmount: ruleChanges.validatePassGoAmount,
 };

@@ -337,6 +337,11 @@ function readLoanRate() {
     return document.getElementById('loan-rate').value;
 }
 
+// The host's Pass GO amount; the server checks the range and the $50 step.
+function readPassGoAmount() {
+    return document.getElementById('pass-go-amount').value;
+}
+
 async function startGameFromLobby() {
     if (!isHost) {
         alert('Only the host can start the game');
@@ -354,7 +359,7 @@ async function startGameFromLobby() {
         startBtn.textContent = 'Starting game...';
 
         const activeRoomId = currentRoom.id;
-        await startGame(activeRoomId, { loanRate: readLoanRate() });
+        await startGame(activeRoomId, { loanRate: readLoanRate(), passGoAmount: readPassGoAmount() });
 
         logActivity('Game started! Redirecting...');
 

@@ -6,7 +6,7 @@
 // state, so this module never re-implements game rules; it only proposes
 // candidate payloads. Used by the MCP server; the engine stays the authority.
 
-const { applyAction, GameRuleError } = require('./gameRules');
+const { applyAction, houseRules, GameRuleError } = require('./gameRules');
 
 const ACTIONS = [
     { type: 'roll_dice', category: 'turn', payload: {}, description: 'Roll two dice and move. Your turn only; once per turn, again after doubles (three doubles = Jail), paying any rent still owed from your cash first (refused if your cash cannot cover it). In Jail this rolls for doubles.' },
@@ -35,6 +35,9 @@ const ACTIONS = [
     { type: 'accept_trade', category: 'market', payload: { offerId: '<pending offer id>' }, description: 'Accept a pending trade offer made to you.' },
     { type: 'cancel_trade', category: 'market', payload: { offerId: '<pending offer id>' }, description: 'Cancel your own pending offer, or decline one made to you. To counter one instead, use propose_trade with counterOfferId.' },
     { type: 'manual_payment', category: 'market', payload: { fromPlayerId: '<your player id>', toPlayerId: '<player id>', toCorpId: '<corporation id (optional): pay into its treasury instead of a player>', issueShares: 'boolean (optional, with toCorpId, only for a corporation you run): take new shares at the current value per share', amount: 'number > 0' }, description: "Pay another player cash directly (side deals, gifts), or with toCorpId put cash into a corporation's treasury. That is a gift that raises every share's value, unless you run the corporation and set issueShares: then you get whole new shares at the current value per share. Allowed any time." },
+    { type: 'propose_rule_change', category: 'rules', payload: { rule: "'passGoAmount' or 'loanRate'", value: "passGoAmount: $0-$1,000 in steps of $50; loanRate: 0-25 (% per turn) in steps of 0.5" }, description: "Propose changing a house rule: what everyone collects for passing GO, or the interest rate per turn on new loans (loans already taken keep their rate). It changes the moment every player who isn't bankrupt agrees; you count as agreeing. One proposal at a time; it expires when your turn comes round. After a change passes, that rule can't be proposed again for a full round; after a rejection, you wait for your next turn. Any time." },
+    { type: 'vote_rule_change', category: 'rules', payload: { approve: 'boolean', proposalId: '<open rule proposal id (optional)>' }, description: 'Agree to (approve: true) or reject (approve: false) the open rule proposal (state.rule_proposal). Every player who is not bankrupt must agree; one rejection ends it. Any time.' },
+    { type: 'withdraw_rule_change', category: 'rules', payload: {}, description: 'Withdraw your own open rule proposal. Any time.' },
     { type: 'change_chairman', category: 'governance', payload: { corpId: '<corporation id>', candidateUserId: '<player id>' }, description: 'Majority shareholder sets the corporation chairman directly.' },
     { type: 'propose_chairman_vote', category: 'governance', payload: { corpId: '<corporation id>', candidateUserId: '<player id>' }, description: 'Shareholder proposes a chairman; passes when supporters hold a majority.' },
     { type: 'support_chairman_vote', category: 'governance', payload: { corpId: '<corporation id>', voteId: '<open vote id>' }, description: 'Support an open chairman vote.' },
@@ -156,6 +159,17 @@ function buildCandidates(state, me, hostId) {
         add('cancel_trade', { offerId: offer.id });
         add('host_cancel_trade_offer', { offerId: offer.id });
     });
+
+    // House rules: one step from the current value, and answers to an open vote.
+    houseRules(state).forEach(rule => {
+        const up = Math.round((rule.value + rule.step) * 100) / 100;
+        add('propose_rule_change', { rule: rule.rule, value: up <= rule.max ? up : Math.round((rule.value - rule.step) * 100) / 100 });
+    });
+    if (state.ruleProposal) {
+        add('vote_rule_change', { proposalId: state.ruleProposal.id, approve: true });
+        add('vote_rule_change', { proposalId: state.ruleProposal.id, approve: false });
+        add('withdraw_rule_change');
+    }
 
     if (hostId === me.userId) {
         ['host_pause_game', 'host_resume_game', 'host_cancel_auction', 'host_end_game'].forEach(type => add(type));

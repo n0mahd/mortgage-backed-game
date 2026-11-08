@@ -2,9 +2,28 @@
 // Recent events tab.
 // Part of the game page; plain top-level functions, loaded before game.js.
 
+// A house-rule value in log lines: Pass GO in dollars, the loan rate in percent.
+function formatRuleLogValue(rule, value) {
+    return rule === 'loanRate' ? `${Number(value)}%` : `$${Number(value)}`;
+}
+
 // Format a game event into a human-readable string
 function formatLogEvent(type, data) {
     switch (type) {
+        case 'rule_change_proposed':
+            return `${data.actor} proposed changing ${data.label} from ${formatRuleLogValue(data.rule, data.from)} to ${formatRuleLogValue(data.rule, data.to)}`;
+        case 'rule_change_supported':
+            return `${data.actor} agreed to change ${data.label} to ${formatRuleLogValue(data.rule, data.to)}`;
+        case 'rule_change_rejected':
+            return `${data.actor} rejected ${data.proposer}'s rule change (${data.label} → ${formatRuleLogValue(data.rule, data.to)})`;
+        case 'rule_change_withdrawn':
+            return data.reason === 'bankrupt'
+                ? `${data.actor}'s proposal to change ${data.label} was dropped: they are bankrupt`
+                : `${data.actor} withdrew their proposal to change ${data.label}`;
+        case 'rule_change_expired':
+            return `The vote to change ${data.label} to ${formatRuleLogValue(data.rule, data.to)} expired`;
+        case 'rule_change_passed':
+            return `Rule change passed: ${data.label} ${formatRuleLogValue(data.rule, data.from)} → ${formatRuleLogValue(data.rule, data.to)} (proposed by ${data.proposer}, agreed by all)`;
         case 'property_purchase':
             if (data.actor) return `${data.actor} bought ${data.property} for ${data.buyer} for $${Number(data.price).toFixed(2)}`;
             return `${data.buyer} purchased ${data.property} for $${Number(data.price).toFixed(2)}`;

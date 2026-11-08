@@ -11,6 +11,7 @@ const {
 } = require('./bankruptcy');
 const { loanServicerId, serviceLoans } = require('./debt');
 const { cancelPendingTradeOffersForPlayer } = require('./trades');
+const { startTurnForRules } = require('./ruleChanges');
 
 function endTurn(state, player, events) {
     // After doubles a player who can't pay this turn's rent can't roll again (rollDice), so
@@ -70,6 +71,7 @@ function endTurn(state, player, events) {
     state.lastDiceRoll = null;
     state.lastCardDrawn = null;
     state.players[nextIndex].diceRolled = false;
+    startTurnForRules(state, state.players[nextIndex], events);
     events.push(makeEvent(player, 'turn_end', { player: player.name, nextPlayer: state.players[nextIndex].name }));
     log(state, `${player.name} ended their turn. It's now ${state.players[nextIndex].name}'s turn.`);
 }
@@ -86,6 +88,7 @@ function finishGame(state, reason, events) {
     state.paused = false;
     state.pause = null;
     state.ended = true;
+    state.ruleProposal = null;
     state.standings = state.players.map(player => ({
         userId: player.userId,
         name: player.name,

@@ -60,6 +60,11 @@
             <button id="go-to-actions-btn" class="btn btn-sm">Back to turn</button>
         </div>
 
+        <div id="rule-vote-banner" role="status" hidden>
+            <span id="rule-vote-banner-text"></span>
+            <button id="rule-vote-banner-btn" class="btn btn-sm">Vote</button>
+        </div>
+
         <div class="content">
             <!-- Game Section -->
             <div class="section active" id="game">
@@ -80,6 +85,7 @@
                     <button type="button" class="segmented-option" role="tab" id="marketTab-trade" aria-controls="marketPane-trade" aria-selected="false" data-market-pane="trade">New trade</button>
                     <button type="button" class="segmented-option" role="tab" id="marketTab-payment" aria-controls="marketPane-payment" aria-selected="false" data-market-pane="payment">Send money</button>
                     <button type="button" class="segmented-option" role="tab" id="marketTab-proposals" aria-controls="marketPane-proposals" aria-selected="false" data-market-pane="proposals">Trade proposals <span class="segmented-count" id="marketProposalsCount" hidden></span></button>
+                    <button type="button" class="segmented-option" role="tab" id="marketTab-rules" aria-controls="marketPane-rules" aria-selected="false" data-market-pane="rules">Rule proposals <span class="segmented-count" id="marketRulesCount" hidden></span></button>
                     <button type="button" class="segmented-option" role="tab" id="marketTab-history" aria-controls="marketPane-history" aria-selected="false" data-market-pane="history">Past transactions</button>
                 </div>
 
@@ -149,6 +155,10 @@
                     <div id="tradeOffersList" class="trade-offers-list">
                         <p class="empty-state">No pending trade offers</p>
                     </div>
+                </div>
+
+                <div class="market-pane" id="marketPane-rules" role="tabpanel" aria-labelledby="marketTab-rules" hidden>
+                    <div id="ruleProposalsPane" class="rule-proposals"></div>
                 </div>
 
                 <div class="market-pane" id="marketPane-history" role="tabpanel" aria-labelledby="marketTab-history" hidden>
@@ -483,7 +493,8 @@
     <script src="src/js/game/debt-outlook.js?v=2"></script>
     <script src="src/js/game/debt.js?v=5"></script>
     <script src="src/js/game/corporations.js?v=4"></script>
-    <script src="src/js/game/market.js?v=6"></script>
+    <script src="src/js/game/market.js?v=7"></script>
+    <script src="src/js/game/rule-proposals.js?v=1"></script>
     <script src="src/js/game/device-alerts.js?v=1"></script>
     <script src="src/js/game.js?v=62"></script>
 </body>

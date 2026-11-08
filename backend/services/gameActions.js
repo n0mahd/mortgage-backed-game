@@ -16,7 +16,7 @@ const db = require('../db');
 const { getConfig } = require('../config');
 const { buildGameActionAuditRecord, logGameActionAudit } = require('./audit');
 const { emitToRoom, notifyRoom } = require('./roomEvents');
-const { notifyTurnChange } = require('./turnAlerts');
+const { notifyTurnChange, notifyRuleProposal } = require('./turnAlerts');
 const { getRoom, getRoomWithMembers, canViewRoom } = require('./rooms');
 const {
     createInitialGame,
@@ -70,7 +70,7 @@ function startGameForRoom({ roomId, actorUserId, gameState, settings }) {
 
     const gameId = uuidv4();
     const roomMembers = db.prepare(`SELECT * FROM room_members WHERE room_id = ? ORDER BY joined_at ASC`).all(roomId);
-    const initialState = normalizeState(gameState || createInitialGame(roomMembers, { loanRate: settings?.loanRate, loanRates: settings?.loanRates }));
+    const initialState = normalizeState(gameState || createInitialGame(roomMembers, { loanRate: settings?.loanRate, loanRates: settings?.loanRates, passGoAmount: settings?.passGoAmount }));
     db.withTransaction(() => {
         db.prepare(`
             INSERT INTO games (id, room_id, game_state, current_player_index)
@@ -147,6 +147,7 @@ function applyGameAction({ gameId, actorUserId, actionId, type, payload, expecte
     publishGameUpdate(updatedGame);
     if (justEnded) emitToRoom(updatedGame.room_id, 'room:status_change', getRoomWithMembers(updatedGame.room_id));
     notifyTurnChange(game, updatedGame, actorUserId);
+    notifyRuleProposal(game, updatedGame);
     return result;
 }
 

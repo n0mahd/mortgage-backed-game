@@ -1,6 +1,6 @@
 'use strict';
 
-// Loans run for 1 to 30 of the borrower's turns at the one rate the host set.
+// Loans run for 5 to 30 (in steps of 5) of the borrower's turns at the one rate the host set.
 // Autopay takes the installment that pays the loan off on schedule, or the
 // interest only, or nothing; unpaid interest compounds; the whole balance is due
 // at maturity.

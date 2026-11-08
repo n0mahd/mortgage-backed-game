@@ -4,7 +4,7 @@
 // presentation: reads state, never decides rules (legal actions come from
 // domain/actionCatalog, which dry-runs the engine).
 
-const { BOARD_SQUARES, calculateNetWorth, calculateCorporationShareValue } = require('../domain/gameRules');
+const { BOARD_SQUARES, calculateNetWorth, calculateCorporationShareValue, houseRules } = require('../domain/gameRules');
 const { listLegalActions } = require('../domain/actionCatalog');
 
 // Agents read this after every action, so it stays compact: static board data
@@ -61,6 +61,7 @@ function attentionFor(state, userId) {
         || (state.corporations || []).some(corp => corp.rentPolicyVote && !corp.insolvent && sharesHeld(corp, userId) > 0
             && !(corp.rentPolicyVote.supporterIds || []).includes(userId));
     if (offerForMe) return 'trade_offer_for_you';
+    if (state.ruleProposal && !(state.ruleProposal.supporterIds || []).includes(userId)) return 'rule_vote_for_you';
     const current = state.players[state.currentPlayerIndex];
     if (current && current.userId === userId) return 'your_turn';
     return null;
@@ -73,12 +74,31 @@ function statusLine(state, userId, attention) {
         case 'you_are_bankrupt': return 'You are bankrupt and can no longer act.';
         case 'auction_needs_you': return `Auction open for ${state.auction.propertyName}: bid or pass.`;
         case 'trade_offer_for_you': return 'A trade offer is waiting for your answer (accept_trade, cancel_trade, or propose_trade with counterOfferId to counter).';
+        case 'rule_vote_for_you': return 'A rule change is waiting for your vote (vote_rule_change with approve true or false; see rule_proposal).';
         case 'your_turn': return 'It is your turn.';
         default:
             if (state.paused) return 'The game is paused by the host.';
             if (state.auction?.status === 'open') return `Waiting for other players to finish the auction for ${state.auction.propertyName}.`;
             return `Waiting for ${current ? clip(current.name) : 'another player'} to play.`;
     }
+}
+
+// The open house-rule vote, with who has agreed and who still has to answer.
+function ruleProposalSummary(state, userId) {
+    const proposal = state.ruleProposal;
+    if (!proposal) return null;
+    const active = state.players.filter(player => !player.bankrupt);
+    return {
+        id: proposal.id,
+        rule: proposal.rule,
+        from: proposal.previousValue,
+        to: proposal.value,
+        proposed_by: clip(proposal.proposedByName),
+        agreed: active.filter(player => proposal.supporterIds.includes(player.userId)).map(player => clip(player.name)),
+        waiting_for: active.filter(player => !proposal.supporterIds.includes(player.userId)).map(player => clip(player.name)),
+        needs_your_vote: !proposal.supporterIds.includes(userId),
+        expires: `when it is ${clip(proposal.proposedByName)}'s turn again`,
+    };
 }
 
 function summarizeGame({ room, members, game, userId }) {
@@ -113,6 +133,18 @@ function summarizeGame({ room, members, game, userId }) {
         room: roomSummary,
         current_turn: current ? { player: clip(current.name), player_id: current.userId, is_you: current.userId === userId } : null,
         loan_rate_percent: state.settings?.loanRate ?? null,
+        house_rules: houseRules(state).map(rule => ({
+            rule: rule.rule,
+            label: rule.label,
+            value: rule.value,
+            unit: rule.unit,
+            min: rule.min,
+            max: rule.max,
+            step: rule.step,
+            changed_by_vote: rule.changedByVote,
+            can_propose_now: !rule.locked,
+        })),
+        rule_proposal: ruleProposalSummary(state, userId),
         you: me ? {
             player_id: me.userId,
             name: clip(me.name),

@@ -28,10 +28,13 @@ const { normalizeAuction } = require('./auctions');
 const { borrowingCapacity } = require('./debt');
 const { normalizeRentPolicyVote } = require('./corporationManagement');
 const { normalizePauseState } = require('./turns');
+const ruleChanges = require('./ruleChanges');
 
 function createInitialGame(roomMembers, options = {}) {
     const { rate: loanRate, error } = loans.validateLoanRate(options.loanRate, options.loanRates);
     if (error) throw new GameRuleError(400, error);
+    const { amount: passGoAmount, error: passGoError } = ruleChanges.validatePassGoAmount(options.passGoAmount);
+    if (passGoError) throw new GameRuleError(400, passGoError);
     const players = roomMembers.map(member => ({
         userId: member.user_id,
         name: member.player_name,
@@ -59,7 +62,7 @@ function createInitialGame(roomMembers, options = {}) {
         })),
         corporations: [],
         gameLog: [],
-        settings: { loanRate, passGoAmount: 200, startingCash: 1500 },
+        settings: { loanRate, passGoAmount, startingCash: 1500 },
         chanceCards: shuffleDeck(CHANCE_CARDS),
         communityChestCards: shuffleDeck(COMMUNITY_CHEST_CARDS),
         lastDiceRoll: null,
@@ -113,6 +116,11 @@ function normalizeState(raw) {
     state.settings.loanRate = loans.normalizeLoanRate(state.settings.loanRate, state.settings.loanRates);
     delete state.settings.loanRates;
     delete state.settings.interestRate;
+    const passGo = Number(state.settings.passGoAmount);
+    state.settings.passGoAmount = Number.isFinite(passGo) && passGo >= 0 ? passGo : 200;
+    state.ruleProposal = ruleChanges.normalizeRuleProposal(state.ruleProposal);
+    state.ruleLocks = ruleChanges.normalizeRuleLocks(state.ruleLocks);
+    state.ruleChanges = ruleChanges.normalizeRuleChanges(state.ruleChanges);
     state.paused = !!state.paused;
     state.pause = state.paused ? normalizePauseState(state.pause) : null;
     state.pauseHistory = Array.isArray(state.pauseHistory) ? state.pauseHistory.slice(-20) : [];

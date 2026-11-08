@@ -483,9 +483,12 @@ function renderCorporationsButton() {
 
 // Trade and property offers waiting for this player's answer, so none is missed before End Turn.
 function renderProposalsButton() {
+    const ruleVote = RuleProposals.needsMyVote()
+        ? '<button class="btn btn-secondary btn-sm is-featured" data-game-action="open-rule-proposals">Rule proposals<small>A vote is waiting for you</small></button>'
+        : '';
     const waiting = tradeProposalsAwaitingMe();
-    if (!waiting) return '';
-    return `<button class="btn btn-secondary btn-sm is-featured" data-game-action="open-trade-proposals">Trade proposals<small>${waiting} waiting for your answer</small></button>`;
+    if (!waiting) return ruleVote;
+    return `${ruleVote}<button class="btn btn-secondary btn-sm is-featured" data-game-action="open-trade-proposals">Trade proposals<small>${waiting} waiting for your answer</small></button>`;
 }
 
 function renderNonTurnActions() {

@@ -327,7 +327,8 @@ ul { padding-left: 1.1em; }
 /* Gold and on-dark: only on forest backgrounds (landing hero, invite code, turn banner) */
 .btn-gold,
 .invite-code-display .btn,
-#turn-banner .btn {
+#turn-banner .btn,
+#rule-vote-banner .btn {
     --btn-bg: var(--gold-bright);
     --btn-ink: var(--forest-deep);
     --btn-press: var(--gold-press);
@@ -1033,6 +1034,7 @@ input[type="radio"] {
 .landing-hero :focus-visible,
 .invite-code-display :focus-visible,
 #turn-banner :focus-visible,
+#rule-vote-banner :focus-visible,
 #hotseat-interstitial :focus-visible { outline-color: var(--mint); }
 
 .nav-tab .tab-dot {
@@ -1046,7 +1048,41 @@ input[type="radio"] {
     box-shadow: 0 0 0 2px var(--forest);
 }
 
-/* "It's your turn" pill when you are on another tab (top on phones, bottom on desktop) */
+/* "It's your turn" pill when you are on another tab (top on phones, bottom on desktop).
+   #rule-vote-banner is the same pill for a rule vote waiting on you; it sits below
+   the turn pill when both show. */
+#rule-vote-banner {
+    display: flex;
+    position: fixed;
+    left: 50%;
+    transform: translateX(-50%);
+    top: calc(var(--topbar-h) + var(--safe-top) + var(--s2));
+    z-index: var(--z-turn-banner);
+    align-items: center;
+    gap: var(--s3);
+    width: max-content;
+    max-width: calc(100vw - 32px);
+    padding: 6px 6px 6px var(--s4);
+    border-radius: var(--r-chip);
+    background: var(--forest-deep);
+    color: var(--on-dark);
+    font-size: var(--text-sub);
+    font-weight: 600;
+    box-shadow: var(--lift-toast);
+    animation: toast-in var(--dur) var(--ease-out);
+}
+
+#rule-vote-banner[hidden] { display: none; }
+#rule-vote-banner.is-stacked { top: calc(var(--topbar-h) + var(--safe-top) + var(--s2) + 56px); }
+#rule-vote-banner span { min-width: 0; }
+
+#rule-vote-banner .btn {
+    min-height: 36px;
+    flex-shrink: 0;
+    border-radius: var(--r-chip);
+    padding: 0 var(--s4);
+}
+
 #turn-banner {
     display: none;
     position: fixed;
@@ -1989,6 +2025,15 @@ input[type="radio"] {
     .segmented { grid-template-columns: repeat(4, 1fr); }
 }
 
+/* The Market has five panes: two by two on phones with Past transactions across the
+   bottom, one row when there is room. */
+.market-tabs .segmented-option:last-child { grid-column: 1 / -1; }
+
+@media (min-width: 480px) {
+    .market-tabs { grid-template-columns: repeat(5, 1fr); }
+    .market-tabs .segmented-option:last-child { grid-column: auto; }
+}
+
 .trade-offers-list {
     display: flex;
     flex-direction: column;
@@ -2287,6 +2332,175 @@ input[type="radio"] {
     margin-top: var(--s3);
     font-size: var(--text-footnote);
 }
+
+/* Market > Rule proposals: house rules, the open vote, the proposal form */
+.rule-proposals {
+    display: flex;
+    flex-direction: column;
+    gap: var(--s3);
+}
+
+.rule-card {
+    padding: var(--s4);
+    border-radius: var(--r-group);
+    background: var(--note);
+    border: 1px solid var(--rule);
+}
+
+.rule-card.is-open { border-color: var(--emerald); }
+
+.rule-card-head h4 {
+    margin: 0 0 var(--s2);
+    font-size: var(--text-sub);
+}
+
+.house-rules { margin: 0; }
+
+.house-rule {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--s3);
+    padding: var(--s2) 0;
+    border-top: 1px solid var(--rule);
+}
+
+.house-rule:first-child { border-top: 0; }
+.house-rule dt { color: var(--ink-2); font-size: var(--text-footnote); }
+
+.house-rule dd {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: flex-end;
+    gap: var(--s2);
+    margin: 0;
+    font-weight: 700;
+}
+
+.rule-sentence {
+    margin: 0;
+    font-size: var(--text-body);
+    line-height: 1.45;
+}
+
+.rule-sentence strong { color: var(--forest); }
+
+.rule-tally {
+    margin: var(--s3) 0 var(--s2);
+    font-size: var(--text-footnote);
+    font-weight: 700;
+}
+
+.rule-note {
+    margin: var(--s2) 0 0;
+    font-size: var(--text-caption);
+    color: var(--ink-3);
+}
+
+.rule-note.is-warning {
+    padding: var(--s2) var(--s3);
+    border-radius: var(--r-control);
+    background: var(--gold-wash);
+    color: var(--gold-ink);
+}
+
+.rule-centered { text-align: center; }
+.rule-propose-btn { width: 100%; }
+
+.rule-voters {
+    display: flex;
+    flex-direction: column;
+    gap: var(--s2);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.rule-voter {
+    display: flex;
+    align-items: center;
+    gap: var(--s2);
+    font-size: var(--text-footnote);
+}
+
+.rule-voter .avatar { width: 28px; height: 28px; font-size: 11px; }
+.rule-voter-name { flex: 1 1 auto; min-width: 0; }
+.rule-voter.is-out { color: var(--ink-3); }
+.rule-voter.is-out .rule-voter-name { text-decoration: line-through; }
+.rule-voter.is-out .avatar { filter: grayscale(1); opacity: 0.5; }
+
+/* A player's answer: yes, no, not yet (an empty dashed ring), or no vote (bankrupt) */
+.vote-mark {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 26px;
+    height: 26px;
+    flex-shrink: 0;
+    border-radius: 50%;
+    font-size: var(--text-footnote);
+    font-weight: 800;
+}
+
+.vote-mark.is-yes { background: var(--emerald); color: var(--on-dark); }
+.vote-mark.is-no { background: var(--danger); color: var(--on-dark); }
+.vote-mark.is-wait { border: 2px dashed var(--rule-strong); }
+.vote-mark.is-out { background: var(--rule); color: var(--ink-3); }
+
+.rule-choices {
+    display: flex;
+    flex-direction: column;
+    gap: var(--s2);
+    margin: 0 0 var(--s3);
+    padding: 0;
+    border: 0;
+}
+
+.rule-choice {
+    display: flex;
+    align-items: center;
+    gap: var(--s3);
+    padding: var(--s3);
+    border-radius: var(--r-control);
+    border: 1px solid var(--rule-strong);
+    background: var(--note);
+    cursor: pointer;
+}
+
+.rule-choice:has(input:checked) { border-color: var(--emerald); background: var(--mint-wash); }
+.rule-choice span { display: flex; flex-direction: column; }
+.rule-choice small { color: var(--ink-3); font-size: var(--text-caption); }
+
+.rule-stepper {
+    display: flex;
+    align-items: center;
+    gap: var(--s2);
+}
+
+.rule-stepper input { flex: 1 1 auto; min-width: 0; text-align: center; }
+.rule-stepper .btn { flex: 0 0 48px; min-height: 44px; padding: 0; font-size: var(--text-title3); }
+
+.rule-history {
+    display: flex;
+    flex-direction: column;
+    gap: var(--s2);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    font-size: var(--text-footnote);
+}
+
+.rule-history li {
+    display: flex;
+    flex-direction: column;
+    padding: var(--s3);
+    border-radius: var(--r-control);
+    background: var(--note);
+    border: 1px solid var(--rule);
+}
+
+.rule-history small { color: var(--ink-3); font-size: var(--text-caption); }
 
 .payment-panel {
     padding: var(--s4);
@@ -4244,6 +4458,8 @@ button.policy-option:active:not(:disabled) { background: var(--mint-wash); }
     .game-page.is-my-turn .container { padding-bottom: var(--s10); }
 
     #turn-banner { top: auto; bottom: var(--s6); }
+    #rule-vote-banner { top: auto; bottom: var(--s6); }
+    #rule-vote-banner.is-stacked { top: auto; bottom: calc(var(--s6) + 56px); }
 
     /* Turn layout: ticket + actions left, players right */
     #gameContent > .game-layout {
