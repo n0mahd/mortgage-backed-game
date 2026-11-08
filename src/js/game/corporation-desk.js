@@ -198,7 +198,7 @@
         `;
     }
 
-    // PROTOTYPE: Build houses, in Chairman moves and the Properties tab. Opens
+    // Build houses, in Chairman moves and the Properties tab. Opens
     // the house sheet for the corporation's complete colour groups.
     function buildButton(corp) {
         const myTurn = isMyTurn();
@@ -208,7 +208,7 @@
         return `<button class="btn btn-secondary btn-sm" data-game-action="build-for-corporation" data-corp-id="${esc(corp.id)}"${myTurn && ownsGroup ? '' : ' disabled'}>Build houses${note ? `<small>${note}</small>` : ''}</button>`;
     }
 
-    // PROTOTYPE: borrowing for a corporation from its sheet. Loans need the
+    // borrowing for a corporation from its sheet. Loans need the
     // borrower's turn, like Take a new loan in Manage Debt.
     function borrowButton(corp) {
         const myTurn = isMyTurn();

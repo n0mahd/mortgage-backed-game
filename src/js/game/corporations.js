@@ -245,7 +245,7 @@ function renderCorporationOwners(corp) {
     `;
 }
 
-// PROTOTYPE: the chairman can build from the Properties tab too, above the
+// the chairman can build from the Properties tab too, above the
 // list so it's in view without scrolling.
 function renderCorporationBuildMove(corp) {
     if (!ShareDeals.runsCorporation(corp, currentUser.id)) return '';
@@ -262,7 +262,7 @@ function renderCorporationDebts(corp) {
             return `<li>${formatMoney(d.principal)}, ${escapeHtml(status.termLabel)}: ${escapeHtml(status.turnsLabel.toLowerCase())}. ${escapeHtml(LoanMath.paymentNote(d, dueThisTurn))}.</li>`;
         }).join('')
         : '<li class="empty-state">No corporation debt</li>';
-    // PROTOTYPE: say who can borrow for the corporation, and let them do it here.
+    // say who can borrow for the corporation, and let them do it here.
     const who = ShareDeals.isInsolvent(corp)
         ? ''
         : ShareDeals.runsCorporation(corp, currentUser.id)
