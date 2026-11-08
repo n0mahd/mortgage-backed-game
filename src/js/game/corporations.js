@@ -255,7 +255,13 @@ function renderCorporationDebts(corp) {
             return `<li>${formatMoney(d.principal)}, ${escapeHtml(status.termLabel)}: ${escapeHtml(status.turnsLabel.toLowerCase())}. ${escapeHtml(LoanMath.paymentNote(d, dueThisTurn))}.</li>`;
         }).join('')
         : '<li class="empty-state">No corporation debt</li>';
-    return `<h4>Debt</h4><ul class="corp-debt-list">${rows}</ul>`;
+    // PROTOTYPE: say who can borrow for the corporation, and let them do it here.
+    const who = ShareDeals.isInsolvent(corp)
+        ? ''
+        : ShareDeals.runsCorporation(corp, currentUser.id)
+            ? `<div class="moves-grid corp-moves">${CorporationDesk.borrowButton(corp)}</div>`
+            : `<p class="corp-hint">Only ${escapeHtml(corp.ticker)}'s chairman${corp.chairmanName ? `, ${escapeHtml(corp.chairmanName)},` : ''} can borrow for it.</p>`;
+    return `<h4>Debt</h4><ul class="corp-debt-list">${rows}</ul>${who}`;
 }
 
 // What the viewer can do here, by role: the chairman runs it; anyone with

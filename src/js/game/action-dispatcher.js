@@ -45,6 +45,7 @@
         'pay-dividend': button => global.CorporationDesk.payDividend(button.dataset.corpId),
         'build-for-corporation': button => global.CorporationDesk.buildForCorporation(button.dataset.corpId),
         'trade-as-corporation': button => global.CorporationDesk.tradeAsCorporation(button.dataset.corpId),
+        'borrow-for-corporation': button => global.CorporationDesk.borrowForCorporation(button.dataset.corpId), // PROTOTYPE
         'open-property-offer': button => global.CorporationDesk.openPropertyOffer(button.dataset.corpId),
         'toggle-property-counter': button => global.CorporationDesk.togglePropertyCounter(button.dataset.offerId),
         'fill-property-counter': button => global.CorporationDesk.fillPropertyCounter(button.dataset.offerId, Number(button.dataset.price)),

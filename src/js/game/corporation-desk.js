@@ -191,11 +191,27 @@
                 <div class="moves-grid corp-moves">
                     <button class="btn btn-secondary btn-sm" data-game-action="build-for-corporation" data-corp-id="${esc(corp.id)}"${myTurn && ownsGroup ? '' : ' disabled'}>Build houses<small>${ownsGroup ? `On ${esc(corp.ticker)}'s full sets` : 'Needs a whole colour group'}</small></button>
                     <button class="btn btn-secondary btn-sm" data-game-action="trade-as-corporation" data-corp-id="${esc(corp.id)}">Trade as ${esc(corp.ticker)}<small>Opens the Market</small></button>
+                    ${borrowButton(corp)}
                     ${extraMoves}
                 </div>
                 <small>${myTurn ? '' : 'Dividends and building happen on your turn. '}To buy a property for ${esc(corp.ticker)}, land on it and choose ${esc(corp.ticker)} when you buy.</small>
             </div>
         `;
+    }
+
+    // PROTOTYPE: borrowing for a corporation from its sheet. Loans need the
+    // borrower's turn, like Take a new loan in Manage Debt.
+    function borrowButton(corp) {
+        const myTurn = isMyTurn();
+        const room = Number(corp.borrowing?.available || 0);
+        const note = !myTurn ? 'On your turn' : (room > 0 ? `Up to ${money(room)}` : 'No borrowing room left');
+        return `<button class="btn btn-secondary btn-sm" data-game-action="borrow-for-corporation" data-corp-id="${esc(corp.id)}"${myTurn && room > 0 ? '' : ' disabled'}>Borrow for ${esc(corp.ticker)}<small>${note}</small></button>`;
+    }
+
+    function borrowForCorporation(corpId) {
+        global.closeModal('corporationModal');
+        global.openDebtModal();
+        global.openNewLoanFor(`corporation:${corpId}`, 0);
     }
 
     async function payDividend(corpId) {
@@ -610,6 +626,8 @@
         payDividend,
         buildForCorporation,
         tradeAsCorporation,
+        borrowButton,
+        borrowForCorporation,
         openPropertyOffer,
         respondPropertyOffer,
         votesAwaiting,
