@@ -245,7 +245,8 @@ function renderCorporationOwners(corp) {
     `;
 }
 
-// PROTOTYPE: the chairman can build from the Properties tab too.
+// PROTOTYPE: the chairman can build from the Properties tab too, above the
+// list so it's in view without scrolling.
 function renderCorporationBuildMove(corp) {
     if (!ShareDeals.runsCorporation(corp, currentUser.id)) return '';
     return `<div class="moves-grid corp-moves">${CorporationDesk.buildButton(corp)}</div>`;
@@ -335,7 +336,7 @@ function renderCorporationDetail(corp) {
                 </div>
                 <div class="corp-col">
                     <section class="corp-panel" data-corp-panel="owners">${renderCorporationOwners(corp)}</section>
-                    <section class="corp-panel" data-corp-panel="assets"><h4>Properties <span class="corp-heading-note">${(corp.assets || []).length}</span></h4>${renderCorporationAssetGroups(Array.isArray(corp.assets) ? corp.assets : [])}${renderCorporationBuildMove(corp)}</section>
+                    <section class="corp-panel" data-corp-panel="assets">${renderCorporationBuildMove(corp)}<h4>Properties <span class="corp-heading-note">${(corp.assets || []).length}</span></h4>${renderCorporationAssetGroups(Array.isArray(corp.assets) ? corp.assets : [])}</section>
                     <section class="corp-panel" data-corp-panel="debt">${renderCorporationDebts(corp)}</section>
                 </div>
             </div>
