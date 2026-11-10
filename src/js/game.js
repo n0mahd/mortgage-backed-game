@@ -105,11 +105,9 @@ async function loadGameData(roomId) {
 
         currentPlayerData = gameState.players.find(p => p.userId === currentUser.id);
 
-        // A host without a seat watches: same board and log, no moves.
-        isSpectator = !currentPlayerData && room.host_id === currentUser.id;
-        if (!currentPlayerData && !isSpectator) {
-            throw new Error('You are not a player in this game');
-        }
+        // Anyone the server lets see the game without a seat (a host who only
+        // hosts, or someone watching by room code) gets the board and log, no moves.
+        isSpectator = !currentPlayerData;
         document.body.classList.toggle('is-spectator', isSpectator);
         document.querySelector('.nav-tab[data-section="market"]')?.toggleAttribute('hidden', isSpectator);
         document.getElementById('turn-alerts-btn')?.toggleAttribute('hidden', isHotseatMode || isSpectator);
@@ -1134,7 +1132,9 @@ function renderSpectatorNote() {
     return `
         <section class="moves">
             <div class="section-heading"><h3>Watching</h3></div>
-            <p class="empty-state">You're hosting this game without a seat. The players move on their own; host controls are below.</p>
+            <p class="empty-state">${currentRoom?.host_id === currentUser.id
+                ? "You're hosting this game without a seat. The players move on their own; host controls are below."
+                : "You're watching this game. The board and log update as the players move."}</p>
         </section>
     `;
 }

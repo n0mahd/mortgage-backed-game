@@ -2701,7 +2701,8 @@ input[type="radio"] {
 }
 
 .auth-card .btn-primary,
-.auth-card .btn-success { width: 100%; }
+.auth-card .btn-success,
+.auth-card .btn-secondary { width: 100%; }
 
 .code-entry {
     font-family: var(--font-money) !important;

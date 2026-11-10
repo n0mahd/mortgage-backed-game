@@ -177,6 +177,20 @@ function migrate(db) {
                 ON push_subscriptions (user_id, created_at DESC);
         `);
     });
+
+    // People watching a room by its code. They see the board and log but hold
+    // no seat, so they never count toward max_players or get turn alerts.
+    apply(db, '008_room_spectators', () => {
+        db.exec(`
+            CREATE TABLE IF NOT EXISTS room_spectators (
+                room_id TEXT NOT NULL REFERENCES rooms(id) ON DELETE CASCADE,
+                user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                joined_at TEXT NOT NULL DEFAULT (datetime('now')),
+                PRIMARY KEY (room_id, user_id)
+            );
+            CREATE INDEX IF NOT EXISTS idx_room_spectators_user ON room_spectators (user_id);
+        `);
+    });
 }
 
 function apply(db, id, fn) {

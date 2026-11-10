@@ -4,7 +4,7 @@ process.env.DB_PATH = ':memory:';
 process.env.JWT_SECRET = 'test-secret';
 
 const request = require('supertest');
-const { addRoomMemberFixture, createRoomFixture, createUserFixture, resetTestDb } = require('../helpers/fixtures');
+const { addRoomMemberFixture, buildGameState, createGameFixture, createRoomFixture, createUserFixture, resetTestDb } = require('../helpers/fixtures');
 
 let app, db;
 let user1, user2;
@@ -375,6 +375,86 @@ describe('rejoin requests', () => {
 // ---------------------------------------------------------------------------
 // GET /api/rooms/mine
 // ---------------------------------------------------------------------------
+describe('POST /api/rooms/by-code/:code/spectate', () => {
+    function startedRoom() {
+        const room = createRoomFixture(db, user1.id, { inviteCode: 'WATCH1', status: 'in_progress', maxPlayers: 2 });
+        addRoomMemberFixture(db, room.id, user2.id, 'Bob');
+        const gameState = buildGameState(['Host', 'Bob']);
+        gameState.players[0].userId = user1.id;
+        gameState.players[1].userId = user2.id;
+        const game = createGameFixture(db, room.id, { gameState });
+        return { room, game };
+    }
+
+    test('anyone with the code can watch a started game, live and in their lobby, without a seat', async () => {
+        const { room, game } = startedRoom();
+        const watcher = createUserFixture(db);
+
+        const before = await request(app).get(`/api/games/by-room/${room.id}`).set('Authorization', `Bearer ${watcher.token}`);
+        expect(before.status).toBe(403);
+
+        const res = await request(app).post('/api/rooms/by-code/watch1/spectate').set('Authorization', `Bearer ${watcher.token}`);
+        expect(res.status).toBe(200);
+        expect(res.body.id).toBe(room.id);
+        expect(res.body.room_members.map(m => m.user_id)).not.toContain(watcher.id);
+
+        const seen = await request(app).get(`/api/games/by-room/${room.id}`).set('Authorization', `Bearer ${watcher.token}`);
+        expect(seen.status).toBe(200);
+        expect(seen.body.game_state.players).toHaveLength(2);
+
+        const mine = await request(app).get('/api/rooms/mine').set('Authorization', `Bearer ${watcher.token}`);
+        expect(mine.body.map(r => r.id)).toEqual([room.id]);
+
+        const action = await request(app)
+            .post(`/api/games/${game.id}/actions`)
+            .set('Authorization', `Bearer ${watcher.token}`)
+            .send({ actionId: 'spectator-roll', type: 'roll_dice', payload: {}, expectedVersion: 0 });
+        expect(action.status).toBe(403);
+    });
+
+    test('watching twice, or as a player, adds nothing', async () => {
+        const { room } = startedRoom();
+        const watcher = createUserFixture(db);
+        await request(app).post('/api/rooms/by-code/WATCH1/spectate').set('Authorization', `Bearer ${watcher.token}`);
+        await request(app).post('/api/rooms/by-code/WATCH1/spectate').set('Authorization', `Bearer ${watcher.token}`);
+        await request(app).post('/api/rooms/by-code/WATCH1/spectate').set('Authorization', `Bearer ${user2.token}`);
+
+        const rows = db.prepare('SELECT user_id FROM room_spectators WHERE room_id = ?').all(room.id);
+        expect(rows.map(r => r.user_id)).toEqual([watcher.id]);
+    });
+
+    test('a spectator does not take a seat in a waiting room and can still join it', async () => {
+        const room = createRoomFixture(db, user1.id, { inviteCode: 'WATCH2', maxPlayers: 2 });
+        const watcher = createUserFixture(db);
+        await request(app).post('/api/rooms/by-code/WATCH2/spectate').set('Authorization', `Bearer ${watcher.token}`);
+
+        const joined = await request(app)
+            .post(`/api/rooms/${room.id}/join`)
+            .set('Authorization', `Bearer ${watcher.token}`)
+            .send({ player_name: 'Late' });
+        expect(joined.status).toBe(200);
+        expect(joined.body.room_members).toHaveLength(2);
+        expect(db.prepare('SELECT COUNT(*) AS n FROM room_spectators').get().n).toBe(0);
+    });
+
+    test('leaving stops watching', async () => {
+        const { room } = startedRoom();
+        const watcher = createUserFixture(db);
+        await request(app).post('/api/rooms/by-code/WATCH1/spectate').set('Authorization', `Bearer ${watcher.token}`);
+        await request(app).delete(`/api/rooms/${room.id}/leave`).set('Authorization', `Bearer ${watcher.token}`);
+
+        const seen = await request(app).get(`/api/games/by-room/${room.id}`).set('Authorization', `Bearer ${watcher.token}`);
+        expect(seen.status).toBe(403);
+    });
+
+    test('404 for an unknown code, 401 without auth', async () => {
+        const unknown = await request(app).post('/api/rooms/by-code/NOPE99/spectate').set('Authorization', `Bearer ${user1.token}`);
+        expect(unknown.status).toBe(404);
+        const anon = await request(app).post('/api/rooms/by-code/NOPE99/spectate');
+        expect(anon.status).toBe(401);
+    });
+});
+
 describe('GET /api/rooms/mine', () => {
     test('200 returns rooms for authenticated user', async () => {
         createRoomFixture(db, user1.id, { inviteCode: 'MINE01' });

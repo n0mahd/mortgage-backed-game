@@ -141,6 +141,34 @@ async function joinAsGuest() {
     }
 }
 
+// Watching takes no seat, so any session will do: keep the one this browser
+// already has (it may hold a seat in another game) and only make a guest
+// session when there is none.
+async function watchAsGuest() {
+    const errorEl = document.getElementById('guest-watch-error');
+    const btn = document.getElementById('guest-watch-btn');
+    errorEl.classList.remove('active');
+    btn.disabled = true;
+    btn.textContent = 'Opening…';
+
+    try {
+        const existingUser = localStorage.getItem('auth_token') ? await getCurrentUser().catch(() => null) : null;
+        if (!existingUser) {
+            const anonData = await apiFetch('/auth/anonymous', { method: 'POST' });
+            localStorage.setItem('auth_token', anonData.token);
+        }
+        const room = await apiFetch(`/rooms/by-code/${normalizedRoomCode}/spectate`, { method: 'POST' });
+        const page = room.status === 'waiting' ? 'waiting.html' : 'game.html';
+        window.location.href = `${page}?room=${encodeURIComponent(room.id)}`;
+    } catch (error) {
+        if (!isExpectedGuestJoinError(error)) console.error('Error watching room:', error);
+        errorEl.textContent = error.message || 'Could not open this room. Check your code and try again.';
+        errorEl.classList.add('active');
+        btn.disabled = false;
+        btn.textContent = 'Just watch';
+    }
+}
+
 function isExpectedGuestJoinError(error) {
     return error && [400, 403, 404].includes(error.status);
 }
@@ -423,6 +451,7 @@ window.addEventListener('beforeunload', () => {
 function bindWaitingRoomActions() {
     document.getElementById('leave-room-btn')?.addEventListener('click', leaveRoom);
     document.getElementById('guest-join-btn')?.addEventListener('click', joinAsGuest);
+    document.getElementById('guest-watch-btn')?.addEventListener('click', watchAsGuest);
     document.getElementById('copy-invite-code-btn')?.addEventListener('click', event => copyInviteCode(event.currentTarget));
     document.getElementById('start-game-btn')?.addEventListener('click', startGameFromLobby);
     document.getElementById('send-invite-btn')?.addEventListener('click', sendInviteEmail);

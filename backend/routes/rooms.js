@@ -5,7 +5,7 @@ const { sendEmail } = require('../mailer');
 const { getConfig } = require('../config');
 const { createRateLimiter, getRequestActorKey } = require('../rateLimit');
 const { normalizeEmail, isValidEmail, normalizeInviteCode } = require('../normalizers');
-const { RoomError, createRoom, joinRoom, getRoomMembers, canViewRoom } = require('../services/rooms');
+const { RoomError, createRoom, joinRoom, spectateRoom, getRoomMembers, canViewRoom } = require('../services/rooms');
 const {
     createRejoinRequest,
     listApprovableRequests,
@@ -149,6 +149,15 @@ router.get('/by-code/:code', (req, res) => {
     res.json(attachRoomMembers(room));
 });
 
+// POST /api/rooms/by-code/:code/spectate — watch a room without a seat
+router.post('/by-code/:code/spectate', requireAuth, (req, res) => {
+    try {
+        res.json(spectateRoom({ inviteCode: req.params.code, userId: req.userId }));
+    } catch (err) {
+        sendRoomError(res, err);
+    }
+});
+
 // Rejoining a started room after losing your token: see
 // services/rejoinRequests.js. The asking browser creates a request and polls
 // it with its secret; a signed-in player in the room approves or denies it.
@@ -194,15 +203,18 @@ router.post('/rejoin-requests/:requestId/cancel', rejoinCollectRateLimit, (req, 
     }
 });
 
-// GET /api/rooms/mine — rooms the current user is in or hosts (a spectating host has no seat)
+// GET /api/rooms/mine — rooms the current user is in, hosts or watches
+// (a spectating host has no seat)
 router.get('/mine', requireAuth, (req, res) => {
     const memberships = db.prepare(`
         SELECT room_id, joined_at AS at FROM room_members WHERE user_id = ?
         UNION
         SELECT id, created_at FROM rooms WHERE host_id = ?
             AND NOT EXISTS (SELECT 1 FROM room_members WHERE room_members.room_id = rooms.id AND room_members.user_id = rooms.host_id)
+        UNION
+        SELECT room_id, joined_at FROM room_spectators WHERE user_id = ?
         ORDER BY at DESC
-    `).all(req.userId, req.userId);
+    `).all(req.userId, req.userId, req.userId);
 
     const rooms = memberships
         .map(m => getRoomWithMembers(m.room_id))
@@ -297,11 +309,12 @@ router.delete('/:id/agent-seats/:seatId', requireAuth, (req, res) => {
     }
 });
 
-// DELETE /api/rooms/:id/leave — leave room
+// DELETE /api/rooms/:id/leave — leave room (or stop watching it)
 router.delete('/:id/leave', requireAuth, (req, res) => {
     db.prepare(`
         DELETE FROM room_members WHERE room_id = ? AND user_id = ?
     `).run(req.params.id, req.userId);
+    db.prepare(`DELETE FROM room_spectators WHERE room_id = ? AND user_id = ?`).run(req.params.id, req.userId);
     const updatedRoom = getRoomWithMembers(req.params.id);
     if (updatedRoom) io.to(`room:${req.params.id}`).emit('room:member_change', updatedRoom);
     res.json({ ok: true });

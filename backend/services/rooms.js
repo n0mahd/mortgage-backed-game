@@ -54,14 +54,17 @@ function uniquePlayerName(members, name) {
     }
 }
 
-// Members and the host may watch a room and its game; only members hold seats.
+// Members, the host and spectators may watch a room and its game; only
+// members hold seats.
 function canViewRoom(roomId, userId) {
     if (!roomId || !userId) return false;
     return !!db.prepare(`
         SELECT 1 FROM rooms WHERE id = ? AND (host_id = ? OR EXISTS (
             SELECT 1 FROM room_members WHERE room_members.room_id = rooms.id AND room_members.user_id = ?
+        ) OR EXISTS (
+            SELECT 1 FROM room_spectators WHERE room_spectators.room_id = rooms.id AND room_spectators.user_id = ?
         ))
-    `).get(roomId, userId, userId);
+    `).get(roomId, userId, userId, userId);
 }
 
 function getRoomWithMembers(roomId) {
@@ -128,11 +131,24 @@ function joinRoom(io, { roomId, userId, playerName, agentSeatId = null }) {
         INSERT INTO room_members (id, room_id, user_id, player_name)
         VALUES (?, ?, ?, ?)
     `).run(uuidv4(), room.id, userId, uniquePlayerName(room.room_members, playerName || 'Guest'));
+    db.prepare(`DELETE FROM room_spectators WHERE room_id = ? AND user_id = ?`).run(room.id, userId);
 
     const updatedRoom = getRoomWithMembers(room.id);
     io.to(`room:${room.id}`).emit('room:member_change', updatedRoom);
     notifyRoom(room.id);
     return updatedRoom;
+}
+
+// Anyone with the room code may watch, before or during the game. A
+// spectator takes no seat and can't act; players and the host are already
+// viewers, so they are left as they are.
+function spectateRoom({ inviteCode, userId }) {
+    const room = getRoomByInviteCode(inviteCode);
+    if (!room) throw new RoomError(404, 'Room not found');
+    if (!canViewRoom(room.id, userId)) {
+        db.prepare(`INSERT OR IGNORE INTO room_spectators (room_id, user_id) VALUES (?, ?)`).run(room.id, userId);
+    }
+    return getRoomWithMembers(room.id);
 }
 
 function generateInviteCode() {
@@ -165,4 +181,5 @@ module.exports = {
     createAnonymousUser,
     createRoom,
     joinRoom,
+    spectateRoom,
 };
