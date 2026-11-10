@@ -843,13 +843,21 @@ input[type="radio"] {
 
 /* ── 7. Sheets (modals) ────────────────────────────────────────── */
 
+/* The full-screen scrim is the scroller, not the sheet: iOS Safari sends a drag on
+   a scrolling box inside a fixed overlay to the page behind, so a tall sheet never
+   moved. The page is locked while a sheet is open. */
+html:has(.modal.active) { overflow: hidden; }
+
 .modal {
     display: none;
     position: fixed;
     inset: 0;
     z-index: var(--z-sheet);
-    align-items: flex-end;
-    justify-content: center;
+    flex-direction: column;
+    align-items: center;
+    padding-top: calc(var(--safe-top) + 24px);
+    overflow-y: auto;
+    overscroll-behavior: contain;
     background: rgba(8, 24, 16, 0.48);
     animation: scrim-in var(--dur) linear;
 }
@@ -858,11 +866,11 @@ input[type="radio"] {
 
 .modal-content {
     position: relative;
+    flex-shrink: 0;
+    /* Sits on the bottom edge; a taller sheet scrolls with the scrim */
+    margin-top: auto;
     width: 100%;
     max-width: var(--page-max);
-    max-height: calc(100dvh - var(--safe-top) - 24px);
-    overflow-y: auto;
-    overscroll-behavior: contain;
     padding: var(--s6) var(--s5) calc(var(--s5) + var(--safe-bottom));
     border-radius: var(--r-sheet) var(--r-sheet) 0 0;
     background: var(--paper);
@@ -923,8 +931,9 @@ input[type="radio"] {
 }
 
 @media (min-width: 720px) {
-    .modal { align-items: center; padding: var(--s6); }
+    .modal { padding: var(--s6); }
     .modal-content {
+        margin: auto 0;
         border-radius: var(--r-sheet);
         padding-bottom: var(--s6);
     }

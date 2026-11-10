@@ -149,7 +149,9 @@ landing hero, which share its meaning: this is the money moment.
 
 **Sheets** (`.modal > .modal-content`). Bottom sheets on phones with a grabber, centered dialogs at 720px
 and up. Title in `.modal-header` (Besley), optional `.modal-hint`, actions in `.sheet-actions`, stacked
-full width with the primary action first.
+full width with the primary action first. A sheet taller than the screen scrolls with its scrim
+(`.modal` is the scroller, the page is locked under it); don't give `.modal-content` its own scroll box,
+which iOS Safari won't scroll.
 
 **Grouped lists.** Rows sit in one `.group`-style surface separated by hairlines (players, log, deeds,
 rooms, steps), not in separate cards. Cards are reserved for things that stand alone (auction, trade

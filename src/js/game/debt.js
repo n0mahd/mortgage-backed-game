@@ -217,7 +217,7 @@ function openNewLoanFor(key, amount) {
     document.getElementById('loanAmount').value = amount > 0 ? (Math.ceil(amount * 100) / 100).toFixed(2) : '';
     renderLoanTerms('loanTerms', 'loanAmount');
     toggleDebtForm();
-    document.querySelector('#debtModal .modal-content').scrollTop = 0;
+    document.getElementById('debtModal').scrollTop = 0;
 }
 
 // Refinancing: pick a borrower (you, or a corporation you run), one or more of
@@ -243,7 +243,7 @@ function openRefinanceFor(key, debtIds) {
         input.checked = debtIds.includes(input.dataset.debtId);
     });
     handleRefinanceSelectionChange();
-    document.querySelector('#debtModal .modal-content').scrollTop = 0;
+    document.getElementById('debtModal').scrollTop = 0;
 }
 
 function renderRefinanceBorrowerOptions() {

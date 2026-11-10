@@ -11,7 +11,7 @@ const PHONES = [
     { name: 'iPhone 13', viewport: { width: 390, height: 844 } },
 ];
 
-async function setupGame(request) {
+async function setupGame(request, { aliceDebts = [] } = {}) {
     const users = [];
     for (const name of ['Alice', 'Bob']) {
         const auth = await apiJson(request, 'post', `${BASE_API}/auth/anonymous`);
@@ -31,7 +31,7 @@ async function setupGame(request) {
             room_id: room.id,
             game_state: {
                 currentPlayerIndex: 0,
-                players: users.map(user => playerState(user.user.id, user.name)),
+                players: users.map(user => playerState(user.user.id, user.name, user.name === 'Alice' ? { debts: aliceDebts } : {})),
                 properties: [],
                 corporations: [],
                 lastDiceRoll: null,
@@ -115,8 +115,36 @@ test('dialogs open as bottom sheets on phones', async ({ browser, request }) => 
     const sheet = page.locator('#debtModal .modal-content');
     await expect(sheet).toBeVisible();
     await page.waitForTimeout(300); // let the slide-up finish
+    // A sheet taller than the phone starts just below the top and scrolls to sit on the bottom edge.
+    const top = await sheet.boundingBox();
+    expect(Math.round(top.y)).toBe(Math.max(24, PHONES[2].viewport.height - Math.round(top.height)));
+    await page.locator('#debtModal').evaluate(modal => { modal.scrollTop = modal.scrollHeight; });
     const box = await sheet.boundingBox();
     expect(Math.round(box.y + box.height)).toBe(PHONES[2].viewport.height);
     expect(Math.round(box.width)).toBe(PHONES[2].viewport.width);
+    await context.close();
+});
+
+// iOS Safari sent drags on a sheet's own scroll box to the page behind, so a tall Debt
+// sheet never moved. The scrim scrolls instead and the page is locked under it.
+test('a sheet taller than the phone scrolls by touch to its last button, the page behind does not', async ({ browser, request }) => {
+    const loan = (id, principal) => ({ id, principal, interestRate: 5, termTurns: 10, turnsRemaining: 6, autopay: true });
+    const { room, alice } = await setupGame(request, { aliceDebts: [loan('a', 900), loan('b', 500), loan('c', 300)] });
+    const { context, page } = await openGameAs(browser, PHONES[1].viewport, room, alice);
+    await page.click('#game [data-game-action="open-debt"]');
+    const close = page.locator('#debtModal [data-close-modal="debtModal"]');
+    await expect(page.locator('#debtModal .modal-content')).toBeVisible();
+    await page.waitForTimeout(300); // let the slide-up finish
+    await expect(close).not.toBeInViewport();
+
+    const cdp = await context.newCDPSession(page);
+    const touch = (type, y) => cdp.send('Input.dispatchTouchEvent', { type, touchPoints: type === 'touchEnd' ? [] : [{ x: 180, y }] });
+    for (let swipe = 0; swipe < 6; swipe++) {
+        await touch('touchStart', 560);
+        for (let y = 540; y >= 160; y -= 20) await touch('touchMove', y);
+        await touch('touchEnd');
+    }
+    await expect(close).toBeInViewport();
+    expect(await page.evaluate(() => window.scrollY)).toBe(0);
     await context.close();
 });
