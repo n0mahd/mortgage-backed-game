@@ -237,7 +237,7 @@ The chairman, or anyone holding more than half the shares, runs a corporation fr
 | Reinvest | Everyone pays full rent, shareholders included | The treasury, for the chairman to spend |
 | Payout | A shareholder pays only the part they don't own; everyone else pays in full | Straight to the shareholders, split by shares. The slice for treasury shares stays in the treasury |
 
-On paper both cost the lander the same: in Reinvest your stake in the treasury grows by your share of what you paid. The difference is cash in hand versus value locked in the company. **Changing the policy.** The chairman (or a majority holder) can change it alone only **on their own turn, before they roll**, so nobody can switch it after seeing where anyone landed. After a change it is **locked for the chairman's next 5 turns**: they can change it alone again on their 6th turn. During the lock it changes only if **every shareholder agrees**. Any shareholder can tap **Ask every shareholder to switch**; each holder sees **Agree** / **Reject** on the corporation card (the Corporations button says when an answer is waiting). The policy switches the moment the last holder agrees, at any point in the game, and that starts a fresh 5-turn lock. One rejection closes the vote. A sole shareholder's proposal passes at once.
+On paper both cost the lander the same: in Reinvest your stake in the treasury grows by your share of what you paid. The difference is cash in hand versus value locked in the company. **Changing the policy.** The chairman (or a majority holder) can change it alone only **on their own turn, before they roll**, so nobody can switch it after seeing where anyone landed. There is no cooldown: they can switch it back and forth as often as they like, as long as it is their turn and they haven't rolled. A shareholder who doesn't run the corporation can still get it changed if **every shareholder agrees**: they tap **Ask every shareholder to switch**; each holder sees **Agree** / **Reject** on the corporation card (the Corporations button says when an answer is waiting). The policy switches the moment the last holder agrees, at any point in the game. One rejection closes the vote. A sole shareholder's proposal passes at once.
 
 Debt interest is still charged to the treasury in Payout mode, so a corporation with debt needs cash to cover it.
 
@@ -542,6 +542,6 @@ Rule votes, like other actions, wait while the game is paused.
 | Win condition | Last solvent player OR host ends game |
 | Shares per new corporation | 12,000 (120 shares = 1%) |
 | Default rent policy | Reinvest |
-| Rent policy change | Chairman alone: own turn, before rolling; then locked for their next 5 turns. Anytime: every shareholder agrees |
+| Rent policy change | Chairman alone: own turn, before rolling, no cooldown. Anytime: every shareholder agrees |
 | Property / trade offers expire | 10 minutes |
 | Rule proposals | Pass GO or the loan rate; every player who isn't bankrupt must agree; expire when the proposer's turn comes round |

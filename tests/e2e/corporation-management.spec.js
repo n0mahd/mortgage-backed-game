@@ -113,9 +113,12 @@ test('the chairman switches to Payout and pays a dividend', async ({ browser, re
     await openCorporation(sam.page, 'corp-mbs');
     await sam.page.click('[data-game-action="set-rent-policy"][data-policy="payout"]');
     await expect(sam.page.locator('.corp-rent-policy .policy-option.is-current')).toContainText('Payout');
-    // Now locked: Sam can't flip it back alone for his next 5 turns.
-    await expect(sam.page.locator('.corp-rent-policy')).toContainText("can't change it alone for 5 more of their turns");
-    await expect(sam.page.locator('[data-game-action="set-rent-policy"]')).toHaveCount(0);
+    // No cooldown: before rolling, Sam can flip it back and forth.
+    await expect(sam.page.locator('.corp-rent-policy')).not.toContainText(/locked|can't change it alone/i);
+    await sam.page.click('[data-game-action="set-rent-policy"][data-policy="reinvest"]');
+    await expect(sam.page.locator('.corp-rent-policy .policy-option.is-current')).toContainText('Reinvest');
+    await sam.page.click('[data-game-action="set-rent-policy"][data-policy="payout"]');
+    await expect(sam.page.locator('.corp-rent-policy .policy-option.is-current')).toContainText('Payout');
 
     // Alex reopens the sheet and reads that his stake cuts the rent he pays.
     await expect.poll(() => alex.page.evaluate(() => currentGame.game_state.corporations[0].rentPolicy)).toBe('payout');
@@ -135,7 +138,7 @@ test('the chairman switches to Payout and pays a dividend', async ({ browser, re
     await sam.context.close();
 });
 
-test('during the lock, the policy changes when every shareholder agrees', async ({ browser, request }) => {
+test('a shareholder vote changes the policy when every shareholder agrees', async ({ browser, request }) => {
     const { room, game, users } = await setupGame(request);
     const sam = await openGame(browser, room, users.Sam);
     const alex = await openGame(browser, room, users.Alex);
@@ -162,7 +165,8 @@ test('during the lock, the policy changes when every shareholder agrees', async 
     await sam.page.click('[data-game-action="vote-rent-policy"][data-approve="true"]');
     await expect(sam.page.locator('.corp-rent-policy .policy-option.is-current')).toContainText('Reinvest');
     const mbs = (await fetchState(request, game, users.Sam)).corporations[0];
-    expect(mbs).toMatchObject({ rentPolicy: 'reinvest', rentPolicyVote: null, rentPolicyLockedTurns: 5 });
+    expect(mbs).toMatchObject({ rentPolicy: 'reinvest', rentPolicyVote: null });
+    expect(mbs).not.toHaveProperty('rentPolicyLockedTurns');
 
     await kim.context.close();
     await alex.context.close();

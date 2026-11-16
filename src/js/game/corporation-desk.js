@@ -65,30 +65,23 @@
             : `Everyone pays full rent into the ${corp.ticker} treasury, shareholders included. ${mine > 0 ? `Your ${pct} stake grows with it.` : ''}`;
         const other = policy === 'payout' ? 'reinvest' : 'payout';
         const otherLabel = other === 'payout' ? 'Payout' : 'Reinvest';
-        const lockedTurns = Number(corp.rentPolicyLockedTurns || 0);
-        const lockLine = lockedTurns > 0
-            ? `<small>The chairman can't change it alone for ${lockedTurns} more of their turns. Every shareholder agreeing changes it at once.</small>`
-            : '';
         // The current policy is the selected half of a two-way toggle; the
         // other half is the switch, when the viewer runs the corporation.
+        // Mirrors setRentPolicy: the runner switches on their turn, before rolling.
         let switchControl = '';
         let controls = '';
         if (runs && !corp.rentPolicyVote) {
-            const canSwitch = isMyTurn() && !hasRolled() && lockedTurns === 0;
-            const note = lockedTurns > 0 ? 'Locked after the last change. Ask the shareholders instead.'
-                : (!isMyTurn() ? 'You can change this at the start of your turn.'
-                    : (hasRolled() ? 'Locked: you have rolled. Change it at the start of your next turn.'
-                        : `Change it before you roll. It then stays put for your next 5 turns unless every shareholder agrees.`));
+            const canSwitch = isMyTurn() && !hasRolled();
+            const note = !isMyTurn() ? 'You can change this at the start of your turn.'
+                : (hasRolled() ? 'You have rolled. Change it at the start of your next turn.'
+                    : 'Change it before you roll.');
             const debt = (corp.debts || []).reduce((sum, d) => sum + Number(d.principal || 0), 0);
             const debtWarning = other === 'payout' && debt > 0
                 ? `<p class="share-deal-warning">${esc(corp.ticker)} owes ${money(debt)}. In Payout its treasury stops growing, but interest is still charged to it.</p>`
                 : '';
-            if (lockedTurns === 0) {
-                switchControl = `<button type="button" class="policy-option" data-game-action="set-rent-policy" data-corp-id="${esc(corp.id)}" data-policy="${other}" aria-label="Switch to ${otherLabel}"${canSwitch ? '' : ' disabled'}>${policyOptionText(other)}</button>`;
-            }
+            switchControl = `<button type="button" class="policy-option" data-game-action="set-rent-policy" data-corp-id="${esc(corp.id)}" data-policy="${other}" aria-label="Switch to ${otherLabel}"${canSwitch ? '' : ' disabled'}>${policyOptionText(other)}</button>`;
             controls = `
                 ${debtWarning}
-                ${mine > 0 && lockedTurns > 0 ? `<div class="governance-control">${proposeButton(corp, other, otherLabel)}</div>` : ''}
                 <small>${esc(note)}</small>
             `;
         } else if (mine > 0 && !corp.rentPolicyVote) {
@@ -103,7 +96,6 @@
                     ${policy === 'reinvest' ? current + otherOption : otherOption + current}
                 </div>
                 <p>${esc(effect)}</p>
-                ${lockLine}
                 ${renderRentPolicyVote(corp)}
                 ${controls}
             </div>

@@ -210,7 +210,6 @@ function summarizeGame({ room, members, game, userId }) {
             total_shares: corp.totalShares,
             cash: round(corp.cash),
             rent_policy: corp.rentPolicy || 'reinvest',
-            rent_policy_locked_turns: Number(corp.rentPolicyLockedTurns || 0),
             rent_policy_vote: corp.rentPolicyVote ? {
                 policy: corp.rentPolicyVote.policy,
                 proposed_by: clip(corp.rentPolicyVote.proposedByName),

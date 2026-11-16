@@ -32,12 +32,6 @@ function endTurn(state, player, events) {
             });
         }
     });
-    // The rent-policy cooldown counts the chairman's own turns.
-    state.corporations.forEach(corp => {
-        if (corp.chairmanId !== player.userId) return;
-        if (corp.rentPolicyLockSkipsTurnOf === player.userId) corp.rentPolicyLockSkipsTurnOf = null;
-        else if (corp.rentPolicyLockedTurns > 0) corp.rentPolicyLockedTurns -= 1;
-    });
     if ((player.cash < 0 || bankruptcyClaim) && !player.bankrupt) {
         player.bankrupt = true;
         cancelPendingTradeOffersForPlayer(state, player, events);
