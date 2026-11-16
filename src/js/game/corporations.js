@@ -282,7 +282,11 @@ function renderCorporationOverview(corp) {
     const runsIt = ShareDeals.runsCorporation(corp, currentUser.id);
     const hasProperties = (currentPlayerData?.properties || []).length > 0 && !currentPlayerData?.bankrupt;
     const addMove = runsIt && hasProperties
-        ? `<button class="btn btn-secondary btn-sm" data-game-action="open-add-to-corporation" data-corp-id="${escapeHtml(corp.id)}"${isMyTurn ? '' : ' disabled'}>Add properties<small>${isMyTurn ? 'Yours in, for shares or cash' : 'On your turn'}</small></button>`
+        ? `<button class="btn btn-secondary btn-sm" data-game-action="open-add-to-corporation" data-corp-id="${escapeHtml(corp.id)}"${isMyTurn ? '' : ' disabled'}>Add properties<small>${isMyTurn ? 'Yours in, for new shares' : 'On your turn'}</small></button>`
+        : '';
+    const hasCash = Number(currentPlayerData?.cash || 0) > 0 && !currentPlayerData?.bankrupt;
+    const addCashMove = runsIt && hasCash
+        ? `<button class="btn btn-secondary btn-sm" data-game-action="open-add-cash-to-corporation" data-corp-id="${escapeHtml(corp.id)}">Add cash<small>Into the treasury, for new shares</small></button>`
         : '';
     const buyable = getBuyableListedShares(corp);
     const listed = getTreasuryListedShares(corp);
@@ -301,7 +305,7 @@ function renderCorporationOverview(corp) {
     return `
         ${CorporationDesk.renderPropertyOffers(corp)}
         ${CorporationDesk.renderRentPolicy(corp)}
-        ${CorporationDesk.renderRunnerTools(corp, addMove)}
+        ${CorporationDesk.renderRunnerTools(corp, addMove + addCashMove)}
         <div class="corp-buy"><h4>Shares</h4>${buyHtml}</div>
         ${CorporationDesk.renderOfferButton(corp)}
     `;
@@ -589,5 +593,64 @@ async function submitAddToCorporation() {
     await submitGameAction('add_to_corporation', { corpId: addToCorpId, assetIds, issueShares }, {
         errorText: 'Failed to add properties',
         onSaved: () => closeModal('addToCorpModal'),
+    });
+}
+
+// Putting your own cash into a company you run, for new shares at today's
+// value per share or as a gift: manual_payment with toCorpId and issueShares,
+// the same as Market > Send money. Payments are allowed any time. The server
+// decides the share count; this only previews it.
+let addCashToCorpId = null;
+let addCashToCorpChoice = 'shares';
+
+function openAddCashToCorporationModal(corpId) {
+    const corp = currentGame?.game_state?.corporations?.find(item => item.id === corpId);
+    if (!corp) return;
+    addCashToCorpId = corp.id;
+    closeModal('corporationModal');
+    document.getElementById('addCashToCorpTitle').textContent = `Add cash to ${corp.ticker}`;
+    document.getElementById('addCashToCorpHint').textContent = `The cash goes into ${corp.ticker}'s treasury, where you can spend it on property, houses and loan payments as chairman.`;
+    const input = document.getElementById('addCashToCorpAmount');
+    input.value = '';
+    input.max = Math.max(0, Number(currentPlayerData?.cash || 0));
+    document.getElementById('addCashToCorpMax').textContent = `(you have ${formatMoney(currentPlayerData?.cash || 0)})`;
+    const shares = document.getElementById('addCashToCorpShares');
+    shares.innerHTML = '';
+    delete shares.dataset.html;
+    addCashToCorpChoice = 'shares';
+    renderAddCashToCorpChoices();
+    openModal('addCashToCorpModal');
+}
+
+function addCashToCorpAmount() {
+    return parseFloat(document.getElementById('addCashToCorpAmount')?.value) || 0;
+}
+
+function renderAddCashToCorpChoices(event) {
+    if (event?.target?.name === 'addCashToCorpReturn') addCashToCorpChoice = event.target.value;
+    const corp = currentGame?.game_state?.corporations?.find(item => item.id === addCashToCorpId);
+    if (!corp) return;
+    const amount = addCashToCorpAmount();
+    const choice = addToCorporationReturn(corp, [], addCashToCorpChoice, 'addCashToCorpReturn', amount);
+    const shares = document.getElementById('addCashToCorpShares');
+    if (shares.dataset.html !== choice.html) {
+        shares.innerHTML = choice.html;
+        shares.dataset.html = choice.html;
+    }
+    const preview = document.getElementById('addCashToCorpPreview');
+    preview.hidden = !(amount > 0);
+    preview.innerHTML = addToCorporationPreviewHtml(corp, [], choice.issueShares, amount);
+    const covered = amount <= Number(currentPlayerData?.cash || 0);
+    document.getElementById('addCashToCorpAmount').setAttribute('aria-invalid', String(!covered));
+    document.getElementById('add-cash-to-corp-btn').disabled = !(amount > 0) || !covered;
+}
+
+async function submitAddCashToCorporation() {
+    const amount = addCashToCorpAmount();
+    if (!addCashToCorpId || !(amount > 0)) return;
+    const issueShares = document.querySelector('#addCashToCorpShares input:checked')?.value === 'shares';
+    await submitGameAction('manual_payment', { fromPlayerId: currentUser.id, toCorpId: addCashToCorpId, amount, issueShares }, {
+        errorText: 'Failed to add cash',
+        onSaved: () => closeModal('addCashToCorpModal'),
     });
 }

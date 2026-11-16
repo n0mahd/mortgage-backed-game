@@ -837,6 +837,9 @@ function bindStaticGameControls() {
     document.getElementById('create-ipo-btn')?.addEventListener('click', createIPO);
     document.getElementById('add-to-corp-btn')?.addEventListener('click', submitAddToCorporation);
     document.getElementById('addToCorpModal')?.addEventListener('change', renderAddToCorpChoices);
+    document.getElementById('add-cash-to-corp-btn')?.addEventListener('click', submitAddCashToCorporation);
+    document.getElementById('addCashToCorpModal')?.addEventListener('change', renderAddCashToCorpChoices);
+    document.getElementById('addCashToCorpAmount')?.addEventListener('input', renderAddCashToCorpChoices);
     CorporationDesk.bind();
     document.getElementById('debtAction')?.addEventListener('change', toggleDebtForm);
     document.getElementById('debtIssuer')?.addEventListener('change', renderBorrowingLimit);

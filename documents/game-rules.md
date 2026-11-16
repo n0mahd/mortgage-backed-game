@@ -224,6 +224,8 @@ If you run a corporation (you're its chairman or hold more than half its shares)
 
 There is no cap on how many shares a corporation can have, and you get new shares even if you already hold every share (your stake stays 100%, and your net worth doesn't change either way). New shares can't be priced while a corporation is worth $0 or less. You can't add properties while you owe an unpaid claim.
 
+**Adding cash.** The same works with cash: tap **Add cash** under **Chairman moves** on the corporation's card, enter an amount and choose **new shares** at today's value per share or **nothing, it's a gift**. The cash goes into the treasury. For example, $600 into MBS at $0.10 a share gets you 6,000 new shares. Unlike properties, cash can go in at any time, not only on your turn (**Market > Send money** to the corporation does the same). An amount worth less than half a share gets no new shares.
+
 To put a property into a corporation someone else runs, make it a **property offer** (below), or trade it for the chairman's own shares (see **Trading a Property for Shares** in section 12).
 
 ### Running a Corporation
