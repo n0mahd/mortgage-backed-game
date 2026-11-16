@@ -104,7 +104,7 @@ $S coverage --all-runs     # across every recorded game (ledger: /mnt/ssd/dev-da
 | `loan-due`, `loan-default` | the current player gets a loan due in full at their next End Turn, with the cash to repay it ($300, autopay off) or without ($2,000 and $50 cash) |
 | `trade-expiry`, `auction-timeout` | offers or auctions time out after 3 s (restored once the pathway happens); bots leave offers unanswered while the short timeout is in effect |
 | `corporation-with-shareholders` | the current player chairs a company (their own, or a new one) with a $600 treasury and a street, and another player holds 40%: rent policy before the roll, dividends, chairman votes, Trade as |
-| `corporation-locked-policy` | the same with the rent policy locked for 3 turns, so a change needs every shareholder: Ask every shareholder, Agree, Reject |
+| `corporation-shareholder-vote` | another player chairs a company the current player holds 40% of, so the current player changes the rent policy only by asking every shareholder: Ask every shareholder, Agree, Reject |
 | `payout-corporation`, `reinvest-corporation` | another player's company owns a street in Payout (the current player holds 25%) or Reinvest; the current player lands on it |
 | `corporation-buys`, `corporation-group` | the current player's company has $1,000 and they will land on an unowned street (Who's buying?), or it owns the Brown group and $800 (Build houses for) |
 | `offer-to-corporation`, `property-offer-expiry` | another player chairs a company with $800 and the current player owns a street to offer it (the second also makes offers expire after 3 s) |

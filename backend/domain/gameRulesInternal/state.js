@@ -93,8 +93,9 @@ function normalizeState(raw) {
         corp.status = corp.insolvent ? 'insolvent' : (corp.status || 'active');
         corp.availableShares = Math.max(0, Math.floor(Number(corp.availableShares ?? corp.totalShares ?? 0)));
         corp.rentPolicy = normalizeRentPolicy(corp.rentPolicy);
-        corp.rentPolicyLockedTurns = Math.max(0, Math.floor(Number(corp.rentPolicyLockedTurns || 0)));
-        corp.rentPolicyLockSkipsTurnOf = corp.rentPolicyLockSkipsTurnOf || null;
+        // The rent-policy cooldown is gone; saved games may still carry it.
+        delete corp.rentPolicyLockedTurns;
+        delete corp.rentPolicyLockSkipsTurnOf;
         corp.rentPolicyVote = normalizeRentPolicyVote(corp.rentPolicyVote);
         if (corp.insolvent) {
             corp.chairmanId = corp.chairmanId || null;

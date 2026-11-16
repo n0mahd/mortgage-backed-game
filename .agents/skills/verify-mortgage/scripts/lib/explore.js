@@ -222,11 +222,11 @@ class Explore {
         return !!corp && !corp.insolvent && (corp.chairmanId === me.userId || this.holds(corp, me) * 2 > Number(corp.totalShares || 0));
     }
 
-    // A company where `me` may open a rent policy vote now: a holder, no vote open, and
-    // (if they run it) the policy locked, since the runner otherwise just switches it.
+    // A company where `me` may open a rent policy vote now: a holder who doesn't run it
+    // (the runner just switches it), with no vote open.
     voteCorp(state, me) {
         return (state.corporations || []).find(c => !c.insolvent && this.holds(c, me) > 0 && !c.rentPolicyVote
-            && (!this.runs(c, me) || Number(c.rentPolicyLockedTurns || 0) > 0));
+            && !this.runs(c, me));
     }
 
     // A colour group the company owns whole (and can build on), or null.
@@ -275,13 +275,13 @@ class Explore {
     async beforeRoll(seat, me, state) {
         // Mirrors hasMovedThisTurn: doubles leave diceRolled false but set lastDiceRoll.
         if (!this.wants('desk.rent-policy-set') || me.diceRolled || Array.isArray(state.lastDiceRoll)) return false;
-        const corp = (state.corporations || []).find(c => this.runs(c, me) && !c.rentPolicyVote && !Number(c.rentPolicyLockedTurns || 0));
+        const corp = (state.corporations || []).find(c => this.runs(c, me) && !c.rentPolicyVote);
         if (!corp) return false;
         const bot = this.bot;
         const modal = await this.openCorporations(seat, corp.id);
         const button = modal.locator(`[data-game-action="set-rent-policy"][data-corp-id="${corp.id}"]`);
         if (!(await bot.usable(button))) {
-            this.ctx.finding({ severity: 'medium', category: 'ui', seat, title: 'Chairman sees no usable rent policy switch before rolling', detail: `${corp.ticker}: policy ${corp.rentPolicy || 'reinvest'}, lock ${corp.rentPolicyLockedTurns || 0}` });
+            this.ctx.finding({ severity: 'medium', category: 'ui', seat, title: 'Chairman sees no usable rent policy switch before rolling', detail: `${corp.ticker}: policy ${corp.rentPolicy || 'reinvest'}` });
             await this.ctx.shot(seat, 'rent-policy-missing');
             await bot.closeModals(seat);
             return false;
@@ -314,7 +314,7 @@ class Explore {
         if (await bot.usable(button)) {
             await bot.act(seat, `ask ${corp.ticker} shareholders to switch rent policy`, () => button.click(), { allowRejection: true });
         } else {
-            this.ctx.finding({ severity: 'medium', category: 'ui', seat, title: 'Shareholder sees no "Ask every shareholder to switch" control', detail: `${corp.ticker}: holds ${this.holds(corp, me)}, runs it: ${this.runs(corp, me)}, lock ${corp.rentPolicyLockedTurns || 0}` });
+            this.ctx.finding({ severity: 'medium', category: 'ui', seat, title: 'Shareholder sees no "Ask every shareholder to switch" control', detail: `${corp.ticker}: holds ${this.holds(corp, me)}, runs it: ${this.runs(corp, me)}` });
             await this.ctx.shot(seat, 'rent-vote-missing');
         }
         await bot.closeModals(seat);

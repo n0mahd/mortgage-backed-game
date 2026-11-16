@@ -9,7 +9,6 @@
 
 const { v4: uuidv4 } = require('uuid');
 const {
-    RENT_POLICY_COOLDOWN_TURNS,
     splitByShares,
     sharesForPrice,
 } = require('./corporateFinance');
@@ -161,10 +160,10 @@ function requireNoOpenClaim(state, player, what) {
 }
 
 // Payout sends rent straight to the shareholders; Reinvest keeps it in the
-// treasury. The runner changes it on their own only before they roll, so
-// nobody can switch it after seeing where anyone landed, and a change then
-// stays put for their next RENT_POLICY_COOLDOWN_TURNS turns. During that
-// cooldown it changes only if every shareholder agrees (a policy vote).
+// treasury. The runner changes it on their own whenever they like on their
+// own turn, but only before they roll, so nobody can switch it after seeing
+// where anyone landed. Any other shareholder can ask for a switch through a
+// policy vote, which passes once every shareholder agrees.
 function setRentPolicy(state, player, payload, events) {
     const corp = runCorporation(state, player, payload.corpId);
     const policy = requireRentPolicy(payload.policy);
@@ -172,9 +171,6 @@ function setRentPolicy(state, player, payload, events) {
         throw new GameRuleError(400, `${corp.ticker}'s rent policy can only change at the start of your turn, before you roll`);
     }
     if (corp.rentPolicy === policy) throw new GameRuleError(400, `${corp.ticker} is already in ${policy} mode`);
-    if (corp.rentPolicyLockedTurns > 0) {
-        throw new GameRuleError(400, `${corp.ticker}'s rent policy is locked for ${corp.rentPolicyLockedTurns} more of your turns. To change it sooner, every shareholder has to agree: propose the change to them.`);
-    }
     applyRentPolicy(state, corp, policy, player, events, 'chairman');
 }
 
@@ -184,21 +180,15 @@ function requireRentPolicy(value) {
     return policy;
 }
 
-// rentPolicyLockedTurns counts the chairman's turns still locked. A change
-// made during the chairman's own turn doesn't count that turn
-// (rentPolicyLockSkipsTurnOf), so the lock always covers their next turns.
 function applyRentPolicy(state, corp, policy, actor, events, method) {
     corp.rentPolicy = policy;
-    corp.rentPolicyLockedTurns = RENT_POLICY_COOLDOWN_TURNS;
-    const current = state.players[state.currentPlayerIndex];
-    corp.rentPolicyLockSkipsTurnOf = current && current.userId === corp.chairmanId ? current.userId : null;
     corp.rentPolicyVote = null;
-    events.push(makeEvent(actor, 'rent_policy_changed', { actor: actor.name, ticker: corp.ticker, policy, method, lockedTurns: RENT_POLICY_COOLDOWN_TURNS }));
+    events.push(makeEvent(actor, 'rent_policy_changed', { actor: actor.name, ticker: corp.ticker, policy, method }));
     const label = policy === 'payout' ? 'Payout: rent now goes to its shareholders' : 'Reinvest: rent now stays in its treasury';
     const what = method === 'unanimous'
         ? `Every ${corp.ticker} shareholder agreed to switch ${corp.ticker} to ${label}.`
         : `${actor.name} switched ${corp.ticker} to ${label}.`;
-    log(state, `${what} The chairman can't change it alone for their next ${RENT_POLICY_COOLDOWN_TURNS} turns.`);
+    log(state, what);
 }
 
 // A policy vote: any shareholder proposes a switch; it happens the moment

@@ -31,7 +31,7 @@ function formatLogEvent(type, data) {
             const label = data.policy === 'payout' ? 'Payout: rent goes to its shareholders' : 'Reinvest: rent stays in its treasury';
             return data.method === 'unanimous'
                 ? `Every ${data.ticker} shareholder agreed: ${data.ticker} switched to ${label}`
-                : `${data.actor} switched ${data.ticker} to ${label} (locked for their next ${data.lockedTurns || 5} turns)`;
+                : `${data.actor} switched ${data.ticker} to ${label}`;
         }
         case 'rent_policy_vote_proposed':
             return `${data.actor} asked every ${data.ticker} shareholder to switch it to ${data.policy === 'payout' ? 'Payout' : 'Reinvest'}`;

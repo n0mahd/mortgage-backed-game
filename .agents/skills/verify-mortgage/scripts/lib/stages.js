@@ -49,7 +49,7 @@ const CORP_SHARES = 12000;
 // given shareholders, treasury, rent policy and properties. holders: [[player, shares]];
 // the chairman keeps the rest, so with under half given away they still run it.
 // props: ids that must be free (no corporation owns them); they move into it.
-function corporation(s, chair, { holders = [], cash = 600, policy = 'reinvest', locked = 0, props = [] } = {}) {
+function corporation(s, chair, { holders = [], cash = 600, policy = 'reinvest', props = [] } = {}) {
     if (!free(s, props)) return null;
     let corp = (s.corporations || []).find(c => c.chairmanId === chair.userId && !c.insolvent);
     if (!corp) {
@@ -72,8 +72,6 @@ function corporation(s, chair, { holders = [], cash = 600, policy = 'reinvest', 
     corp.debts = [];
     corp.chairmanVotes = [];
     corp.rentPolicy = policy;
-    corp.rentPolicyLockedTurns = locked;
-    corp.rentPolicyLockSkipsTurnOf = null;
     corp.rentPolicyVote = null;
     for (const id of props) {
         const prop = s.properties.find(p => p.id === id);
@@ -219,12 +217,13 @@ const STAGES = {
         const corp = corporation(s, current, { holders: [[other, 4800]], cash: 600, props: [street.id] });
         return corp && { state: s, dice: {}, note: `${current.name} chairs ${corp.ticker} ($600 treasury, ${BOARD[street.square].name}); ${other.name} holds 40%` };
     },
-    // As above with the rent policy locked for 3 turns, so changing it needs every shareholder.
-    'corporation-locked-policy': (s, { current, other }) => {
+    // Another player chairs a company the current player holds 40% of, so the current player
+    // can change its rent policy only by asking every shareholder: Ask, Agree, Reject.
+    'corporation-shareholder-vote': (s, { current, other }) => {
         const street = unownedStreet(s);
         if (!other || !street) return null;
-        const corp = corporation(s, current, { holders: [[other, 4800]], cash: 300, locked: 3, props: [street.id] });
-        return corp && { state: s, dice: {}, note: `${current.name} chairs ${corp.ticker}, rent policy locked for 3 turns; ${other.name} holds 40%` };
+        const corp = corporation(s, other, { holders: [[current, 4800]], cash: 300, props: [street.id] });
+        return corp && { state: s, dice: {}, note: `${other.name} chairs ${corp.ticker}; ${current.name} holds 40% and can ask every shareholder to switch its rent policy` };
     },
     // Another player's Payout company, part-owned by the current player, who lands on its street.
     'payout-corporation': (s, { current, other }) => {

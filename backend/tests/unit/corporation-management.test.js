@@ -146,19 +146,27 @@ describe('rent policy', () => {
         return next;
     }
 
-    test('after the chairman switches it alone, it is locked for their next 5 turns', () => {
+    test('has no cooldown: the chairman can switch back on the same turn and on their next turn', () => {
         let state = setPolicy(mbsState(), 'payout');
-        expect(corpOf(state).rentPolicyLockedTurns).toBe(5);
-        for (let turn = 1; turn <= 5; turn += 1) {
-            state = passTurnsUntil(state, 'alice');
-            refused(() => setPolicy(state, 'reinvest'), /locked for \d+ more of your turns.*every shareholder/);
-        }
+        state = setPolicy(state, 'reinvest');
+        expect(corpOf(state).rentPolicy).toBe('reinvest');
+        state = setPolicy(state, 'payout');
         state = passTurnsUntil(state, 'alice');
         state = setPolicy(state, 'reinvest');
         expect(corpOf(state).rentPolicy).toBe('reinvest');
+        expect(corpOf(state)).not.toHaveProperty('rentPolicyLockedTurns');
     });
 
-    test('during the lock it changes once every shareholder agrees', () => {
+    test('old saved games still carrying a rent-policy lock load without it', () => {
+        const saved = mbsState();
+        Object.assign(corpOf(saved), { rentPolicyLockedTurns: 3, rentPolicyLockSkipsTurnOf: 'alice' });
+        const loaded = normalizeState(saved);
+        expect(corpOf(loaded)).not.toHaveProperty('rentPolicyLockedTurns');
+        expect(corpOf(loaded)).not.toHaveProperty('rentPolicyLockSkipsTurnOf');
+        expect(corpOf(setPolicy(saved, 'payout')).rentPolicy).toBe('payout');
+    });
+
+    test('a shareholder vote changes it once every shareholder agrees', () => {
         let state = setPolicy(mbsState(), 'payout');
         const corpId = corpOf(state).id;
         // Bob proposes on Alice's turn; Carol and Alice agree.
@@ -170,8 +178,8 @@ describe('rent policy', () => {
         expect(corpOf(passed).rentPolicy).toBe('reinvest');
         expect(corpOf(passed).rentPolicyVote).toBeNull();
         expect(events.find(e => e.type === 'rent_policy_changed').data.method).toBe('unanimous');
-        // A unanimous switch starts a fresh lock for the chairman.
-        expect(corpOf(passed).rentPolicyLockedTurns).toBe(5);
+        // No lock follows: the chairman can switch it straight back.
+        expect(corpOf(setPolicy(passed, 'payout')).rentPolicy).toBe('payout');
     });
 
     test('one shareholder rejecting closes the vote; outsiders cannot vote', () => {
