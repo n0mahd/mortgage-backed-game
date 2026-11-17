@@ -3431,6 +3431,48 @@ button.policy-option:active:not(:disabled) { background: var(--mint-wash); }
 
 #moveDeviceExpiry { margin-top: var(--s2); font-size: var(--text-footnote); }
 
+/* Merger sheet and vote cards (mergers.js). The value-flow chart is a
+   top-to-bottom Sankey: companies, then the merged company and the cash paid
+   out, then each player. Your own path is drawn stronger. */
+#mergerSheet h4 { margin: var(--s5) 0 var(--s2); font-size: var(--text-sub); }
+.trade-offer-card[data-merger-id] h4 { margin: var(--s4) 0 var(--s1); font-size: var(--text-sub); }
+.trade-offer-card[data-merger-id] .merger-flow-toggle { margin-bottom: var(--s1); }
+#mergerSheet .corp-stats { margin-bottom: var(--s2); }
+#mergerSheet .corp-owners-bar { margin-top: var(--s1); }
+#mergerSheet .corp-owner-list { margin-bottom: var(--s3); }
+.merger-ticker { margin-top: var(--s3); }
+.merger-flow-toggle { margin-top: var(--s3); }
+
+.merger-flow { display: block; width: 100%; height: auto; margin: var(--s3) 0; color: var(--ink-3); }
+.merger-flow .flow-label { font: 600 11px var(--font-ui); fill: var(--ink-2); }
+.merger-flow .flow-node { fill: var(--forest); }
+.merger-flow .flow-node-cash { fill: var(--gold-bright); }
+.merger-flow .flow-stock { fill: var(--forest); opacity: 0.16; }
+.merger-flow .flow-cash { fill: var(--gold-bright); opacity: 0.4; }
+.merger-flow .flow-stock.is-mine { opacity: 0.38; }
+.merger-flow .flow-cash.is-mine { opacity: 0.75; }
+
+.merger-flow-key {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--s4);
+    margin-top: var(--s3);
+    font-size: var(--text-caption);
+    color: var(--ink-2);
+}
+
+.merger-flow-key i {
+    display: inline-block;
+    width: 10px;
+    height: 10px;
+    margin-right: var(--s1);
+    border-radius: 2px;
+    vertical-align: -1px;
+}
+
+.merger-flow-key .is-stock { background: var(--forest); }
+.merger-flow-key .is-cash { background: var(--gold-bright); }
+
 /* ── 16. Auth, lobby, waiting room, hotseat ────────────────────── */
 
 .auth-container,

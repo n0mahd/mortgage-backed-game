@@ -36,6 +36,7 @@ const {
     payFromTreasury,
     describePayouts,
     controlsCorporation,
+    corporationClosed,
     sharesFor,
     addShareholderShares,
     normalizeCorporationShareLedger,
@@ -127,6 +128,7 @@ function payIntoCorporation(state, player, payload, events) {
     if (!corp) throw new GameRuleError(404, 'Corporation not found');
     if (payload.fromPlayerId && payload.fromPlayerId !== player.userId) throw new GameRuleError(403, 'Payment must be sent by actor');
     if (corp.insolvent) throw new GameRuleError(400, `${corp.ticker} is insolvent and cannot take payments`);
+    if (corporationClosed(corp)) throw new GameRuleError(400, `${corp.ticker} merged into ${corp.mergedInto?.ticker || 'another corporation'} and cannot take payments`);
     const amount = positiveNumber(payload.amount, 'amount');
     if (player.cash < amount) throw new GameRuleError(400, 'Insufficient funds');
     requireNoOpenClaim(state, player, `pay into ${corp.ticker}`);
@@ -430,7 +432,7 @@ function expirePendingPropertyOffers(state, actor, events) {
         const corp = state.corporations.find(c => c.id === offer.corpId);
         const offerer = state.players.find(p => p.userId === offer.offererId);
         const reason = isExpired(offer) ? 'timeout'
-            : (!corp || corp.insolvent ? 'corporation_insolvent' : (!offerer || offerer.bankrupt ? 'bankruptcy' : null));
+            : (!corp || corporationClosed(corp) ? 'corporation_insolvent' : (!offerer || offerer.bankrupt ? 'bankruptcy' : null));
         if (!reason) return;
         offer.status = reason === 'timeout' ? 'expired' : 'canceled';
         offer.cancelReason = reason;

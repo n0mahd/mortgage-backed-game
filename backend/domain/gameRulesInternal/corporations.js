@@ -78,10 +78,13 @@ function buyShares(state, player, payload, events) {
             ? `${corp.ticker} has only ${maxShares} treasury share(s) for sale`
             : `${corp.ticker} has no treasury shares for sale. To buy shares a player holds, make them an offer in the Market.`);
     }
-    // Treasury shares sell at what each share is worth right now (NAV).
-    const pricePerShare = roundCents(calculateCorporationShareValue(state, corp));
-    if (pricePerShare <= 0) throw new GameRuleError(400, `${corp.ticker} shares are worth $0, so its treasury shares are not for sale`);
+    // Treasury shares sell at what each share is worth right now (NAV). With
+    // 12,000 shares a share is worth fractions of a cent, so only the total is
+    // rounded to the cent, never the price per share.
+    const pricePerShare = calculateCorporationShareValue(state, corp);
+    if (!(pricePerShare > 0)) throw new GameRuleError(400, `${corp.ticker} shares are worth $0, so its treasury shares are not for sale`);
     const totalCost = roundCents(shares * pricePerShare);
+    if (!(totalCost > 0)) throw new GameRuleError(400, `${shares} ${corp.ticker} share${shares === 1 ? ' is' : 's are'} worth less than a cent. Buy more at once.`);
     if (player.cash < totalCost) throw new GameRuleError(400, 'Insufficient funds');
     const holdersBefore = snapshotHoldings(corp);
 
@@ -106,13 +109,14 @@ function buyShares(state, player, payload, events) {
         treasuryProceeds: totalCost,
         seller: '[Treasury]',
     }));
-    log(state, `${player.name} bought ${shares} treasury share(s) of ${corp.ticker} at $${pricePerShare.toFixed(2)} each for $${totalCost.toFixed(2)}`);
+    log(state, `${player.name} bought ${shares} treasury share(s) of ${corp.ticker} at $${pricePerShare.toFixed(4)} each for $${totalCost.toFixed(2)}`);
 }
 
 function runCorporation(state, player, corpId) {
     const corp = state.corporations.find(c => c.id === corpId);
     if (!corp) throw new GameRuleError(404, 'Corporation not found');
     if (corp.insolvent) throw new GameRuleError(400, `${corp.ticker} is insolvent`);
+    if (corp.status === 'merged') throw new GameRuleError(400, `${corp.ticker} merged into ${corp.mergedInto?.ticker || 'another corporation'}`);
     if (!controlsCorporation(corp, player.userId)) {
         throw new GameRuleError(403, `Only ${corp.ticker}'s chairman or a majority holder can do that`);
     }
@@ -179,8 +183,14 @@ function removeCorporationAsset(corp, propertyId) {
 // accept property into it.
 function controlsCorporation(corp, userId) {
     if (!corp || !userId) return false;
-    if (corp.insolvent) return false;
+    if (corporationClosed(corp)) return false;
     return corp.chairmanId === userId || hasMajorityShares(corp, userId);
+}
+
+// Closed after insolvency, or merged into another corporation: nothing can act
+// on it any more.
+function corporationClosed(corp) {
+    return !!corp && (!!corp.insolvent || corp.status === 'merged');
 }
 
 function changeChairman(state, actor, payload, events) {
@@ -494,6 +504,7 @@ module.exports = {
     buyPropertyForCorporation,
     removeCorporationAsset,
     controlsCorporation,
+    corporationClosed,
     changeChairman,
     proposeChairmanVote,
     supportChairmanVote,

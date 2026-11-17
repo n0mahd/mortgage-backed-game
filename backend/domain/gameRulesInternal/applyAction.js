@@ -43,6 +43,7 @@ const {
     respondPropertyOffer,
     expirePendingPropertyOffers,
 } = require('./corporationManagement');
+const { proposeMerger, voteMerger, withdrawMerger, settleMergers } = require('./mergers');
 const { endTurn, finishGame, pauseGame, resumeGame } = require('./turns');
 const { proposeRuleChange, voteRuleChange, withdrawRuleChange, settleRuleProposal } = require('./ruleChanges');
 const { normalizeState, validateStateInvariants, syncDerivedPortfolios } = require('./state');
@@ -75,6 +76,9 @@ const ACTIONS = {
     change_chairman: { run: c => changeChairman(c.state, c.actor, c.payload, c.events) },
     propose_chairman_vote: { run: c => proposeChairmanVote(c.state, c.actor, c.payload, c.events) },
     support_chairman_vote: { run: c => supportChairmanVote(c.state, c.actor, c.payload, c.events) },
+    propose_merger: { run: c => proposeMerger(c.state, c.actor, c.payload, c.events) },
+    vote_merger: { run: c => voteMerger(c.state, c.actor, c.payload, c.events) },
+    withdraw_merger: { run: c => withdrawMerger(c.state, c.actor, c.payload, c.events) },
 
     issue_debt: { turn: true, run: c => issueDebt(c.state, c.actor, c.payload, c.events) },
     pay_debt: { turn: true, run: c => payDebt(c.state, c.actor, c.payload, c.events) },
@@ -162,6 +166,8 @@ function applyAction(inputState, actorUserId, action, options = {}) {
     expirePendingPropertyOffers(state, actor, events);
     // A bankruptcy can leave every remaining player agreed, or remove the proposer.
     settleRuleProposal(state, events);
+    // A trade or bankruptcy can change who votes on a merger, or settle it.
+    settleMergers(state, events, actor);
     return finish();
 }
 

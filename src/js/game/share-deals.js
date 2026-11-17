@@ -25,9 +25,18 @@
         return !!corp.insolvent || corp.status === 'insolvent';
     }
 
+    function isMerged(corp) {
+        return corp?.status === 'merged';
+    }
+
+    // Closed for good: insolvent, or merged into another company.
+    function isClosed(corp) {
+        return isInsolvent(corp) || isMerged(corp);
+    }
+
     // Mirrors the engine's rule: the chairman or a majority holder runs an LLC.
     function runsCorporation(corp, userId) {
-        if (!corp || !userId || isInsolvent(corp)) return false;
+        if (!corp || !userId || isClosed(corp)) return false;
         return corp.chairmanId === userId || sharesHeld(corp, userId) > Number(corp.totalShares || 0) / 2;
     }
 
@@ -217,17 +226,24 @@
         });
 
         // Even split for the classic deal: property into an LLC for its shares.
+        // Even means the giver ends up where they started. The property also
+        // raises the value of shares the giver already holds, so they need
+        // fewer: given × (shares they don't hold yet) / value after. Shown as
+        // soon as the property is ticked, before any share count is typed.
         let evenShares = null;
         ['player1', 'player2'].forEach(key => {
             const side = sides[key];
             const back = sides[other[key]];
-            const lot = back.shares.find(item => item.corpId === side.intoCorpId);
-            if (!side.intoCorpId || !lot || !side.propertyIds.length || side.cash || back.cash || back.propertyIds.length) return;
+            const otherLots = back.shares.filter(item => item.corpId !== side.intoCorpId);
+            if (!side.intoCorpId || !side.propertyIds.length || side.cash || back.cash || back.propertyIds.length || otherLots.length || side.shares.length) return;
             const entry = corps.get(side.intoCorpId);
+            if (!entry) return;
             const total = Number(entry.corp.totalShares || 0);
             if (!total || entry.navAfter <= 0) return;
             const given = side.propertyIds.reduce((sum, id) => sum + propertyValue(gameState, id), 0);
-            evenShares = { ticker: entry.corp.ticker, shares: Math.round((given * total) / entry.navAfter), total };
+            const giverBefore = entry.before.get(side.userId) || 0;
+            const shares = Math.round((given * (total - giverBefore)) / entry.navAfter);
+            evenShares = { ticker: entry.corp.ticker, shares: Math.min(shares, total - giverBefore), total };
         });
 
         return { sentences, rows, warnings, netChange, evenShares };
@@ -349,5 +365,5 @@
         return { sentences, rows, warnings, quote, newShares, stakes, totalAfter };
     }
 
-    global.ShareDeals = { signedMoney, list, propertyName, summarize, summarizeContribution, summarizePropertyOffer, contributionQuote, corporationsRunBy, runsCorporation, sharesHeld, isInsolvent, percent, count, perShare };
+    global.ShareDeals = { signedMoney, list, propertyName, summarize, summarizeContribution, summarizePropertyOffer, contributionQuote, corporationsRunBy, runsCorporation, sharesHeld, isInsolvent, isMerged, isClosed, percent, count, perShare };
 })(window);

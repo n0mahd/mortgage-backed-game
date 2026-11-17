@@ -54,7 +54,55 @@ function sharesForPrice(price, totalShares, netAssetValue) {
     return Math.round((Number(price) * Number(totalShares)) / Number(netAssetValue));
 }
 
+// Mergers. The target's owners get a stake (a percent) of the merged company
+// plus cash. The stake becomes new acquirer shares: holding p% of the merged
+// company means newShares / (acquirerShares + newShares) = p / 100.
+const MAX_MERGER_STAKE_PERCENT = 95;
+
+function mergerNewShares(stakePercent, acquirerShares) {
+    const percent = Number(stakePercent);
+    const shares = Number(acquirerShares);
+    if (!(percent > 0) || !(shares > 0) || percent >= 100) return 0;
+    return Math.round((percent * shares) / (100 - percent));
+}
+
+// The stake that gives the target's owners exactly what their shares are
+// worth today, so their net worth doesn't move: (owners' value - cash) /
+// (acquirer + target - cash). The owners' value is the target's worth times the
+// share of it players hold; shares in its treasury get nothing, so their slice
+// goes to the acquirer's holders. 0 when the cash alone covers it; null when the
+// merged company would be worth $0 or less.
+function fairMergerStakePercent(acquirerValue, targetValue, cash, ownersValue = targetValue) {
+    const merged = Number(acquirerValue) + Number(targetValue) - Number(cash);
+    if (!(merged > 0)) return null;
+    const percent = ((Number(ownersValue) - Number(cash)) / merged) * 100;
+    return Math.min(Math.max(0, percent), MAX_MERGER_STAKE_PERCENT);
+}
+
+// Splits `total` whole shares in proportion to each holder's shares, by
+// largest remainder, so the parts add up exactly. Ties go to the bigger holder.
+function splitWholeShares(total, holders) {
+    const count = Math.max(0, Math.floor(Number(total || 0)));
+    const base = holders.reduce((sum, holder) => sum + Math.max(0, Number(holder.shares || 0)), 0);
+    if (count === 0 || base <= 0) return holders.map(holder => ({ ...holder, newShares: 0 }));
+    const parts = holders.map((holder, index) => {
+        const exact = (count * Math.max(0, Number(holder.shares || 0))) / base;
+        return { holder, index, whole: Math.floor(exact), remainder: exact - Math.floor(exact) };
+    });
+    let left = count - parts.reduce((sum, part) => sum + part.whole, 0);
+    [...parts]
+        .sort((a, b) => (b.remainder - a.remainder) || (Number(b.holder.shares) - Number(a.holder.shares)) || (a.index - b.index))
+        .forEach(part => {
+            if (left > 0) { part.whole += 1; left -= 1; }
+        });
+    return parts.map(part => ({ ...part.holder, newShares: part.whole }));
+}
+
 module.exports = {
+    MAX_MERGER_STAKE_PERCENT,
+    mergerNewShares,
+    fairMergerStakePercent,
+    splitWholeShares,
     RENT_POLICIES,
     DEFAULT_RENT_POLICY,
     DEFAULT_CORPORATION_SHARES,

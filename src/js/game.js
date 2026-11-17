@@ -262,6 +262,9 @@ async function applyGameUpdate(game, options = {}) {
     await loadGameLog();
     renderBoardTab();
     populatePlayerDropdowns();
+    // Open sheets recalculate from the new state, keeping what was typed.
+    Mergers.refresh();
+    refreshCorporationSheets();
 
     if (gameState.ended && !options.suppressWinner) {
         showWinnerFromState(gameState, winnerReasonFromState(gameState));
@@ -823,6 +826,7 @@ function bindStaticGameControls() {
         }
     });
     document.addEventListener('input', (event) => {
+        if (event.target.closest('.buy-shares-form input')) updateBuySharesTotal(event.target);
         if (event.target.closest('#player1Assets .trade-share-input, #player2Assets .trade-share-input')) {
             updateTradeSharePercent(event.target);
             updateMarketActionState();

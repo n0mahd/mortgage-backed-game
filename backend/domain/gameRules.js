@@ -7,7 +7,7 @@
 // only the ones listed before it:
 //   board, util, loans, corporateFinance → ledger → corporations →
 //   bankruptcy, movement, auctions, debt, trades, ruleChanges → corporationManagement →
-//   turns → state → applyAction
+//   mergers → turns → state → applyAction
 // loans.js and corporateFinance.js are pure maths (loan terms and schedules,
 // share splits); the other modules move the cash. applyAction is the only
 // function that changes game state.
@@ -24,7 +24,7 @@ const {
 } = require('./gameRulesInternal/board');
 const { GameRuleError } = require('./gameRulesInternal/util');
 const loans = require('./gameRulesInternal/loans');
-const { calculateRent, calculateNetWorth, calculateCorporationShareValue } = require('./gameRulesInternal/ledger');
+const { calculateRent, calculateNetWorth, calculateCorporationShareValue, calculateCorporationNetAssetValue } = require('./gameRulesInternal/ledger');
 const { applyCardEffect } = require('./gameRulesInternal/movement');
 const {
     createInitialGame,
@@ -34,6 +34,7 @@ const {
 } = require('./gameRulesInternal/state');
 const { applyAction, ACTION_TYPES } = require('./gameRulesInternal/applyAction');
 const ruleChanges = require('./gameRulesInternal/ruleChanges');
+const mergers = require('./gameRulesInternal/mergers');
 
 module.exports = {
     MONOPOLY_PROPERTIES,
@@ -48,6 +49,7 @@ module.exports = {
     calculateRent,
     calculateNetWorth,
     calculateCorporationShareValue,
+    calculateCorporationNetAssetValue,
     validateStateInvariants,
     validateRepairedState,
     applyCardEffect,
@@ -66,4 +68,6 @@ module.exports = {
     houseRules: ruleChanges.houseRules,
     ruleProposalHoldouts: ruleChanges.ruleProposalHoldouts,
     validatePassGoAmount: ruleChanges.validatePassGoAmount,
+    mergerQuote: mergers.mergerQuote,
+    mergerTally: mergers.mergerTally,
 };

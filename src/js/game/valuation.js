@@ -74,7 +74,7 @@ function getCorporationAssetValue(corp) {
 }
 
 function getCorporationNetAssetValue(corp) {
-    if (ShareDeals.isInsolvent(corp)) return 0;
+    if (ShareDeals.isClosed(corp)) return 0;
     return getCorporationAssetValue(corp) + Number(corp.cash || 0) - getDebtTotal(corp.debts);
 }
 
