@@ -120,11 +120,58 @@ async function openCorporationModal(corpId) {
     const corp = corporations.find(item => item.id === corpSheetCorpId);
     if (!corp) corpSheetCorpId = null;
     modal.querySelector('.modal-content').classList.toggle('is-detail', !!corp);
-    document.getElementById('corporationList').innerHTML = corp
-        ? renderCorporationDetail(corp)
-        : renderCorporationSummaries(corporations);
+    const list = document.getElementById('corporationList');
+    list.innerHTML = corp ? renderCorporationDetail(corp) : renderCorporationSummaries(corporations);
+    list.dataset.html = list.innerHTML;
+    list.querySelectorAll('.buy-shares-form input').forEach(updateBuySharesTotal);
     openModal('corporationModal');
     if (corpId !== undefined) modal.querySelector('.modal-content').scrollTop = 0;
+}
+
+// Called on every game update: the open corporation sheets recalculate from
+// the new state (share price, what treasury shares cost, new-share previews),
+// keeping whatever the player has typed or ticked.
+function refreshCorporationSheets() {
+    const isOpen = id => document.getElementById(id)?.classList.contains('active');
+    if (isOpen('corporationModal')) refreshCorporationModal();
+    if (isOpen('addToCorpModal')) refreshAddToCorporation();
+    if (isOpen('addCashToCorpModal')) refreshAddCashToCorporation();
+    CorporationDesk.refreshPropertyOffer();
+}
+
+function refreshCorporationModal() {
+    const list = document.getElementById('corporationList');
+    const corporations = currentGame.game_state.corporations || [];
+    const corp = corporations.find(item => item.id === corpSheetCorpId);
+    if (!corp) corpSheetCorpId = null;
+    const fresh = document.createElement('div');
+    fresh.innerHTML = corp ? renderCorporationDetail(corp) : renderCorporationSummaries(corporations);
+    if (list.dataset.html === fresh.innerHTML) return;
+    const typed = new Map(Array.from(list.querySelectorAll('input[id], select[id], textarea[id]'))
+        .filter(el => el.type !== 'checkbox' && el.type !== 'radio')
+        .map(el => [el.id, el.value]));
+    const focusedId = list.contains(document.activeElement) ? document.activeElement.id : null;
+    document.querySelector('#corporationModal .modal-content').classList.toggle('is-detail', !!corp);
+    list.innerHTML = fresh.innerHTML;
+    list.dataset.html = fresh.innerHTML;
+    typed.forEach((value, id) => {
+        const el = document.getElementById(id);
+        if (el && list.contains(el)) el.value = value;
+    });
+    list.querySelectorAll('.buy-shares-form input').forEach(updateBuySharesTotal);
+    if (focusedId) document.getElementById(focusedId)?.focus();
+}
+
+// What a number of treasury shares costs: the exact value per share times the
+// count, rounded to the cent only at the end, as the server charges it.
+function updateBuySharesTotal(input) {
+    const corp = currentGame?.game_state?.corporations?.find(item => item.id === input.dataset.corpId);
+    const out = document.getElementById(`buySharesTotal-${input.dataset.corpId}`);
+    if (!corp || !out) return;
+    const shares = Math.max(0, Math.floor(Number(input.value) || 0));
+    const cost = Math.round(shares * getCorporationShareValue(corp) * 100) / 100;
+    const text = shares > 0 ? `${ShareDeals.count(shares)} share${shares === 1 ? ' costs' : 's cost'} ${formatMoney(cost)}` : '';
+    if (out.textContent !== text) out.textContent = text;
 }
 
 function showCorporationList() {
@@ -157,7 +204,17 @@ function renderOwnersBar(corp) {
     return `<div class="corp-owners-bar" aria-hidden="true">${segments}</div>`;
 }
 
+// The company a merged corporation joined, by its ticker today. When the
+// merger gave the buyer this company's own ticker, says so.
+function mergedIntoLabel(corp) {
+    const into = (currentGame.game_state.corporations || []).find(item => item.id === corp.mergedInto?.corpId);
+    const ticker = into?.ticker || corp.mergedInto?.ticker || 'another company';
+    if (ticker === corp.ticker && corp.mergedInto?.acquirerTicker) return `${corp.mergedInto.acquirerTicker} (now ${ticker})`;
+    return ticker;
+}
+
 function corporationRoleLine(corp) {
+    if (ShareDeals.isMerged(corp)) return `Merged into ${mergedIntoLabel(corp)}`;
     if (ShareDeals.isInsolvent(corp)) return 'Closed after insolvency';
     const mine = ShareDeals.sharesHeld(corp, currentUser.id);
     const stake = mine > 0 ? `you own ${ShareDeals.percent(mine, corp.totalShares)}` : "you don't own shares";
@@ -166,6 +223,7 @@ function corporationRoleLine(corp) {
 }
 
 function corporationStatusBadge(corp) {
+    if (ShareDeals.isMerged(corp)) return `<span class="badge">Merged into ${escapeHtml(mergedIntoLabel(corp))}</span>`;
     if (ShareDeals.isInsolvent(corp)) return '<span class="badge badge-danger">Insolvent</span>';
     return corp.rentPolicy === 'payout'
         ? '<span class="badge badge-gold">Payout</span>'
@@ -177,11 +235,15 @@ function renderCorporationSummaries(corporations) {
     if (!corporations.length) {
         return `${header}<p class="empty-state">No corporations yet. Create an IPO on your turn to start one.</p>`;
     }
-    const cards = corporations.map(corp => {
+    // Closed companies go last.
+    const ordered = [...corporations].sort((a, b) => ShareDeals.isClosed(a) - ShareDeals.isClosed(b));
+    const cards = ordered.map(corp => {
         const debt = getDebtTotal(corp.debts);
         const forSale = getTreasuryListedShares(corp);
         const waiting = CorporationDesk.waitingOnMe(corp);
-        const facts = ShareDeals.isInsolvent(corp)
+        const facts = ShareDeals.isMerged(corp)
+            ? `<span>Its properties, cash and loans moved to ${escapeHtml(mergedIntoLabel(corp))}</span>`
+            : ShareDeals.isInsolvent(corp)
             ? '<span>Properties returned to the Bank</span>'
             : `<span>Worth <b>${formatMoney(getCorporationNetAssetValue(corp))}</b></span>
                <span>Cash <b>${formatMoney(Number(corp.cash || 0))}</b></span>
@@ -192,10 +254,9 @@ function renderCorporationSummaries(corporations) {
                 <span class="corp-summary-head">
                     <span class="corp-ticker">${escapeHtml(corp.ticker)}</span>
                     ${corporationStatusBadge(corp)}
-                    <span class="corp-summary-price">${ShareDeals.perShare(getCorporationShareValue(corp))}<small>a share</small></span>
+                    ${ShareDeals.isMerged(corp) ? '' : `<span class="corp-summary-price">${ShareDeals.perShare(getCorporationShareValue(corp))}<small>a share</small></span>`}
                 </span>
-                <span class="corp-summary-role">${escapeHtml(corporationRoleLine(corp))}</span>
-                ${renderOwnersBar(corp)}
+                ${ShareDeals.isMerged(corp) ? '' : `<span class="corp-summary-role">${escapeHtml(corporationRoleLine(corp))}</span>${renderOwnersBar(corp)}`}
                 <span class="corp-summary-facts">${facts}</span>
                 ${waiting.map(line => `<span class="corp-summary-waiting">${escapeHtml(line)}</span>`).join('')}
             </button>
@@ -263,7 +324,7 @@ function renderCorporationDebts(corp) {
         }).join('')
         : '<li class="empty-state">No corporation debt</li>';
     // say who can borrow for the corporation, and let them do it here.
-    const who = ShareDeals.isInsolvent(corp)
+    const who = ShareDeals.isClosed(corp)
         ? ''
         : ShareDeals.runsCorporation(corp, currentUser.id)
             ? `<div class="moves-grid corp-moves">${CorporationDesk.borrowButton(corp)}</div>`
@@ -276,13 +337,25 @@ function renderCorporationDebts(corp) {
 function renderCorporationOverview(corp) {
     const gameState = currentGame.game_state;
     const isMyTurn = gameState.players[gameState.currentPlayerIndex].userId === currentUser.id;
+    if (ShareDeals.isMerged(corp)) {
+        const summary = corp.mergerSummary || {};
+        const paid = [
+            summary.newShares > 0 ? `${ShareDeals.count(summary.newShares)} ${corp.mergedInto?.ticker || ''} shares` : '',
+            summary.cash > 0 ? formatMoney(summary.cash) : '',
+        ].filter(Boolean).join(' and ');
+        return `<p class="corp-status-warning">${escapeHtml(corp.ticker)} merged into ${escapeHtml(mergedIntoLabel(corp))}. Its properties, cash and loans moved there${paid ? `, and its owners got ${escapeHtml(paid)}` : ''}.</p>`;
+    }
     if (ShareDeals.isInsolvent(corp)) {
         return '<p class="corp-status-warning">This corporation is closed after treasury insolvency. Properties returned to the Bank; shares, debt, and governance were wiped.</p>';
     }
     const runsIt = ShareDeals.runsCorporation(corp, currentUser.id);
     const hasProperties = (currentPlayerData?.properties || []).length > 0 && !currentPlayerData?.bankrupt;
     const addMove = runsIt && hasProperties
-        ? `<button class="btn btn-secondary btn-sm" data-game-action="open-add-to-corporation" data-corp-id="${escapeHtml(corp.id)}"${isMyTurn ? '' : ' disabled'}>Add properties<small>${isMyTurn ? 'Yours in, for shares or cash' : 'On your turn'}</small></button>`
+        ? `<button class="btn btn-secondary btn-sm" data-game-action="open-add-to-corporation" data-corp-id="${escapeHtml(corp.id)}"${isMyTurn ? '' : ' disabled'}>Add properties<small>${isMyTurn ? 'Yours in, for new shares' : 'On your turn'}</small></button>`
+        : '';
+    const hasCash = Number(currentPlayerData?.cash || 0) > 0 && !currentPlayerData?.bankrupt;
+    const addCashMove = runsIt && hasCash
+        ? `<button class="btn btn-secondary btn-sm" data-game-action="open-add-cash-to-corporation" data-corp-id="${escapeHtml(corp.id)}">Add cash<small>Into the treasury, for new shares</small></button>`
         : '';
     const buyable = getBuyableListedShares(corp);
     const listed = getTreasuryListedShares(corp);
@@ -290,18 +363,19 @@ function renderCorporationOverview(corp) {
     const buyHtml = isMyTurn && buyable > 0
         ? `
             <div class="buy-shares-form">
-                <label for="buyShares-${escapeHtml(corp.id)}">Buy treasury shares at ${formatMoney(shareValue)} each (up to ${buyable})</label>
-                <input type="number" inputmode="numeric" id="buyShares-${escapeHtml(corp.id)}" min="1" max="${buyable}" value="1">
+                <label for="buyShares-${escapeHtml(corp.id)}">Buy treasury shares at ${ShareDeals.perShare(shareValue)} each (up to ${ShareDeals.count(buyable)})</label>
+                <input type="number" inputmode="numeric" id="buyShares-${escapeHtml(corp.id)}" data-corp-id="${escapeHtml(corp.id)}" min="1" max="${buyable}" value="1">
+                <span class="corp-hint" id="buySharesTotal-${escapeHtml(corp.id)}" aria-live="polite"></span>
                 <button class="btn btn-primary" data-game-action="buy-shares" data-corp-id="${escapeHtml(corp.id)}">Buy</button>
             </div>
         `
         : `<p class="corp-hint">${listed > 0
-            ? `Treasury shares for sale: ${ShareDeals.count(listed)} at ${formatMoney(shareValue)} each. You can buy them on your turn.`
+            ? `Treasury shares for sale: ${ShareDeals.count(listed)} at ${ShareDeals.perShare(shareValue)} each. You can buy them on your turn.`
             : 'No treasury shares for sale. To buy shares a player holds, make them an offer in the Market.'}</p>`;
     return `
         ${CorporationDesk.renderPropertyOffers(corp)}
         ${CorporationDesk.renderRentPolicy(corp)}
-        ${CorporationDesk.renderRunnerTools(corp, addMove)}
+        ${CorporationDesk.renderRunnerTools(corp, addMove + addCashMove)}
         <div class="corp-buy"><h4>Shares</h4>${buyHtml}</div>
         ${CorporationDesk.renderOfferButton(corp)}
     `;
@@ -345,11 +419,11 @@ function renderCorporationDetail(corp) {
 }
 
 function renderChairmanGovernance(corp) {
-    if (ShareDeals.isInsolvent(corp)) {
+    if (ShareDeals.isClosed(corp)) {
         return `
             <div class="chairman-governance">
                 <h4>Changing the chairman</h4>
-                <p class="empty-state">Governance closed after insolvency.</p>
+                <p class="empty-state">${ShareDeals.isMerged(corp) ? 'Closed after the merger.' : 'Governance closed after insolvency.'}</p>
             </div>
         `;
     }
@@ -455,8 +529,8 @@ async function buyShares(corpId) {
     const gameState = currentGame.game_state;
     const corp = gameState.corporations.find(c => c.id === corpId);
     if (!corp) return;
-    if (ShareDeals.isInsolvent(corp)) {
-        alert('This corporation is insolvent and cannot sell shares.');
+    if (ShareDeals.isClosed(corp)) {
+        alert('This corporation is closed and cannot sell shares.');
         return;
     }
 
@@ -490,6 +564,7 @@ function openAddToCorporationModal(corpId) {
     document.getElementById('addToCorpHint').textContent = `${corp.ticker} will own them and collect their rent, so every ${corp.ticker} share is worth more.`;
     const container = document.getElementById('addToCorpAssets');
     container.innerHTML = addToCorporationAssetsHtml(currentPlayerData?.properties || [], 'add-corp-asset');
+    container.dataset.html = addToCorporationAssetsHtml(currentPlayerData?.properties || [], 'add-corp-asset');
     bindBuiltGroupChecks(container);
     document.getElementById('addToCorpShares').innerHTML = '';
     addToCorpChoice = 'shares';
@@ -569,6 +644,26 @@ function addToCorporationPreviewHtml(corp, ids, issueShares, cash = 0) {
 
 // Redraws the "what do you get back" choice and the preview whenever the
 // ticked properties or the choice change.
+// The Add properties sheet after a game update: your properties may have
+// changed, and the company's value moves the share count. Ticks are kept.
+function refreshAddToCorporation() {
+    const corp = currentGame?.game_state?.corporations?.find(item => item.id === addToCorpId);
+    if (!corp || !ShareDeals.runsCorporation(corp, currentUser.id)) {
+        closeModal('addToCorpModal');
+        return;
+    }
+    const container = document.getElementById('addToCorpAssets');
+    const ticked = new Set(selectedAddToCorpIds());
+    const html = addToCorporationAssetsHtml(currentPlayerData?.properties || [], 'add-corp-asset');
+    if (container.dataset.html !== html) {
+        container.innerHTML = html;
+        container.dataset.html = html;
+        container.querySelectorAll('input[type="checkbox"]').forEach(input => { input.checked = ticked.has(input.value); });
+        bindBuiltGroupChecks(container);
+    }
+    renderAddToCorpChoices();
+}
+
 function renderAddToCorpChoices(event) {
     if (event?.target?.name === 'addToCorpReturn') addToCorpChoice = event.target.value;
     const corp = currentGame?.game_state?.corporations?.find(item => item.id === addToCorpId);
@@ -589,5 +684,77 @@ async function submitAddToCorporation() {
     await submitGameAction('add_to_corporation', { corpId: addToCorpId, assetIds, issueShares }, {
         errorText: 'Failed to add properties',
         onSaved: () => closeModal('addToCorpModal'),
+    });
+}
+
+// Putting your own cash into a company you run, for new shares at today's
+// value per share or as a gift: manual_payment with toCorpId and issueShares,
+// the same as Market > Send money. Payments are allowed any time. The server
+// decides the share count; this only previews it.
+let addCashToCorpId = null;
+let addCashToCorpChoice = 'shares';
+
+function openAddCashToCorporationModal(corpId) {
+    const corp = currentGame?.game_state?.corporations?.find(item => item.id === corpId);
+    if (!corp) return;
+    addCashToCorpId = corp.id;
+    closeModal('corporationModal');
+    document.getElementById('addCashToCorpTitle').textContent = `Add cash to ${corp.ticker}`;
+    document.getElementById('addCashToCorpHint').textContent = `The cash goes into ${corp.ticker}'s treasury, where you can spend it on property, houses and loan payments as chairman.`;
+    const input = document.getElementById('addCashToCorpAmount');
+    input.value = '';
+    input.max = Math.max(0, Number(currentPlayerData?.cash || 0));
+    document.getElementById('addCashToCorpMax').textContent = `(you have ${formatMoney(currentPlayerData?.cash || 0)})`;
+    const shares = document.getElementById('addCashToCorpShares');
+    shares.innerHTML = '';
+    delete shares.dataset.html;
+    addCashToCorpChoice = 'shares';
+    renderAddCashToCorpChoices();
+    openModal('addCashToCorpModal');
+}
+
+function addCashToCorpAmount() {
+    return parseFloat(document.getElementById('addCashToCorpAmount')?.value) || 0;
+}
+
+// The Add cash sheet after a game update: your cash and the company's value
+// may have moved. The amount typed is kept.
+function refreshAddCashToCorporation() {
+    const corp = currentGame?.game_state?.corporations?.find(item => item.id === addCashToCorpId);
+    if (!corp || ShareDeals.isClosed(corp)) {
+        closeModal('addCashToCorpModal');
+        return;
+    }
+    document.getElementById('addCashToCorpAmount').max = Math.max(0, Number(currentPlayerData?.cash || 0));
+    document.getElementById('addCashToCorpMax').textContent = `(you have ${formatMoney(currentPlayerData?.cash || 0)})`;
+    renderAddCashToCorpChoices();
+}
+
+function renderAddCashToCorpChoices(event) {
+    if (event?.target?.name === 'addCashToCorpReturn') addCashToCorpChoice = event.target.value;
+    const corp = currentGame?.game_state?.corporations?.find(item => item.id === addCashToCorpId);
+    if (!corp) return;
+    const amount = addCashToCorpAmount();
+    const choice = addToCorporationReturn(corp, [], addCashToCorpChoice, 'addCashToCorpReturn', amount);
+    const shares = document.getElementById('addCashToCorpShares');
+    if (shares.dataset.html !== choice.html) {
+        shares.innerHTML = choice.html;
+        shares.dataset.html = choice.html;
+    }
+    const preview = document.getElementById('addCashToCorpPreview');
+    preview.hidden = !(amount > 0);
+    preview.innerHTML = addToCorporationPreviewHtml(corp, [], choice.issueShares, amount);
+    const covered = amount <= Number(currentPlayerData?.cash || 0);
+    document.getElementById('addCashToCorpAmount').setAttribute('aria-invalid', String(!covered));
+    document.getElementById('add-cash-to-corp-btn').disabled = !(amount > 0) || !covered;
+}
+
+async function submitAddCashToCorporation() {
+    const amount = addCashToCorpAmount();
+    if (!addCashToCorpId || !(amount > 0)) return;
+    const issueShares = document.querySelector('#addCashToCorpShares input:checked')?.value === 'shares';
+    await submitGameAction('manual_payment', { fromPlayerId: currentUser.id, toCorpId: addCashToCorpId, amount, issueShares }, {
+        errorText: 'Failed to add cash',
+        onSaved: () => closeModal('addCashToCorpModal'),
     });
 }

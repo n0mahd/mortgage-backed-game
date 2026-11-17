@@ -339,7 +339,7 @@ function getLandingSummary(gameState, player) {
 // " MBS is in Payout: your 30% stake cut the rent to 70%." for a company square.
 function corporationRentNote(gameState, ownerId, userId) {
     const corp = (gameState.corporations || []).find(c => c.id === ownerId);
-    if (!corp || ShareDeals.isInsolvent(corp)) return '';
+    if (!corp || ShareDeals.isClosed(corp)) return '';
     if (corp.rentPolicy !== 'payout') return ` ${corp.ticker} is reinvesting: rent goes into its treasury.`;
     const mine = ShareDeals.sharesHeld(corp, userId);
     if (mine <= 0) return ` ${corp.ticker} is in Payout: rent goes to its shareholders.`;

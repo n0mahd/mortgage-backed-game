@@ -67,6 +67,7 @@ function tradingCorporation(state, corpId) {
     if (!corpId) return null;
     const corp = state.corporations.find(c => c.id === corpId);
     if (!corp) throw new GameRuleError(404, 'Corporation not found');
+    if (corp.status === 'merged') throw new GameRuleError(400, `${corp.ticker} merged into ${corp.mergedInto?.ticker || 'another corporation'} and cannot trade`);
     return corp;
 }
 

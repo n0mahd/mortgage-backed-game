@@ -6,7 +6,7 @@
 // state, so this module never re-implements game rules; it only proposes
 // candidate payloads. Used by the MCP server; the engine stays the authority.
 
-const { applyAction, houseRules, GameRuleError } = require('./gameRules');
+const { applyAction, houseRules, mergerQuote, GameRuleError } = require('./gameRules');
 
 const ACTIONS = [
     { type: 'roll_dice', category: 'turn', payload: {}, description: 'Roll two dice and move. Your turn only; once per turn, again after doubles (three doubles = Jail), paying any rent still owed from your cash first (refused if your cash cannot cover it). In Jail this rolls for doubles.' },
@@ -19,7 +19,7 @@ const ACTIONS = [
     { type: 'pass_auction', category: 'auction', payload: {}, description: 'Pass in the open auction (the current high bidder cannot pass).' },
     { type: 'buy_houses', category: 'assets', payload: { selections: { '<propertyId>': 'integer houses to add (total per property <= 5; 5th = hotel)' }, corpId: '<corporation id you run (optional): build on its complete groups from its treasury>' }, description: 'Buy houses/hotels on properties where you (or the corporation you build for) own the complete color group. Your turn only.' },
     { type: 'create_ipo', category: 'assets', payload: { ticker: 'string, up to 8 letters/digits', totalShares: 'integer 1-12000 (optional, default 12000)', assetIds: ['<propertyId you own>'] }, description: 'Bundle your properties into a corporation; you get all of its shares. Nothing is listed for sale: others buy your shares by a propose_trade you accept. Your turn only.' },
-    { type: 'add_to_corporation', category: 'assets', payload: { corpId: '<corporation id you run (chairman or majority holder)>', assetIds: ['<propertyId you own>'], issueShares: 'boolean (optional): take new shares for it' }, description: 'Put more of your properties into a corporation you run, at book value. With issueShares, you get whole new shares at the current value per share (rounded to the nearest share) so other holders keep their value; without it the property raises every share\'s value. A built colour group goes in whole. Your turn only.' },
+    { type: 'add_to_corporation', category: 'assets', payload: { corpId: '<corporation id you run (chairman or majority holder)>', assetIds: ['<propertyId you own>'], issueShares: 'boolean (optional): take new shares for it' }, description: 'Put more of your properties into a corporation you run, at book value. With issueShares, you get whole new shares at the current value per share (rounded to the nearest share) so other holders keep their value; without it the property raises every share\'s value. A built colour group goes in whole. Your turn only. To put cash in for shares, use manual_payment with toCorpId and issueShares.' },
     { type: 'buy_shares', category: 'assets', payload: { corpId: '<corporation id>', shares: 'integer > 0' }, description: 'Buy treasury shares a corporation has for sale, at its current share value (NAV). Shares a player holds can only be bought with a propose_trade they accept. Your turn only.' },
     { type: 'set_rent_policy', category: 'corporation', payload: { corpId: '<corporation id you run>', policy: "'payout' or 'reinvest'" }, description: 'Payout: rent goes straight to shareholders, and a shareholder landing there pays only the part they do not own. Reinvest: everyone pays full rent into the treasury. Your turn, before you roll; no cooldown, so you can switch again on any later turn.' },
     { type: 'propose_rent_policy_change', category: 'corporation', payload: { corpId: '<corporation id you hold shares in>', policy: "'payout' or 'reinvest'" }, description: 'Ask every shareholder to switch the rent policy; it switches the moment all of them agree (you count as agreeing). Useful when you do not run the corporation; the runner can simply switch it on their turn. Any time.' },
@@ -27,6 +27,9 @@ const ACTIONS = [
     { type: 'pay_dividend', category: 'corporation', payload: { corpId: '<corporation id you run>', amount: 'number > 0, <= its treasury cash' }, description: 'Pay treasury cash to the shareholders by shares held; the slice for treasury shares stays. Your turn only.' },
     { type: 'offer_property_to_corporation', category: 'corporation', payload: { corpId: '<corporation id you do not run>', assetIds: ['<propertyId you own>'], price: 'number > 0 (optional; omit for book value)', payWith: "'shares' (default: new shares at the current value per share) or 'cash' (from its treasury)" }, description: "Offer properties to a corporation; its chairman accepts, declines or counters. Any time." },
     { type: 'respond_property_offer', category: 'corporation', payload: { offerId: '<pending property offer id>', response: "'accept', 'decline' or 'counter'", price: 'number > 0 (counter only)', payWith: "'shares' or 'cash' (counter only, optional)" }, description: 'Answer a property offer waiting for you (as offerer or as the corporation chairman); either side can decline or withdraw at any time.' },
+    { type: 'propose_merger', category: 'corporation', payload: { acquirerId: '<corporation id you run (chairman or majority holder)>', targetId: '<another corporation id>', cash: 'number >= 0 (optional, default 0): paid out of the acquirer\'s treasury, with the target\'s cash added first, so it may reach both treasuries together', stakePercent: 'number 0-95 (optional, default 0): the percent of the merged company the target\'s owners get, paid as new acquirer shares', ticker: "string (optional): the merged company's ticker; omit to keep the acquirer's, or use the target's or a new unused one" }, description: "Offer to take over a whole corporation: its properties (with buildings), cash and loans join yours, and every target share gets the same cash plus new shares of yours (the target's treasury shares get nothing). The target's shareholders vote by shares (vote_merger); holders who run the acquirer don't vote. A fair stake is (owners' value - cash) / (acquirer value + target value - cash), values being property + cash - loans; the owners' value is the target's value times the share of it players hold (all of it unless its treasury holds shares). One open merger per corporation; it expires when your turn comes round. Any time." },
+    { type: 'vote_merger', category: 'corporation', payload: { mergerId: '<open merger id>', approve: 'boolean' }, description: "Vote yes (approve: true) or no on a merger offer for a corporation you hold shares in. Votes are weighted by shares; it goes through the moment yes passes half of the voting shares (binding every holder, including those who voted no) and fails the moment no reaches half. Any time." },
+    { type: 'withdraw_merger', category: 'corporation', payload: { mergerId: '<open merger id>' }, description: 'Withdraw an open merger offer you proposed, or one made by a corporation you run. Any time.' },
     { type: 'issue_debt', category: 'debt', payload: { amount: 'number > 0, <= you.borrowing.available (all your loans together may reach 90% of the book value of your properties and shares)', termTurns: '5, 10, 15, 20, 25 or 30, default 10: turns until the whole balance is due', autopay: "'pay_down' (default: the installment that clears the loan by its last turn), 'interest_only' (the turn's interest; the balance stays) or 'off'", issuerType: "'player' (default) or 'corporation'", corpId: '<corporation id, when issuerType is corporation>' }, description: "Borrow cash at the host's rate per turn, for 5 to 30 turns in steps of 5. Each End Turn charges a turn of interest and autopay takes its payment from cash: pay_down clears the loan by its last turn, interest_only keeps the balance level, off takes nothing. Unpaid interest is added to the balance. The whole balance is due at the end of the last turn, and if you can't pay it you go bankrupt. Your turn only." },
     { type: 'pay_debt', category: 'debt', payload: { debtId: '<your debt id>', amount: 'number > 0, <= your cash (more than the balance pays it off)', corpId: "<corporation id, for a loan of a corporation you run (optional)>" }, description: 'Repay part or all of a loan. Your turn only.' },
     { type: 'set_debt_autopay', category: 'debt', payload: { debtId: '<your debt id>', autopay: "'pay_down', 'interest_only' or 'off'", corpId: "<corporation id, for a loan of a corporation you run (optional)>" }, description: 'Choose what autopay takes from a loan each End Turn: the pay-down installment, the interest only, or nothing. Allowed any time.' },
@@ -133,6 +136,21 @@ function buildCandidates(state, me, hostId) {
         });
     });
 
+    // Mergers: offer the fair stake for each other company, from each company
+    // this player runs; answer or withdraw any open merger vote.
+    const openCorps = state.corporations.filter(corp => !corp.insolvent && corp.status !== 'merged');
+    openCorps.filter(corp => corp.chairmanId === me.userId || sharesOf(corp, me.userId) * 2 > Number(corp.totalShares || 0)).forEach(acquirer => {
+        openCorps.filter(target => target.id !== acquirer.id).forEach(target => {
+            const fair = mergerQuote(state, acquirer, target, 0, 0).fairStakePercent;
+            add('propose_merger', { acquirerId: acquirer.id, targetId: target.id, cash: 0, stakePercent: fair ? Math.round(fair * 100) / 100 : 0 });
+        });
+    });
+    (state.mergerProposals || []).filter(proposal => proposal.status === 'open').forEach(proposal => {
+        add('vote_merger', { mergerId: proposal.id, approve: true });
+        add('vote_merger', { mergerId: proposal.id, approve: false });
+        add('withdraw_merger', { mergerId: proposal.id });
+    });
+
     // Loans stay within 90% of the borrower's portfolio; offer the smallest
     // valid shape and let the dry run decide.
     add('issue_debt', { amount: 1 });
@@ -175,6 +193,12 @@ function buildCandidates(state, me, hostId) {
         ['host_pause_game', 'host_resume_game', 'host_cancel_auction', 'host_end_game'].forEach(type => add(type));
     }
     return candidates;
+}
+
+function sharesOf(corp, userId) {
+    return (corp.shareholders || [])
+        .filter(holder => holder.userId === userId)
+        .reduce((sum, holder) => sum + Number(holder.shares || 0), 0);
 }
 
 module.exports = {

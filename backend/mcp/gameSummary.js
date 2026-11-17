@@ -4,7 +4,7 @@
 // presentation: reads state, never decides rules (legal actions come from
 // domain/actionCatalog, which dry-runs the engine).
 
-const { BOARD_SQUARES, calculateNetWorth, calculateCorporationShareValue, houseRules } = require('../domain/gameRules');
+const { BOARD_SQUARES, HOUSE_COSTS, calculateNetWorth, calculateCorporationShareValue, calculateCorporationNetAssetValue, houseRules, mergerQuote, mergerTally } = require('../domain/gameRules');
 const { listLegalActions } = require('../domain/actionCatalog');
 
 // Agents read this after every action, so it stays compact: static board data
@@ -61,6 +61,8 @@ function attentionFor(state, userId) {
         || (state.corporations || []).some(corp => corp.rentPolicyVote && !corp.insolvent && sharesHeld(corp, userId) > 0
             && !(corp.rentPolicyVote.supporterIds || []).includes(userId));
     if (offerForMe) return 'trade_offer_for_you';
+    if (openMergerProposals(state).some(proposal => mergerTally(state, proposal).voters
+        .some(voter => voter.userId === userId && voter.vote === null))) return 'merger_vote_for_you';
     if (state.ruleProposal && !(state.ruleProposal.supporterIds || []).includes(userId)) return 'rule_vote_for_you';
     const current = state.players[state.currentPlayerIndex];
     if (current && current.userId === userId) return 'your_turn';
@@ -74,6 +76,7 @@ function statusLine(state, userId, attention) {
         case 'you_are_bankrupt': return 'You are bankrupt and can no longer act.';
         case 'auction_needs_you': return `Auction open for ${state.auction.propertyName}: bid or pass.`;
         case 'trade_offer_for_you': return 'A trade offer is waiting for your answer (accept_trade, cancel_trade, or propose_trade with counterOfferId to counter).';
+        case 'merger_vote_for_you': return 'A merger offer for a corporation you hold shares in is waiting for your vote (vote_merger with approve true or false; see merger_proposals).';
         case 'rule_vote_for_you': return 'A rule change is waiting for your vote (vote_rule_change with approve true or false; see rule_proposal).';
         case 'your_turn': return 'It is your turn.';
         default:
@@ -98,6 +101,98 @@ function ruleProposalSummary(state, userId) {
         waiting_for: active.filter(player => !proposal.supporterIds.includes(player.userId)).map(player => clip(player.name)),
         needs_your_vote: !proposal.supporterIds.includes(userId),
         expires: `when it is ${clip(proposal.proposedByName)}'s turn again`,
+    };
+}
+
+function openMergerProposals(state) {
+    return (state.mergerProposals || []).filter(proposal => proposal.status === 'open');
+}
+
+// Open merger votes: the terms, what they are worth right now, the tally by
+// shares, and what this player would get and whether they vote.
+function mergerProposalsSummary(state, userId) {
+    return openMergerProposals(state).map(proposal => {
+        const acquirer = state.corporations.find(corp => corp.id === proposal.acquirerId);
+        const target = state.corporations.find(corp => corp.id === proposal.targetId);
+        if (!acquirer || !target) return null;
+        const quote = mergerQuote(state, acquirer, target, proposal.cash, proposal.stakePercent);
+        const tally = mergerTally(state, proposal);
+        const myVote = tally.voters.find(voter => voter.userId === userId);
+        const myPayout = quote.payouts.find(payout => payout.userId === userId);
+        return {
+            merger_id: proposal.id,
+            acquirer: { corp_id: acquirer.id, ticker: acquirer.ticker, value: round(quote.acquirerValue) },
+            target: { corp_id: target.id, ticker: target.ticker, value: round(quote.targetValue) },
+            proposed_by: clip(proposal.proposedByName),
+            cash: round(proposal.cash),
+            stake_percent: proposal.stakePercent,
+            new_shares: quote.newShares,
+            merged_ticker: proposal.ticker || acquirer.ticker,
+            merged_value: round(quote.mergedValue),
+            offer_value: round(quote.offerValue),
+            fair_stake_percent: quote.fairStakePercent === null ? null : round(quote.fairStakePercent),
+            votes: {
+                voting_shares: tally.votingShares,
+                yes_shares: tally.yesShares,
+                no_shares: tally.noShares,
+                needed_yes_shares: tally.neededShares,
+                voters: tally.voters.map(voter => ({ name: clip(voter.name), shares: voter.shares, vote: voter.vote })),
+            },
+            you_can_vote: !!myVote,
+            your_vote: myVote ? myVote.vote : null,
+            needs_your_vote: !!myVote && myVote.vote === null,
+            your_payout: myPayout ? {
+                target_shares: myPayout.targetShares,
+                cash: round(myPayout.cash),
+                new_shares: myPayout.newShares,
+                value_before: round(myPayout.valueBefore),
+                value_after: round(myPayout.valueAfter),
+            } : null,
+            expires: `when it is ${clip(proposal.proposedByName)}'s turn again`,
+        };
+    }).filter(Boolean);
+}
+
+// Price plus buildings, as the engine prices a property offer at book value.
+function bookValue(state, ids) {
+    return (ids || []).reduce((sum, id) => {
+        const prop = (state.properties || []).find(p => p.id === id);
+        return prop ? sum + Number(prop.price || 0) + Number(prop.houses || 0) * (HOUSE_COSTS[prop.color] || 0) : sum;
+    }, 0);
+}
+
+function corporationSummary(state, corp, userId) {
+    if (corp.status === 'merged') {
+        const into = state.corporations.find(other => other.id === corp.mergedInto?.corpId);
+        return {
+            id: corp.id,
+            ticker: corp.ticker,
+            status: 'merged',
+            merged_into: { corp_id: corp.mergedInto?.corpId || null, ticker: into ? into.ticker : (corp.mergedInto?.ticker || null) },
+        };
+    }
+    return {
+        id: corp.id,
+        ticker: corp.ticker,
+        status: corp.insolvent ? 'insolvent' : 'active',
+        chairman: clip(corp.chairmanName),
+        insolvent: !!corp.insolvent,
+        // Worth = properties + cash - loans; a share is worth fractions of a
+        // cent, so it isn't rounded to the cent.
+        worth: round(calculateCorporationNetAssetValue(state, corp)),
+        share_value: Math.round(calculateCorporationShareValue(state, corp) * 1e6) / 1e6,
+        treasury_shares_for_sale: Number(corp.treasuryShares || 0),
+        total_shares: corp.totalShares,
+        cash: round(corp.cash),
+        rent_policy: corp.rentPolicy || 'reinvest',
+        rent_policy_vote: corp.rentPolicyVote ? {
+            policy: corp.rentPolicyVote.policy,
+            proposed_by: clip(corp.rentPolicyVote.proposedByName),
+            you_agreed: (corp.rentPolicyVote.supporterIds || []).includes(userId),
+        } : null,
+        assets: (corp.assets || []).map(asset => asset.id),
+        shareholders: (corp.shareholders || []).map(holder => ({ name: clip(holder.name), shares: holder.shares })),
+        open_chairman_votes: (corp.chairmanVotes || []).filter(vote => vote.status === 'open').map(vote => ({ id: vote.id, candidate: clip(vote.candidateName) })),
     };
 }
 
@@ -200,25 +295,8 @@ function summarizeGame({ room, members, game, userId }) {
             houses: prop.houses || 0,
         })),
         unowned_property_ids: state.properties.filter(prop => !prop.ownerId).map(prop => prop.id),
-        corporations: state.corporations.map(corp => ({
-            id: corp.id,
-            ticker: corp.ticker,
-            chairman: clip(corp.chairmanName),
-            insolvent: !!corp.insolvent,
-            share_value: round(calculateCorporationShareValue(state, corp)),
-            treasury_shares_for_sale: Number(corp.treasuryShares || 0),
-            total_shares: corp.totalShares,
-            cash: round(corp.cash),
-            rent_policy: corp.rentPolicy || 'reinvest',
-            rent_policy_vote: corp.rentPolicyVote ? {
-                policy: corp.rentPolicyVote.policy,
-                proposed_by: clip(corp.rentPolicyVote.proposedByName),
-                you_agreed: (corp.rentPolicyVote.supporterIds || []).includes(userId),
-            } : null,
-            assets: (corp.assets || []).map(asset => asset.id),
-            shareholders: (corp.shareholders || []).map(holder => ({ name: clip(holder.name), shares: holder.shares })),
-            open_chairman_votes: (corp.chairmanVotes || []).filter(vote => vote.status === 'open').map(vote => ({ id: vote.id, candidate: clip(vote.candidateName) })),
-        })),
+        corporations: state.corporations.map(corp => corporationSummary(state, corp, userId)),
+        merger_proposals: mergerProposalsSummary(state, userId),
         auction: state.auction?.status === 'open' ? {
             property_id: state.auction.propertyId,
             property: state.auction.propertyName,
@@ -256,7 +334,10 @@ function summarizeGame({ room, members, game, userId }) {
                 offerer: clip(offer.offererName),
                 corporation: offer.ticker,
                 properties: offer.assetIds,
-                price: round(offer.price),
+                // A book-value offer is repriced at today's book value when it is
+                // accepted, so show that, not the value when it was made.
+                price_basis: offer.priceBasis === 'book' ? 'book' : 'set',
+                price: round(offer.priceBasis === 'book' ? bookValue(state, offer.assetIds) : offer.price),
                 pay_with: offer.payWith,
                 needs_your_answer: offer.awaiting === 'offerer' ? offer.offererId === userId : runsCorp(state, offer.corpId, userId),
                 expires_at: offer.expiresAt,

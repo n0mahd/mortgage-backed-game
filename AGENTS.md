@@ -30,10 +30,11 @@ Other docs: player rules in `documents/game-rules.md` and `README.md`, open deci
     (house rules and their unanimous votes: the `RULES` table, propose/vote/withdraw, expiry and
     locks) → `movement` (dice,
     jail, landing, cards, buying, corporation rent) → `corporationManagement` (adding property, rent
-    policy and its votes, dividends, property offers) → `turns` (end turn, end game, pause) → `state`
+    policy and its votes, dividends, property offers) → `mergers` (one corporation taking over another:
+    propose, the shareholder vote, closing) → `turns` (end turn, end game, pause) → `state`
     (initial state, normalizing, invariants) → `applyAction`.
   - `gameRulesInternal/corporateFinance.js`: corporation share maths (Payout rent split and
-    shareholder discount, dividend split, shares a price buys). `gameRulesInternal/loans.js`: loan
+    shareholder discount, dividend split, shares a price buys, merger shares and the fair stake). `gameRulesInternal/loans.js`: loan
     terms, the host rate, autopay modes and the payment schedule. Both pure; the modules above move the cash.
   - `gameRulesInternal/applyAction.js`: the `ACTIONS` table lists every action type, who may take it
     (`turn`, `host`) and its handler. The only entry point that changes game state.
@@ -107,6 +108,9 @@ Other docs: player rules in `documents/game-rules.md` and `README.md`, open deci
     (IPO and add-to-corporation sheets, the Corporations sheet: a list of every corporation, then one
     corporation's detail in tabs; chairman votes, buying treasury shares), `corporation-desk.js` (the chairman's tools: rent policy, dividends, Build houses and Borrow for buttons; property offers, whose cards `market.js` lists under Trade proposals),
     `market.js` (the Market's panes: trade form, payments, trade proposals and past transactions; share-deal summary),
+    `mergers.js` (`Mergers`: the merge sheet opened from New trade, recalculated on every keystroke,
+    the merger vote cards in Trade proposals and the value-flow chart; its numbers mirror
+    `gameRulesInternal/mergers.js`),
     `rule-proposals.js` (`RuleProposals`: Market › Rule proposals, the house rules, the open vote, the
     proposal form, and the 📜 badge on the Market tab), `device-alerts.js` (another
     device, turn alerts).
@@ -154,7 +158,8 @@ Other docs: player rules in `documents/game-rules.md` and `README.md`, open deci
   mirror a rule for display (say so in a comment, like `turn-end-outlook.js`, and keep the mirror in
   step). A new action goes in the `ACTIONS` table in `applyAction.js`, in `actionCatalog.js`
   (`backend/tests/unit/action-catalog.test.js` fails if the two differ), and in `mcp/rules.js` if
-  agents should use it. Players change each other's holdings only through offers they accept.
+  agents should use it. Players change each other's holdings only through offers they accept; the one exception is a
+  merger, which binds every holder of the bought company once its shareholder vote passes.
 - **Keep the rule documents true.** Rules are written down in `documents/game-rules.md`, `README.md`,
   `backend/mcp/rules.js` and the descriptions in `backend/domain/actionCatalog.js`. A rule change needs
   backend tests and an update to every one of them that mentions it, in the same commit; fix any you

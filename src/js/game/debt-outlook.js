@@ -9,7 +9,7 @@
 // The key matches the Borrow as and Loans of selects.
 function debtBorrowers() {
     const corporations = getEligibleDebtCorporations()
-        .filter(corp => !ShareDeals.isInsolvent(corp))
+        .filter(corp => !ShareDeals.isClosed(corp))
         .map(corp => ({ key: `corporation:${corp.id}`, name: corp.ticker, account: corp, corp }));
     return [{ key: 'player', name: 'You', account: currentPlayerData, corp: null }, ...corporations];
 }

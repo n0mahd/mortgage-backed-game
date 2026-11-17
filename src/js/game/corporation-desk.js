@@ -52,7 +52,7 @@
     // ---- Rent policy ------------------------------------------------------
 
     function renderRentPolicy(corp) {
-        if (global.ShareDeals.isInsolvent(corp)) return '';
+        if (global.ShareDeals.isClosed(corp)) return '';
         const policy = policyOf(corp);
         const runs = global.ShareDeals.runsCorporation(corp, me());
         const total = Number(corp.totalShares || 0);
@@ -168,7 +168,7 @@
     // The chairman's moves: a dividend (it needs an amount), then one tile per
     // other move. extraMoves adds tiles owned by corporations.js.
     function renderRunnerTools(corp, extraMoves = '') {
-        if (global.ShareDeals.isInsolvent(corp) || !global.ShareDeals.runsCorporation(corp, me())) return '';
+        if (global.ShareDeals.isClosed(corp) || !global.ShareDeals.runsCorporation(corp, me())) return '';
         const myTurn = isMyTurn();
         const cash = Number(corp.cash || 0);
         return `
@@ -249,7 +249,7 @@
     }
 
     function renderOfferButton(corp) {
-        if (global.ShareDeals.isInsolvent(corp) || !corp.chairmanId || global.ShareDeals.runsCorporation(corp, me())) return '';
+        if (global.ShareDeals.isClosed(corp) || !corp.chairmanId || global.ShareDeals.runsCorporation(corp, me())) return '';
         const mine = (currentPlayerData?.properties || []).length > 0 && !currentPlayerData?.bankrupt;
         if (!mine) return '';
         return `
@@ -427,7 +427,8 @@
 
     function renderCounterBox(corp, offer, bookValue, names) {
         const id = esc(offer.id);
-        const draft = counterDrafts[offer.id] ?? Math.round(offer.price);
+        // A book-value offer is repriced at today's book value, so start there.
+        const draft = counterDrafts[offer.id] ?? Math.round(offer.priceBasis === 'book' ? bookValue : offer.price);
         return `
             <div class="offer-counter" id="counter-box-${id}"${counterOfferId === offer.id ? '' : ' hidden'}>
                 <label for="counter-${id}">Your price for ${esc(names)}</label>
@@ -496,6 +497,8 @@
     }
 
     let offerCorpId = null;
+    // "Set my price" follows the ticked properties' book value until typed in.
+    let offerPriceTyped = false;
 
     function openPropertyOffer(corpId) {
         const corp = corpById(corpId);
@@ -524,6 +527,7 @@
         document.querySelector('input[name="propertyOfferBasis"][value="book"]').checked = true;
         document.querySelector('input[name="propertyOfferPayWith"][value="shares"]').checked = true;
         document.getElementById('propertyOfferPriceInput').value = '';
+        offerPriceTyped = false;
         renderPropertyOfferPreview();
         global.openModal('propertyOfferModal');
     }
@@ -541,10 +545,12 @@
         const form = offerFormTerms();
         if (!form.corp) return;
         document.getElementById('propertyOfferPriceGroup').hidden = form.basis !== 'set';
-        // Switching to a set price starts from book value.
+        // A set price starts from book value and follows the ticked properties
+        // until the player types their own.
         const priceInput = document.getElementById('propertyOfferPriceInput');
-        if (form.basis === 'set' && !priceInput.value && form.assetIds.length) {
-            priceInput.value = Math.round(global.ShareDeals.contributionQuote(state(), form.corp, me(), form.assetIds, offerOptions()).value);
+        if (form.basis === 'set' && !offerPriceTyped && form.assetIds.length) {
+            const book = String(Math.round(global.ShareDeals.contributionQuote(state(), form.corp, me(), form.assetIds, offerOptions()).value));
+            if (priceInput.value !== book) priceInput.value = book;
         }
         const { corp, assetIds, basis, payWith, price } = offerFormTerms();
         const preview = document.getElementById('propertyOfferPreview');
@@ -563,6 +569,17 @@
         const cashShort = payWith === 'cash' && summary.quote.price > Number(corp.cash || 0);
         button.disabled = (payWith === 'shares' && summary.newShares === 0) || cashShort;
         if (cashShort) preview.innerHTML += `<p class="share-deal-warning">${esc(corp.ticker)}'s treasury has only ${money(corp.cash)}.</p>`;
+    }
+
+    // Called on every game update: the open offer sheet recalculates (company
+    // value, new shares, treasury cash) from the new state.
+    function refreshPropertyOffer() {
+        if (!document.getElementById('propertyOfferModal')?.classList.contains('active')) return;
+        if (!corpById(offerCorpId) || global.ShareDeals.isClosed(corpById(offerCorpId))) {
+            global.closeModal('propertyOfferModal');
+            return;
+        }
+        renderPropertyOfferPreview();
     }
 
     async function sendPropertyOffer() {
@@ -587,14 +604,17 @@
             updateCounterPreview(input.dataset.offerId);
         });
         document.getElementById('propertyOfferModal')?.addEventListener('change', renderPropertyOfferPreview);
-        document.getElementById('propertyOfferPriceInput')?.addEventListener('input', renderPropertyOfferPreview);
+        document.getElementById('propertyOfferPriceInput')?.addEventListener('input', () => {
+            offerPriceTyped = true;
+            renderPropertyOfferPreview();
+        });
         document.getElementById('send-property-offer-btn')?.addEventListener('click', sendPropertyOffer);
     }
 
     // Rent-policy votes waiting on this shareholder, for the Corporations button.
     // (Property offers wait in Market > Trade proposals.)
     function votesAwaiting(userId) {
-        return (state()?.corporations || []).filter(corp => corp.rentPolicyVote && !global.ShareDeals.isInsolvent(corp)
+        return (state()?.corporations || []).filter(corp => corp.rentPolicyVote && !global.ShareDeals.isClosed(corp)
             && global.ShareDeals.sharesHeld(corp, userId) > 0 && !corp.rentPolicyVote.supporterIds.includes(userId));
     }
 
@@ -611,6 +631,7 @@
     }
 
     global.CorporationDesk = {
+        refreshPropertyOffer,
         waitingOnMe,
         renderRentPolicy,
         renderRunnerTools,

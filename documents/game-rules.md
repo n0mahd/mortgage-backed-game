@@ -224,6 +224,8 @@ If you run a corporation (you're its chairman or hold more than half its shares)
 
 There is no cap on how many shares a corporation can have, and you get new shares even if you already hold every share (your stake stays 100%, and your net worth doesn't change either way). New shares can't be priced while a corporation is worth $0 or less. You can't add properties while you owe an unpaid claim.
 
+**Adding cash.** The same works with cash: tap **Add cash** under **Chairman moves** on the corporation's card, enter an amount and choose **new shares** at today's value per share or **nothing, it's a gift**. The cash goes into the treasury. For example, $600 into MBS at $0.10 a share gets you 6,000 new shares. Unlike properties, cash can go in at any time, not only on your turn (**Market > Send money** to the corporation does the same). An amount worth less than half a share gets no new shares.
+
 To put a property into a corporation someone else runs, make it a **property offer** (below), or trade it for the chairman's own shares (see **Trading a Property for Shares** in section 12).
 
 ### Running a Corporation
@@ -256,9 +258,28 @@ Anyone who doesn't run a corporation can offer it properties. Tap **Offer a prop
 
 The preview shows the new shares, each holder's stake before and after, the value per share, and your net-worth change. The offer then waits in **Market > Trade proposals** like any trade (the Moves grid shows **Trade proposals** while one waits for your answer, and the corporation's card links to it). The card shows what each side gives, says in one line how far the price is from book value and what it means for you, and lists your net-worth change and the stakes before and after. The chairman can **Accept**, **Decline** or **Counter** with another price (**Its worth** fills in book value). A counter goes back to the offerer, who can accept, counter or withdraw. Offers expire after 10 minutes, and are checked again on acceptance (the property must still be yours and free of loans). A deal that hands the offerer more than half the shares makes them chairman. The chairman's own properties go in only at book value, through **Add properties**.
 
+### Mergers
+
+If you run a corporation, you can offer to take over another corporation whole, at any time. Its properties (with their houses), cash and loans join your company, and its owners are paid for their shares.
+
+1. In **Market › New trade**, put a company you run on your side and the other company on their side, then choose **The whole company: merge RRX into MBS**.
+2. The merge sheet shows what each company is worth now (properties + cash − loans). Make your offer:
+   - **Cash** from your company's treasury. Their company's cash comes over first, so you can spend both.
+   - **Their share of the merged company**, 0% to 95%, paid in new shares of your company. The **fair offer** hint shows the share that gives their owners exactly what their shares are worth today; it updates as you type. (Shares in their own treasury get nothing, so their slice goes to your company's holders.)
+   - **Ticker**: keep yours, take theirs, or pick a new one.
+3. Check the merged company and what each player ends up with, then send it.
+
+Every share of the company being bought gets the same cash and new shares. Shares in its own treasury get nothing.
+
+**The vote.** Its shareholders vote in **Market › Trade proposals** with **Vote yes** / **Vote no**, one vote per share. Anyone who runs the buying company doesn't vote. The merger goes through the moment yes votes pass half of the voting shares, and then it binds every holder, including those who voted no. It fails the moment no votes reach half. If nobody can vote (you already run or own the rest), it goes through at once. It also ends if you withdraw it or when your turn comes round again. A company can be in only one merger vote at a time.
+
+**Example.** MBS (12,000 shares) is worth $2,200 and RRX $800. MBS offers $300 plus 20% of the merged company. RRX's owners get the $300 and 3,000 new MBS shares (3,000 of 15,000 is 20%), split by their RRX shares. The merged MBS is worth $2,700 ($2,200 + $800 − the $300 paid out), so their 20% is worth $540 and the whole offer $840: a bit more than RRX's $800. The fair share would be ($800 − $300) ÷ $2,700 ≈ 18.5%.
+
+**When it goes through.** The offer is checked again first: if your company can no longer pay the cash, it's canceled. Rent still owed to the bought company is now owed to yours, and pending offers involving it are canceled. It stays listed as merged into yours, with nothing left in it.
+
 ### Selling Shares
 
-Nobody can buy your shares without your agreement. Shares change hands only through a **trade offer** in the **Market** tab that the holder accepts: offer cash (or property) for someone's shares, or offer your own shares to someone.
+Nobody can buy your shares without your agreement. Shares change hands only through a **trade offer** in the **Market** tab that the holder accepts: offer cash (or property) for someone's shares, or offer your own shares to someone. A **merger** its shareholders vote for (above) is another exception.
 
 The one exception is the corporation's own **treasury shares**. If bankruptcy returns shares to the corporation, it sells them from the **Corporations** modal at the current share value (net asset value per share, below), and the payment goes to the corporation treasury. A corporation whose shares are worth $0 cannot sell treasury shares.
 
@@ -414,7 +435,7 @@ You can put a property into another player's corporation in exchange for part of
 1. Open **Corporations** from the Game tab and tap **Offer a property for MBS shares** on that corporation's card. The Market tab opens with you on one side and the chairman on the other. You can also set up the same trade in the Market tab directly.
 2. Tick the property you're giving. Under **Where should your properties go?**, choose **Into MBS** rather than **To Sam**.
 3. Enter how many MBS shares you want back. The box shows the percentage, e.g. 3,000 shares of 12,000 = 25%.
-4. The **Your offer** box reads the deal back in one sentence and shows the corporation's value before and after, your stake and your net-worth change. For a straight property-for-shares deal it also shows the even split and a **Use N** button.
+4. The **Your offer** box reads the deal back in one sentence and shows the corporation's value before and after, your stake and your net-worth change. For a straight property-for-shares deal it also shows the even split, the share count that leaves you exactly as well off (fewer shares if you already own some, since your property raises their value too), with a **Use N** button.
 5. Propose the trade. The other player sees the same summary from their side and accepts or declines.
 
 When the trade goes through, the property belongs to the corporation: it collects the rent into the treasury and adds to the corporation's net asset value, so every share is worth more. Only a corporation run by the receiving player (its chairman or a majority holder) can take the property, and it must not be insolvent. This is checked again when the offer is accepted. Chairmanship never changes automatically, but if a trade gives someone more than half the shares, they can then replace the chairman; both players see a warning before that happens.
@@ -544,4 +565,5 @@ Rule votes, like other actions, wait while the game is paused.
 | Default rent policy | Reinvest |
 | Rent policy change | Chairman alone: own turn, before rolling, no cooldown. Anytime: every shareholder agrees |
 | Property / trade offers expire | 10 minutes |
+| Mergers | Whoever runs the buyer offers cash + up to 95% of the merged company; the bought company's shareholders vote by shares, more than half yes passes |
 | Rule proposals | Pass GO or the loan rate; every player who isn't bankrupt must agree; expire when the proposer's turn comes round |

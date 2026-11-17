@@ -34,7 +34,7 @@ function openDebtModal() {
 function getManagedLoans() {
     const own = getPersonalDebts().map(debt => ({ debt, corp: null }));
     const corporate = getEligibleDebtCorporations()
-        .filter(corp => !ShareDeals.isInsolvent(corp))
+        .filter(corp => !ShareDeals.isClosed(corp))
         .flatMap(corp => (corp.debts || []).map(debt => ({ debt, corp })));
     return [...own, ...corporate];
 }

@@ -13,7 +13,7 @@ const MARKET_CORP_PREFIX = 'corp:';
 function marketPartyOptionsHtml(gameState, excludeUserId = null) {
     const players = gameState.players.filter(p => p.userId !== excludeUserId);
     const playersHtml = players.map(p => `<option value="${escapeHtml(p.userId)}">${escapeHtml(p.userId === currentUser.id ? `${p.name} (you)` : p.name)}</option>`).join('');
-    const corps = (gameState.corporations || []).filter(corp => corp.chairmanId && !ShareDeals.isInsolvent(corp));
+    const corps = (gameState.corporations || []).filter(corp => corp.chairmanId && !ShareDeals.isClosed(corp));
     if (!corps.length) return playersHtml;
     const corpsHtml = corps.map(corp => {
         const owner = ShareDeals.runsCorporation(corp, currentUser.id) ? 'your company' : `${corp.chairmanName || 'chairman'}'s company`;
@@ -43,15 +43,33 @@ function tradeSideCorp(side) {
     return tradeSide(side).corp;
 }
 
+// Two companies, one of them yours to run: the trade form can merge the other
+// into yours. { acquirer, target, targetSide, runsBoth } or null.
+function tradeMergePair(one, two) {
+    if (!one.corp || !two.corp || ShareDeals.isClosed(one.corp) || ShareDeals.isClosed(two.corp)) return null;
+    const runsOne = ShareDeals.runsCorporation(one.corp, currentUser.id);
+    const runsTwo = ShareDeals.runsCorporation(two.corp, currentUser.id);
+    if (!runsOne && !runsTwo) return null;
+    return runsOne
+        ? { acquirer: one.corp, target: two.corp, targetSide: 'player2', runsBoth: runsTwo }
+        : { acquirer: two.corp, target: one.corp, targetSide: 'player1', runsBoth: false };
+}
+
+// "What does RRX give?" between two companies: 'trade' (some of it) or 'merge'.
+let tradeMergeChoice = 'trade';
+
 // What the trade form does with its two sides: 'trade', 'add' (your own
-// properties into a company you run, no one else involved), or 'invalid'
-// with the reason.
+// properties into a company you run, no one else involved), 'merge' (another
+// company into one you run, opens the merge sheet), or 'invalid' with the reason.
 function tradeFormMode() {
     const one = tradeSide('player1');
     const two = tradeSide('player2');
     const invalid = reason => ({ kind: 'invalid', reason, one, two });
     if (!one.player || !two.player) return invalid('Choose who gives on each side.');
     if (one.value === two.value) return invalid('Choose two different sides for a trade.');
+    const pair = tradeMergePair(one, two);
+    // Two companies you run can't trade with each other, but they can merge.
+    if (pair && (pair.runsBoth || tradeMergeChoice === 'merge')) return { kind: 'merge', ...pair, one, two };
     if (one.userId !== two.userId) {
         return [one.userId, two.userId].includes(currentUser.id) ? { kind: 'trade', one, two } : invalid('Your trade must include you.');
     }
@@ -107,6 +125,18 @@ function populatePlayerDropdowns() {
         });
         player2Select.dataset.assetsBound = 'true';
     }
+    ['player1Destination', 'player2Destination'].forEach(id => {
+        const box = document.getElementById(id);
+        if (!box || box.dataset.mergeBound) return;
+        box.addEventListener('change', event => {
+            if (event.target.name !== 'tradeMergeChoice') return;
+            tradeMergeChoice = event.target.value;
+            updatePlayerAssets('player1');
+            updatePlayerAssets('player2');
+            updateMarketActionState();
+        });
+        box.dataset.mergeBound = 'true';
+    });
     if (!paymentToPlayer.dataset.paymentBound) {
         paymentToPlayer.addEventListener('change', updateMarketActionState);
         paymentToPlayer.dataset.paymentBound = 'true';
@@ -179,10 +209,17 @@ function updatePlayerAssets(playerNumber) {
         renderAddToCorporationSide(container, playerNumber, mode.corp);
         return;
     }
+    if (mode.kind === 'merge') {
+        container.innerHTML = '';
+        container.dataset.playerId = '';
+        renderMergeChoice(playerNumber, mode);
+        return;
+    }
     const holderKey = corp ? `${userId}|${corp.id}` : userId;
     if (corp) {
         renderCorporationTradeAssets(container, playerNumber, corp, holderKey);
         renderTradeDestination(playerNumber);
+        renderMergeChoice(playerNumber, mode);
         return;
     }
     // Game updates re-render this form; keep what the player already picked.
@@ -227,7 +264,7 @@ function updatePlayerAssets(playerNumber) {
     ` : '';
 
     const sharesHtml = (player.corporations || [])
-        .filter(corp => Number(corp.sharesOwned || 0) > 0 && !ShareDeals.isInsolvent(corp))
+        .filter(corp => Number(corp.sharesOwned || 0) > 0 && !ShareDeals.isClosed(corp))
         .map(corp => {
             const inputId = `${playerNumber}-shares-${escapeHtml(corp.id)}`;
             return `
@@ -271,12 +308,49 @@ function renderAddToCorporationSide(container, playerNumber, corp) {
     document.getElementById(`${playerNumber}Destination`).innerHTML = '';
 }
 
+// Between your company and another one: trade some of it, or merge all of it.
+// Drawn on the other company's side; with two companies you run, merging is
+// the only choice.
+function renderMergeChoice(playerNumber, mode) {
+    const pair = tradeMergePair(mode.one, mode.two);
+    const container = document.getElementById(`${playerNumber}Destination`);
+    if (!pair || pair.targetSide !== playerNumber || !container) {
+        if (container && mode.kind === 'merge') container.innerHTML = '';
+        return;
+    }
+    const { acquirer, target } = pair;
+    const merging = mode.kind === 'merge';
+    const option = (value, title, detail) => `
+        <label class="trade-destination-option">
+            <input type="radio" name="tradeMergeChoice" value="${value}"${(merging ? 'merge' : 'trade') === value ? ' checked' : ''}>
+            <span><strong>${escapeHtml(title)}</strong><small>${escapeHtml(detail)}</small></span>
+        </label>`;
+    container.innerHTML = `
+        <p class="trade-destination-title">What does ${escapeHtml(target.ticker)} give?</p>
+        ${pair.runsBoth ? '' : option('trade', 'Some of its properties or cash', `${target.chairmanName || 'Its chairman'}, ${target.ticker}'s chairman, accepts or declines.`)}
+        ${option('merge', `The whole company: merge ${target.ticker} into ${acquirer.ticker}`, `${target.ticker}'s owners vote. Everything ${target.ticker} has joins ${acquirer.ticker}, and ${target.ticker} closes.`)}
+    `;
+    container.dataset.html = '';
+}
+
 let tradeAddChoice = 'shares'; // "What do you get back?" when adding to your company
 let paymentReturnChoice = 'shares'; // the same, for cash sent to your company
 
 // Shows the form for a trade or for adding to your own company: headings,
 // cash boxes, "What do you get back?" and the button.
 function renderTradeFormMode(mode) {
+    if (mode.kind === 'merge') {
+        document.getElementById('player1Heading').textContent = mode.targetSide === 'player2' ? `${mode.acquirer.ticker} buys` : `${mode.target.ticker} gives`;
+        document.getElementById('player2Heading').textContent = mode.targetSide === 'player2' ? `${mode.target.ticker} gives` : `${mode.acquirer.ticker} buys`;
+        ['player1', 'player2'].forEach(side => {
+            const group = document.getElementById(`${side}CashGroup`);
+            if (group) group.hidden = true;
+        });
+        const button = document.getElementById('executeTradeBtn');
+        if (button) button.textContent = 'Set up the merger';
+        renderTradeCounterBanner();
+        return null;
+    }
     const adding = mode.kind === 'add';
     document.getElementById('player1Heading').textContent = adding ? 'You put in' : 'You give';
     document.getElementById('player2Heading').textContent = adding ? 'You get back' : 'They give';
@@ -539,7 +613,7 @@ function pendingTradeOffers() {
 function tradeProposalsAwaitingMe() {
     const trades = pendingTradeOffers().filter(offer => offer.recipientId === currentUser?.id && !isTradeOfferExpiredForDisplay(offer));
     const propertyOffers = CorporationDesk.pendingPropertyOffers().filter(offer => CorporationDesk.awaitsUser(offer, currentUser?.id));
-    return trades.length + propertyOffers.length;
+    return trades.length + propertyOffers.length + Mergers.awaitingMe();
 }
 
 function hasTradeOfferAwaitingMe() {
@@ -608,7 +682,9 @@ function updateMarketActionState() {
     const mode = tradeFormMode();
     const addPreview = renderTradeFormMode(mode);
     let tradeValid = false;
-    if (mode.kind === 'add') {
+    if (mode.kind === 'merge') {
+        tradeValid = true;
+    } else if (mode.kind === 'add') {
         tradeValid = addPreview.ids.length > 0 && isCurrentUsersTurn();
     } else if (mode.kind === 'trade') {
         const tradeHasOffer = player1Cash > 0 || player2Cash > 0 || player1Assets > 0 || player2Assets > 0;
@@ -653,7 +729,7 @@ function renderPaymentReturn() {
             preview.dataset.html = previewHtml;
         }
     }
-    const recipient = terms.to.corp ? !ShareDeals.isInsolvent(terms.to.corp) : (!!terms.to.player && terms.to.userId !== currentUser.id);
+    const recipient = terms.to.corp ? !ShareDeals.isClosed(terms.to.corp) : (!!terms.to.player && terms.to.userId !== currentUser.id);
     return { valid: recipient && terms.amount > 0 };
 }
 
@@ -694,10 +770,11 @@ function renderTradeOffers() {
     if (!container || !currentGame) return;
     const offers = pendingTradeOffers();
     const propertyOffers = CorporationDesk.pendingPropertyOffers();
+    const mergerCards = Mergers.cards();
     dropClosedTradeCounter();
     renderPastTrades();
-    updateMarketTabs(offers.length + propertyOffers.length);
-    if (offers.length + propertyOffers.length === 0) {
+    updateMarketTabs(offers.length + propertyOffers.length + mergerCards.length);
+    if (offers.length + propertyOffers.length + mergerCards.length === 0) {
         setTradeOffersHtml(container, '<p class="empty-state">No pending trade offers</p>');
         return;
     }
@@ -746,7 +823,7 @@ function renderTradeOffers() {
         `;
         return { waiting: canAccept, html };
     });
-    const cards = [...propertyCards, ...tradeCards].sort((a, b) => b.waiting - a.waiting);
+    const cards = [...mergerCards, ...propertyCards, ...tradeCards].sort((a, b) => b.waiting - a.waiting);
     setTradeOffersHtml(container, cards.map(card => card.html).join(''));
 }
 
@@ -1094,6 +1171,10 @@ async function hostCancelTradeOffer(offerId) {
 
 async function executeTransaction() {
     const mode = tradeFormMode();
+    if (mode.kind === 'merge') {
+        Mergers.open(mode.acquirer.id, mode.target.id);
+        return;
+    }
     if (mode.kind === 'add') {
         await submitTradeAddToCorporation(mode.corp);
         return;

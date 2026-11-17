@@ -87,7 +87,8 @@ test('an IPO is created without a price, and treasury shares sell at NAV', async
     await trsyCard.click();
     const trsy = page.locator('#corporationModal .corp-detail');
     await expect(trsy.locator('.corp-stats')).toContainText('$50');
-    await expect(trsy).toContainText('Buy treasury shares at $50 each (up to 3)');
+    await expect(trsy).toContainText('Buy treasury shares at $50.00 each (up to 3)');
+    await expect(trsy).toContainText('1 share costs $50');
     await expect(trsy).not.toContainText('Price:');
 
     await page.locator('#buyShares-corp-trsy').fill('2');

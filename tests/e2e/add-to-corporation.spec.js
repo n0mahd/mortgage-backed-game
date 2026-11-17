@@ -135,3 +135,52 @@ test('the add-properties sheet fits a 320px phone', async ({ browser, request })
     await sam.page.screenshot({ path: 'test-results/add-to-corporation-320.png', fullPage: false });
     await sam.context.close();
 });
+
+test('the chairman adds cash to their LLC for new shares', async ({ browser, request }) => {
+    const { room, game, users } = await setupGame(request);
+    const sam = await openGame(browser, room, users.Sam, 320);
+    const alex = await openGame(browser, room, users.Alex);
+
+    // Alex doesn't run MBS, so he only has Send money (a gift).
+    await openCorporation(alex.page, 'corp-mbs');
+    await expect(alex.page.locator('#corporationModal')).toHaveClass(/active/);
+    await expect(alex.page.locator('[data-game-action="open-add-cash-to-corporation"]')).toHaveCount(0);
+
+    await openCorporation(sam.page, 'corp-mbs');
+    await sam.page.click('[data-game-action="open-add-cash-to-corporation"][data-corp-id="corp-mbs"]');
+    const modal = sam.page.locator('#addCashToCorpModal');
+    await expect(modal).toHaveClass(/active/);
+    await expect(sam.page.locator('#addCashToCorpTitle')).toHaveText('Add cash to MBS');
+    await expect(sam.page.locator('#add-cash-to-corp-btn')).toBeDisabled();
+
+    // MBS is worth $1,200 over 10 shares: $240 buys 2 new shares.
+    await sam.page.fill('#addCashToCorpAmount', '240');
+    await expect(sam.page.locator('#addCashToCorpShares input[value="shares"]')).toBeChecked();
+    await expect(sam.page.locator('#addCashToCorpShares')).toContainText('2 new shares');
+    await expect(sam.page.locator('#addCashToCorpPreview')).toContainText('9 of 12');
+    const overflow = await sam.page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+    expect(overflow).toBeLessThanOrEqual(0);
+
+    // More than Sam holds can't be sent.
+    await sam.page.fill('#addCashToCorpAmount', '999999');
+    await expect(sam.page.locator('#add-cash-to-corp-btn')).toBeDisabled();
+    await sam.page.fill('#addCashToCorpAmount', '240');
+    await sam.page.click('#add-cash-to-corp-btn');
+    await expect(modal).not.toHaveClass(/active/);
+
+    const fetched = await apiJson(request, 'get', `${BASE_API}/games/${game.id}`, {
+        headers: { Authorization: `Bearer ${users.Sam.token}` },
+    });
+    const state = fetched.game_state;
+    const mbs = state.corporations.find(c => c.id === 'corp-mbs');
+    expect(mbs.cash).toBe(1120);
+    expect(mbs.totalShares).toBe(12);
+    expect(mbs.shareholders).toEqual(expect.arrayContaining([
+        expect.objectContaining({ userId: users.Sam.user.id, shares: 9 }),
+        expect.objectContaining({ userId: users.Alex.user.id, shares: 3 }),
+    ]));
+    expect(state.players.find(p => p.userId === users.Sam.user.id).cash).toBe(1500 - 240);
+
+    await alex.context.close();
+    await sam.context.close();
+});

@@ -27,6 +27,7 @@ const { normalizeBankruptcyClaims } = require('./bankruptcy');
 const { normalizeAuction } = require('./auctions');
 const { borrowingCapacity } = require('./debt');
 const { normalizeRentPolicyVote } = require('./corporationManagement');
+const { normalizeMergerProposals } = require('./mergers');
 const { normalizePauseState } = require('./turns');
 const ruleChanges = require('./ruleChanges');
 
@@ -97,7 +98,7 @@ function normalizeState(raw) {
         delete corp.rentPolicyLockedTurns;
         delete corp.rentPolicyLockSkipsTurnOf;
         corp.rentPolicyVote = normalizeRentPolicyVote(corp.rentPolicyVote);
-        if (corp.insolvent) {
+        if (corp.insolvent || corp.status === 'merged') {
             corp.chairmanId = corp.chairmanId || null;
             corp.chairmanName = corp.chairmanName || null;
         } else {
@@ -143,6 +144,7 @@ function normalizeState(raw) {
     const propertyOffers = Array.isArray(state.propertyOffers) ? state.propertyOffers : [];
     const resolvedOffers = propertyOffers.filter(offer => offer.status !== 'pending').slice(-30);
     state.propertyOffers = propertyOffers.filter(offer => offer.status === 'pending' || resolvedOffers.includes(offer));
+    state.mergerProposals = normalizeMergerProposals(state.mergerProposals);
     state.auction = normalizeAuction(state.auction);
     state.bankruptcyClaims = normalizeBankruptcyClaims(state.bankruptcyClaims);
     state.turnCashFlow = state.turnCashFlow && typeof state.turnCashFlow === 'object' ? state.turnCashFlow : {};
@@ -224,6 +226,8 @@ function syncDerivedPortfolios(state) {
             }));
         player.corporations = state.corporations
             .map(corp => {
+                // A merged company lives on only in its new owner's history.
+                if (corp.status === 'merged') return null;
                 const holder = (corp.shareholders || []).find(s => s.userId === player.userId);
                 const isChairman = corp.chairmanId === player.userId;
                 const isFounder = corp.founderId === player.userId;
@@ -247,7 +251,7 @@ function syncDerivedPortfolios(state) {
     });
     // Shown on the Debt page and to agents: { bookValue, owed, limit, available }.
     state.players.forEach(player => { player.borrowing = borrowingCapacity(state, player); });
-    state.corporations.forEach(corp => { corp.borrowing = corp.insolvent ? null : borrowingCapacity(state, corp); });
+    state.corporations.forEach(corp => { corp.borrowing = corp.insolvent || corp.status === 'merged' ? null : borrowingCapacity(state, corp); });
 }
 
 // Checks a whole state sent for host repair (PATCH /api/games/:id/state) keeps
