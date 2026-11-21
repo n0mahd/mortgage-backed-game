@@ -103,7 +103,7 @@ Press state scales to 0.97; there are no hover-only affordances.
 - `.btn-gold`, `.btn-on-dark`: only on forest backgrounds (landing hero, invite code).
 
 **Action dock** (`.turn-dock`, rendered by `renderActionButtons`). Fixed above the tab bar on your turn.
-The right-hand button is the move the game needs now: Roll Dice, then Buy for $X if you can buy, then
+The right-hand button is the move the game needs now: Roll Dice, then Action (buy or auction) on an unowned property, then
 End Turn. End Turn is always present, disabled and narrow until you roll, so the sequence is visible.
 Jail choices get their own row above. Never put optional moves or host controls in the dock.
 

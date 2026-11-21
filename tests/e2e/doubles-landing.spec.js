@@ -1,6 +1,6 @@
 // @ts-check
 // Doubles leave diceRolled false so the player can roll again, but they have still landed.
-// The dock must offer Buy for the property they landed on, with Roll Again beside it, and
+// The dock must offer Action (buy or auction) for the property they landed on, with Roll Again beside it, and
 // must not offer to buy the square a turn merely starts on.
 const { test, expect } = require('@playwright/test');
 const { BASE, BASE_API, apiJson, playerState } = require('./helpers');
@@ -51,12 +51,12 @@ async function openGameAt(browser, request, { lastDiceRoll }) {
     return { page, context };
 }
 
-test('after doubles onto an unowned property the dock offers Buy and Roll Again', async ({ browser, request }) => {
+test('after doubles onto an unowned property the dock offers Action and Roll Again', async ({ browser, request }) => {
     const { page, context } = await openGameAt(browser, request, { lastDiceRoll: [3, 3] });
     const dock = page.locator('#gameContent .turn-dock');
 
     await expect(page.locator('.ticket-status')).toContainText('Doubles! Now on Oriental');
-    await expect(dock.locator('[data-game-action="open-buy-property"]')).toHaveText('Buy for $100');
+    await expect(dock.locator('[data-game-action="open-buy-property"]')).toHaveText('Action');
     await expect(dock.locator('[data-game-action="roll-dice"]')).toHaveText('Roll Again');
     await expect(dock.locator('[data-game-action="end-turn"]')).toHaveCount(0);
 
