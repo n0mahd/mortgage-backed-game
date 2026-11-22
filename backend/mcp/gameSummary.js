@@ -4,7 +4,7 @@
 // presentation: reads state, never decides rules (legal actions come from
 // domain/actionCatalog, which dry-runs the engine).
 
-const { BOARD_SQUARES, HOUSE_COSTS, calculateNetWorth, calculateCorporationShareValue, calculateCorporationNetAssetValue, houseRules, mergerQuote, mergerTally } = require('../domain/gameRules');
+const { BOARD_SQUARES, HOUSE_COSTS, calculateNetWorth, calculateCorporationShareValue, calculateCorporationNetAssetValue, houseRules, mergerQuote, mergerTally, tradeFairNewShares } = require('../domain/gameRules');
 const { listLegalActions } = require('../domain/actionCatalog');
 
 // Agents read this after every action, so it stays compact: static board data
@@ -317,12 +317,18 @@ function summarizeGame({ room, members, game, userId }) {
                 player1_gives_cash: offer.player1Cash,
                 player1_gives_properties: offer.player1AssetIds,
                 player1_gives_shares: offer.player1Shares || [],
+                player1_corp_issues_new_shares: offer.player1NewShares || 0,
+                // What fair would be at today's value per share (null unless player1 trades for a company).
+                player1_fair_new_shares: tradeFairNewShares(state, offer, 'player1'),
                 player1_properties_go_into_corp: offer.player1PropertiesToCorpId || null,
                 player2: clip(offer.player2Name),
                 player2_trades_for_corp: offer.player2CorpId || null,
                 player2_gives_cash: offer.player2Cash,
                 player2_gives_properties: offer.player2AssetIds,
                 player2_gives_shares: offer.player2Shares || [],
+                player2_corp_issues_new_shares: offer.player2NewShares || 0,
+                // What fair would be at today's value per share (null unless player2 trades for a company).
+                player2_fair_new_shares: tradeFairNewShares(state, offer, 'player2'),
                 player2_properties_go_into_corp: offer.player2PropertiesToCorpId || null,
                 expires_at: offer.expiresAt,
             })),

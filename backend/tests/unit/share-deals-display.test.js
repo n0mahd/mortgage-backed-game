@@ -52,3 +52,36 @@ test('the even trade counts the shares the giver already holds', () => {
 test('the even trade shows before a share count is typed', () => {
     expect(ShareDeals.summarize(gameState, terms(0), 'lee', options).evenShares?.shares).toBe(1500);
 });
+
+// MBS issues new shares to Lee for Boardwalk: the preview's fair count and
+// net-worth rows mirror tradeFairNewShares in the engine.
+describe('a company paying with new shares', () => {
+    const issueTerms = (newShares, extra = {}) => ({
+        player1Id: 'priya', player1CorpId: 'mbs', player2Id: 'lee',
+        player2AssetIds: ['p1'], player1NewShares: newShares, ...extra,
+    });
+    const issue = (newShares, viewer, extra) => ShareDeals.summarizeShareIssue(gameState, issueTerms(newShares, extra), 'player1', viewer, options);
+    const row = (summary, label) => summary.rows.find(item => item.label === label)?.value;
+
+    test('fair is the value in at today\'s value per share, and leaves everyone level', () => {
+        // $2,000 x 12,000 / $10,000.
+        expect(issue(0, 'lee').fairShares).toBe(2400);
+        expect(row(issue(2400, 'lee'), 'Your net worth')).toBe('$0');
+        expect(row(issue(2400, 'priya'), 'Your net worth')).toBe('$0');
+        expect(issue(2400, 'lee').warnings).toEqual([]);
+    });
+
+    test('a count above fair warns that value moves to the receiver', () => {
+        const summary = issue(3600, 'priya');
+        expect(row(summary, 'Your net worth')).toMatch(/^−/);
+        expect(summary.warnings.join(' ')).toMatch(/1,200 more than fair/);
+    });
+
+    test('cash the company also pays lowers the fair count', () => {
+        expect(issue(0, 'lee', { player1Cash: 500 }).fairShares).toBe(1800);
+    });
+
+    test('no preview when the other side is a company too', () => {
+        expect(ShareDeals.summarizeShareIssue(gameState, issueTerms(10, { player2CorpId: 'cdo' }), 'player1', 'lee', options)).toBeNull();
+    });
+});

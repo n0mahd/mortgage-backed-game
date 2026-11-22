@@ -365,5 +365,80 @@
         return { sentences, rows, warnings, quote, newShares, stakes, totalAfter };
     }
 
-    global.ShareDeals = { signedMoney, list, propertyName, summarize, summarizeContribution, summarizePropertyOffer, contributionQuote, corporationsRunBy, runsCorporation, sharesHeld, isInsolvent, isMerged, isClosed, percent, count, perShare };
+    // A company side of a trade paying with new shares it issues (terms
+    // .player1NewShares / .player2NewShares). Mirrors tradeFairNewShares in
+    // gameRulesInternal/trades.js: fair keeps the value per share level, so it
+    // is (value in - value out) x total shares / value, rounded, less treasury
+    // shares the company also gives, plus its own shares it gets back.
+    // Returns null unless sideKey trades for a company and the other side is a
+    // player; otherwise { corp, receiverId, newShares, fairShares, sentences,
+    // rows, warnings } for renderShareDealSummary.
+    function summarizeShareIssue(gameState, terms, sideKey, viewerId, options) {
+        const otherKey = sideKey === 'player1' ? 'player2' : 'player1';
+        const corp = corpById(gameState, terms[`${sideKey}CorpId`]);
+        if (!corp || terms[`${otherKey}CorpId`]) return null;
+        const giver = normalizeSide(terms, sideKey, options.jailCardId);
+        const receiver = normalizeSide(terms, otherKey, options.jailCardId);
+        const worth = ids => ids.reduce((sum, id) => sum + propertyValue(gameState, id), 0);
+        const ownShares = lots => lots.filter(lot => lot.corpId === corp.id).reduce((sum, lot) => sum + Number(lot.shares || 0), 0);
+        const valueIn = receiver.cash + worth(receiver.propertyIds) - giver.cash - worth(giver.propertyIds);
+        const treasuryOut = ownShares(giver.shares);
+        const sharesBack = ownShares(receiver.shares);
+        const total = Number(corp.totalShares || 0);
+        const nav = options.netAssetValue(corp);
+        const fairShares = nav > 0 && total > 0
+            ? Math.max(0, Math.round((valueIn * total) / nav) - treasuryOut + sharesBack)
+            : null;
+        const newShares = Math.max(0, Math.floor(Number(terms[`${sideKey}NewShares`] || 0)));
+        const who = userId => (userId === viewerId ? 'You' : (playerById(gameState, userId)?.name || 'Someone'));
+        const receiverName = who(receiver.userId);
+        const totalAfter = total + newShares;
+        const navAfter = Math.max(0, nav + valueIn);
+        const perShareBefore = total ? Math.max(0, nav) / total : 0;
+        const perShareAfter = totalAfter ? navAfter / totalAfter : 0;
+        const receiverBefore = sharesHeld(corp, receiver.userId);
+        const receiverAfter = receiverBefore + newShares + treasuryOut - sharesBack;
+        const sentences = [];
+        const rows = [];
+        const warnings = [];
+        if (newShares > 0) {
+            sentences.push(`${corp.ticker} issues ${count(newShares)} new share${newShares === 1 ? '' : 's'} to ${receiverName === 'You' ? 'you' : receiverName}.`);
+            rows.push({ label: `${corp.ticker} value`, value: `${money(nav)} → ${money(navAfter)}` });
+            rows.push({ label: 'Value per share', value: `${perShare(perShareBefore)} → ${perShare(perShareAfter)}` });
+            rows.push({
+                label: receiverName === 'You' ? `Your ${corp.ticker} shares` : `${receiverName}'s ${corp.ticker} shares`,
+                value: `${count(receiverBefore)} of ${count(total)} → ${count(receiverAfter)} of ${count(totalAfter)} (${percent(receiverAfter, totalAfter)})`,
+            });
+            let change = null;
+            if (viewerId === receiver.userId) {
+                change = receiverAfter * perShareAfter - receiverBefore * perShareBefore - valueIn;
+            } else if (sharesHeld(corp, viewerId) > 0) {
+                const held = sharesHeld(corp, viewerId);
+                change = held * (perShareAfter - perShareBefore);
+            }
+            if (change !== null) {
+                rows.push({ label: 'Your net worth', value: signedMoney(change), tone: Math.round(change) > 0 ? 'up' : (Math.round(change) < 0 ? 'down' : '') });
+            }
+            if (fairShares !== null && newShares !== fairShares) {
+                const shift = Math.abs(newShares - fairShares) * perShareAfter;
+                const others = `the other ${corp.ticker} holders`;
+                warnings.push(newShares > fairShares
+                    ? `That's ${count(newShares - fairShares)} more than fair: ${money(shift)} of value moves from ${others} to ${receiverName === 'You' ? 'you' : receiverName}.`
+                    : `That's ${count(fairShares - newShares)} fewer than fair: ${receiverName === 'You' ? "you're" : `${receiverName} is`} underpaid by ${money(shift)}, which goes to ${others}.`);
+            }
+            if (receiverAfter > totalAfter / 2 && receiverBefore <= total / 2 && receiver.userId !== corp.chairmanId) {
+                warnings.push(`${receiverName} will own over half of ${corp.ticker} and become${receiverName === 'You' ? '' : 's'} its chairman.`);
+            }
+            if (!(receiver.cash > 0) && !receiver.propertyIds.length) {
+                warnings.push(`${corp.ticker} can issue new shares only for cash or property it receives.`);
+            }
+        }
+        return {
+            corp, receiverId: receiver.userId, newShares, fairShares, valueIn,
+            fairReason: fairShares === null ? `${corp.ticker} is worth $0 or less, so new shares can't be priced.` : null,
+            sentences, rows, warnings,
+        };
+    }
+
+    global.ShareDeals = { signedMoney, list, propertyName, summarize, summarizeShareIssue, summarizeContribution, summarizePropertyOffer, contributionQuote, corporationsRunBy, runsCorporation, sharesHeld, isInsolvent, isMerged, isClosed, percent, count, perShare };
 })(window);

@@ -29,6 +29,7 @@
         'open-add-to-corporation': button => global.openAddToCorporationModal(button.dataset.corpId),
         'open-add-cash-to-corporation': button => global.openAddCashToCorporationModal(button.dataset.corpId),
         'use-even-shares': () => global.useEvenShares(),
+        'use-fair-new-shares': button => global.useFairNewShares(button.dataset.side),
         'support-chairman-vote': button => global.supportChairmanVote(button.dataset.corpId, button.dataset.voteId),
         'change-chairman-majority': button => global.changeChairmanByMajority(button.dataset.corpId),
         'propose-chairman-vote': button => global.proposeChairmanVote(button.dataset.corpId),

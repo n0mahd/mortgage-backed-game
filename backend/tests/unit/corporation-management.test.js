@@ -9,6 +9,8 @@ const {
     applyAction,
     normalizeState,
     calculateNetWorth,
+    calculateCorporationShareValue,
+    tradeFairNewShares,
     GameRuleError,
 } = require('../../domain/gameRules');
 
@@ -491,5 +493,103 @@ describe('trading as the company', () => {
         expect(after(cdo.id).assets.map(a => a.id)).toEqual([ILLINOIS]);
         expect(cashOf(state, 'alice')).toBe(1500);
         expect(cashOf(state, 'carol')).toBe(1500);
+    });
+});
+
+describe('the company pays with new shares in a trade', () => {
+    function acceptFirst(state, userId) {
+        const pending = state.marketOffers.find(o => o.status === 'pending');
+        return act(state, userId, 'accept_trade', { offerId: pending.id });
+    }
+    // MBS (Park Place + Boardwalk, $750 of property) buys Carol's Illinois ($240).
+    function illinoisForShares(state, newShares, extra = {}) {
+        return {
+            player1Id: 'alice', player1CorpId: corpOf(state).id, player2Id: 'carol',
+            player2AssetIds: [ILLINOIS], player1NewShares: newShares, ...extra,
+        };
+    }
+
+    test('the fair count keeps the value per share level, and holders keep their value', () => {
+        let state = own(mbsState({ holders: { alice: 600, bob: 400 } }), [ILLINOIS], 'carol', 'Carol');
+        const fair = tradeFairNewShares(state, illinoisForShares(state, 0), 'player1');
+        expect(fair).toBe(Math.round((240 * SHARES) / 750)); // 3,840
+        const perShareBefore = calculateCorporationShareValue(state, corpOf(state));
+        const aliceBefore = calculateNetWorth(state, 'alice');
+        const carolBefore = calculateNetWorth(state, 'carol');
+
+        state = act(state, 'alice', 'propose_trade', illinoisForShares(state, fair));
+        expect(state.marketOffers[0]).toMatchObject({ player1NewShares: fair, player2NewShares: 0 });
+        expect(corpOf(state).totalShares).toBe(SHARES); // nothing moves until Carol accepts
+        state = acceptFirst(state, 'carol');
+
+        const corp = corpOf(state);
+        expect(state.properties.find(p => p.id === ILLINOIS).ownerId).toBe(corp.id);
+        expect(corp.totalShares).toBe(SHARES + fair);
+        expect(sharesOf(corp, 'carol')).toBe(fair);
+        expect(calculateCorporationShareValue(state, corp)).toBeCloseTo(perShareBefore, 6);
+        expect(calculateNetWorth(state, 'alice')).toBeCloseTo(aliceBefore, 2);
+        expect(calculateNetWorth(state, 'carol')).toBeCloseTo(carolBefore, 2);
+        expect(state.gameLog.some(line => /MBS issued 3840 new shares to Carol/.test(line.message || line))).toBe(true);
+    });
+
+    test('cash the company pays, and treasury shares it gives, lower the fair count', () => {
+        const state = own(mbsState({ holders: { alice: 500, bob: 300 }, cash: 250 }), [ILLINOIS], 'carol', 'Carol');
+        // NAV $1,000; Illinois $240 less $40 cash = $200 in, worth 2,400 shares; 600 come from the treasury.
+        const fair = tradeFairNewShares(state, illinoisForShares(state, 0, {
+            player1Cash: 40, player1Shares: [{ corpId: corpOf(state).id, shares: 600 }],
+        }), 'player1');
+        expect(fair).toBe(1800);
+    });
+
+    test('the runner can set any count; the preview warns, the engine allows it', () => {
+        let state = own(mbsState(), [ILLINOIS], 'carol', 'Carol');
+        state = act(state, 'alice', 'propose_trade', illinoisForShares(state, 1000));
+        state = acceptFirst(state, 'carol');
+        expect(sharesOf(corpOf(state), 'carol')).toBe(2400 + 1000);
+    });
+
+    test('the property owner can ask the company for new shares; its runner accepts', () => {
+        let state = own(mbsState(), [ILLINOIS], 'carol', 'Carol');
+        state = act(state, 'carol', 'propose_trade', {
+            player1Id: 'carol', player1AssetIds: [ILLINOIS],
+            player2Id: 'alice', player2CorpId: corpOf(state).id, player2NewShares: 3840,
+        });
+        expect(state.marketOffers[0].recipientId).toBe('alice');
+        state = acceptFirst(state, 'alice');
+        expect(sharesOf(corpOf(state), 'carol')).toBe(2400 + 3840);
+    });
+
+    test('new shares buy only cash or property, never a gift', () => {
+        const state = own(mbsState(), [ILLINOIS], 'carol', 'Carol');
+        refused(() => act(state, 'alice', 'propose_trade', {
+            player1Id: 'alice', player1CorpId: corpOf(state).id, player2Id: 'carol', player1NewShares: 500,
+        }), /only for cash or property/);
+        refused(() => act(state, 'alice', 'propose_trade', {
+            player1Id: 'alice', player2Id: 'carol', player2AssetIds: [ILLINOIS], player1NewShares: 500,
+        }), /Only a company issues new shares/);
+        refused(() => act(state, 'alice', 'propose_trade', illinoisForShares(state, 2.5)), /positive integer/);
+    });
+
+    test('a company worth $0 or less cannot price new shares', () => {
+        const state = own(mbsState(), [ILLINOIS], 'carol', 'Carol');
+        corpOf(state).debts = [{ id: 'd1', principal: 2000, balance: 2000, interestRate: 5, termTurns: 10, autopay: 'off' }];
+        expect(tradeFairNewShares(state, illinoisForShares(state, 0), 'player1')).toBeNull();
+    });
+
+    test('new shares that hand over half make the receiver chairman', () => {
+        let state = own(mbsState({ holders: { alice: 1000 } }), [ILLINOIS, KENTUCKY], 'carol', 'Carol');
+        state = act(state, 'alice', 'propose_trade', illinoisForShares(state, 13000, { player2AssetIds: [ILLINOIS, KENTUCKY] }));
+        state = acceptFirst(state, 'carol');
+        expect(corpOf(state).chairmanId).toBe('carol');
+    });
+
+    test('a counteroffer keeps the new shares', () => {
+        let state = own(mbsState(), [ILLINOIS], 'carol', 'Carol');
+        state = act(state, 'alice', 'propose_trade', illinoisForShares(state, 3000));
+        const original = state.marketOffers[0];
+        state = act(state, 'carol', 'propose_trade', {
+            ...illinoisForShares(state, 3840), counterOfferId: original.id,
+        });
+        expect(state.marketOffers.find(o => o.status === 'pending').player1NewShares).toBe(3840);
     });
 });

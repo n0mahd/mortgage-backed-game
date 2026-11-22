@@ -287,6 +287,41 @@ test('the chairman trades as the company and buys a property for it', async ({ b
     await kim.context.close();
 });
 
+test('the chairman buys a property for MBS with new shares, at the fair count', async ({ browser, request }) => {
+    const { room, game, users, ids } = await setupGame(request);
+    const sam = await openGame(browser, room, users.Sam);
+    const kim = await openGame(browser, room, users.Kim);
+
+    // MBS is worth $1,350; Kentucky ($220) is fair for 220 x 12,000 / 1,350 = 1,956 new shares.
+    await openCorporation(sam.page, 'corp-mbs');
+    await sam.page.click('[data-game-action="trade-as-corporation"][data-corp-id="corp-mbs"]');
+    await expect(sam.page.locator('#player1Select')).toHaveValue('corp:corp-mbs');
+    await sam.page.selectOption('#player2Select', ids.kim);
+    await sam.page.check('#player2Assets input[value="prop-13"]');
+    await expect(sam.page.locator('#tradePreview')).toContainText('Fair is 1,956 new MBS shares');
+    await sam.page.click('[data-game-action="use-fair-new-shares"]');
+    await expect(sam.page.locator('#player1NewShares')).toHaveValue('1956');
+    await expect(sam.page.locator('#tradePreview')).toContainText('MBS issues 1,956 new shares to Kim.');
+    await expect(sam.page.locator('#tradePreview')).not.toContainText('than fair');
+    await sam.page.click('#executeTradeBtn');
+    await expect(sam.page.locator('#market-status')).toContainText('Trade proposal sent');
+
+    await kim.page.locator('.nav-tab[data-section="market"]').click();
+    await showMarketPane(kim.page, 'Trade proposals');
+    const offer = kim.page.locator('.trade-offer-card').first();
+    await expect(offer).toContainText('1,956 new MBS shares', { timeout: 10000 });
+    await expect(offer).toContainText('MBS issues 1,956 new shares to you.');
+    await offer.locator('[data-game-action="accept-trade-offer"]').click();
+
+    await expect.poll(async () => (await fetchState(request, game, users.Sam)).properties.find(p => p.id === 'prop-13').ownerId).toBe('corp-mbs');
+    const mbs = (await fetchState(request, game, users.Sam)).corporations[0];
+    expect(mbs.totalShares).toBe(12000 + 1956);
+    expect(mbs.shareholders.find(h => h.userId === ids.kim).shares).toBe(2400 + 1956);
+
+    await sam.context.close();
+    await kim.context.close();
+});
+
 test('the corporation sheet and offer sheet fit a 320px phone', async ({ browser, request }) => {
     const { room, users } = await setupGame(request);
     const alex = await openGame(browser, room, users.Alex, 320);

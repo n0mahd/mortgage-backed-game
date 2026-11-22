@@ -3,6 +3,7 @@
 
 const { v4: uuidv4 } = require('uuid');
 const { JAIL_CARD_ASSET_ID } = require('./board');
+const { fairTradeNewShares } = require('./corporateFinance');
 const {
     expiresAfter,
     isExpired,
@@ -18,6 +19,8 @@ const {
 } = require('./util');
 const {
     recordCashFlow,
+    calculateCorporationNetAssetValue,
+    propertyWorth,
     transferProperties,
     validatePropertyTransferList,
     groupHasBuildings,
@@ -48,16 +51,24 @@ function getTradeTerms(state, payload) {
     const player2PropertiesToCorpId = optionalTradeCorpId(payload.player2PropertiesToCorpId);
     const player1CorpId = optionalTradeCorpId(payload.player1CorpId);
     const player2CorpId = optionalTradeCorpId(payload.player2CorpId);
+    const player1NewShares = optionalNewShares(payload.player1NewShares, 'player1NewShares');
+    const player2NewShares = optionalNewShares(payload.player2NewShares, 'player2NewShares');
     if (player1Cash <= 0 && player2Cash <= 0 && player1AssetIds.length === 0 && player2AssetIds.length === 0
-        && player1Shares.length === 0 && player2Shares.length === 0) {
+        && player1Shares.length === 0 && player2Shares.length === 0 && player1NewShares === 0 && player2NewShares === 0) {
         throw new GameRuleError(400, 'Trade must include cash, property or shares');
     }
     return {
         player1, player2, player1Cash, player2Cash, player1AssetIds, player2AssetIds, player1Shares, player2Shares,
-        player1PropertiesToCorpId, player2PropertiesToCorpId, player1CorpId, player2CorpId,
+        player1PropertiesToCorpId, player2PropertiesToCorpId, player1CorpId, player2CorpId, player1NewShares, player2NewShares,
         player1Corp: tradingCorporation(state, player1CorpId),
         player2Corp: tradingCorporation(state, player2CorpId),
     };
+}
+
+// New shares a company side issues to the other player (*NewShares): 0 when absent.
+function optionalNewShares(value, name) {
+    if (value === undefined || value === null || value === '' || Number(value) === 0) return 0;
+    return positiveInt(value, name);
 }
 
 // A side's player can trade for an LLC they run (*CorpId): that side's cash,
@@ -74,8 +85,8 @@ function tradingCorporation(state, corpId) {
 // One side of a trade: who gives, from which balance sheet, and whose
 // properties and cash change.
 function tradeSides(terms) {
-    const side1 = { player: terms.player1, corp: terms.player1Corp, cash: terms.player1Cash, assetIds: terms.player1AssetIds, shares: terms.player1Shares, propertiesToCorpId: terms.player1PropertiesToCorpId };
-    const side2 = { player: terms.player2, corp: terms.player2Corp, cash: terms.player2Cash, assetIds: terms.player2AssetIds, shares: terms.player2Shares, propertiesToCorpId: terms.player2PropertiesToCorpId };
+    const side1 = { player: terms.player1, corp: terms.player1Corp, cash: terms.player1Cash, assetIds: terms.player1AssetIds, shares: terms.player1Shares, newShares: terms.player1NewShares || 0, propertiesToCorpId: terms.player1PropertiesToCorpId };
+    const side2 = { player: terms.player2, corp: terms.player2Corp, cash: terms.player2Cash, assetIds: terms.player2AssetIds, shares: terms.player2Shares, newShares: terms.player2NewShares || 0, propertiesToCorpId: terms.player2PropertiesToCorpId };
     [side1, side2].forEach(side => {
         side.entity = side.corp || side.player;
         side.entityId = side.corp ? side.corp.id : side.player.userId;
@@ -150,8 +161,8 @@ function transferShares(state, from, to, shareList, events = []) {
     });
 }
 
-function tradeAssetCount(assetIds, shareList) {
-    return assetIds.length + shareList.length;
+function tradeAssetCount(assetIds, shareList, newShares = 0) {
+    return assetIds.length + shareList.length + (newShares > 0 ? 1 : 0);
 }
 
 // Trade asset lists hold property ids plus, optionally, JAIL_CARD_ASSET_ID for
@@ -211,12 +222,57 @@ function validateTradeSide(state, giver, receiver) {
         }
         if (!receiver.corp) validatePropertyDestination(state, propertyIds, receiver.player, giver.propertiesToCorpId);
     }
+    if (giver.newShares > 0) validateNewShareIssue(state, giver, receiver);
     if (receiver.corp) {
         if (jailCard) throw new GameRuleError(400, `${receiver.corp.ticker} can't hold a Get Out of Jail Free card`);
         giver.shares.forEach(({ corpId }) => {
             if (corpId !== receiver.corp.id) throw new GameRuleError(400, `${receiver.corp.ticker} can only take back its own shares`);
         });
     }
+}
+
+// A company side can pay with new shares it issues to the other player, but
+// only for cash or property it takes in, so issuing is never a gift that
+// dilutes the other holders. The count is the runner's to set; the fair count
+// (fairTradeNewShares) is shown to both sides, not enforced.
+function validateNewShareIssue(state, giver, receiver) {
+    if (!giver.corp) throw new GameRuleError(400, 'Only a company issues new shares. Trade for a company you run to offer its new shares.');
+    if (receiver.corp) throw new GameRuleError(400, `${giver.corp.ticker} can issue new shares only to a player, not to ${receiver.corp.ticker}`);
+    const { propertyIds } = splitTradeAssets(receiver.assetIds);
+    if (!(receiver.cash > 0) && propertyIds.length === 0) {
+        throw new GameRuleError(400, `${giver.corp.ticker} can issue new shares only for cash or property it receives in the trade`);
+    }
+    if (!(calculateCorporationNetAssetValue(state, giver.corp) > 0)) {
+        throw new GameRuleError(400, `${giver.corp.ticker} is worth $0 or less, so new shares can't be priced`);
+    }
+}
+
+// The fair number of new shares for a company side (sideKey 'player1' or
+// 'player2') of a propose_trade payload or stored offer, at today's value per
+// share; null when that side isn't a company paying a player, or can't be priced.
+// Book value prices the properties (price plus buildings).
+function tradeFairNewShares(state, payload, sideKey) {
+    let terms;
+    try {
+        terms = getTradeTerms(state, payload);
+    } catch (error) {
+        if (error instanceof GameRuleError) return null;
+        throw error;
+    }
+    const [side1, side2] = tradeSides(terms);
+    const giver = sideKey === 'player1' ? side1 : side2;
+    const receiver = sideKey === 'player1' ? side2 : side1;
+    if (!giver.corp || receiver.corp) return null;
+    const worth = ids => splitTradeAssets(ids).propertyIds
+        .reduce((sum, id) => sum + propertyWorth(state.properties.find(p => p.id === id) || {}), 0);
+    const ownShares = list => list.filter(lot => lot.corpId === giver.corp.id).reduce((sum, lot) => sum + lot.shares, 0);
+    return fairTradeNewShares({
+        valueIn: receiver.cash + worth(receiver.assetIds) - giver.cash - worth(giver.assetIds),
+        totalShares: Number(giver.corp.totalShares || 0),
+        netAssetValue: calculateCorporationNetAssetValue(state, giver.corp),
+        treasuryOut: ownShares(giver.shares),
+        sharesBack: ownShares(receiver.shares),
+    });
 }
 
 function validateJailCardTransfer(from, to, givesCard, receivesCard) {
@@ -235,6 +291,8 @@ function applyTradeTransfer(state, terms, events = []) {
     moveTradeProperties(state, side2, side1);
     moveTradeShares(state, side1, side2, events);
     moveTradeShares(state, side2, side1, events);
+    issueTradeShares(state, side1, side2, events);
+    issueTradeShares(state, side2, side1, events);
     const card1 = splitTradeAssets(side1.assetIds).jailCard;
     const card2 = splitTradeAssets(side2.assetIds).jailCard;
     if (card1 !== card2) {
@@ -304,6 +362,19 @@ function moveTradeShares(state, giver, receiver, events) {
     });
 }
 
+// New shares a company side pays with: they add to its share count and go to
+// the other player, who becomes chairman if they now hold over half.
+function issueTradeShares(state, giver, receiver, events) {
+    if (!(giver.newShares > 0)) return;
+    const corp = giver.corp;
+    const holdersBefore = snapshotHoldings(corp);
+    corp.totalShares = Number(corp.totalShares || 0) + giver.newShares;
+    addShareholderShares(corp, receiver.player, giver.newShares);
+    normalizeCorporationShareLedger(state, corp);
+    log(state, `${corp.ticker} issued ${giver.newShares} new share${giver.newShares === 1 ? '' : 's'} to ${receiver.player.name} (${corp.ticker} now has ${corp.totalShares})`);
+    chairMajorityHolder(state, corp, holdersBefore, receiver.player, events);
+}
+
 function transferTradeProperties(state, from, to, propertyIds, corpId) {
     if (!corpId) {
         transferProperties(state, from, to, propertyIds);
@@ -347,6 +418,8 @@ function proposeTrade(state, actor, payload, events) {
         player2CorpId: terms.player2CorpId,
         player1CorpTicker: terms.player1Corp?.ticker || null,
         player2CorpTicker: terms.player2Corp?.ticker || null,
+        player1NewShares: terms.player1NewShares,
+        player2NewShares: terms.player2NewShares,
         createdAt,
         expiresAt: expiresAfter(state.settings.tradeOfferTimeoutMs, now),
         counterToOfferId: countered ? countered.id : null,
@@ -366,8 +439,8 @@ function proposeTrade(state, actor, payload, events) {
         player2: player2.name,
         player1Cash,
         player2Cash,
-        player1Assets: tradeAssetCount(player1AssetIds, player1Shares),
-        player2Assets: tradeAssetCount(player2AssetIds, player2Shares),
+        player1Assets: tradeAssetCount(player1AssetIds, player1Shares, terms.player1NewShares),
+        player2Assets: tradeAssetCount(player2AssetIds, player2Shares, terms.player2NewShares),
         expiresAt: offer.expiresAt,
         counterOfferId: offer.counterToOfferId,
     }));
@@ -394,6 +467,7 @@ function acceptTrade(state, actor, payload, events) {
     if (offer.proposedById === actor.userId) throw new GameRuleError(403, 'Trade proposer cannot accept their own offer');
     const terms = getTradeTerms(state, offer);
     validateTradeTerms(state, terms);
+    log(state, `${actor.name} accepted ${offer.proposedByName}'s trade offer`);
     applyTradeTransfer(state, terms, events);
     offer.status = 'accepted';
     offer.acceptedById = actor.userId;
@@ -407,10 +481,9 @@ function acceptTrade(state, actor, payload, events) {
         player2: offer.player2Name,
         player1Cash: offer.player1Cash,
         player2Cash: offer.player2Cash,
-        player1Assets: tradeAssetCount(terms.player1AssetIds, terms.player1Shares),
-        player2Assets: tradeAssetCount(terms.player2AssetIds, terms.player2Shares),
+        player1Assets: tradeAssetCount(terms.player1AssetIds, terms.player1Shares, terms.player1NewShares),
+        player2Assets: tradeAssetCount(terms.player2AssetIds, terms.player2Shares, terms.player2NewShares),
     }));
-    log(state, `${actor.name} accepted ${offer.proposedByName}'s trade offer`);
 }
 
 function cancelTrade(state, actor, payload, events) {
@@ -503,6 +576,7 @@ function manualPayment(state, actor, payload, events) {
 
 module.exports = {
     transferPropertiesToCorporation,
+    tradeFairNewShares,
     proposeTrade,
     acceptTrade,
     cancelTrade,

@@ -2156,7 +2156,8 @@ input[type="radio"] {
     vertical-align: 0;
 }
 
-.asset-shares .trade-share-input {
+.asset-shares .trade-share-input,
+.asset-shares .trade-new-shares-input {
     width: 76px;
     min-height: 40px;
     flex-shrink: 0;

@@ -54,6 +54,18 @@ function sharesForPrice(price, totalShares, netAssetValue) {
     return Math.round((Number(price) * Number(totalShares)) / Number(netAssetValue));
 }
 
+// New shares a corporation issues in a trade (a property or cash bought with
+// equity). Fair keeps the value per share where it is: the net value the
+// corporation takes in (cash and property in, less cash and property out)
+// buys shares at today's value per share, less treasury shares it also hands
+// over, plus its own shares it gets back. null when the corporation is worth
+// $0 or less, so its shares can't be priced.
+function fairTradeNewShares({ valueIn, totalShares, netAssetValue, treasuryOut = 0, sharesBack = 0 }) {
+    if (!(netAssetValue > 0) || !(totalShares > 0)) return null;
+    const shares = Math.round((Number(valueIn) * Number(totalShares)) / Number(netAssetValue)) - Number(treasuryOut) + Number(sharesBack);
+    return Math.max(0, shares);
+}
+
 // Mergers. The target's owners get a stake (a percent) of the merged company
 // plus cash. The stake becomes new acquirer shares: holding p% of the merged
 // company means newShares / (acquirerShares + newShares) = p / 100.
@@ -110,4 +122,5 @@ module.exports = {
     splitByShares,
     shareholderRentDue,
     sharesForPrice,
+    fairTradeNewShares,
 };

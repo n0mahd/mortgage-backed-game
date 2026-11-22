@@ -816,7 +816,7 @@ function bindStaticGameControls() {
     document.addEventListener('change', (event) => {
         if (event.target.closest('#player1Assets, #player2Assets, #player1Destination, #player2Destination')) {
             // Shares trade whole: show the rounding instead of quietly dropping the part.
-            const shareInput = event.target.closest('.trade-share-input');
+            const shareInput = event.target.closest('.trade-share-input, .trade-new-shares-input');
             if (shareInput && shareInput.value !== '' && !Number.isInteger(Number(shareInput.value))) {
                 shareInput.value = String(Math.max(0, Math.floor(Number(shareInput.value) || 0)));
                 updateTradeSharePercent(shareInput);
@@ -827,6 +827,7 @@ function bindStaticGameControls() {
     });
     document.addEventListener('input', (event) => {
         if (event.target.closest('.buy-shares-form input')) updateBuySharesTotal(event.target);
+        if (event.target.closest('#player1Assets .trade-new-shares-input, #player2Assets .trade-new-shares-input')) updateMarketActionState();
         if (event.target.closest('#player1Assets .trade-share-input, #player2Assets .trade-share-input')) {
             updateTradeSharePercent(event.target);
             updateMarketActionState();

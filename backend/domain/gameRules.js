@@ -35,6 +35,7 @@ const {
 const { applyAction, ACTION_TYPES } = require('./gameRulesInternal/applyAction');
 const ruleChanges = require('./gameRulesInternal/ruleChanges');
 const mergers = require('./gameRulesInternal/mergers');
+const { tradeFairNewShares } = require('./gameRulesInternal/trades');
 
 module.exports = {
     MONOPOLY_PROPERTIES,
@@ -70,4 +71,5 @@ module.exports = {
     validatePassGoAmount: ruleChanges.validatePassGoAmount,
     mergerQuote: mergers.mergerQuote,
     mergerTally: mergers.mergerTally,
+    tradeFairNewShares,
 };

@@ -391,6 +391,7 @@ function renderCorporationTradeAssets(container, playerNumber, corp, holderKey) 
     const kept = container.dataset.playerId === holderKey ? {
         checked: new Set(Array.from(container.querySelectorAll('input:checked')).map(input => input.value)),
         shares: new Map(Array.from(container.querySelectorAll('.trade-share-input')).map(input => [input.dataset.corpId, input.value])),
+        newShares: container.querySelector('.trade-new-shares-input')?.value || '',
     } : null;
     const props = gameState.properties.filter(p => p.ownerId === corp.id);
     const propsHtml = props.map(p => {
@@ -412,13 +413,22 @@ function renderCorporationTradeAssets(container, playerNumber, corp, holderKey) 
             <label for="${inputId}">${escapeHtml(corp.ticker)} treasury shares (has ${ShareDeals.count(treasury)} of ${ShareDeals.count(corp.totalShares)})</label>
             <span class="trade-share-pct" aria-live="polite"></span>
         </div>` : '';
-    container.innerHTML = (propsHtml + sharesHtml) || `<p class="empty-state">${escapeHtml(corp.ticker)} has no properties or treasury shares to offer. It can still pay cash.</p>`;
+    // It can also pay a player with new shares it issues (not another company).
+    const issuesToPlayer = !tradeSideCorp(otherTradeSide(playerNumber));
+    const newSharesHtml = issuesToPlayer ? `
+        <div class="asset-checkbox asset-shares">
+            <input type="number" class="trade-new-shares-input" id="${playerNumber}NewShares" data-corp-id="${escapeHtml(corp.id)}" min="0" step="1" value="0">
+            <label for="${playerNumber}NewShares">New ${escapeHtml(corp.ticker)} shares it issues</label>
+        </div>` : '';
+    container.innerHTML = (propsHtml + sharesHtml + newSharesHtml) || `<p class="empty-state">${escapeHtml(corp.ticker)} has no properties or treasury shares to offer. It can still pay cash.</p>`;
     container.dataset.playerId = holderKey;
     if (kept) {
         container.querySelectorAll('input[type="checkbox"]').forEach(input => { input.checked = kept.checked.has(input.value); });
         container.querySelectorAll('.trade-share-input').forEach(input => {
             if (kept.shares.has(input.dataset.corpId)) input.value = kept.shares.get(input.dataset.corpId);
         });
+        const newSharesInput = container.querySelector('.trade-new-shares-input');
+        if (newSharesInput && kept.newShares !== '') newSharesInput.value = kept.newShares;
     }
     container.querySelectorAll('.trade-share-input').forEach(updateTradeSharePercent);
 }
@@ -492,8 +502,53 @@ function collectTradeTerms() {
         player2PropertiesToCorpId: selectedTradeDestination('player2'),
         player1CorpId: tradeSideCorp('player1')?.id || null,
         player2CorpId: tradeSideCorp('player2')?.id || null,
+        player1NewShares: tradeNewShares('player1'),
+        player2NewShares: tradeNewShares('player2'),
         counterOfferId: activeTradeCounter()?.id || null,
     };
+}
+
+// New shares a company side of the form issues (0 when it has no box).
+function tradeNewShares(side) {
+    const input = document.getElementById(`${side}NewShares`);
+    return input ? Math.max(0, Math.floor(Number(input.value) || 0)) : 0;
+}
+
+// The new-share preview for whichever side trades for a company and pays a
+// player, or null.
+function summarizeTradeShareIssue(terms) {
+    for (const side of ['player1', 'player2']) {
+        const summary = ShareDeals.summarizeShareIssue(currentGame.game_state, terms, side, currentUser.id, {
+            netAssetValue: getCorporationNetAssetValue,
+            jailCardId: GAME_JAIL_CARD_ASSET_ID,
+        });
+        if (summary && (summary.newShares > 0 || (summary.valueIn > 0 && document.getElementById(`${side}NewShares`)))) return { side, ...summary };
+    }
+    return null;
+}
+
+// "Fair is 1,234 new MBS shares" with a Use button, under the issuing preview.
+function renderShareIssueSummary(issue, options = {}) {
+    let fair = '';
+    if (issue.fairShares === null) {
+        fair = `<p class="share-deal-warning">${escapeHtml(issue.fairReason)}</p>`;
+    } else if (issue.fairShares !== issue.newShares) {
+        const button = options.showUse && issue.fairShares > 0
+            ? ` <button type="button" class="btn btn-secondary btn-sm" data-game-action="use-fair-new-shares" data-side="${escapeHtml(issue.side)}">Use ${ShareDeals.count(issue.fairShares)}</button>`
+            : '';
+        fair = `<p class="share-deal-even">Fair is ${ShareDeals.count(issue.fairShares)} new ${escapeHtml(issue.corp.ticker)} shares at today's value per share.${button}</p>`;
+    }
+    if (!fair && !issue.sentences.length) return '';
+    return renderShareDealSummary(issue).replace(/<\/div>\s*$/, `${fair}</div>`);
+}
+
+// Fills the new-shares box with the fair count from the preview.
+function useFairNewShares(side) {
+    const issue = summarizeTradeShareIssue(collectTradeTerms());
+    const input = document.getElementById(`${side}NewShares`);
+    if (!issue || issue.side !== side || !input || !(issue.fairShares > 0)) return;
+    input.value = issue.fairShares;
+    updateMarketActionState();
 }
 
 function summarizeShareDeal(terms) {
@@ -536,7 +591,10 @@ function renderTradePreview(addPreview) {
     if (!preview || !currentGame) return;
     const terms = collectTradeTerms();
     let html = '';
+    const issue = addPreview ? null : summarizeTradeShareIssue(terms);
+    const issueHtml = issue ? renderShareIssueSummary(issue, { showUse: true }) : '';
     if (addPreview) html = addPreview.html;
+    else if (issueHtml) html = `<h4>Your offer</h4>${issueHtml}`;
     else if (tradeInvolvesLLC(terms)) html = `<h4>Your offer</h4>${renderShareDealSummary(summarizeShareDeal(terms), { showEven: true })}`;
     preview.hidden = !html;
     // Only re-render on a real change, so a click on "Use N" isn't swallowed
@@ -678,6 +736,7 @@ function updateMarketActionState() {
     const player2Cash = parseFloat(document.getElementById('player2Cash')?.value) || 0;
     const player1Assets = document.querySelectorAll('#player1Assets input:checked').length + selectedTradeShares('player1Assets').length;
     const player2Assets = document.querySelectorAll('#player2Assets input:checked').length + selectedTradeShares('player2Assets').length;
+    const newShares = tradeNewShares('player1') + tradeNewShares('player2');
 
     const mode = tradeFormMode();
     const addPreview = renderTradeFormMode(mode);
@@ -687,7 +746,7 @@ function updateMarketActionState() {
     } else if (mode.kind === 'add') {
         tradeValid = addPreview.ids.length > 0 && isCurrentUsersTurn();
     } else if (mode.kind === 'trade') {
-        const tradeHasOffer = player1Cash > 0 || player2Cash > 0 || player1Assets > 0 || player2Assets > 0;
+        const tradeHasOffer = player1Cash > 0 || player2Cash > 0 || player1Assets > 0 || player2Assets > 0 || newShares > 0;
         const tradeCashCovered = ['player1', 'player2'].map(updateTradeCashLimit).every(Boolean);
         tradeValid = tradeHasOffer && tradeCashCovered;
     }
@@ -800,15 +859,15 @@ function renderTradeOffers() {
                         ${offer.expiresAt ? `<span>${escapeHtml(formatTradeOfferExpiry(offer.expiresAt))}</span>` : ''}
                     </div>
                 </div>
-                ${tradeInvolvesLLC(offer) ? renderShareDealSummary(summarizeShareDeal(offer)) : ''}
+                ${renderTradeOfferPreview(offer)}
                 <div class="trade-offer-sides">
                     <div>
                         <h4>${escapeHtml(tradeSideName(offer, 'player1'))} gives</h4>
-                        ${renderTradeOfferSide(offer.player1Cash, offer.player1AssetIds, offer.player1Shares, offer.player1PropertiesToCorpId)}
+                        ${renderTradeOfferSide(offer.player1Cash, offer.player1AssetIds, offer.player1Shares, offer.player1PropertiesToCorpId, offer.player1NewShares, offer.player1CorpTicker)}
                     </div>
                     <div>
                         <h4>${escapeHtml(tradeSideName(offer, 'player2'))} gives</h4>
-                        ${renderTradeOfferSide(offer.player2Cash, offer.player2AssetIds, offer.player2Shares, offer.player2PropertiesToCorpId)}
+                        ${renderTradeOfferSide(offer.player2Cash, offer.player2AssetIds, offer.player2Shares, offer.player2PropertiesToCorpId, offer.player2NewShares, offer.player2CorpTicker)}
                     </div>
                 </div>
                 ${hasActions ? `
@@ -829,6 +888,14 @@ function renderTradeOffers() {
 
 // Game updates re-render often: leave an unchanged list alone, and keep the
 // caret in a counter price being typed when it does change.
+// A pending offer's plain-language summary: new shares a company issues, or a
+// trade with LLC shares in it.
+function renderTradeOfferPreview(offer) {
+    const issue = summarizeTradeShareIssue(offer);
+    if (issue && issue.newShares > 0) return renderShareIssueSummary(issue);
+    return tradeInvolvesLLC(offer) ? renderShareDealSummary(summarizeShareDeal(offer)) : '';
+}
+
 function setTradeOffersHtml(container, html) {
     if (container.dataset.html === html) return;
     const active = document.activeElement;
@@ -890,11 +957,11 @@ function renderPastTrades() {
                 <div class="trade-offer-sides">
                     <div>
                         <h4>${escapeHtml(tradeSideName(offer, 'player1'))} gives</h4>
-                        ${renderTradeOfferSide(offer.player1Cash, offer.player1AssetIds, offer.player1Shares, offer.player1PropertiesToCorpId)}
+                        ${renderTradeOfferSide(offer.player1Cash, offer.player1AssetIds, offer.player1Shares, offer.player1PropertiesToCorpId, offer.player1NewShares, offer.player1CorpTicker)}
                     </div>
                     <div>
                         <h4>${escapeHtml(tradeSideName(offer, 'player2'))} gives</h4>
-                        ${renderTradeOfferSide(offer.player2Cash, offer.player2AssetIds, offer.player2Shares, offer.player2PropertiesToCorpId)}
+                        ${renderTradeOfferSide(offer.player2Cash, offer.player2AssetIds, offer.player2Shares, offer.player2PropertiesToCorpId, offer.player2NewShares, offer.player2CorpTicker)}
                     </div>
                 </div>
             </div>
@@ -970,7 +1037,7 @@ function tradeSideName(offer, side) {
     return ticker ? `${ticker} (via ${name})` : name;
 }
 
-function renderTradeOfferSide(cash, assetIds, shareLots, intoCorpId) {
+function renderTradeOfferSide(cash, assetIds, shareLots, intoCorpId, newShares = 0, ticker = null) {
     const intoCorp = intoCorpId ? currentGame?.game_state?.corporations?.find(corp => corp.id === intoCorpId) : null;
     const tags = [];
     if (Number(cash || 0) > 0) {
@@ -988,6 +1055,9 @@ function renderTradeOfferSide(cash, assetIds, shareLots, intoCorpId) {
     (shareLots || []).forEach(lot => {
         tags.push(renderTradeAssetTag(tradeSharesName(lot), 'LLC shares', 'shares'));
     });
+    if (Number(newShares || 0) > 0) {
+        tags.push(renderTradeAssetTag(`${ShareDeals.count(newShares)} new ${ticker || ''} shares`.replace('  ', ' '), 'Newly issued', 'shares'));
+    }
     if (tags.length === 0) return '<p class="empty-state">Nothing</p>';
     return `<ul class="trade-asset-list">${tags.join('')}</ul>`;
 }
@@ -1095,6 +1165,8 @@ function counterTradeOffer(offerId) {
             if (input) input.value = Number(lot.shares || 0);
         });
         document.querySelectorAll(`#${formSide}Assets .trade-share-input`).forEach(updateTradeSharePercent);
+        const newSharesInput = document.getElementById(`${formSide}NewShares`);
+        if (newSharesInput) newSharesInput.value = Number(offer[`${offerSide}NewShares`] || 0);
         const intoCorpId = offer[`${offerSide}PropertiesToCorpId`] || '';
         const destination = document.querySelector(`#${formSide}Destination input[value="${CSS.escape(intoCorpId)}"]`);
         if (destination) destination.checked = true;
@@ -1185,7 +1257,8 @@ async function executeTransaction() {
     }
     const terms = collectTradeTerms();
     if (terms.player1Cash <= 0 && terms.player2Cash <= 0 && terms.player1AssetIds.length === 0 && terms.player2AssetIds.length === 0
-        && terms.player1Shares.length === 0 && terms.player2Shares.length === 0) {
+        && terms.player1Shares.length === 0 && terms.player2Shares.length === 0
+        && !terms.player1NewShares && !terms.player2NewShares) {
         showMarketStatus('Add cash, property, shares, or a Get Out of Jail Free card before proposing a trade.', 'error');
         return;
     }
