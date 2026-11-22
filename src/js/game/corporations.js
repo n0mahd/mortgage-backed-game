@@ -233,7 +233,7 @@ function corporationStatusBadge(corp) {
 function renderCorporationSummaries(corporations) {
     const header = '<div class="modal-header">Corporations</div>';
     if (!corporations.length) {
-        return `${header}<p class="empty-state">No corporations yet. Create an IPO on your turn to start one.</p>`;
+        return `${header}<p class="empty-state">No corporations yet. Create an IPO to start one.</p>`;
     }
     // Closed companies go last.
     const ordered = [...corporations].sort((a, b) => ShareDeals.isClosed(a) - ShareDeals.isClosed(b));
@@ -333,10 +333,10 @@ function renderCorporationDebts(corp) {
 }
 
 // What the viewer can do here, by role: the chairman runs it; anyone with
-// properties may offer one; anyone may buy treasury shares on their turn.
+// properties may offer one; anyone may buy treasury shares, at any time
+// except during an auction or a pause (canMakeAnytimeMove).
 function renderCorporationOverview(corp) {
-    const gameState = currentGame.game_state;
-    const isMyTurn = gameState.players[gameState.currentPlayerIndex].userId === currentUser.id;
+    const canAct = canMakeAnytimeMove();
     if (ShareDeals.isMerged(corp)) {
         const summary = corp.mergerSummary || {};
         const paid = [
@@ -351,7 +351,7 @@ function renderCorporationOverview(corp) {
     const runsIt = ShareDeals.runsCorporation(corp, currentUser.id);
     const hasProperties = (currentPlayerData?.properties || []).length > 0 && !currentPlayerData?.bankrupt;
     const addMove = runsIt && hasProperties
-        ? `<button class="btn btn-secondary btn-sm" data-game-action="open-add-to-corporation" data-corp-id="${escapeHtml(corp.id)}"${isMyTurn ? '' : ' disabled'}>Add properties<small>${isMyTurn ? 'Yours in, for new shares' : 'On your turn'}</small></button>`
+        ? `<button class="btn btn-secondary btn-sm" data-game-action="open-add-to-corporation" data-corp-id="${escapeHtml(corp.id)}"${canAct ? '' : ' disabled'}>Add properties<small>${canAct ? 'Yours in, for new shares' : anytimeMoveHoldNote()}</small></button>`
         : '';
     const hasCash = Number(currentPlayerData?.cash || 0) > 0 && !currentPlayerData?.bankrupt;
     const addCashMove = runsIt && hasCash
@@ -360,7 +360,7 @@ function renderCorporationOverview(corp) {
     const buyable = getBuyableListedShares(corp);
     const listed = getTreasuryListedShares(corp);
     const shareValue = getCorporationShareValue(corp);
-    const buyHtml = isMyTurn && buyable > 0
+    const buyHtml = canAct && buyable > 0
         ? `
             <div class="buy-shares-form">
                 <label for="buyShares-${escapeHtml(corp.id)}">Buy treasury shares at ${ShareDeals.perShare(shareValue)} each (up to ${ShareDeals.count(buyable)})</label>
@@ -370,7 +370,7 @@ function renderCorporationOverview(corp) {
             </div>
         `
         : `<p class="corp-hint">${listed > 0
-            ? `Treasury shares for sale: ${ShareDeals.count(listed)} at ${ShareDeals.perShare(shareValue)} each. You can buy them on your turn.`
+            ? `Treasury shares for sale: ${ShareDeals.count(listed)} at ${ShareDeals.perShare(shareValue)} each.${currentGame.game_state.auction?.status === 'open' ? ' You can buy them once the auction closes.' : ''}`
             : 'No treasury shares for sale. To buy shares a player holds, make them an offer in the Market.'}</p>`;
     return `
         ${CorporationDesk.renderPropertyOffers(corp)}

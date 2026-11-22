@@ -143,7 +143,7 @@ const ctx = {
             refusedActions.push(entry);
             res.json().then(j => { entry.error = j.error || ''; }).catch(() => {});
         }
-        if (res.status() === 409 && url.endsWith('/actions')) finding({ severity: 'low', category: 'api-409', title: 'Actions hit a version conflict (409); the player is asked to retry', detail: key });
+        if (res.status() === 409 && url.endsWith('/actions')) finding({ severity: 'low', category: 'api-409', title: 'Actions hit a version conflict (409); the page resends once, then asks the player to retry', detail: key });
     },
     markUi(id) {
         if (!uiMarks.has(id)) log(`  pathway: ${id}`);

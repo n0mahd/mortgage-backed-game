@@ -182,10 +182,11 @@ describe('adding properties to an existing corporation', () => {
         expectRefused(() => add(state, 'bob', { assetIds: ['prop-21'] }), /don't run MBS/);
     });
 
-    test('only on your own turn', () => {
+    test("also on another player's turn", () => {
         const state = mbsState();
         state.currentPlayerIndex = 1;
-        expectRefused(() => add(state, 'alice', { assetIds: [ILLINOIS] }), /Not the current player/);
+        const next = add(state, 'alice', { assetIds: [ILLINOIS] }).state;
+        expect(next.properties.find(p => p.id === ILLINOIS).ownerId).toBe(next.corporations[0].id);
     });
 
     test('only properties you own', () => {

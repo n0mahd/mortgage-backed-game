@@ -128,10 +128,18 @@ describe('rent policy', () => {
     test('is locked once the chairman has rolled, including after doubles', () => {
         const state = mbsState();
         const rolled = act(state, 'alice', 'roll_dice', {}, { dice: [1, 2] });
-        refused(() => setPolicy(rolled, 'payout'), /before you roll/);
+        refused(() => setPolicy(rolled, 'payout'), /after you roll/);
         const doubles = act(state, 'alice', 'roll_dice', {}, { dice: [2, 2] });
         expect(doubles.players[0].diceRolled).toBe(false);
-        refused(() => setPolicy(doubles, 'payout'), /before you roll/);
+        refused(() => setPolicy(doubles, 'payout'), /after you roll/);
+    });
+
+    test("the chairman can switch it on another player's turn, even after they roll", () => {
+        const state = mbsState();
+        state.currentPlayerIndex = 1;
+        const bobRolled = act(state, 'bob', 'roll_dice', {}, { dice: [1, 2] });
+        expect(corpOf(setPolicy(state, 'payout')).rentPolicy).toBe('payout');
+        expect(corpOf(setPolicy(bobRolled, 'payout')).rentPolicy).toBe('payout');
     });
 
     // Ends the current player's turn (after a roll) and the next players' until
@@ -198,9 +206,9 @@ describe('rent policy', () => {
         expect(corpOf(state).rentPolicy).toBe('reinvest');
     });
 
-    test('only the runner can change it, and only on their turn', () => {
+    test('only the runner can change it, on any turn', () => {
         const state = mbsState();
-        refused(() => act(state, 'bob', 'set_rent_policy', { corpId: corpOf(state).id, policy: 'payout' }), /current player/);
+        refused(() => act(state, 'bob', 'set_rent_policy', { corpId: corpOf(state).id, policy: 'payout' }), /chairman or a majority holder/);
         const bobsTurn = normalizeState(state);
         bobsTurn.currentPlayerIndex = 1;
         refused(() => act(bobsTurn, 'bob', 'set_rent_policy', { corpId: corpOf(state).id, policy: 'payout' }), /chairman or a majority holder/);

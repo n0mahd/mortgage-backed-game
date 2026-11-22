@@ -156,7 +156,7 @@ test('take a loan on a chosen term, change autopay and pay it off', async ({ pag
     expect(loan.cash).toBe(1500);
 });
 
-test('off your turn you can change autopay but not pay', async ({ page, request }) => {
+test('off your turn you can still pay, borrow and change autopay', async ({ page, request }) => {
     const debt = { id: 'debt-1', principal: 300, interestRate: 5, termTurns: 10, turnsRemaining: 4, autopay: 'pay_down' };
     const { room, game, alice } = await seedGame(request, { currentPlayerIndex: 1, aliceDebts: [debt] });
     await openGame(page, room, alice);
@@ -164,11 +164,33 @@ test('off your turn you can change autopay but not pay', async ({ page, request 
     await page.click('#game [data-game-action="open-debt"]');
     const row = page.locator('#loanList .loan-row');
     await expect(row).toContainText('4 turns left');
-    await expect(row.locator('[data-loan-pay]')).toBeDisabled();
-    await expect(row.locator('[data-loan-payoff]')).toBeDisabled();
-    await expect(page.locator('#debtAction option[value="issue"]')).toBeDisabled();
+    await expect(row.locator('[data-loan-pay]')).toBeEnabled();
+    await expect(row.locator('[data-loan-payoff]')).toBeEnabled();
+    await expect(page.locator('#debtAction option[value="issue"]')).toBeEnabled();
     await Promise.all([actionSaved(page), row.locator('[data-loan-autopay]').selectOption('off')]);
     expect((await fetchAlice(request, game, alice)).debts[0].autopay).toBe('off');
+});
+
+test('an action refused as stale (409) is sent once more without bothering the player', async ({ page, request }) => {
+    const debt = { id: 'debt-1', principal: 300, interestRate: 5, termTurns: 10, turnsRemaining: 4, autopay: 'pay_down' };
+    const { room, game, alice } = await seedGame(request, { currentPlayerIndex: 1, aliceDebts: [debt] });
+    await openGame(page, room, alice);
+    const dialogs = [];
+    page.on('dialog', dialog => { dialogs.push(dialog.message()); dialog.dismiss(); });
+    // Another player's move lands first: the first post is refused as stale.
+    let posts = 0;
+    await page.route('**/api/games/*/actions', route => {
+        posts += 1;
+        if (posts === 1) return route.fulfill({ status: 409, contentType: 'application/json', body: JSON.stringify({ error: 'Stale game state' }) });
+        return route.continue();
+    });
+
+    await page.click('#game [data-game-action="open-debt"]');
+    const row = page.locator('#loanList .loan-row');
+    await Promise.all([actionSaved(page), row.locator('[data-loan-autopay]').selectOption('off')]);
+    expect((await fetchAlice(request, game, alice)).debts[0].autopay).toBe('off');
+    expect(posts).toBe(2);
+    expect(dialogs).toEqual([]);
 });
 
 test('the turn screen warns before a loan comes due', async ({ page, request }) => {

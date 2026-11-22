@@ -449,13 +449,21 @@ function renderActionButtons(landing) {
             </div>
         </div>
         ${renderMovesGrid(`
-            ${renderImprovePropertiesButton(gameState, currentPlayer, auctionOpen)}
-            <button class="btn btn-secondary btn-sm" data-game-action="open-ipo" ${auctionOpen ? 'disabled' : ''}>Create IPO<small>Take properties public</small></button>
-            <button class="btn btn-secondary btn-sm" data-game-action="open-debt" ${auctionOpen ? 'disabled' : ''}>Manage Debt<small>Borrow, repay, refinance</small></button>
+            ${renderAnytimeMoves(gameState, currentPlayer, auctionOpen)}
             ${renderProposalsButton()}
             ${renderCorporationsButton()}
             ${buyTile}
         `)}
+    `;
+}
+
+// Moves open to every active player at any time, not just on their turn
+// (the engine turn-locks only movement); an open auction holds them.
+function renderAnytimeMoves(gameState, player, auctionOpen) {
+    return `
+        ${renderImprovePropertiesButton(gameState, player, auctionOpen)}
+        <button class="btn btn-secondary btn-sm" data-game-action="open-ipo" ${auctionOpen ? 'disabled' : ''}>Create IPO<small>Take properties public</small></button>
+        <button class="btn btn-secondary btn-sm" data-game-action="open-debt" ${auctionOpen ? 'disabled' : ''}>Manage Debt<small>Borrow, repay, refinance</small></button>
     `;
 }
 
@@ -491,13 +499,13 @@ function renderProposalsButton() {
     return `${ruleVote}<button class="btn btn-secondary btn-sm is-featured" data-game-action="open-trade-proposals">Trade proposals<small>${waiting} waiting for your answer</small></button>`;
 }
 
+// Off your turn: the same optional moves as on it, without rolling, buying or ending the turn.
 function renderNonTurnActions() {
-    const loansButton = getManagedLoans().length
-        ? '<button class="btn btn-secondary btn-sm" data-game-action="open-debt">Your Loans<small>Balances and autopay</small></button>'
-        : '';
+    const gameState = currentGame.game_state;
+    const active = !!currentPlayerData && !currentPlayerData.bankrupt && !gameState.ended;
     return renderMovesGrid(`
+        ${active ? renderAnytimeMoves(gameState, currentPlayerData, gameState.auction?.status === 'open') : ''}
         ${renderProposalsButton()}
-        ${loansButton}
         ${renderCorporationsButton()}
         <button class="btn btn-secondary btn-sm" data-switch-section="market">Trade or pay<small>Opens the market</small></button>
     `);

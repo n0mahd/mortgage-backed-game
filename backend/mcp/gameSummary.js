@@ -82,7 +82,7 @@ function statusLine(state, userId, attention) {
         default:
             if (state.paused) return 'The game is paused by the host.';
             if (state.auction?.status === 'open') return `Waiting for other players to finish the auction for ${state.auction.propertyName}.`;
-            return `Waiting for ${current ? clip(current.name) : 'another player'} to play.`;
+            return `Waiting for ${current ? clip(current.name) : 'another player'} to play. You can still build, borrow, trade or run your corporations meanwhile (see legal_actions).`;
     }
 }
 

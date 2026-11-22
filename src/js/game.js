@@ -379,6 +379,25 @@ function isCurrentUsersTurn() {
     return isPlayersTurn({ userId: currentUser.id });
 }
 
+// Mirrors the engine: building, IPOs, adding properties, treasury shares,
+// dividends, rent policy and loans are open to any active player at any time,
+// except while an auction is open or the game is paused. Only movement waits
+// for your turn.
+function canMakeAnytimeMove() {
+    const gameState = currentGame?.game_state;
+    if (!gameState || gameState.ended || gameState.paused || gameState.auction?.status === 'open') return false;
+    if (isSpectator) return false;
+    return !!currentPlayerData && !currentPlayerData.bankrupt;
+}
+
+// Why canMakeAnytimeMove() is false, as a short note for a disabled button.
+function anytimeMoveHoldNote() {
+    const gameState = currentGame?.game_state;
+    if (gameState?.auction?.status === 'open') return 'After the auction';
+    if (gameState?.paused) return 'Game paused';
+    return 'Not available';
+}
+
 // Turn actions: roll, get out of Jail, end the turn.
 async function rollDiceAndMove() {
     if (!currentGame || !currentUser) return;
@@ -487,6 +506,10 @@ async function submitGameAction(type, payload, { errorText, onSaved, showError =
     }
 }
 
+// Their price (share value) can move with another player's action, so a
+// refused one goes back to the player to review instead of being resent.
+const PRICE_SENSITIVE_ACTION_TYPES = new Set(['buy_shares', 'add_to_corporation', 'propose_merger']);
+
 async function performGameAction(type, payload = {}) {
     if (gameActionInFlight) return null;
 
@@ -496,13 +519,24 @@ async function performGameAction(type, payload = {}) {
     try {
         // One actionId for every retry: the server applies an action once and
         // replays the saved result if the same id arrives again.
-        const body = JSON.stringify({
-            actionId: makeActionId(),
+        const actionId = makeActionId();
+        const post = () => postGameActionWithRetry(JSON.stringify({
+            actionId,
             type,
             payload,
             expectedVersion: currentGame.state_version
-        });
-        const result = await postGameActionWithRetry(body);
+        }));
+        let result;
+        try {
+            result = await post();
+        } catch (error) {
+            if (error.status !== 409 || PRICE_SENSITIVE_ACTION_TYPES.has(type)) throw error;
+            // Anyone can act at any time, so another player's move often lands
+            // first. A refused (409) action wasn't saved: catch up and send it
+            // once more against the new state, which the server checks again.
+            await refreshCurrentGame();
+            result = await post();
+        }
         try {
             const events = result.events || [];
             const sequenceWinnerAfterLiquidation = !!result.game?.game_state?.ended && hasLiquidationEvent(events);

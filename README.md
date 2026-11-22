@@ -63,7 +63,7 @@ The host can seat AI agents (Claude, ChatGPT, or any MCP client) as players. Eac
 
 All players start with **$1,500**. The app handles dice rolling, board movement, rent, taxes, cards, turn order, and bankruptcy checks. The financial layer adds corporations, debt instruments, share prices, and interest.
 
-On your turn, roll in the app, resolve the square you landed on, take any optional actions, then click **End Turn** when done.
+On your turn, roll in the app, deal with the square you landed on (buy it, auction it or pay rent), then click **End Turn**, which takes your loan payments. Everything else (building houses, IPOs, corporation moves, shares, dividends, loans, trades and payments) works at any time, including during other players' turns, except while an auction is open or the game is paused.
 
 ---
 
@@ -100,9 +100,9 @@ Requires owning at least one property.
 
 Tap **Create IPO** and select which properties to bundle into a corporation. Set a **ticker symbol**; every corporation issues 12,000 shares (it splits evenly in halves, thirds, quarters and sixths) and there is no IPO price. The selected properties move out of your personal holdings into the corporation and you receive all of its shares. A color group with houses or hotels must go in whole. Nobody can buy your shares without your agreement (except through a merger its shareholders vote for): shares change hands through trade offers in the Market, and whoever gains a majority becomes chairman.
 
-If you already run a corporation, tap **Add properties to <ticker>** on its card in **Corporations** to move more properties into it. When other players hold shares, you can take whole new shares at today's value per share, so their stakes keep their value. Or you can give the property outright, which raises every share's value. **Add cash** on the same card does the same with cash from your pocket, at any time: new shares at today's value per share, or a gift into the treasury.
+If you already run a corporation, tap **Add properties to <ticker>** on its card in **Corporations** to move more properties into it. When other players hold shares, you can take whole new shares at today's value per share, so their stakes keep their value. Or you can give the property outright, which raises every share's value. **Add cash** on the same card does the same with cash from your pocket: new shares at today's value per share, or a gift into the treasury.
 
-The chairman also runs the corporation from its card: a **rent policy** (Reinvest keeps full rent in the treasury; Payout sends rent straight to shareholders, and a shareholder landing there pays only the part they don't own; the chairman switches it alone whenever they like on their own turn before rolling, and any other shareholder can ask every shareholder to agree to a switch), **dividends**, buying the property they land on, building houses and borrowing from the treasury (**Build houses** and **Borrow for** on its card), and trading as the corporation by picking it in a Market **Player** dropdown. Anyone else can **offer a property** to a corporation at book value or their own price, for new shares or treasury cash; the offer waits in Market > Trade proposals, where the chairman accepts, declines or counters. See section 9 of `documents/game-rules.md`.
+The chairman also runs the corporation from its card: a **rent policy** (Reinvest keeps full rent in the treasury; Payout sends rent straight to shareholders, and a shareholder landing there pays only the part they don't own; the chairman switches it alone whenever they like, except on their own turn once they've rolled, and any other shareholder can ask every shareholder to agree to a switch), **dividends**, buying the property they land on, building houses and borrowing from the treasury (**Build houses** and **Borrow for** on its card), and trading as the corporation by picking it in a Market **Player** dropdown. Anyone else can **offer a property** to a corporation at book value or their own price, for new shares or treasury cash; the offer waits in Market > Trade proposals, where the chairman accepts, declines or counters. See section 9 of `documents/game-rules.md`.
 
 The chairman can also offer to **merge** another corporation into theirs: in **Market › New trade**, put both companies in and choose **The whole company**. The offer is cash plus a share of the merged company, paid in new shares (the sheet suggests a fair share). The other company's shareholders vote in **Market › Trade proposals**, one vote per share; once more than half say yes, its properties, cash and loans join the buyer and every holder is paid the same per share.
 
@@ -118,7 +118,7 @@ Every time you end your turn a loan charges a turn of interest. **Autopay** take
 
 ### Your Loans
 
-**Manage Debt → Your loans** shows each loan's balance, turns left and next payment. Change autopay (Pay down loan, Interest only or Off) any time, pay any amount on your turn, or pay the loan off. Paying more than is owed only takes what is owed.
+**Manage Debt → Your loans** shows each loan's balance, turns left and next payment. Change autopay (Pay down loan, Interest only or Off), pay any amount, or pay the loan off, at any time. Paying more than is owed only takes what is owed.
 
 ### Refinance Debt
 
@@ -128,7 +128,7 @@ Tap **Manage Debt → Refinance loans**. Choose whose loans (yours, or a corpora
 
 ### Buy Shares
 
-To buy shares a player holds, make them an offer in the **Market** tab; the shares move only if they accept. If bankruptcy returned shares to a corporation's treasury, tap **Corporations** during your turn to buy those at the current share value (NAV, below); that cash goes into the corporation treasury.
+To buy shares a player holds, make them an offer in the **Market** tab; the shares move only if they accept. If bankruptcy returned shares to a corporation's treasury, tap **Corporations** at any time to buy those at the current share value (NAV, below); that cash goes into the corporation treasury.
 
 Player net worth values corporation stakes by net asset value: corporation-owned property value plus treasury cash minus corporation debt, divided by total shares. Share value is floored at $0 if the corporation's net asset value is negative.
 
