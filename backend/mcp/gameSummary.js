@@ -137,6 +137,7 @@ function mergerProposalsSummary(state, userId) {
                 no_shares: tally.noShares,
                 needed_yes_shares: tally.neededShares,
                 voters: tally.voters.map(voter => ({ name: clip(voter.name), shares: voter.shares, vote: voter.vote })),
+                buyer_side_yes: tally.buyerSide.map(holder => ({ name: clip(holder.name), shares: holder.shares })),
             },
             you_can_vote: !!myVote,
             your_vote: myVote ? myVote.vote : null,

@@ -117,7 +117,7 @@ test('Sam merges RRX into MBS; RRX\'s owners vote it through', async ({ browser,
     await expect(sheet.locator('#mergerFair')).toContainText('$40 more than RRX is worth');
     await expect(sheet.locator('#mergerResult')).toContainText('$2,700');
     await expect(sheet.locator('#mergerResult')).toContainText('7,200 RRX → 1,800 MBS + $180');
-    await expect(sheet.locator('#mergerResult')).toContainText("Yours don't vote because you're on the buying side.");
+    await expect(sheet.locator('#mergerResult')).toContainText('Your 1,200 RRX shares count as yes.');
     // Typing more cash than both companies hold together blocks sending.
     await sheet.locator('#mergerCash').fill('1000');
     await expect(sheet.locator('#mergerSendBtn')).toBeDisabled();
@@ -146,7 +146,7 @@ test('Sam merges RRX into MBS; RRX\'s owners vote it through', async ({ browser,
     await sheet.locator('#mergerSendBtn').click();
     await expect(sheet).not.toHaveClass(/active/);
 
-    // Priya votes yes in Trade proposals; with 7,200 of 10,800 voting shares that passes it.
+    // Priya votes yes in Trade proposals; with 7,200 plus Sam's 1,200 of 12,000 shares that passes it.
     await priya.page.click('.nav-tab[data-section="market"]');
     await expect(priya.page.locator('#marketProposalsCount')).toHaveText('1');
     await showMarketPane(priya.page, 'Trade proposals');

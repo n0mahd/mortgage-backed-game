@@ -8,10 +8,10 @@
 // holds get nothing. Optionally the merged company takes a new ticker.
 //
 // The target's shareholders vote, weighted by shares. Holders on the buying
-// side (anyone who runs the acquirer) don't vote, so nobody can approve their
-// own terms. The merger closes the moment yes votes pass half of the voting
-// shares, and fails the moment it can no longer get there. With no voting
-// shares at all (the buyer owns the whole target) it closes at once. It also
+// side (anyone who runs the acquirer) count as yes for every target share they
+// hold, so a buyer who owns most of the target passes it alone. The merger
+// closes the moment yes votes pass half of the target's shares held by
+// players, and fails the moment it can no longer get there. It also
 // ends when the proposer's turn comes round again, if the proposer withdraws
 // it, or if either company can no longer take part.
 //
@@ -128,28 +128,34 @@ function mergerQuote(state, acquirer, target, cash, stakePercent) {
     };
 }
 
-// Who votes on a merger right now: the target's active shareholders who don't
-// run the acquirer. Returns the voters and the tally by shares.
+// The vote on a merger right now. Every active target shareholder's shares
+// count. Holders who run the acquirer back their own offer, so their shares
+// count as yes (buyerSide) and they don't cast a vote; the rest are voters.
 function mergerTally(state, proposal) {
     const acquirer = findCorp(state, proposal.acquirerId);
     const target = findCorp(state, proposal.targetId);
-    if (!acquirer || !target) return { voters: [], votingShares: 0, yesShares: 0, noShares: 0 };
-    const voters = activeShareholders(state, target)
-        .filter(holder => !controlsCorporation(acquirer, holder.player.userId))
-        .map(holder => ({
-            userId: holder.player.userId,
-            name: holder.player.name,
-            shares: holder.shares,
-            vote: Object.hasOwn(proposal.votes, holder.player.userId) ? proposal.votes[holder.player.userId] : null,
-        }));
+    if (!acquirer || !target) return { voters: [], buyerSide: [], votingShares: 0, yesShares: 0, noShares: 0, neededShares: 1 };
+    const holders = activeShareholders(state, target).map(holder => ({
+        userId: holder.player.userId,
+        name: holder.player.name,
+        shares: holder.shares,
+    }));
+    const runsBuyer = holder => controlsCorporation(acquirer, holder.userId);
+    const buyerSide = holders.filter(runsBuyer).map(holder => ({ ...holder, vote: true }));
+    const voters = holders.filter(holder => !runsBuyer(holder)).map(holder => ({
+        ...holder,
+        vote: Object.hasOwn(proposal.votes, holder.userId) ? proposal.votes[holder.userId] : null,
+    }));
     const sum = list => list.reduce((total, voter) => total + voter.shares, 0);
+    const votingShares = sum(holders);
     return {
         voters,
-        votingShares: sum(voters),
-        yesShares: sum(voters.filter(voter => voter.vote === true)),
+        buyerSide,
+        votingShares,
+        yesShares: sum(buyerSide) + sum(voters.filter(voter => voter.vote === true)),
         noShares: sum(voters.filter(voter => voter.vote === false)),
-        // More than half of the voting shares.
-        neededShares: Math.floor(sum(voters) / 2) + 1,
+        // More than half of the target's shares held by players.
+        neededShares: Math.floor(votingShares / 2) + 1,
     };
 }
 
@@ -226,7 +232,9 @@ function voteMerger(state, player, payload, events) {
     const tally = mergerTally(state, proposal);
     const voter = tally.voters.find(item => item.userId === player.userId);
     if (!voter) {
-        throw new GameRuleError(403, `Only ${proposal.targetTicker} shareholders who don't run ${proposal.acquirerTicker} vote on this merger`);
+        throw new GameRuleError(403, tally.buyerSide.some(item => item.userId === player.userId)
+            ? `You run ${proposal.acquirerTicker}, so your ${proposal.targetTicker} shares already count as yes`
+            : `Only ${proposal.targetTicker} shareholders vote on this merger`);
     }
     if (typeof payload.approve !== 'boolean') throw new GameRuleError(400, 'approve must be true or false');
     proposal.votes[player.userId] = payload.approve;
