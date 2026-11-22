@@ -141,23 +141,25 @@
         };
     }
 
-    // Who votes: the target's holders who don't run the acquirer (mergerTally).
+    // The vote (mergerTally): every target share counts; holders who run the
+    // acquirer count as yes (buyerSide), the rest vote.
     function tally(proposal) {
         const acquirer = corpById(proposal.acquirerId);
         const target = corpById(proposal.targetId);
-        if (!acquirer || !target) return { voters: [], excluded: [], votingShares: 0, yesShares: 0, noShares: 0, neededShares: 1 };
+        if (!acquirer || !target) return { voters: [], buyerSide: [], votingShares: 0, yesShares: 0, noShares: 0, neededShares: 1 };
         const holders = activeHolders(target);
         const runsBuyer = holder => global.ShareDeals.runsCorporation(acquirer, holder.userId);
         const votes = proposal.votes || {};
         const voters = holders.filter(holder => !runsBuyer(holder))
             .map(holder => ({ ...holder, vote: Object.hasOwn(votes, holder.userId) ? votes[holder.userId] : null }));
         const sum = list => list.reduce((total, voter) => total + voter.shares, 0);
-        const votingShares = sum(voters);
+        const buyerSide = holders.filter(runsBuyer);
+        const votingShares = sum(holders);
         return {
             voters,
-            excluded: holders.filter(runsBuyer),
+            buyerSide,
             votingShares,
-            yesShares: sum(voters.filter(voter => voter.vote === true)),
+            yesShares: sum(buyerSide) + sum(voters.filter(voter => voter.vote === true)),
             noShares: sum(voters.filter(voter => voter.vote === false)),
             neededShares: Math.floor(votingShares / 2) + 1,
         };
@@ -219,15 +221,26 @@
         `).join('')}</table>`;
     }
 
+    function passesAtOnce(t) {
+        return t.votingShares === 0 || t.yesShares * 2 > t.votingShares;
+    }
+
+    function buyerSideNote(t, targetTicker) {
+        return t.buyerSide.map(h => (h.userId === me()
+            ? `Your ${count(h.shares)} ${targetTicker} shares count as yes.`
+            : `${h.name}'s ${count(h.shares)} ${targetTicker} shares count as yes.`));
+    }
+
     function votersNote(t, targetTicker, acquirerTicker) {
-        if (t.votingShares === 0) return `Nobody outside the buying side owns ${targetTicker}, so it goes through at once.`;
+        if (passesAtOnce(t)) {
+            return t.votingShares === 0 || !t.voters.length
+                ? `Nobody outside the buying side owns ${targetTicker}, so it goes through at once.`
+                : `The buying side holds more than half of ${targetTicker}, so it goes through at once.`;
+        }
         const names = t.voters.map(v => nameFor(v.userId, v.name));
         const who = names.length === 1 ? names[0] : `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}`;
         const verb = names.length === 1 && names[0] !== 'You' ? 'votes' : 'vote';
-        const excluded = t.excluded.map(h => (h.userId === me()
-            ? "Yours don't vote because you're on the buying side."
-            : `${h.name}'s don't vote because ${h.name} runs ${acquirerTicker}.`));
-        return [`${who} ${verb}. It goes through the moment yes votes pass half of their ${count(t.votingShares)} ${targetTicker} shares (${count(t.neededShares)}).`, ...excluded].join(' ');
+        return [`${who} ${verb}. It goes through the moment yes votes pass half of the ${count(t.votingShares)} ${targetTicker} shares (${count(t.neededShares)}).`, ...buyerSideNote(t, targetTicker)].join(' ');
     }
 
     // ---- Value-flow chart (a top-to-bottom Sankey) ----
@@ -457,7 +470,7 @@
             ${flowToggle('sheet', sheet.showFlow)}
             ${sheet.showFlow ? flowChart(q, acquirer, target, mergedTicker) : ''}
         `;
-        const sendLabel = t.votingShares === 0 ? `Merge ${target.ticker} into ${acquirer.ticker}` : `Send to ${target.ticker}'s owners`;
+        const sendLabel = passesAtOnce(t) ? `Merge ${target.ticker} into ${acquirer.ticker}` : `Send to ${target.ticker}'s owners`;
         if (sendBtn) {
             sendBtn.textContent = sendLabel;
             sendBtn.disabled = errors.length > 0;
@@ -598,7 +611,7 @@
             headline = `<p class="offer-verdict ${mine.change >= 0 ? 'is-good' : 'is-bad'}"><strong>Your ${esc(acquirer.ticker)} shares:</strong> ${esc(`${money(mine.valueBefore)} today → ${money(mine.valueAfter)} after (${signed(mine.change)}).`)}</p>`;
         }
         const votes = t.voters.map(v => `${nameFor(v.userId, v.name)}: ${v.vote === true ? 'yes' : (v.vote === false ? 'no' : 'waiting')} (${count(v.shares)})`).join('. ');
-        const excluded = t.excluded.length ? ` ${t.excluded.map(h => (h.userId === me() ? 'Your' : `${h.name}'s`)).join(' and ')} ${esc(target.ticker)} shares don't vote.` : '';
+        const excluded = t.buyerSide.length ? ` ${buyerSideNote(t, target.ticker).join(' ')}` : '';
         const isTargetChair = target.chairmanId === me();
         const flowKey = proposal.id;
         const id = esc(proposal.id);

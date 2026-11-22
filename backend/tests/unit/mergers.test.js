@@ -127,13 +127,15 @@ describe('proposing a merger', () => {
         expect(() => propose(state)).toThrow(/already in a merger vote/);
     });
 
-    test('the buyer\'s own holdings in the target do not vote', () => {
+    test('the buyer\'s own holdings in the target count as yes', () => {
         const state = propose(makeState());
         const tally = mergerTally(state, state.mergerProposals[0]);
         expect(tally.voters.map(v => v.userId).sort()).toEqual(['lee', 'priya']);
-        expect(tally.votingShares).toBe(10800);
-        expect(tally.neededShares).toBe(5401);
-        expect(() => vote(state, 'sam', true)).toThrow(/don't run MBS/);
+        expect(tally.buyerSide.map(v => [v.userId, v.shares, v.vote])).toEqual([['sam', 1200, true]]);
+        expect(tally.votingShares).toBe(12000);
+        expect(tally.yesShares).toBe(1200);
+        expect(tally.neededShares).toBe(6001);
+        expect(() => vote(state, 'sam', false)).toThrow(/already count as yes/);
     });
 });
 
@@ -175,6 +177,21 @@ describe('the vote', () => {
         state = vote(state, 'priya', false);
         expect(state.mergerProposals[0].status).toBe('rejected');
         expect(byId(state, 'corp-rrx').status).toBe('active');
+    });
+
+    test('closes on proposal when the buyer holds most of the target', () => {
+        const holders = [{ userId: 'sam', name: 'Sam', shares: 10200 }, { userId: 'priya', name: 'Priya', shares: 1800 }];
+        const state = propose(makeState({ rrxHolders: holders }));
+        expect(state.mergerProposals[0].status).toBe('passed');
+        expect(byId(state, 'corp-rrx').status).toBe('merged');
+    });
+
+    test('with half the target, the buyer still needs one more yes share', () => {
+        const holders = [{ userId: 'sam', name: 'Sam', shares: 6000 }, { userId: 'priya', name: 'Priya', shares: 6000 }];
+        let state = propose(makeState({ rrxHolders: holders }));
+        expect(state.mergerProposals[0].status).toBe('open');
+        state = vote(state, 'priya', false);
+        expect(state.mergerProposals[0].status).toBe('rejected');
     });
 
     test('closes on proposal when the buyer owns the whole target', () => {
