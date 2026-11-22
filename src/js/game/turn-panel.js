@@ -424,14 +424,14 @@ function renderActionButtons(landing) {
     const endTurnDisabled = !canEndTurn || auctionOpen
         ? `disabled title="${auctionOpen ? 'Resolve auction before ending your turn' : 'Roll before ending your turn'}"`
         : '';
-    // After doubles on an unowned property, Buy takes the primary slot and Roll Again
+    // After doubles on an unowned property, Action (buy or auction) takes the primary slot and Roll Again
     // takes End Turn's, which stays unavailable until the final roll anyway.
     const rollAgainButton = rollAgain && buyInDock && !rollBlocked
         ? `<button class="btn btn-secondary" data-game-action="roll-dice">${escapeHtml(rollButtonLabel)}</button>`
         : '';
     const endTurnButton = rollAgainButton || `<button class="btn ${endTurnClass} action-btn-end-turn" data-game-action="end-turn" ${endTurnDisabled}>${escapeHtml(auctionOpen ? 'Resolve Auction' : endTurnLabel)}</button>`;
     const primaryButton = buyInDock
-        ? `<button class="btn btn-success action-btn-buy" data-game-action="open-buy-property">Buy for ${formatMoney(landing.price)}</button>`
+        ? `<button class="btn btn-success action-btn-buy" data-game-action="open-buy-property">Action</button>`
         : (!hasRolled && !auctionOpen ? `<button class="btn btn-primary" data-game-action="roll-dice" ${rollDisabled}>${escapeHtml(rollButtonLabel)}</button>` : '');
 
     const buyTile = buyInDock || (!hasRolled && !auctionOpen) ? '' : (auctionOpen
