@@ -6,12 +6,12 @@
 
 // Debt page: your loans (balances, autopay, payments), new loans and refinancing.
 function openDebtModal() {
-    const isMyTurn = isCurrentUsersTurn();
+    const canAct = canMakeAnytimeMove();
     const select = document.getElementById('debtAction');
     select.querySelectorAll('option[value="issue"], option[value="refinance"]').forEach(option => {
-        option.disabled = !isMyTurn;
+        option.disabled = !canAct;
     });
-    select.value = isMyTurn && !getManagedLoans().length ? 'issue' : 'loans';
+    select.value = canAct && !getManagedLoans().length ? 'issue' : 'loans';
     document.getElementById('loanRatesHint').textContent =
         `Loans this game cost ${LoanMath.loanRate(currentGame.game_state)}% interest per turn, for ${LoanMath.MIN_LOAN_TERM} to ${LoanMath.MAX_LOAN_TERM} turns. Paying the loan down every turn clears it by the last turn; with interest only, the whole balance is due then.`;
     document.getElementById('debtIssuer').innerHTML = debtIssuerOptionsHtml();
@@ -49,10 +49,13 @@ function renderLoanList() {
         return;
     }
     const isMyTurn = isCurrentUsersTurn();
-    container.innerHTML = loans.map(({ debt, corp }) => renderLoanRow(debt, corp, isMyTurn)).join('');
+    const canAct = canMakeAnytimeMove();
+    container.innerHTML = loans.map(({ debt, corp }) => renderLoanRow(debt, corp, isMyTurn, canAct)).join('');
 }
 
-function renderLoanRow(debt, corp, isMyTurn) {
+// Payments and refinancing are open at any time (canAct), but a loan only
+// counts down at the end of its servicer's turn (isMyTurn).
+function renderLoanRow(debt, corp, isMyTurn, canAct) {
     const status = LoanMath.loanStatus(debt, { dueThisTurn: loanDueOnMyTurn(corp, isMyTurn) });
     const cash = corp ? Number(corp.cash || 0) : Number(currentPlayerData?.cash || 0);
     const borrower = corp ? `${corp.ticker} (corporation)` : 'Personal';
@@ -76,7 +79,7 @@ function renderLoanRow(debt, corp, isMyTurn) {
         const text = mode.value === 'off' ? mode.label : `${mode.label} · ${formatMoney(amount)}`;
         return `<option value="${mode.value}"${status.autopay === mode.value ? ' selected' : ''}>${escapeHtml(text)}</option>`;
     }).join('');
-    const payDisabled = isMyTurn ? '' : ' disabled';
+    const payDisabled = canAct ? '' : ' disabled';
     return `
         <article class="loan-row${status.dueInFull ? ' is-due' : ''}" ${ids}>
             <div class="loan-row-head">
@@ -99,7 +102,7 @@ function renderLoanRow(debt, corp, isMyTurn) {
                     <button type="button" class="btn btn-success btn-sm" data-loan-payoff ${ids}${payDisabled || (cash < status.balance ? ' disabled' : '')}>Pay off ${formatMoney(status.balance)}</button>
                     <button type="button" class="btn ${status.dueInFull ? 'btn-primary' : 'btn-secondary'} btn-sm" data-loan-refinance ${ids}${payDisabled}>Refinance</button>
                 </div>
-                ${isMyTurn ? (cash < status.balance ? `<p class="debt-detail">Paying off needs ${formatMoney(status.balance)}; ${corp ? `${corp.ticker} has` : 'you have'} ${formatMoney(cash)}.</p>` : '') : '<p class="debt-detail">You can make extra payments on your turn. Autopay can be changed any time.</p>'}
+                ${canAct ? (cash < status.balance ? `<p class="debt-detail">Paying off needs ${formatMoney(status.balance)}; ${corp ? `${corp.ticker} has` : 'you have'} ${formatMoney(cash)}.</p>` : '') : '<p class="debt-detail">Payments wait while an auction is open or the game is paused. Autopay can be changed any time.</p>'}
             </div>
         </article>
     `;

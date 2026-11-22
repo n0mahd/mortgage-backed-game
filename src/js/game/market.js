@@ -374,9 +374,9 @@ function renderTradeFormMode(mode) {
     if (picked && !document.querySelector('#player2Destination input[name="tradeAddReturn"]:disabled')) tradeAddChoice = picked.value;
     const ids = Array.from(document.querySelectorAll('#player1Assets input[type="checkbox"]:checked')).map(cb => cb.value);
     const choice = addToCorporationReturn(mode.corp, ids, tradeAddChoice, 'tradeAddReturn');
-    const turnNote = isCurrentUsersTurn() ? '' : `<p class="hint">You can add properties to ${escapeHtml(mode.corp.ticker)} on your turn.</p>`;
+    const holdNote = currentGame.game_state.auction?.status !== 'open' ? '' : `<p class="hint">You can add properties to ${escapeHtml(mode.corp.ticker)} once the auction closes.</p>`;
     const destination = document.getElementById('player2Destination');
-    const html = choice.html + turnNote;
+    const html = choice.html + holdNote;
     if (destination.dataset.html !== html) {
         destination.innerHTML = html;
         destination.dataset.html = html;
@@ -744,7 +744,7 @@ function updateMarketActionState() {
     if (mode.kind === 'merge') {
         tradeValid = true;
     } else if (mode.kind === 'add') {
-        tradeValid = addPreview.ids.length > 0 && isCurrentUsersTurn();
+        tradeValid = addPreview.ids.length > 0 && canMakeAnytimeMove();
     } else if (mode.kind === 'trade') {
         const tradeHasOffer = player1Cash > 0 || player2Cash > 0 || player1Assets > 0 || player2Assets > 0 || newShares > 0;
         const tradeCashCovered = ['player1', 'player2'].map(updateTradeCashLimit).every(Boolean);

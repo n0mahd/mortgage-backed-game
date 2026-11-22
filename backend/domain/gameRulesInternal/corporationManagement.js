@@ -169,8 +169,11 @@ function requireNoOpenClaim(state, player, what) {
 function setRentPolicy(state, player, payload, events) {
     const corp = runCorporation(state, player, payload.corpId);
     const policy = requireRentPolicy(payload.policy);
-    if (hasMovedThisTurn(state, player)) {
-        throw new GameRuleError(400, `${corp.ticker}'s rent policy can only change at the start of your turn, before you roll`);
+    // Off your turn you may switch any time; on your own turn only before you
+    // roll, so you can't switch after seeing where you landed.
+    const ownTurn = state.players[state.currentPlayerIndex]?.userId === player.userId;
+    if (ownTurn && hasMovedThisTurn(state, player)) {
+        throw new GameRuleError(400, `${corp.ticker}'s rent policy can't change after you roll. Switch it before you roll, or after your turn`);
     }
     if (corp.rentPolicy === policy) throw new GameRuleError(400, `${corp.ticker} is already in ${policy} mode`);
     applyRentPolicy(state, corp, policy, player, events, 'chairman');

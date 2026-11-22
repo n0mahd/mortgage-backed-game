@@ -33,6 +33,10 @@ Rejoining by room code ("Continue as an existing player") only works for guest p
 
 ### Your Turn
 
+Your turn is only for moving: roll, move, deal with the square you land on (buy it, auction it or pay rent), then **End Turn**, which takes your loan payments.
+
+Everything else works at any time, including during other players' turns: building houses, IPOs, adding properties or cash to a corporation you run, buying treasury shares, dividends, rent policy, taking, paying and refinancing loans, trades, payments and votes. While an auction is open only bids and rule votes are taken, and nothing while the game is paused.
+
 The game vibrates your phone when it becomes your turn (Android browsers; on iPhone it is a light haptic tick where Safari allows it). If your phone sleeps or loses its connection, the game screen catches up automatically when you come back, so there is no need to refresh.
 
 ### Creating a Room
@@ -97,7 +101,7 @@ The game screen has four tabs accessible via the top navigation bar:
 
 After doubles, deal with the square you landed on before rolling again: the dock offers **Buy** for an unowned property, with **Roll Again** beside it. Rolling again moves you on, and the property you left stays unowned. Rent you couldn't afford on the first roll is paid before the next one (see §11). You can only buy or auction the property you landed on during this turn, never the square you started the turn on.
 
-End Turn is only valid after the current player has rolled. The UI disables it before rolling, and the server rejects unrolled end-turn actions.
+End Turn is only valid after you have rolled. The UI disables it before rolling, and the server rejects unrolled end-turn actions.
 
 **Rolling three consecutive doubles** sends you directly to Jail.
 
@@ -124,18 +128,17 @@ If you choose not to buy the property, click **Start Auction** from the purchase
 - The current turn cannot end until the auction resolves.
 - The host can cancel a stuck auction. Canceling an auction does not move cash or property.
 
-You cannot buy property when it is not your turn.
+You can only buy or auction the property you landed on, during your own turn.
 
 ---
 
 ## 7. Houses & Hotels
 
-You may buy houses or a hotel on any property where you own the **complete color group** (all properties of that color).
+You may buy houses or a hotel on any property where you own the **complete color group** (all properties of that color), at any time, not only on your turn.
 
-1. Switch to the **Board** tab on your turn.
-2. If you own a complete group, the **Buy Houses** button appears.
-3. Use the **+/−** controls to select how many houses to add to each property in the group.
-4. Click **Confirm** — the total cost is deducted from your cash.
+1. If you own a complete group, the **Buy Houses** button appears.
+2. Use the **+/−** controls to select how many houses to add to each property in the group.
+3. Click **Confirm** — the total cost is deducted from your cash.
 
 **Built groups stay together.** Once any street in a color group has a house or hotel, none of that group's streets can be traded, whether directly or into an LLC. The only way to sell a built group is to put the **whole group** into an IPO and sell shares in the corporation (see sections 9 and 12).
 
@@ -206,14 +209,14 @@ Any player may bundle one or more of their properties into a corporation and sel
 
 ### Creating an IPO
 
-1. On your turn, go to the **Game** tab and click **Create IPO**.
+1. Go to the **Game** tab and click **Create IPO** (at any time, not only on your turn).
 2. Select the properties to include as corporate assets. A color group with buildings must go in whole: ticking one of its streets ticks the rest.
 3. Set a **ticker symbol** (e.g., `MBS`). Every new corporation issues **12,000 shares**. 12,000 splits evenly in halves (6,000), thirds (4,000), quarters (3,000), sixths (2,000) and eighths (1,500), and 120 shares is 1%. There is no IPO price: what your shares are worth is set by the corporation's net asset value, and what someone pays for them is whatever you agree in a trade.
 4. Click **Create** — the selected properties transfer into the corporation and you receive all of its shares.
 
 ### Adding Properties to a Corporation You Run
 
-If you run a corporation (you're its chairman or hold more than half its shares), you can move more of your own properties into it on your turn.
+If you run a corporation (you're its chairman or hold more than half its shares), you can move more of your own properties into it at any time.
 
 1. Open **Corporations** from the Game tab and tap **Add properties to MBS** on that corporation's card. **Create IPO** also lists the companies you run. Or, in the Market tab, keep yourself under **You give** and pick MBS under **They give**: the form becomes **Add to MBS**.
 2. Tick the properties to add. A color group with buildings goes in whole: ticking one of its streets ticks the rest.
@@ -224,7 +227,7 @@ If you run a corporation (you're its chairman or hold more than half its shares)
 
 There is no cap on how many shares a corporation can have, and you get new shares even if you already hold every share (your stake stays 100%, and your net worth doesn't change either way). New shares can't be priced while a corporation is worth $0 or less. You can't add properties while you owe an unpaid claim.
 
-**Adding cash.** The same works with cash: tap **Add cash** under **Chairman moves** on the corporation's card, enter an amount and choose **new shares** at today's value per share or **nothing, it's a gift**. The cash goes into the treasury. For example, $600 into MBS at $0.10 a share gets you 6,000 new shares. Unlike properties, cash can go in at any time, not only on your turn (**Market > Send money** to the corporation does the same). An amount worth less than half a share gets no new shares.
+**Adding cash.** The same works with cash: tap **Add cash** under **Chairman moves** on the corporation's card, enter an amount and choose **new shares** at today's value per share or **nothing, it's a gift**. The cash goes into the treasury. For example, $600 into MBS at $0.10 a share gets you 6,000 new shares. **Market > Send money** to the corporation does the same. An amount worth less than half a share gets no new shares.
 
 To put a property into a corporation someone else runs, make it a **property offer** (below), or trade it for the chairman's own shares (see **Trading a Property for Shares** in section 12).
 
@@ -239,11 +242,11 @@ The chairman, or anyone holding more than half the shares, runs a corporation fr
 | Reinvest | Everyone pays full rent, shareholders included | The treasury, for the chairman to spend |
 | Payout | A shareholder pays only the part they don't own; everyone else pays in full | Straight to the shareholders, split by shares. The slice for treasury shares stays in the treasury |
 
-On paper both cost the lander the same: in Reinvest your stake in the treasury grows by your share of what you paid. The difference is cash in hand versus value locked in the company. **Changing the policy.** The chairman (or a majority holder) can change it alone only **on their own turn, before they roll**, so nobody can switch it after seeing where anyone landed. There is no cooldown: they can switch it back and forth as often as they like, as long as it is their turn and they haven't rolled. A shareholder who doesn't run the corporation can still get it changed if **every shareholder agrees**: they tap **Ask every shareholder to switch**; each holder sees **Agree** / **Reject** on the corporation card (the Corporations button says when an answer is waiting). The policy switches the moment the last holder agrees, at any point in the game. One rejection closes the vote. A sole shareholder's proposal passes at once.
+On paper both cost the lander the same: in Reinvest your stake in the treasury grows by your share of what you paid. The difference is cash in hand versus value locked in the company. **Changing the policy.** The chairman (or a majority holder) can change it alone at any time, as often as they like, with one exception: not on their own turn once they've rolled, so they can't switch it after seeing where they landed. A shareholder who doesn't run the corporation can still get it changed if **every shareholder agrees**: they tap **Ask every shareholder to switch**; each holder sees **Agree** / **Reject** on the corporation card (the Corporations button says when an answer is waiting). The policy switches the moment the last holder agrees, at any point in the game. One rejection closes the vote. A sole shareholder's proposal passes at once.
 
 Debt interest is still charged to the treasury in Payout mode, so a corporation with debt needs cash to cover it.
 
-**Dividends.** On their turn the chairman can pay any amount of treasury cash to the shareholders, split by shares held. The slice for treasury shares stays in the treasury.
+**Dividends.** At any time the chairman can pay any amount of treasury cash to the shareholders, split by shares held. The slice for treasury shares stays in the treasury.
 
 **Buying and building.** When the chairman lands on an unowned property, the Buy sheet asks **Who's buying?** and can buy it for the corporation from its treasury. **Build Houses** has a **Build for** choice for groups the corporation owns whole, paid from its treasury; **Build houses** on the corporation's card opens it for the corporation. Other shareholders see on its Debt tab that only the chairman can borrow for it. A group split between the chairman and the corporation can't be built on.
 
@@ -283,7 +286,7 @@ Every share of the company being bought gets the same cash and new shares. Share
 
 Nobody can buy your shares without your agreement. Shares change hands only through a **trade offer** in the **Market** tab that the holder accepts: offer cash (or property) for someone's shares, or offer your own shares to someone. A **merger** its shareholders vote for (above) is another exception.
 
-The one exception is the corporation's own **treasury shares**. If bankruptcy returns shares to the corporation, it sells them from the **Corporations** modal at the current share value (net asset value per share, below), and the payment goes to the corporation treasury. A corporation whose shares are worth $0 cannot sell treasury shares.
+The one exception is the corporation's own **treasury shares**. If bankruptcy returns shares to the corporation, anyone can buy them at any time from the **Corporations** modal at the current share value (net asset value per share, below), and the payment goes to the corporation treasury. A corporation whose shares are worth $0 cannot sell treasury shares.
 
 ### Founder and Chairman
 
@@ -334,6 +337,8 @@ Before the game starts, the host sets one interest rate per turn in the waiting 
 4. Choose what **Autopay** takes each turn: **Pay down loan** (the default), **Interest only**, or **Off**. Below the two choices the form shows what the loan costs: the payment per turn and the total you'd repay.
 5. Tap **Take loan**: the cash is added to your balance immediately.
 
+You can borrow at any time, not only on your turn.
+
 A corporation's chairman can borrow for the corporation the same way (pick it under **Borrow as**, or tap **Borrow for** on the corporation's card, which opens the loan form with it chosen); its limit is 90% of the book value of the corporation's properties, less what it owes. The limit is checked only when a loan is taken (or refinanced): a portfolio that later loses value doesn't call in existing loans, but it does stop new ones.
 
 ### Each turn
@@ -359,14 +364,14 @@ On a loan's last turn the whole balance is due when you end your turn, with or w
 
 Below it is each loan you can manage (your own and those of corporations you run) with its balance, term, turns left and next payment. For each loan you can:
 
-- change **Autopay each turn** between Pay down loan, Interest only and Off; each choice shows what it takes (any time, even when it isn't your turn: off your turn, open it from **Your Loans** in Moves);
+- change **Autopay each turn** between Pay down loan, Interest only and Off; each choice shows what it takes;
 - **Pay an amount** of your choice;
 - **Pay off** the whole balance;
 - **Refinance** it, which opens the refinance form with that loan selected.
 
 **Take a new loan** and **Refinance loans** show your borrowing limit as a sum (90% of book value, less what's already owed) and an **After** box. It shows cash, what End Turn takes, total owed and the cash left after End Turn, and updates as you type, so you can see whether the loan gets you through the turn.
 
-Payments are made on your turn. Paying more than is owed only takes what is owed.
+You can change autopay, pay, refinance or borrow at any time from **Manage Debt** in Moves; only the autopay payments wait for your End Turn. Paying more than is owed only takes what is owed.
 
 ### Refinancing
 
@@ -482,7 +487,7 @@ Leaving Jail by paying the fine or using a card happens before your move roll. L
 
 If you hold a **Get Out of Jail Free** card (from a Chance or Community Chest draw), it stays in your hand until you choose to use it, or until you sell or trade it to another player through the Market tab. A player can hold one card at a time, so a player who already has one cannot receive another in a trade.
 
-While in Jail you can still buy properties, create IPOs, manage debt, and trade via the Market tab.
+While in Jail you can still build, create IPOs, manage debt, and trade via the Market tab.
 
 ---
 
@@ -558,14 +563,15 @@ Rule votes, like other actions, wait while the game is paused.
 | Income Tax | $200 |
 | Luxury Tax | $100 |
 | Jail bail (forced, turn 3) | $50 |
-| End Turn gate | Current player must roll first |
+| Your turn | Roll, jail fine or card, buy or auction the square you landed on, End Turn. Everything else: any time, except during an auction or a pause |
+| End Turn gate | You must roll first |
 | Loan terms | 5 to 30 turns in steps of 5, one rate per turn set by the host |
 | Loan payments | End of your turn (autopay: pay down, interest only or off), whole balance at maturity |
 | Bankruptcy trigger | Cash < $0 at turn end |
 | Win condition | Last solvent player OR host ends game |
 | Shares per new corporation | 12,000 (120 shares = 1%) |
 | Default rent policy | Reinvest |
-| Rent policy change | Chairman alone: own turn, before rolling, no cooldown. Anytime: every shareholder agrees |
+| Rent policy change | Chairman alone: any time except on their own turn after rolling, no cooldown. Any time: every shareholder agrees |
 | Property / trade offers expire | 10 minutes |
 | Mergers | Whoever runs the buyer offers cash + up to 95% of the merged company; the bought company's shareholders vote by shares, more than half yes passes |
 | Rule proposals | Pass GO or the loan rate; every player who isn't bankrupt must agree; expire when the proposer's turn comes round |

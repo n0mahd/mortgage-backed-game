@@ -61,14 +61,14 @@ function renderEndTurnOutlook() {
     const isMyTurn = isCurrentUsersTurn();
     const cards = debtBorrowers()
         .filter(borrower => (borrower.account?.debts || []).length || (!borrower.corp && borrowerOutlook(borrower).claim))
-        .map(borrower => renderOutlookCard(borrower, isMyTurn));
+        .map(renderOutlookCard);
     container.hidden = !cards.length;
     container.innerHTML = cards.length
         ? `<h3 class="outlook-title">${isMyTurn ? 'When you end this turn' : 'When you end your next turn'}</h3>${cards.join('')}`
         : '';
 }
 
-function renderOutlookCard(borrower, isMyTurn) {
+function renderOutlookCard(borrower) {
     const outlook = borrowerOutlook(borrower);
     const { corp } = borrower;
     const serviced = !corp || TurnEndOutlook.servicesLoansOf(corp, currentUser.id);
@@ -90,7 +90,7 @@ function renderOutlookCard(borrower, isMyTurn) {
     if (outlook.failing) {
         const consequence = corp ? `${corp.ticker} becomes insolvent and is closed` : 'you go bankrupt';
         advice = `<p class="outlook-advice">Without ${formatMoney(outlook.shortfall)} more, ${consequence}. Refinance the loan that's due, or borrow at least ${formatMoney(outlook.shortfall)}.</p>`;
-        if (isMyTurn) {
+        if (canMakeAnytimeMove()) {
             const key = escapeHtml(borrower.key);
             actions = `<div class="outlook-actions">
                 ${outlook.maturing > 0 ? `<button type="button" class="btn btn-primary btn-sm" data-outlook-refinance="${key}">Refinance due loan</button>` : ''}

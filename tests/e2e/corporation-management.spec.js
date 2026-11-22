@@ -138,6 +138,15 @@ test('the chairman switches to Payout and pays a dividend', async ({ browser, re
     await sam.context.close();
 });
 
+test("the chairman can't switch rent policy on their own turn after rolling", async ({ browser, request }) => {
+    const { room, users } = await setupGame(request, { samOverrides: { position: 5, diceRolled: true } });
+    const sam = await openGame(browser, room, users.Sam);
+    await openCorporation(sam.page, 'corp-mbs');
+    await expect(sam.page.locator('[data-game-action="set-rent-policy"][data-policy="payout"]')).toBeDisabled();
+    await expect(sam.page.locator('.corp-rent-policy')).toContainText('You can switch again after your turn.');
+    await sam.context.close();
+});
+
 test('a shareholder vote changes the policy when every shareholder agrees', async ({ browser, request }) => {
     const { room, game, users } = await setupGame(request);
     const sam = await openGame(browser, room, users.Sam);

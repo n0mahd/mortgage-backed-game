@@ -114,13 +114,31 @@ test("a shareholder who isn't chairman is told who can borrow", async ({ browser
     await alex.context.close();
 });
 
-test('off their turn, the chairman sees the move disabled', async ({ browser, request }) => {
+test('off their turn, the chairman can still borrow', async ({ browser, request }) => {
     const { room, users } = await setupGame(request, 0);
     const sam = await openGame(browser, room, users.Sam);
     await openCorporation(sam.page, 'corp-mbs');
     const borrow = sam.page.locator('#corporationModal [data-corp-panel="overview"] [data-game-action="borrow-for-corporation"]');
-    await expect(borrow).toBeDisabled();
-    await expect(borrow).toContainText('On your turn');
+    await expect(borrow).toBeEnabled();
+    await expect(borrow).toContainText('Up to');
+    await sam.context.close();
+});
+
+test("off their turn, a player's Moves still offer building, IPOs and debt", async ({ browser, request }) => {
+    const { room, users } = await setupGame(request, 0);
+    const sam = await openGame(browser, room, users.Sam);
+    const moves = sam.page.locator('#game .moves-grid');
+    for (const action of ['open-house', 'open-ipo', 'open-debt']) {
+        await expect(moves.locator(`[data-game-action="${action}"]`)).toBeEnabled();
+    }
+    // Turn-only moves stay with the player whose turn it is.
+    for (const action of ['roll-dice', 'end-turn', 'open-buy-property']) {
+        await expect(sam.page.locator(`#game [data-game-action="${action}"]`)).toHaveCount(0);
+    }
+    // Chairman moves are open too, rent policy included.
+    await openCorporation(sam.page, 'corp-mbs');
+    await expect(sam.page.locator('[data-game-action="set-rent-policy"][data-policy="payout"]')).toBeEnabled();
+    await expect(sam.page.locator('[data-game-action="pay-dividend"][data-corp-id="corp-mbs"]')).toBeEnabled();
     await sam.context.close();
 });
 

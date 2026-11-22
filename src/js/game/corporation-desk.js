@@ -30,6 +30,16 @@
         return !!gameState && gameState.players[gameState.currentPlayerIndex]?.userId === me();
     }
 
+    // Building, dividends, borrowing and rent policy are open at any time
+    // (game.js's canMakeAnytimeMove), not only on the chairman's turn.
+    function canAct() {
+        return global.canMakeAnytimeMove();
+    }
+
+    function holdNote() {
+        return global.anytimeMoveHoldNote();
+    }
+
     // Mirrors the engine: doubles leave diceRolled false, but lastDiceRoll is set.
     function hasRolled() {
         const gameState = state();
@@ -67,14 +77,16 @@
         const otherLabel = other === 'payout' ? 'Payout' : 'Reinvest';
         // The current policy is the selected half of a two-way toggle; the
         // other half is the switch, when the viewer runs the corporation.
-        // Mirrors setRentPolicy: the runner switches on their turn, before rolling.
+        // Mirrors setRentPolicy: the runner switches any time except on their
+        // own turn after rolling.
         let switchControl = '';
         let controls = '';
         if (runs && !corp.rentPolicyVote) {
-            const canSwitch = isMyTurn() && !hasRolled();
-            const note = !isMyTurn() ? 'You can change this at the start of your turn.'
-                : (hasRolled() ? 'You have rolled. Change it at the start of your next turn.'
-                    : 'Change it before you roll.');
+            const rolledThisTurn = isMyTurn() && hasRolled();
+            const canSwitch = canAct() && !rolledThisTurn;
+            const note = !canAct() ? holdNote()
+                : (rolledThisTurn ? 'You have rolled. You can switch again after your turn.'
+                    : (isMyTurn() ? 'Switch before you roll.' : ''));
             const debt = (corp.debts || []).reduce((sum, d) => sum + Number(d.principal || 0), 0);
             const debtWarning = other === 'payout' && debt > 0
                 ? `<p class="share-deal-warning">${esc(corp.ticker)} owes ${money(debt)}. In Payout its treasury stops growing, but interest is still charged to it.</p>`
@@ -82,7 +94,7 @@
             switchControl = `<button type="button" class="policy-option" data-game-action="set-rent-policy" data-corp-id="${esc(corp.id)}" data-policy="${other}" aria-label="Switch to ${otherLabel}"${canSwitch ? '' : ' disabled'}>${policyOptionText(other)}</button>`;
             controls = `
                 ${debtWarning}
-                <small>${esc(note)}</small>
+                ${note ? `<small>${esc(note)}</small>` : ''}
             `;
         } else if (mine > 0 && !corp.rentPolicyVote) {
             controls = `<div class="governance-control">${proposeButton(corp, other, otherLabel)}</div>`;
@@ -169,7 +181,7 @@
     // other move. extraMoves adds tiles owned by corporations.js.
     function renderRunnerTools(corp, extraMoves = '') {
         if (global.ShareDeals.isClosed(corp) || !global.ShareDeals.runsCorporation(corp, me())) return '';
-        const myTurn = isMyTurn();
+        const ok = canAct();
         const cash = Number(corp.cash || 0);
         return `
             <div class="corp-runner-tools">
@@ -177,7 +189,7 @@
                 <div class="buy-shares-form">
                     <label for="dividend-${esc(corp.id)}">Pay a dividend, split by shares</label>
                     <input type="number" inputmode="decimal" id="dividend-${esc(corp.id)}" min="1" max="${Math.floor(cash)}" value="${Math.floor(cash / 2) || ''}">
-                    <button class="btn btn-primary btn-sm" data-game-action="pay-dividend" data-corp-id="${esc(corp.id)}"${myTurn && cash >= 1 ? '' : ' disabled'}>Pay dividend</button>
+                    <button class="btn btn-primary btn-sm" data-game-action="pay-dividend" data-corp-id="${esc(corp.id)}"${ok && cash >= 1 ? '' : ' disabled'}>Pay dividend</button>
                 </div>
                 <div class="moves-grid corp-moves">
                     ${buildButton(corp)}
@@ -185,7 +197,7 @@
                     ${borrowButton(corp)}
                     ${extraMoves}
                 </div>
-                <small>${myTurn ? '' : 'Dividends and building happen on your turn. '}To buy a property for ${esc(corp.ticker)}, land on it and choose ${esc(corp.ticker)} when you buy.</small>
+                <small>To buy a property for ${esc(corp.ticker)}, land on it and choose ${esc(corp.ticker)} when you buy.</small>
             </div>
         `;
     }
@@ -193,20 +205,19 @@
     // Build houses, in Chairman moves and the Properties tab. Opens
     // the house sheet for the corporation's complete colour groups.
     function buildButton(corp) {
-        const myTurn = isMyTurn();
+        const ok = canAct();
         const ownsGroup = global.getCompleteGroupProperties(corp.id, state()).length > 0;
         // Only a disabled button says why.
-        const note = !ownsGroup ? 'Needs a whole colour group' : (myTurn ? '' : 'On your turn');
-        return `<button class="btn btn-secondary btn-sm" data-game-action="build-for-corporation" data-corp-id="${esc(corp.id)}"${myTurn && ownsGroup ? '' : ' disabled'}>Build houses${note ? `<small>${note}</small>` : ''}</button>`;
+        const note = !ownsGroup ? 'Needs a whole colour group' : (ok ? '' : holdNote());
+        return `<button class="btn btn-secondary btn-sm" data-game-action="build-for-corporation" data-corp-id="${esc(corp.id)}"${ok && ownsGroup ? '' : ' disabled'}>Build houses${note ? `<small>${note}</small>` : ''}</button>`;
     }
 
-    // borrowing for a corporation from its sheet. Loans need the
-    // borrower's turn, like Take a new loan in Manage Debt.
+    // Borrowing for a corporation from its sheet, like Take a new loan in Manage Debt.
     function borrowButton(corp) {
-        const myTurn = isMyTurn();
+        const ok = canAct();
         const room = Number(corp.borrowing?.available || 0);
-        const note = !myTurn ? 'On your turn' : (room > 0 ? `Up to ${money(room)}` : 'No borrowing room left');
-        return `<button class="btn btn-secondary btn-sm" data-game-action="borrow-for-corporation" data-corp-id="${esc(corp.id)}"${myTurn && room > 0 ? '' : ' disabled'}>Borrow for ${esc(corp.ticker)}<small>${note}</small></button>`;
+        const note = !ok ? holdNote() : (room > 0 ? `Up to ${money(room)}` : 'No borrowing room left');
+        return `<button class="btn btn-secondary btn-sm" data-game-action="borrow-for-corporation" data-corp-id="${esc(corp.id)}"${ok && room > 0 ? '' : ' disabled'}>Borrow for ${esc(corp.ticker)}<small>${note}</small></button>`;
     }
 
     function borrowForCorporation(corpId) {

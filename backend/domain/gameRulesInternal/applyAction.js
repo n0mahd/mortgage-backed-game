@@ -51,26 +51,27 @@ const { normalizeState, validateStateInvariants, syncDerivedPortfolios } = requi
 
 // Every action type, with who may take it:
 //   turn: only the current player    host: only the room host
-// Anything else may be taken by any active player (the handler checks the rest).
+// Anything else may be taken by any active player at any time, on anyone's
+// turn (the handler checks the rest). Only moving round the board is turn-locked.
 const ACTIONS = {
     roll_dice: { turn: true, run: c => rollDice(c.state, c.actor, c.events, c.options) },
     pay_jail_fine: { turn: true, run: c => payJailFine(c.state, c.actor, c.events) },
     use_get_out_of_jail_card: { turn: true, run: c => useGetOutOfJailCard(c.state, c.actor, c.events) },
     buy_property: { turn: true, run: c => buyProperty(c.state, c.actor, c.payload, c.events) },
-    buy_houses: { turn: true, run: c => buyHouses(c.state, c.actor, c.payload, c.events) },
+    buy_houses: { run: c => buyHouses(c.state, c.actor, c.payload, c.events) },
     end_turn: { turn: true, run: c => endTurn(c.state, c.actor, c.events) },
 
     start_auction: { turn: true, run: c => startAuction(c.state, c.actor, c.events) },
     place_bid: { run: c => placeAuctionBid(c.state, c.actor, c.payload, c.events) },
     pass_auction: { run: c => passAuction(c.state, c.actor, c.events) },
 
-    create_ipo: { turn: true, run: c => createIPO(c.state, c.actor, c.payload, c.events) },
-    add_to_corporation: { turn: true, run: c => addToCorporation(c.state, c.actor, c.payload, c.events) },
-    buy_shares: { turn: true, run: c => buyShares(c.state, c.actor, c.payload, c.events) },
-    set_rent_policy: { turn: true, run: c => setRentPolicy(c.state, c.actor, c.payload, c.events) },
+    create_ipo: { run: c => createIPO(c.state, c.actor, c.payload, c.events) },
+    add_to_corporation: { run: c => addToCorporation(c.state, c.actor, c.payload, c.events) },
+    buy_shares: { run: c => buyShares(c.state, c.actor, c.payload, c.events) },
+    set_rent_policy: { run: c => setRentPolicy(c.state, c.actor, c.payload, c.events) },
     propose_rent_policy_change: { run: c => proposeRentPolicyChange(c.state, c.actor, c.payload, c.events) },
     vote_rent_policy_change: { run: c => voteRentPolicyChange(c.state, c.actor, c.payload, c.events) },
-    pay_dividend: { turn: true, run: c => payDividend(c.state, c.actor, c.payload, c.events) },
+    pay_dividend: { run: c => payDividend(c.state, c.actor, c.payload, c.events) },
     offer_property_to_corporation: { run: c => offerPropertyToCorporation(c.state, c.actor, c.payload, c.events) },
     respond_property_offer: { run: c => respondPropertyOffer(c.state, c.actor, c.payload, c.events) },
     change_chairman: { run: c => changeChairman(c.state, c.actor, c.payload, c.events) },
@@ -80,9 +81,9 @@ const ACTIONS = {
     vote_merger: { run: c => voteMerger(c.state, c.actor, c.payload, c.events) },
     withdraw_merger: { run: c => withdrawMerger(c.state, c.actor, c.payload, c.events) },
 
-    issue_debt: { turn: true, run: c => issueDebt(c.state, c.actor, c.payload, c.events) },
-    pay_debt: { turn: true, run: c => payDebt(c.state, c.actor, c.payload, c.events) },
-    refinance_debt: { turn: true, run: c => refinanceDebt(c.state, c.actor, c.payload, c.events) },
+    issue_debt: { run: c => issueDebt(c.state, c.actor, c.payload, c.events) },
+    pay_debt: { run: c => payDebt(c.state, c.actor, c.payload, c.events) },
+    refinance_debt: { run: c => refinanceDebt(c.state, c.actor, c.payload, c.events) },
     set_debt_autopay: { run: c => setDebtAutopay(c.state, c.actor, c.payload, c.events) },
 
     propose_trade: { run: c => proposeTrade(c.state, c.actor, c.payload, c.events) },
