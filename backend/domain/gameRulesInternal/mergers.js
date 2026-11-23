@@ -319,7 +319,7 @@ function completeMerger(state, proposal, acquirer, target, actor, events) {
     });
     const targetCash = roundCents(Number(target.cash || 0));
     acquirer.cash = roundCents(Number(acquirer.cash || 0) + targetCash);
-    recordCashFlow(state, target.id, acquirer.id, targetCash);
+    recordCashFlow(state, target.id, acquirer.id, targetCash, { kind: 'merger', note: `${acquirer.ticker} took over ${target.ticker}` });
     const movedDebt = roundCents((target.debts || []).reduce((sum, debt) => sum + Number(debt.principal || 0), 0));
     acquirer.debts = [...(acquirer.debts || []), ...(target.debts || [])];
 
@@ -328,7 +328,7 @@ function completeMerger(state, proposal, acquirer, target, actor, events) {
         if (payout.cash > 0) {
             acquirer.cash = roundCents(Number(acquirer.cash || 0) - payout.cash);
             payout.player.cash = roundCents(Number(payout.player.cash || 0) + payout.cash);
-            recordCashFlow(state, acquirer.id, payout.userId, payout.cash);
+            recordCashFlow(state, acquirer.id, payout.userId, payout.cash, { kind: 'merger', note: `Cash for your ${target.ticker} shares in the ${acquirer.ticker} takeover` });
         }
         if (payout.newShares > 0) addShareholderShares(acquirer, payout.player, payout.newShares);
     });

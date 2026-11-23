@@ -148,6 +148,13 @@ function normalizeState(raw) {
     state.auction = normalizeAuction(state.auction);
     state.bankruptcyClaims = normalizeBankruptcyClaims(state.bankruptcyClaims);
     state.turnCashFlow = state.turnCashFlow && typeof state.turnCashFlow === 'object' ? state.turnCashFlow : {};
+    state.cashLedger = Array.isArray(state.cashLedger) ? state.cashLedger : [];
+    state.cashLedgerSeq = Number(state.cashLedgerSeq || 0);
+    state.turnNumber = Math.max(1, Number(state.turnNumber || 0));
+    if (!state.turnStarts || typeof state.turnStarts !== 'object') {
+        const current = state.players[Number.isInteger(state.currentPlayerIndex) ? state.currentPlayerIndex : 0];
+        state.turnStarts = current ? { [current.userId]: { previous: null, current: state.turnNumber } } : {};
+    }
     state.chanceCards = Array.isArray(state.chanceCards) && state.chanceCards.length ? state.chanceCards : shuffleDeck(CHANCE_CARDS);
     state.communityChestCards = Array.isArray(state.communityChestCards) && state.communityChestCards.length ? state.communityChestCards : shuffleDeck(COMMUNITY_CHEST_CARDS);
     state.currentPlayerIndex = Number.isInteger(state.currentPlayerIndex) ? state.currentPlayerIndex : 0;

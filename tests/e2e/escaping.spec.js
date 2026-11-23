@@ -1,7 +1,7 @@
 // @ts-check
 // A player name is free text that other players' browsers render. It must never be able to
 // open an attribute or inject markup: not in the buy button's tooltip ("Owned by <name>"),
-// and not in the recent-actions list built from server log messages.
+// and not in the recent-actions list built from game events.
 const { test, expect } = require('@playwright/test');
 const { BASE, BASE_API, apiJson, playerState } = require('./helpers');
 
@@ -28,7 +28,7 @@ test('hostile player names render as text in tooltips and the recent log', async
         ...prop, id: `prop-${i}`, houses: 0,
         ownerId: i === 0 ? evil.user.id : null, ownerName: i === 0 ? HOSTILE : null,
     }));
-    await apiJson(request, 'post', `${BASE_API}/games`, {
+    const game = await apiJson(request, 'post', `${BASE_API}/games`, {
         headers: { Authorization: `Bearer ${users[0].token}` },
         data: {
             room_id: room.id,
@@ -48,6 +48,14 @@ test('hostile player names render as text in tooltips and the recent log', async
         },
     });
 
+    // A payment to Eve puts her name in a game event, which Recent actions shows.
+    const paid = await request.post(`${BASE_API}/games/${game.id}/actions`, {
+        headers: { Authorization: `Bearer ${users[0].token}` },
+        data: { actionId: `pay-${Date.now()}`, type: 'manual_payment', expectedVersion: game.state_version,
+            payload: { fromPlayerId: users[0].user.id, toPlayerId: evil.user.id, amount: 5 } },
+    });
+    expect(paid.ok()).toBe(true);
+
     const context = await browser.newContext({ viewport: { width: 390, height: 844 }, hasTouch: true });
     const page = await context.newPage();
     await page.goto(`${BASE}/index.html`);
@@ -58,7 +66,7 @@ test('hostile player names render as text in tooltips and the recent log', async
     const buy = page.locator('#game .action-btn-buy');
     await expect(buy).toBeDisabled();
     await expect(buy).toHaveAttribute('title', `Owned by ${HOSTILE}.`);
-    await expect(page.locator('.recent-log')).toContainText(`${HOSTILE} joined the market`);
+    await expect(page.locator('.recent-log')).toContainText(`Alice paid $5.00 to ${HOSTILE}`);
 
     expect(await page.locator('#gameContent [onmouseover], #gameContent img[onerror]').count()).toBe(0);
     await buy.hover({ force: true });

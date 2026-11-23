@@ -97,7 +97,7 @@ function issueDebt(state, player, payload, events) {
         requireBorrowingCapacity(state, corp, amount);
         corp.debts.push({ id: `debt-${uuidv4()}`, principal: amount, ...terms, issueDate: new Date().toISOString(), issuerType: 'corporation' });
         corp.cash = Number(corp.cash || 0) + amount;
-        recordCashFlow(state, null, corp.id, amount);
+        recordCashFlow(state, null, corp.id, amount, { kind: 'loan', note: 'New loan' });
         events.push(makeEvent(player, 'debt_issued', { issuer: `[${corp.ticker}]`, actor: player.name, amount, interestRate, termTurns }));
         log(state, `${player.name} borrowed for ${corp.ticker}: ${describeLoan(amount, terms)}.`);
         return;
@@ -105,7 +105,7 @@ function issueDebt(state, player, payload, events) {
     requireBorrowingCapacity(state, player, amount);
     player.debts.push({ id: `debt-${uuidv4()}`, principal: amount, ...terms, issueDate: new Date().toISOString(), issuerType: 'player' });
     player.cash += amount;
-    recordCashFlow(state, null, player.userId, amount);
+    recordCashFlow(state, null, player.userId, amount, { kind: 'loan', note: 'New loan' });
     events.push(makeEvent(player, 'debt_issued', { issuer: player.name, amount, interestRate, termTurns }));
     log(state, `${player.name} borrowed ${describeLoan(amount, terms)}.`);
 }
@@ -158,8 +158,8 @@ function refinanceDebt(state, player, payload, events) {
         refinancedFrom,
     });
     account.cash = roundCents(Number(account.cash || 0) + netProceeds);
-    recordCashFlow(state, null, borrower.cashFlowId, amount);
-    recordCashFlow(state, borrower.cashFlowId, null, payoffAmount);
+    recordCashFlow(state, null, borrower.cashFlowId, amount, { kind: 'loan', note: 'Refinanced loan' });
+    recordCashFlow(state, borrower.cashFlowId, null, payoffAmount, { kind: 'loan_payment', note: 'Old loans paid off by the refinance' });
     events.push(makeEvent(player, 'debt_refinanced', {
         borrower: borrower.eventName,
         amount,
@@ -233,8 +233,8 @@ function payDebt(state, player, payload, events) {
     if (Number(account.cash || 0) < amount) throw new GameRuleError(400, 'Insufficient funds');
     account.cash = roundCents(Number(account.cash || 0) - amount);
     debt.principal = roundCents(debt.principal - amount);
-    recordCashFlow(state, cashFlowId, null, amount);
     const paidOff = debt.principal < 0.005;
+    recordCashFlow(state, cashFlowId, null, amount, { kind: 'loan_payment', note: paidOff ? 'Paid off a loan' : 'Paid towards a loan' });
     if (paidOff) account.debts = account.debts.filter(d => d !== debt);
     events.push(makeEvent(player, 'debt_payment', { payer: eventName, amount, paidOff }));
     log(state, paidOff
@@ -287,7 +287,7 @@ function serviceLoans(state, actor, account, cashFlowId, name, events, eventName
     interestCharged = roundCents(interestCharged);
     paid = roundCents(paid);
     unpaidInterest = roundCents(unpaidInterest);
-    if (paid > 0) recordCashFlow(state, cashFlowId, null, paid);
+    if (paid > 0) recordCashFlow(state, cashFlowId, null, paid, { kind: 'loan_payment', note: `Loan payments at turn end (interest $${interestCharged.toFixed(2)})` });
     if (interestCharged > 0 || paid > 0) {
         events.push(makeEvent(actor, 'interest_accrual', { player: eventName, interestCharged, paid, unpaidInterest }));
         const parts = [];

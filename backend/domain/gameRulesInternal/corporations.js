@@ -91,7 +91,7 @@ function buyShares(state, player, payload, events) {
     player.cash -= totalCost;
     corp.cash = Number(corp.cash || 0) + totalCost;
     corp.treasuryShares = Math.max(0, Number(corp.treasuryShares || 0) - shares);
-    recordCashFlow(state, player.userId, corp.id, totalCost);
+    recordCashFlow(state, player.userId, corp.id, totalCost, { kind: 'shares', note: `Bought ${shares} ${corp.ticker} share${shares === 1 ? '' : 's'} from its treasury` });
 
     addShareholderShares(corp, player, shares);
     removeZeroShareholders(corp);
@@ -135,11 +135,11 @@ function activeShareholders(state, corp) {
         .filter(holder => holder.player && holder.shares > 0);
 }
 
-function payFromTreasury(state, corp, parts) {
+function payFromTreasury(state, corp, parts, detail) {
     return parts.map(part => {
         corp.cash = roundCents(Number(corp.cash || 0) - part.amount);
         part.player.cash = roundCents(Number(part.player.cash || 0) + part.amount);
-        recordCashFlow(state, corp.id, part.player.userId, part.amount);
+        recordCashFlow(state, corp.id, part.player.userId, part.amount, detail);
         return { name: part.player.name, userId: part.player.userId, amount: part.amount };
     });
 }
@@ -151,14 +151,17 @@ function describePayouts(payouts) {
 // In Payout mode the rent a corporation just received goes on to its
 // shareholders, except the one who paid it (their slice was never charged).
 // Shares the treasury holds keep their slice in the treasury.
-function distributeCorporationRent(state, corp, amount, payer, events) {
+function distributeCorporationRent(state, corp, amount, payer, events, propertyName) {
     if (corp.insolvent || corp.rentPolicy !== 'payout' || !(amount > 0)) return;
     const totalShares = Number(corp.totalShares || 0);
     const holders = activeShareholders(state, corp).filter(holder => holder.player.userId !== payer.userId);
     const payerShares = sharesFor(corp, payer.userId);
     const treasuryShares = Math.max(0, totalShares - payerShares - holders.reduce((sum, h) => sum + h.shares, 0));
     const { parts } = splitByShares(amount, [...holders, { treasury: true, shares: treasuryShares }]);
-    const payouts = payFromTreasury(state, corp, parts.filter(part => !part.treasury));
+    const payouts = payFromTreasury(state, corp, parts.filter(part => !part.treasury), {
+        kind: 'rent_share',
+        note: `Your share of ${corp.ticker} rent: ${payer.name} landed on ${propertyName || 'its property'}`,
+    });
     if (payouts.length === 0) return;
     events.push(makeEvent(payer, 'rent_distributed', { ticker: corp.ticker, payer: payer.name, amount, payouts }));
     log(state, `${corp.ticker} passed ${payer.name}'s rent to its shareholders: ${describePayouts(payouts)}.`);
@@ -167,7 +170,7 @@ function distributeCorporationRent(state, corp, amount, payer, events) {
 function buyPropertyForCorporation(state, player, corp, prop, events) {
     requireTreasuryCash(corp, prop.price);
     corp.cash = roundCents(Number(corp.cash || 0) - prop.price);
-    recordCashFlow(state, corp.id, null, prop.price);
+    recordCashFlow(state, corp.id, null, prop.price, { kind: 'purchase', note: `Bought ${prop.name}` });
     prop.ownerId = corp.id;
     prop.ownerName = `[${corp.ticker}]`;
     addCorporationAsset(corp, prop);

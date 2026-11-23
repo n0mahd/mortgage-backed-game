@@ -30,9 +30,11 @@ const ACTION_RETRY_DELAYS_MS = [500, 1500, 3000, 5000, 10000];
 // did not get an answer from the game server.
 const GATEWAY_ERROR_STATUSES = [502, 503, 504, 520, 521, 522, 523, 524, 525, 526, 530];
 
-// Hotseat mode (same-device local play)
 // Newest game events, as loaded for the Recent events tab (the Board tab shows a few).
 let recentGameEvents = [];
+// The Recent events filter (a LOG_EVENT_FILTERS key); kept for this page view only.
+let logEventFilter = 'all';
+// Hotseat mode (same-device local play)
 let isHotseatMode = false;
 let isSpectator = false;
 let hotseatTokens = []; // [{userId, token, name}]
@@ -299,6 +301,7 @@ function renderGameState(gameState) {
                     ${renderLastCardSummary(gameState, currentPlayer)}
                 </div>
                 ${renderAuctionPanel(gameState)}
+                ${renderCashSinceTurn(gameState, currentUser?.id)}
                 ${isSpectator ? renderSpectatorNote() : (paused ? renderPausedActions(gameState) : (isMyTurn ? renderActionButtons(landing) : renderNonTurnActions()))}
             </div>
 
@@ -313,14 +316,7 @@ function renderGameState(gameState) {
 
                 <div class="recent-log">
                     <div class="section-heading"><h3>Recent actions</h3></div>
-                    <div class="log-entries">
-                        ${gameState.gameLog.slice(-5).reverse().map(entry => `
-                            <div class="log-entry">
-                                <span class="log-time">${new Date(entry.timestamp).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}</span>
-                                <span class="log-message">${escapeHtml(entry.message)}</span>
-                            </div>
-                        `).join('') || '<div class="log-entry"><span class="log-message empty-state">No moves yet.</span></div>'}
-                    </div>
+                    <div class="log-entries" id="game-recent-actions">${renderGameTabRecentActions()}</div>
                 </div>
 
                 ${renderHostPanel(gameState)}
@@ -344,16 +340,8 @@ function secondsUntil(isoTime) {
 async function loadGameLog() {
     try {
         const events = await apiFetch(`/games/${currentGame.id}/events`);
-        recentGameEvents = Array.isArray(events) ? events : [];
-
-        const logContainer = document.getElementById('full-game-log');
-        logContainer.innerHTML = events.map(event => `
-            <div class="log-entry">
-                <span class="log-time">${escapeHtml(formatLogTimestamp(event.created_at))}</span>
-                <span class="log-message">${escapeHtml(formatLogEvent(event.event_type, event.event_data))}</span>
-            </div>
-        `).join('');
-
+        recentGameEvents = orderGameEventsNewestFirst(Array.isArray(events) ? events : []);
+        renderGameLog();
     } catch (error) {
         if (error instanceof TypeError && error.message === 'Failed to fetch') {
             console.warn('Unable to refresh game log:', error.message);
@@ -361,6 +349,36 @@ async function loadGameLog() {
             logActionError('Error loading game log:', error);
         }
     }
+}
+
+// Draws the Recent events tab from recentGameEvents: the filter row, then the
+// log under the chosen filter.
+function renderGameLog() {
+    const filters = document.getElementById('log-filters');
+    if (filters) {
+        filters.innerHTML = LOG_EVENT_FILTERS.map(filter => `<button type="button" class="segmented-option"
+            data-game-action="log-filter" data-log-filter="${filter.key}"
+            aria-pressed="${filter.key === logEventFilter}">${escapeHtml(filter.label)}</button>`).join('');
+    }
+    const recentActions = document.getElementById('game-recent-actions');
+    if (recentActions) recentActions.innerHTML = renderGameTabRecentActions();
+    const logContainer = document.getElementById('full-game-log');
+    if (!logContainer) return;
+    const state = currentGame && currentGame.game_state;
+    const currentPlayer = state && !state.ended ? state.players[state.currentPlayerIndex] : null;
+    logContainer.innerHTML = renderGameLogHtml(recentGameEvents, logEventFilter, currentPlayer ? currentPlayer.name : null);
+}
+
+// The Game tab's last five events, in the same rows as the Recent events tab.
+function renderGameTabRecentActions() {
+    const rows = recentGameEvents.slice(0, 5).map(renderGameLogRow).join('');
+    return rows || '<div class="log-entry"><span class="log-message empty-state">No moves yet.</span></div>';
+}
+
+function setLogEventFilter(filterKey) {
+    if (!LOG_EVENT_FILTERS.some(filter => filter.key === filterKey)) return;
+    logEventFilter = filterKey;
+    renderGameLog();
 }
 
 // The server refuses trades of streets in a colour group with buildings and

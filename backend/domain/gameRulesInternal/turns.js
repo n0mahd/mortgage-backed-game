@@ -1,7 +1,7 @@
 // Ending a turn, ending the game, and host pause/resume.
 
 const { makeEvent, log, cleanText, normalizeDateString, GameRuleError } = require('./util');
-const { calculateNetWorth, resetCashFlow } = require('./ledger');
+const { calculateNetWorth, resetCashFlow, startLedgerTurn } = require('./ledger');
 const { resolveCorporationInsolvency } = require('./corporations');
 const {
     liquidateBankruptPlayer,
@@ -63,6 +63,7 @@ function endTurn(state, player, events) {
     }
     state.currentPlayerIndex = nextIndex;
     resetCashFlow(state, state.players[nextIndex].userId);
+    startLedgerTurn(state, state.players[nextIndex]);
     state.lastDiceRoll = null;
     state.lastCardDrawn = null;
     state.players[nextIndex].diceRolled = false;

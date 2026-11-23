@@ -183,7 +183,9 @@ function payCreditorAvailableCash(state, debtor, creditor, amountOwed, reason, e
     } else {
         creditor.entity.cash = Number(creditor.entity.cash || 0) + paidAmount;
     }
-    recordCashFlow(state, debtor.userId, creditor.id, paidAmount);
+    recordCashFlow(state, debtor.userId, creditor.id, paidAmount, extra.propertyName
+        ? { kind: 'rent', note: `Rent: ${debtor.name} landed on ${extra.propertyName}` }
+        : { kind: 'payment', note: reason });
 
     const eventData = {
         from: debtor.name,
@@ -238,7 +240,7 @@ function settleBankruptcyClaim(state, player, events) {
         } else {
             creditor.entity.cash = Number(creditor.entity.cash || 0) + payment;
         }
-        recordCashFlow(state, player.userId, creditor.id, payment);
+        recordCashFlow(state, player.userId, creditor.id, payment, { kind: 'debt', note: `Unpaid ${claim.reason}` });
         claim.paidAmount = Number(claim.paidAmount || 0) + payment;
         claim.unpaidAmount = Math.max(Number(claim.unpaidAmount || 0) - payment, 0);
         claim.updatedAt = new Date().toISOString();
@@ -250,7 +252,7 @@ function settleBankruptcyClaim(state, player, events) {
             unpaidAmount: claim.unpaidAmount,
         }));
         log(state, `${player.name} paid $${payment.toFixed(2)} toward ${claim.reason} owed to ${creditor.name}.`);
-        if (creditor.type === 'corporation' && claim.propertyId) distributeCorporationRent(state, creditor.entity, payment, player, events);
+        if (creditor.type === 'corporation' && claim.propertyId) distributeCorporationRent(state, creditor.entity, payment, player, events, claim.propertyName);
     }
 
     if (Number(claim.unpaidAmount || 0) <= 0) {

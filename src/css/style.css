@@ -1378,6 +1378,101 @@ input[type="radio"] {
     color: var(--ink-2);
 }
 
+/* Since your last turn: your cash in and out between turns, one row per payment (cash-since-turn.js) */
+.cash-since {
+    margin-top: var(--s3);
+    border-radius: var(--r-group);
+    background: var(--note);
+    border: 1px solid var(--rule);
+    overflow: hidden;
+}
+
+.cash-since-group { padding: var(--s3) var(--s4); }
+.cash-since-group + .cash-since-group { border-top: 1px solid var(--rule); }
+.cash-since-group.cash-since-first { padding-top: 0; }
+
+/* The summary row stays in view when the card is collapsed: heading, net, chevron */
+.cash-since-summary {
+    display: flex;
+    align-items: center;
+    gap: var(--s3);
+    min-height: 48px;
+    padding: var(--s2) var(--s4);
+    list-style: none;
+    cursor: pointer;
+}
+
+.cash-since-summary::-webkit-details-marker { display: none; }
+.cash-since-summary:active { background: var(--paper-deep); }
+.cash-since-summary h3 { flex: 1; min-width: 0; font-size: var(--text-sub); font-weight: 650; }
+
+.cash-since-chevron {
+    width: 20px;
+    height: 20px;
+    flex-shrink: 0;
+    color: var(--ink-3);
+    transition: transform var(--dur) var(--ease-out);
+}
+
+.cash-since[open] .cash-since-chevron { transform: rotate(180deg); }
+
+.cash-since-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: var(--s3);
+}
+
+.cash-since-head h3 { font-size: var(--text-sub); font-weight: 650; }
+.cash-since-net { font-size: var(--text-title3); font-weight: 700; white-space: nowrap; }
+
+.cash-since-totals,
+.cash-since-empty {
+    font-size: var(--text-footnote);
+    color: var(--ink-3);
+    margin-top: 2px;
+}
+
+.cash-since-list { list-style: none; margin: var(--s2) 0 0; padding: 0; }
+
+.cash-since-row {
+    display: flex;
+    align-items: center;
+    gap: var(--s3);
+    padding: var(--s2) 0;
+    border-top: 1px solid var(--rule);
+}
+
+.cash-since-icon {
+    flex: none;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    background: var(--paper-deep);
+    font-size: var(--text-sub);
+}
+
+.cash-since-row.is-in .cash-since-icon { background: var(--mint-wash); }
+
+.cash-since-copy { flex: 1; min-width: 0; }
+.cash-since-copy strong { display: block; font-size: var(--text-sub); font-weight: 600; overflow-wrap: anywhere; }
+.cash-since-copy span { display: block; font-size: var(--text-footnote); color: var(--ink-2); overflow-wrap: anywhere; }
+
+.cash-since-amount { flex: none; font-weight: 700; white-space: nowrap; color: var(--ink-2); }
+.is-in.cash-since-net,
+.cash-since-row.is-in .cash-since-amount { color: var(--emerald); }
+
+.cash-since-more summary {
+    padding: var(--s2) 0 0;
+    font-size: var(--text-footnote);
+    font-weight: 600;
+    color: var(--emerald);
+    cursor: pointer;
+}
+
 /* Auction */
 .auction-panel {
     margin-top: var(--s3);
@@ -1860,8 +1955,8 @@ input[type="radio"] {
 
 .log-entry {
     display: flex;
-    flex-direction: column-reverse;
-    gap: 2px;
+    align-items: flex-start;
+    gap: var(--s3);
     padding: var(--s3) var(--s4);
     border-top: 1px solid var(--rule);
     font-size: var(--text-sub);
@@ -1869,13 +1964,88 @@ input[type="radio"] {
 
 .log-entry:first-child { border-top: 0; }
 
+/* Category icon: one emoji per row (dice, card, purchase, rent ...) in a small disc. */
+.log-icon {
+    flex: none;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    background: var(--paper);
+    font-size: var(--text-sub);
+    line-height: 1;
+}
+
+.log-cat-bankrupt .log-icon { background: var(--danger-wash); }
+.log-cat-payment .log-icon,
+.log-cat-go .log-icon { background: var(--gold-wash); }
+
+.log-body {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+}
+
+.log-meta {
+    display: flex;
+    align-items: baseline;
+    gap: var(--s2);
+    font-size: var(--text-caption);
+    color: var(--ink-3);
+}
+
+.log-tag {
+    font-weight: 700;
+    color: var(--ink-2);
+}
+
 .log-time {
     font-size: var(--text-caption);
     color: var(--ink-3);
     font-variant-numeric: tabular-nums;
 }
 
-.log-message { color: var(--ink); }
+.log-message {
+    color: var(--ink);
+    overflow-wrap: anywhere;
+}
+
+.log-amount {
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+}
+
+/* Turn heading: the rows under it happened during that player's turn. */
+.log-turn {
+    padding: var(--s2) var(--s4);
+    border-top: 1px solid var(--rule);
+    background: var(--paper-deep);
+    color: var(--ink-2);
+    font-size: var(--text-caption);
+    font-weight: 700;
+}
+
+.log-turn:first-child { border-top: 0; }
+.log-turn + .log-entry { border-top: 0; }
+
+.log-empty { padding: var(--s4); }
+
+/* Filter row above the log: four across, Companies & loans spanning two. */
+.segmented.log-filters { grid-template-columns: repeat(4, 1fr); }
+.log-filters .segmented-option { padding: 4px 2px; }
+.log-filters .segmented-option[data-log-filter="companies"] { grid-column: span 2; }
+.log-filters .segmented-option[aria-pressed="true"] {
+    background: var(--forest);
+    color: var(--on-dark);
+}
+
+@media (min-width: 720px) {
+    .segmented.log-filters { grid-template-columns: repeat(8, 1fr); }
+}
 
 #full-game-log {
     max-height: none !important;
@@ -2796,9 +2966,11 @@ input[type="radio"] {
 .board-events-panel { display: none; }
 
 .board-events { margin: 0; padding: 0 var(--s3); list-style: none; border: 1px solid var(--rule); border-radius: var(--r-group); background: var(--note); }
-.board-events li { display: flex; gap: var(--s3); padding: var(--s2) 0; border-top: 1px solid var(--rule); font-size: var(--text-footnote); }
+.board-events li { display: flex; align-items: flex-start; gap: var(--s2); padding: var(--s2) 0; border-top: 1px solid var(--rule); font-size: var(--text-footnote); }
 .board-events li:first-child { border-top: 0; }
-.board-events time { flex: none; min-width: 42px; font-size: var(--text-caption); color: var(--ink-3); font-variant-numeric: tabular-nums; }
+.board-events .log-icon { width: 26px; height: 26px; font-size: var(--text-caption); }
+.board-event-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; overflow-wrap: anywhere; }
+.board-events time { font-size: var(--text-caption); color: var(--ink-3); font-variant-numeric: tabular-nums; }
 
 /* Phones: squares are too small for names, so a tap shows a square in the centre */
 @media (max-width: 899px) {

@@ -147,7 +147,7 @@ function closeAuctionSold(state, actor, events, reason) {
     winner.cash -= amount;
     prop.ownerId = winner.userId;
     prop.ownerName = winner.name;
-    recordCashFlow(state, winner.userId, null, amount);
+    recordCashFlow(state, winner.userId, null, amount, { kind: 'auction', note: `Won ${prop.name} at auction` });
     auction.status = 'sold';
     auction.closeReason = reason;
     markResolved(auction, actor);

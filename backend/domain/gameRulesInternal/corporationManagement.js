@@ -143,7 +143,10 @@ function payIntoCorporation(state, player, payload, events) {
     }
     player.cash = roundCents(player.cash - amount);
     corp.cash = roundCents(Number(corp.cash || 0) + amount);
-    recordCashFlow(state, player.userId, corp.id, amount);
+    recordCashFlow(state, player.userId, corp.id, amount, {
+        kind: 'company_cash',
+        note: newShares > 0 ? `Into ${corp.ticker} for ${newShares} new share${newShares === 1 ? '' : 's'}` : `Paid into ${corp.ticker}`,
+    });
     issueContributionShares(state, corp, player, newShares);
     events.push(makeEvent(player, 'payment', { from: player.name, to: corp.ticker, amount, newShares, totalShares: corp.totalShares }));
     const sharesNote = newShares > 0
@@ -275,7 +278,7 @@ function payDividend(state, player, payload, events) {
         ...holders,
         { treasury: true, shares: Math.max(0, totalShares - holders.reduce((sum, h) => sum + h.shares, 0)) },
     ]);
-    const payouts = payFromTreasury(state, corp, parts.filter(part => !part.treasury));
+    const payouts = payFromTreasury(state, corp, parts.filter(part => !part.treasury), { kind: 'dividend', note: `${corp.ticker} dividend` });
     if (payouts.length === 0) throw new GameRuleError(400, 'That dividend is too small to pay anyone a cent');
     const paid = roundCents(payouts.reduce((sum, p) => sum + p.amount, 0));
     events.push(makeEvent(player, 'dividend_paid', { actor: player.name, ticker: corp.ticker, amount: paid, payouts }));
@@ -395,7 +398,7 @@ function acceptPropertyOffer(state, actor, offer, corp, offerer, events) {
     if (offer.payWith === 'cash') {
         corp.cash = roundCents(Number(corp.cash || 0) - quote.price);
         offerer.cash = roundCents(Number(offerer.cash || 0) + quote.price);
-        recordCashFlow(state, corp.id, offerer.userId, quote.price);
+        recordCashFlow(state, corp.id, offerer.userId, quote.price, { kind: 'property_sale', note: `${corp.ticker} bought ${propertyNames(state, offer.assetIds)}` });
     } else {
         newShares = quote.newShares;
         corp.totalShares = Number(corp.totalShares || 0) + newShares;

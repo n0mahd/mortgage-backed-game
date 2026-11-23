@@ -371,8 +371,9 @@ function renderBoard(gameState, currentUserId, recentEvents = []) {
     const lastCard = gameState.lastCardDrawn;
     const cardText = lastCard && boardFocusPosition === null ? (lastCard.card || lastCard.text) : '';
     const events = recentEvents.slice(0, 4).map(event => `<li>
-        <time>${escapeHtml(formatLogTimestamp(event.created_at))}</time>
-        <span>${escapeHtml(formatLogEvent(event.event_type, event.event_data))}</span>
+        ${renderLogEventIcon(logEventCategory(event.event_type, event.event_data))}
+        <span class="board-event-text"><span>${formatLogEventHtml(event.event_type, event.event_data)}</span>
+            <time>${escapeHtml(formatLogTimestamp(event.created_at))}</time></span>
     </li>`).join('');
 
     return `<div class="board-view">

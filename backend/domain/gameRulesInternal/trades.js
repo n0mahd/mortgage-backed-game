@@ -307,7 +307,7 @@ function moveTradeCash(state, giver, receiver) {
     if (!(giver.cash > 0)) return;
     giver.entity.cash = roundCents(Number(giver.entity.cash || 0) - giver.cash);
     receiver.entity.cash = roundCents(Number(receiver.entity.cash || 0) + giver.cash);
-    recordCashFlow(state, giver.entityId, receiver.entityId, giver.cash);
+    recordCashFlow(state, giver.entityId, receiver.entityId, giver.cash, { kind: 'trade', note: 'Cash in a trade' });
 }
 
 function moveTradeProperties(state, giver, receiver) {
@@ -569,7 +569,7 @@ function manualPayment(state, actor, payload, events) {
     if (from.cash < amount) throw new GameRuleError(400, 'Insufficient funds');
     from.cash -= amount;
     to.cash += amount;
-    recordCashFlow(state, from.userId, to.userId, amount);
+    recordCashFlow(state, from.userId, to.userId, amount, { kind: 'payment', note: 'Sent money' });
     events.push(makeEvent(actor, 'payment', { from: from.name, to: to.name, amount }));
     log(state, `${from.name} paid $${amount.toFixed(2)} to ${to.name}`);
 }

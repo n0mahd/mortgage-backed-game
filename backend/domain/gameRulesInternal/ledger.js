@@ -105,7 +105,26 @@ function resetCashFlow(state, entityId) {
     state.turnCashFlow[entityId] = { paid: 0, received: 0, receivedBetweenTurns: 0 };
 }
 
-function recordCashFlow(state, fromEntityId, toEntityId, amount) {
+// Every cash move, for "Since your last turn": who paid whom, how much and why.
+// detail is { kind, note }: kind is one of CASH_KINDS, note says why in a few
+// words ("Rent: Bob landed on Boardwalk"). Entries carry the turn number they
+// happened on; turnStarts says when each player's last two turns began.
+const CASH_KINDS = [
+    'rent', 'rent_share', 'pass_go', 'card', 'tax', 'jail', 'purchase', 'houses', 'auction',
+    'shares', 'dividend', 'company_cash', 'property_sale', 'loan', 'loan_payment', 'trade',
+    'payment', 'debt', 'merger',
+];
+const CASH_LEDGER_LIMIT = 400;
+
+function cashAccountName(state, id) {
+    if (!id) return null;
+    const player = state.players.find(p => p.userId === id);
+    if (player) return player.name;
+    const corp = (state.corporations || []).find(c => c.id === id);
+    return corp ? `[${corp.ticker}]` : null;
+}
+
+function recordCashFlow(state, fromEntityId, toEntityId, amount, detail = {}) {
     const value = Number(amount || 0);
     if (!value) return;
     const activePlayer = state.players[state.currentPlayerIndex];
@@ -119,6 +138,37 @@ function recordCashFlow(state, fromEntityId, toEntityId, amount) {
         if (!activePlayer || activePlayer.userId !== toEntityId) {
             toFlow.receivedBetweenTurns += value;
         }
+    }
+    state.cashLedgerSeq = Number(state.cashLedgerSeq || 0) + 1;
+    state.cashLedger = Array.isArray(state.cashLedger) ? state.cashLedger : [];
+    state.cashLedger.push({
+        seq: state.cashLedgerSeq,
+        turn: Number(state.turnNumber || 0),
+        at: new Date().toISOString(),
+        amount: Math.round(value * 100) / 100,
+        fromId: fromEntityId || null,
+        fromName: cashAccountName(state, fromEntityId),
+        toId: toEntityId || null,
+        toName: cashAccountName(state, toEntityId),
+        kind: CASH_KINDS.includes(detail.kind) ? detail.kind : 'payment',
+        note: detail.note ? String(detail.note) : '',
+    });
+    if (state.cashLedger.length > CASH_LEDGER_LIMIT) state.cashLedger = state.cashLedger.slice(-CASH_LEDGER_LIMIT);
+}
+
+// A new turn begins: count it, remember when this player's last two turns
+// began, and drop ledger entries older than every active player's previous turn.
+function startLedgerTurn(state, player) {
+    state.turnNumber = Number(state.turnNumber || 0) + 1;
+    state.turnStarts = state.turnStarts && typeof state.turnStarts === 'object' ? state.turnStarts : {};
+    const last = state.turnStarts[player.userId];
+    state.turnStarts[player.userId] = { previous: last ? last.current : null, current: state.turnNumber };
+    const oldestNeeded = state.players
+        .filter(p => !p.bankrupt)
+        .map(p => state.turnStarts[p.userId]?.previous ?? 0)
+        .reduce((min, turn) => Math.min(min, turn), Infinity);
+    if (Array.isArray(state.cashLedger) && Number.isFinite(oldestNeeded)) {
+        state.cashLedger = state.cashLedger.filter(entry => entry.turn >= oldestNeeded);
     }
 }
 
@@ -166,6 +216,8 @@ module.exports = {
     ensureCashFlow,
     resetCashFlow,
     recordCashFlow,
+    startLedgerTurn,
+    CASH_KINDS,
     transferProperties,
     validatePropertyTransferList,
     groupHasBuildings,

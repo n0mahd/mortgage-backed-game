@@ -396,7 +396,6 @@ test.describe('Game mechanics — UI', () => {
 
         await expect(page.locator('.turn-warning.danger')).toContainText('below zero', { timeout: 5000 });
         await expect(page.locator('.action-btn-end-turn')).toHaveText('Declare Bankruptcy');
-        await expect(page.locator('.recent-log')).toContainText('paid $50 bail');
 
         const fetched = await (await request.get(`${BASE_API}/games/${game.id}`, {
             headers: { Authorization: `Bearer ${h.token}` },

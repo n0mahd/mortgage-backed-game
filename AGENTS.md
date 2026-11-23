@@ -24,7 +24,7 @@ Other docs: player rules in `documents/game-rules.md` and `README.md`, open deci
 - `domain/`: the game rules. Pure functions over a state object, no I/O.
   - `gameRules.js`: the public API; everything else imports from here.
   - `gameRulesInternal/`: one module per topic, layered so each imports only earlier ones:
-    `board`, `util` → `ledger` (cash flow, rent, net worth, built groups) → `corporateFinance`,
+    `board`, `util` → `ledger` (cash flow and the cash ledger of every payment by turn, rent, net worth, built groups) → `corporateFinance`,
     `loans` (pure maths) → `corporations` (IPOs, shares, treasury, chairman) → `bankruptcy`,
     `auctions`, `trades`, `debt` (loans, capacity, autopay, per-turn servicing), `ruleChanges`
     (house rules and their unanimous votes: the `RULES` table, propose/vote/withdraw, expiry and
@@ -107,6 +107,7 @@ Other docs: player rules in `documents/game-rules.md` and `README.md`, open deci
   - `purchase.js` (buying and auctions), `houses.js`, `debt.js` (the Debt sheet) and `debt-outlook.js` (its End Turn cards, before/after previews and limit sum, built on `TurnEndOutlook`), `corporations.js`
     (IPO and add-to-corporation sheets, the Corporations sheet: a list of every corporation, then one
     corporation's detail in tabs; chairman votes, buying treasury shares), `corporation-desk.js` (the chairman's tools: rent policy, dividends, Build houses and Borrow for buttons; property offers, whose cards `market.js` lists under Trade proposals),
+    `cash-since-turn.js` (the Game tab's "Since your last turn" card: your cash in and out between turns, from `state.cashLedger`),
     `market.js` (the Market's panes: trade form, payments, trade proposals and past transactions; share-deal summary),
     `mergers.js` (`Mergers`: the merge sheet opened from New trade, recalculated on every keystroke,
     the merger vote cards in Trade proposals and the value-flow chart; its numbers mirror
@@ -115,7 +116,7 @@ Other docs: player rules in `documents/game-rules.md` and `README.md`, open deci
     proposal form, and the 📜 badge on the Market tab), `device-alerts.js` (another
     device, turn alerts).
   - `property-display.js` (player cards, property rows, colours), `valuation.js` (net worth and
-    company values), `log-format.js` (Recent events wording).
+    company values), `log-format.js` (Recent events: wording, category icons, filters and turn headings).
   - Display mirrors of server rules, kept in step with the backend: `loans.js` (`LoanMath`: terms,
     quotes and status wording, mirroring `gameRulesInternal/loans.js`), `share-deals.js`
     (`ShareDeals` previews), `turn-end-outlook.js` (cash after End Turn, mirroring `endTurn` in

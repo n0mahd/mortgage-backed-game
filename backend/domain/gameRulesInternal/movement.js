@@ -53,7 +53,7 @@ function rollDice(state, player, events, options) {
             player.jailTurns += 1;
             if (player.jailTurns >= 3) {
                 player.cash -= JAIL_FINE_AMOUNT;
-                recordCashFlow(state, player.userId, null, JAIL_FINE_AMOUNT);
+                recordCashFlow(state, player.userId, null, JAIL_FINE_AMOUNT, { kind: 'jail', note: 'Bail after a third turn in Jail' });
                 releaseFromJail(player);
                 events.push(makeEvent(player, 'forced_payment', { from: player.name, to: 'the Bank', amount: JAIL_FINE_AMOUNT, reason: 'Jail bail' }));
                 log(state, `${player.name} paid $${JAIL_FINE_AMOUNT} bail after their third Jail turn.`);
@@ -98,7 +98,7 @@ function payJailFine(state, player, events) {
     requireJailExitChoice(player);
     state.lastDiceRoll = null;
     player.cash -= JAIL_FINE_AMOUNT;
-    recordCashFlow(state, player.userId, null, JAIL_FINE_AMOUNT);
+    recordCashFlow(state, player.userId, null, JAIL_FINE_AMOUNT, { kind: 'jail', note: 'Paid to leave Jail' });
     releaseFromJail(player);
     events.push(makeEvent(player, 'jail_fine_paid', { player: player.name, amount: JAIL_FINE_AMOUNT }));
     log(state, `${player.name} paid $${JAIL_FINE_AMOUNT} to leave Jail.`);
@@ -125,7 +125,7 @@ function movePlayer(state, player, spaces, events) {
     if (newPos < oldPos) {
         const amount = state.settings.passGoAmount ?? 200;
         player.cash += amount;
-        recordCashFlow(state, null, player.userId, amount);
+        recordCashFlow(state, null, player.userId, amount, { kind: 'pass_go', note: 'Passed GO' });
         events.push(makeEvent(player, 'pass_go', { player: player.name, amount }));
         log(state, `${player.name} passed GO - collected $${amount}!`);
     }
@@ -153,7 +153,7 @@ function processLanding(state, player, square, diceTotal, events, options = {}) 
     }
     if (square.type === 'tax') {
         player.cash -= square.taxAmount;
-        recordCashFlow(state, player.userId, null, square.taxAmount);
+        recordCashFlow(state, player.userId, null, square.taxAmount, { kind: 'tax', note: square.name });
         events.push(makeEvent(player, 'tax_payment', { from: player.name, to: 'the Bank', amount: square.taxAmount, reason: square.name }));
         log(state, `${player.name} paid $${square.taxAmount} to the Bank for ${square.name}`);
         return;
@@ -178,7 +178,7 @@ function drawCard(state, player, deckType, events) {
     if (!state[key] || state[key].length === 0) state[key] = shuffleDeck(source);
     const card = cardWithHouseRules(state, state[key].shift());
     const before = snapshotCardState(state, player);
-    applyCardEffect(state, player, card, events);
+    applyCardEffect(state, player, card, events, deckType);
     const effect = summarizeCardEffect(before, state, player);
     state.lastCardDrawn = {
         id: card.id,
@@ -192,15 +192,18 @@ function drawCard(state, player, deckType, events) {
     events.push(makeEvent(player, 'card_draw', { player: player.name, deckType, card: card.text, effect }));
 }
 
-function applyCardEffect(state, player, card, events) {
+function applyCardEffect(state, player, card, events, deckType) {
     const action = card.action;
+    const deckName = deckType === 'chance' ? 'Chance' : deckType === 'community_chest' ? 'Community Chest' : 'Card';
+    const cardFlow = { kind: 'card', note: `${deckName}: ${card.text}` };
+    const cardPassGo = { kind: 'pass_go', note: `Passed GO (${deckName} card)` };
     switch (action.type) {
         case 'advance_to': {
             const old = player.position;
             player.position = action.position;
             if (action.position < old || (action.position === 0 && old !== 0)) {
                 player.cash += state.settings.passGoAmount ?? 200;
-                recordCashFlow(state, null, player.userId, state.settings.passGoAmount ?? 200);
+                recordCashFlow(state, null, player.userId, state.settings.passGoAmount ?? 200, cardPassGo);
             }
             processLanding(state, player, BOARD_SQUARES[player.position], state.lastDiceRoll ? state.lastDiceRoll[0] + state.lastDiceRoll[1] : 0, events);
             break;
@@ -209,7 +212,7 @@ function applyCardEffect(state, player, card, events) {
             const nearest = findNearestType(player.position, action.nearestType);
             if (nearest < player.position) {
                 player.cash += state.settings.passGoAmount ?? 200;
-                recordCashFlow(state, null, player.userId, state.settings.passGoAmount ?? 200);
+                recordCashFlow(state, null, player.userId, state.settings.passGoAmount ?? 200, cardPassGo);
             }
             player.position = nearest;
             processLanding(state, player, BOARD_SQUARES[player.position], state.lastDiceRoll ? state.lastDiceRoll[0] + state.lastDiceRoll[1] : 0, events, {
@@ -227,18 +230,18 @@ function applyCardEffect(state, player, card, events) {
             break;
         case 'collect':
             player.cash += action.amount;
-            recordCashFlow(state, null, player.userId, action.amount);
+            recordCashFlow(state, null, player.userId, action.amount, cardFlow);
             break;
         case 'pay':
             player.cash -= action.amount;
-            recordCashFlow(state, player.userId, null, action.amount);
+            recordCashFlow(state, player.userId, null, action.amount, cardFlow);
             break;
         case 'collect_from_each':
             state.players.forEach(other => {
                 if (other.userId !== player.userId && !other.bankrupt) {
                     other.cash -= action.amount;
                     player.cash += action.amount;
-                    recordCashFlow(state, other.userId, player.userId, action.amount);
+                    recordCashFlow(state, other.userId, player.userId, action.amount, cardFlow);
                 }
             });
             break;
@@ -247,7 +250,7 @@ function applyCardEffect(state, player, card, events) {
                 if (other.userId !== player.userId && !other.bankrupt) {
                     other.cash += action.amount;
                     player.cash -= action.amount;
-                    recordCashFlow(state, player.userId, other.userId, action.amount);
+                    recordCashFlow(state, player.userId, other.userId, action.amount, cardFlow);
                 }
             });
             break;
@@ -265,7 +268,7 @@ function applyCardEffect(state, player, card, events) {
             });
             const repairCost = action.perHouse * houses + action.perHotel * hotels;
             player.cash -= repairCost;
-            if (repairCost > 0) recordCashFlow(state, player.userId, null, repairCost);
+            if (repairCost > 0) recordCashFlow(state, player.userId, null, repairCost, cardFlow);
             break;
         }
     }
@@ -323,7 +326,7 @@ function buyProperty(state, player, payload, events) {
     prop.ownerId = player.userId;
     prop.ownerName = player.name;
     player.cash -= prop.price;
-    recordCashFlow(state, player.userId, null, prop.price);
+    recordCashFlow(state, player.userId, null, prop.price, { kind: 'purchase', note: `Bought ${prop.name}` });
     events.push(makeEvent(player, 'property_purchase', { buyer: player.name, property: prop.name, price: prop.price }));
     log(state, `${player.name} purchased ${prop.name} for $${prop.price.toFixed(2)}`);
 }
@@ -348,14 +351,15 @@ function buyHouses(state, player, payload, events) {
         changes.push({ prop, delta });
     }
     if (changes.length === 0) throw new GameRuleError(400, 'No houses selected');
+    const housesFlow = { kind: 'houses', note: `Built on ${changes.map(({ prop, delta }) => `${prop.name} (+${delta})`).join(', ')}` };
     if (corp) {
         requireTreasuryCash(corp, totalCost);
         corp.cash = roundCents(Number(corp.cash || 0) - totalCost);
-        recordCashFlow(state, corp.id, null, totalCost);
+        recordCashFlow(state, corp.id, null, totalCost, housesFlow);
     } else {
         if (player.cash < totalCost) throw new GameRuleError(400, 'Insufficient funds');
         player.cash -= totalCost;
-        recordCashFlow(state, player.userId, null, totalCost);
+        recordCashFlow(state, player.userId, null, totalCost, housesFlow);
     }
     changes.forEach(({ prop, delta }) => { prop.houses = (prop.houses || 0) + delta; });
     const builder = corp ? `[${corp.ticker}]` : player.name;
@@ -383,7 +387,7 @@ function payCorporationRent(state, player, corp, prop, reason, fullRent, events)
     }
     const paid = payCreditorAvailableCash(state, player, { type: 'corporation', id: corp.id, name: `[${corp.ticker}]`, entity: corp },
         due, reason, events, extra);
-    distributeCorporationRent(state, corp, paid, player, events);
+    distributeCorporationRent(state, corp, paid, player, events, prop.name);
 }
 
 // Going to Jail by any route ends the turn: no doubles re-roll and no Jail

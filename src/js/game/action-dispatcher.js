@@ -66,6 +66,7 @@
         'rule-send': () => global.RuleProposals.send(),
         'rule-vote': button => global.RuleProposals.vote(button.dataset.approve === 'true', button.dataset.proposalId),
         'rule-withdraw': () => global.RuleProposals.withdraw(),
+        'log-filter': button => global.setLogEventFilter(button.dataset.logFilter),
         'respond-property-offer': button => global.CorporationDesk.respondPropertyOffer(button.dataset.offerId, button.dataset.response),
     };
 
