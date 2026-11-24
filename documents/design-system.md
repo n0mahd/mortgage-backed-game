@@ -132,6 +132,13 @@ whose copy depends on the device (`TurnNotifications.status()`):
 Results of an action show in `.turn-alerts-status` (emerald, footnote) rather than a toast, because the
 sheet is still open.
 
+**Turn alerts offer** (`#turnAlertsPrompt`, `maybeShowTurnAlertsPrompt` in `device-alerts.js`). A mint
+card at the top of the Game tab, once per device, for players whose alerts are off or who are on iPhone
+Safari: a bold title ("Know when it's your turn"), one sentence on what alerts do, and Turn on alerts (or
+Set up alerts on iPhone Safari, which opens the sheet) beside Not now. Either button, or turning alerts on
+from the bell, retires it for good on that device (`localStorage` `turn_alerts_prompt_done`). Never shown
+in hotseat games, to a watching host, after the game ends, or where notifications are blocked.
+
 **Add to Home Screen page** (`home-screen.html`). A plain page, not a sheet, because people leave Safari's
 chrome to follow it: the real app icon at 72px, a `.page-title` ("Add to Home Screen" plus one sentence
 saying what it is), then the steps as one `.group` list (`.home-screen-steps`): Tap Share, Tap Add to Home

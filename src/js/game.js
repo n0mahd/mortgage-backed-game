@@ -139,6 +139,7 @@ async function loadGameData(roomId) {
 
         // Render game state
         renderGameState(gameState);
+        if (!isHotseatMode && !isSpectator && !gameState.ended) maybeShowTurnAlertsPrompt();
 
         // A resumed or reloaded hotseat game starts on player 1's token; hand the
         // device to whoever's turn it is.
@@ -928,6 +929,7 @@ function bindStaticGameControls() {
     document.getElementById('move-device-btn')?.addEventListener('click', openMoveDeviceModal);
     document.getElementById('turn-alerts-btn')?.addEventListener('click', openTurnAlertsModal);
     document.getElementById('turnAlertsActions')?.addEventListener('click', handleTurnAlertsAction);
+    document.getElementById('turnAlertsPrompt')?.addEventListener('click', handleTurnAlertsPromptAction);
     document.getElementById('share-move-device-btn')?.addEventListener('click', shareMoveDeviceLink);
 }
 

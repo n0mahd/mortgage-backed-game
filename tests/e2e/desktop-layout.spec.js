@@ -55,7 +55,11 @@ test('turn column bottom is reachable on a short desktop window', async ({ brows
     const context = await browser.newContext({ viewport: { width: 1280, height: 640 } });
     const page = await context.newPage();
     await page.goto(`${BASE}/index.html`);
-    await page.evaluate(token => localStorage.setItem('auth_token', token), users[0].token);
+    await page.evaluate(token => {
+        localStorage.setItem('auth_token', token);
+        // The one-time turn alerts offer sits above the columns until answered.
+        localStorage.setItem('turn_alerts_prompt_done', 'true');
+    }, users[0].token);
     await page.goto(`${BASE}/game.html?room=${room.id}`);
 
     const main = page.locator('.game-layout-main');

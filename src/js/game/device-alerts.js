@@ -92,6 +92,7 @@ async function renderTurnAlerts(statusMessage) {
         `<button class="btn ${style}" data-turn-alerts="${action}">${escapeHtml(label)}</button>`
     ).join('');
     document.getElementById('turn-alerts-btn')?.classList.toggle('is-on', state === 'on');
+    if (state === 'on') finishTurnAlertsPrompt();
 }
 
 async function openTurnAlertsModal() {
@@ -134,6 +135,69 @@ async function handleTurnAlertsAction(event) {
                 return;
         }
     } catch (error) {
+        await renderTurnAlerts(error.message || "That didn't work. Try again.");
+    }
+}
+
+// ---------------------------------------------------------------
+// One-time offer on the Game tab: players who added the game to their Home
+// Screen didn't know alerts still had to be turned on. It shows on each
+// device (the Home Screen app has its own storage) until the player taps
+// either button or turns alerts on from the bell.
+// ---------------------------------------------------------------
+const TURN_ALERTS_PROMPT_KEY = 'turn_alerts_prompt_done';
+
+function turnAlertsPromptDone() {
+    try {
+        return localStorage.getItem(TURN_ALERTS_PROMPT_KEY) === 'true';
+    } catch {
+        return true;
+    }
+}
+
+function finishTurnAlertsPrompt() {
+    try {
+        localStorage.setItem(TURN_ALERTS_PROMPT_KEY, 'true');
+    } catch {
+        // Storage unavailable: the prompt just hides for this visit.
+    }
+    const prompt = document.getElementById('turnAlertsPrompt');
+    if (prompt) prompt.hidden = true;
+}
+
+async function maybeShowTurnAlertsPrompt() {
+    if (turnAlertsPromptDone()) return;
+    const state = await TurnNotifications.status().catch(() => 'unavailable');
+    const copy = {
+        off: ["Turn on alerts and this device will buzz when it's your turn, even with the game closed.", 'Turn on alerts'],
+        'needs-home-screen': ["Get a buzz when it's your turn, even with the game closed. On iPhone, that needs the game on your Home Screen first.", 'Set up alerts'],
+    }[state];
+    if (!copy) return;
+    const prompt = document.getElementById('turnAlertsPrompt');
+    prompt.dataset.state = state;
+    document.getElementById('turnAlertsPromptText').textContent = copy[0];
+    document.getElementById('turnAlertsPromptYes').textContent = copy[1];
+    prompt.hidden = false;
+}
+
+async function handleTurnAlertsPromptAction(event) {
+    const button = event.target.closest('[data-turn-alerts-prompt]');
+    if (!button) return;
+    const prompt = document.getElementById('turnAlertsPrompt');
+    const state = prompt.dataset.state;
+    finishTurnAlertsPrompt();
+    if (button.dataset.turnAlertsPrompt !== 'yes') return;
+    if (state !== 'off') {
+        await openTurnAlertsModal();
+        return;
+    }
+    // Straight from the tap, so the browser shows its permission prompt.
+    try {
+        await TurnNotifications.enable();
+        refreshTurnAlertsButton();
+        showToast("Alerts are on. You'll get one when it's your turn.");
+    } catch (error) {
+        openModal('turnAlertsModal');
         await renderTurnAlerts(error.message || "That didn't work. Try again.");
     }
 }

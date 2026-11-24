@@ -114,7 +114,7 @@ Other docs: player rules in `documents/game-rules.md` and `README.md`, open deci
     `gameRulesInternal/mergers.js`),
     `rule-proposals.js` (`RuleProposals`: Market › Rule proposals, the house rules, the open vote, the
     proposal form, and the 📜 badge on the Market tab), `device-alerts.js` (another
-    device, turn alerts).
+    device, turn alerts, and the one-time turn alerts offer on the Game tab).
   - `property-display.js` (player cards, property rows, colours), `valuation.js` (net worth and
     company values), `log-format.js` (Recent events: wording, category icons, filters and turn headings).
   - Display mirrors of server rules, kept in step with the backend: `loans.js` (`LoanMath`: terms,

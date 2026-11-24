@@ -4500,6 +4500,35 @@ button.policy-option:active:not(:disabled) { background: var(--mint-wash); }
 /* The bell fills in when alerts are on for this device. */
 .turn-alerts-btn.is-on svg path:first-child { fill: currentColor; }
 
+/* One-time offer at the top of the Game tab, until the player answers it. */
+.turn-alerts-prompt {
+    margin-bottom: var(--s3);
+    padding: var(--s3) var(--s4);
+    border-radius: var(--r-group);
+    background: var(--mint-wash);
+    color: var(--forest);
+}
+
+.turn-alerts-prompt[hidden] { display: none; }
+
+.turn-alerts-prompt-title {
+    margin: 0;
+    font-size: var(--text-sub);
+    font-weight: 650;
+}
+
+.turn-alerts-prompt-text {
+    margin: var(--s1) 0 var(--s3);
+    font-size: var(--text-footnote);
+    line-height: 1.45;
+}
+
+.turn-alerts-prompt-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--s2);
+}
+
 .turn-alerts-note {
     margin: 0 0 var(--s3);
     padding: var(--s3) var(--s4);

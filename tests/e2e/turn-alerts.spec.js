@@ -138,9 +138,56 @@ test.describe('Turn alerts', () => {
         });
         const page = await signedInGame(context, room, alice.token);
         await page.click('#turn-alerts-btn');
-        await expect(page.getByRole('button', { name: 'Turn on alerts' })).toBeVisible();
-        await page.getByRole('button', { name: 'Not now' }).click();
-        await expect(page.locator('#turnAlertsModal')).not.toHaveClass(/active/);
+        const sheet = page.locator('#turnAlertsModal');
+        await expect(sheet.getByRole('button', { name: 'Turn on alerts' })).toBeVisible();
+        await sheet.getByRole('button', { name: 'Not now' }).click();
+        await expect(sheet).not.toHaveClass(/active/);
+        await context.close();
+    });
+
+    test('the Game tab offers alerts once, and Not now keeps it away', async ({ browser, request }) => {
+        const { room, alice } = await setupGame(request);
+        const context = await browser.newContext();
+        await context.addInitScript(() => {
+            Object.defineProperty(Notification, 'permission', { configurable: true, get: () => 'default' });
+        });
+        const page = await signedInGame(context, room, alice.token);
+        const prompt = page.locator('#turnAlertsPrompt');
+        await expect(prompt).toBeVisible();
+        await expect(prompt).toContainText("Know when it's your turn");
+        await expect(prompt.getByRole('button', { name: 'Turn on alerts' })).toBeVisible();
+        await prompt.getByRole('button', { name: 'Not now' }).click();
+        await expect(prompt).toBeHidden();
+
+        await page.reload();
+        await expect(page.locator('.player-card.current-user')).toContainText('Alice');
+        await expect(prompt).toBeHidden();
+        await context.close();
+    });
+
+    test('on iPhone Safari the offer leads to the Home Screen steps', async ({ browser, request }) => {
+        const { room, alice } = await setupGame(request);
+        const safari = await iphone(browser);
+        const page = await signedInGame(safari, room, alice.token);
+        const prompt = page.locator('#turnAlertsPrompt');
+        await expect(prompt).toContainText('Home Screen');
+        await prompt.getByRole('button', { name: 'Set up alerts' }).click();
+        await expect(prompt).toBeHidden();
+        await expect(page.locator('#turnAlertsModal')).toHaveClass(/active/);
+        await expect(page.getByRole('button', { name: 'Add to Home Screen' })).toBeVisible();
+        await safari.close();
+    });
+
+    test('no offer where notifications are blocked', async ({ browser, request }) => {
+        const { room, alice } = await setupGame(request);
+        const context = await browser.newContext();
+        await context.addInitScript(() => {
+            Object.defineProperty(Notification, 'permission', { configurable: true, get: () => 'denied' });
+        });
+        const page = await signedInGame(context, room, alice.token);
+        await expect(page.locator('.player-card.current-user')).toContainText('Alice');
+        await page.waitForLoadState('networkidle');
+        await expect(page.locator('#turnAlertsPrompt')).toBeHidden();
         await context.close();
     });
 });
