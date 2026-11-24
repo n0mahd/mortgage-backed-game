@@ -6,8 +6,10 @@
 (function (global) {
     'use strict';
 
+    // Saved players go into this tab's hotseat session (api.js), never the
+    // browser's own sign-in. One player alone plays that seat in this tab.
     function restoreHotseatResume(resume) {
-        setHotseatSession(resume.tokens);
+        setHotseatSession(resume.tokens, resume.roomId);
         return true;
     }
 
@@ -15,8 +17,7 @@
         const player = resume.tokens.find(record => record.userId === userId);
         if (!player || !player.token) return false;
 
-        clearHotseatSession();
-        setToken(player.token);
+        setHotseatSession([player], resume.roomId);
         return true;
     }
 
@@ -39,8 +40,8 @@
         }
 
         renderResumeOptions(container, {
-            title: 'Continue this saved hotseat game',
-            hint: 'Use local hotseat on this device, or continue online as one player.',
+            title: 'Saved game on this phone',
+            playersLabel: 'Just me:',
             onHotseat: () => continueSavedHotseat(inviteCode, restoreHotseatResume),
             players: resume.tokens.map(record => ({
                 label: record.name || 'Player',
@@ -57,9 +58,12 @@
         if (!roomIsClosedToNewMembers) return false;
 
         const showOptions = () => renderResumeOptions(container, {
-            title: 'Continue as an existing player',
-            hint: 'This room is already full. Pick who you are; a player in the game approves it on their screen.',
-            onHotseat: () => requestRoomRejoin(container, inviteCode, room, null, showOptions),
+            title: 'Already in this game?',
+            hint: 'Pick your name. Another player approves it.',
+            // Only a same-device game can be asked for as a whole.
+            onHotseat: room.whole_room_rejoin
+                ? () => requestRoomRejoin(container, inviteCode, room, null, showOptions)
+                : null,
             players: room.room_members.map(member => ({
                 label: member.player_name || 'Player',
                 onClick: () => requestRoomRejoin(container, inviteCode, room, member, showOptions),
@@ -69,7 +73,7 @@
         return true;
     }
 
-    function renderResumeOptions(container, { title, hint, onHotseat, players }) {
+    function renderResumeOptions(container, { title, hint, playersLabel, onHotseat, players }) {
         container.innerHTML = '';
         container.style.display = 'block';
 
@@ -77,25 +81,31 @@
         titleEl.textContent = title;
         container.appendChild(titleEl);
 
-        const hintEl = document.createElement('p');
-        hintEl.className = 'hotseat-resume-hint';
-        hintEl.textContent = hint;
-        container.appendChild(hintEl);
+        if (hint) {
+            const hintEl = document.createElement('p');
+            hintEl.className = 'hotseat-resume-hint';
+            hintEl.textContent = hint;
+            container.appendChild(hintEl);
+        }
 
-        const hotseatButton = document.createElement('button');
-        hotseatButton.type = 'button';
-        hotseatButton.className = 'btn btn-primary hotseat-resume-main';
-        hotseatButton.textContent = 'Continue Hotseat';
-        hotseatButton.addEventListener('click', onHotseat);
-        container.appendChild(hotseatButton);
+        if (onHotseat) {
+            const hotseatButton = document.createElement('button');
+            hotseatButton.type = 'button';
+            hotseatButton.className = 'btn btn-primary hotseat-resume-main';
+            hotseatButton.textContent = 'Everyone on this phone';
+            hotseatButton.addEventListener('click', onHotseat);
+            container.appendChild(hotseatButton);
+        }
 
         const playerList = document.createElement('div');
         playerList.className = 'hotseat-player-options';
 
-        const playerLabel = document.createElement('p');
-        playerLabel.className = 'hotseat-resume-hint';
-        playerLabel.textContent = 'Continue online as:';
-        playerList.appendChild(playerLabel);
+        if (playersLabel) {
+            const playerLabel = document.createElement('p');
+            playerLabel.className = 'hotseat-resume-hint';
+            playerLabel.textContent = playersLabel;
+            playerList.appendChild(playerLabel);
+        }
 
         players.forEach(player => {
             const button = document.createElement('button');
@@ -125,7 +135,11 @@
                 body: JSON.stringify(member ? { member_id: member.id } : {})
             });
         } catch (error) {
-            renderRejoinStatus(container, { title: 'Could not send the request', hint: error.message, actionLabel: 'Back', onAction: onBack });
+            // An account's seat comes back by signing in, not by approval.
+            const signIn = error.status === 403 && member && !member.is_agent
+                ? { href: `auth.html?next=${encodeURIComponent(`waiting.html?code=${code}`)}`, label: 'Sign in' }
+                : null;
+            renderRejoinStatus(container, { title: 'Could not send the request', hint: error.message, link: signIn, actionLabel: 'Back', onAction: onBack });
             return;
         }
 
@@ -195,7 +209,7 @@
     function finishRoomRejoin(result) {
         if (Array.isArray(result.tokens)) {
             if (result.tokens.length === 0) throw new Error('No players found for hotseat resume');
-            setHotseatSession(result.tokens);
+            setHotseatSession(result.tokens, result.room.id);
             saveHotseatResume(result.room, result.tokens);
         } else {
             setToken(result.token);
@@ -204,7 +218,7 @@
         navigateToRoom(result.room);
     }
 
-    function renderRejoinStatus(container, { title, hint, waiting, actionLabel, onAction }) {
+    function renderRejoinStatus(container, { title, hint, waiting, link, actionLabel, onAction }) {
         container.innerHTML = '';
         container.style.display = 'block';
 
@@ -222,8 +236,15 @@
             const status = document.createElement('p');
             status.className = 'hotseat-resume-hint rejoin-waiting';
             status.setAttribute('role', 'status');
-            status.textContent = 'Keep this page open. It continues as soon as they approve.';
+            status.textContent = 'Keep this page open.';
             container.appendChild(status);
+        }
+        if (link) {
+            const linkEl = document.createElement('a');
+            linkEl.className = 'btn btn-primary btn-sm';
+            linkEl.href = link.href;
+            linkEl.textContent = link.label;
+            container.appendChild(linkEl);
         }
         if (actionLabel) {
             const button = document.createElement('button');

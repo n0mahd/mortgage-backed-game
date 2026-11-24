@@ -52,10 +52,11 @@ Production database: SQLite on the M60e at `/mnt/ssd/projects/mortgage-backed/ba
 
 | Key | Holds | Lifetime | Cleared on sign-out? |
 | --- | --- | --- | --- |
-| `localStorage.auth_token` | JWT for the current player (30 days in today's production config), whether a guest or an account (email or username and password) | Until sign-out or expiry | Yes |
+| `localStorage.auth_token` | JWT for this browser's player (30 days in today's production config), whether a guest or an account (email or username and password). A hotseat game never writes it. | Until sign-out or expiry | Yes |
 | `localStorage.mortgage_hotseat_resume_rooms` | Hotseat rooms and their players' tokens, so a shared device can resume | Until the hotseat game is cleared | No |
 | `sessionStorage.saved_tokens_refreshed` | Flag (`1`) so saved hotseat tokens are swapped for new-secret ones once per tab | Browser tab | Yes |
 | `sessionStorage.hotseat_tokens` | Tokens for each hotseat seat | Browser tab | Yes |
+| `sessionStorage.hotseat_active_token`, `sessionStorage.hotseat_room` | The token of the hotseat player whose turn it is, and the hotseat game's room id; only that room's game page uses them | Browser tab | Yes |
 | Service worker (`/sw.js`) and its push subscription | No data; it only shows alerts and opens the game when one is tapped. Caches nothing. | Until the site's data is cleared | Turning alerts off unsubscribes |
 
 The Home Screen icon on iPhone has its own storage. It is signed in once with a one-time device transfer code carried in the `home-screen.html?code=` address, which works once and expires after 10 minutes.

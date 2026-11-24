@@ -36,18 +36,26 @@ let recentGameEvents = [];
 let isHotseatMode = false;
 let isSpectator = false;
 let hotseatTokens = []; // [{userId, token, name}]
+let tabSeatTokens = null; // this tab's own players for this room, from useHotseatSession
 
 // Initialize game on page load
 document.addEventListener('DOMContentLoaded', async () => {
     try {
-        // Detect hotseat mode from sessionStorage
-        const storedTokens = getHotseatSession();
-        if (storedTokens) {
-            isHotseatMode = true;
-            hotseatTokens = storedTokens;
+        const roomId = new URLSearchParams(window.location.search).get('room');
+        if (!roomId) {
+            window.location.href = 'lobby.html';
+            return;
         }
 
-        // Get current user (player 1's token is already in localStorage for hotseat)
+        // This tab's saved players for this room (api.js): with more than one,
+        // the phone is passed between them. They never replace the browser's
+        // own sign-in.
+        tabSeatTokens = useHotseatSession(roomId);
+        if (tabSeatTokens && tabSeatTokens.length > 1) {
+            isHotseatMode = true;
+            hotseatTokens = tabSeatTokens;
+        }
+
         const user = await getCurrentUser();
         if (!user) {
             // A game link opened in a browser that isn't signed in: offer every
@@ -56,16 +64,6 @@ document.addEventListener('DOMContentLoaded', async () => {
             return;
         }
         currentUser = user;
-
-        // Get room ID from URL
-        const urlParams = new URLSearchParams(window.location.search);
-        const roomId = urlParams.get('room');
-
-        if (!roomId) {
-            alert('No room specified');
-            window.location.href = 'lobby.html';
-            return;
-        }
 
         // Tabs and dialogs work from the first paint; the game header shows
         // before the log finishes loading, and a tap then must not be lost.
@@ -82,13 +80,25 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     } catch (error) {
         logActionError('Error initializing game:', error);
+        // Nothing to play: the game's own controls would only fail too.
+        document.getElementById('move-device-btn')?.setAttribute('hidden', '');
+        document.getElementById('turn-alerts-btn')?.setAttribute('hidden', '');
+        document.querySelector('.nav-tabs')?.setAttribute('hidden', '');
         const gameContent = document.getElementById('gameContent');
         if (gameContent) {
-            gameContent.innerHTML = `
+            // Not in this game: trying again can't help.
+            const notInGame = error.status === 403 || error.notInGame;
+            gameContent.innerHTML = notInGame
+                ? `
+                <div class="loading">
+                    <p class="turn-warning danger">You're not in this game.</p>
+                    <a href="lobby.html" class="btn btn-primary">Your games</a>
+                </div>`
+                : `
                 <div class="loading">
                     <p class="turn-warning danger">Couldn't load this game: ${escapeHtml(error.message)}</p>
                     <button class="btn btn-primary" data-reload-page>Try again</button>
-                    <a href="lobby.html" class="btn btn-secondary">Back to your games</a>
+                    <a href="lobby.html" class="btn btn-secondary">Your games</a>
                 </div>`;
             gameContent.querySelector('[data-reload-page]')?.addEventListener('click', () => window.location.reload());
         }
@@ -126,7 +136,9 @@ async function loadGameData(roomId) {
         // A host without a seat watches: same board and log, no moves.
         isSpectator = !currentPlayerData && room.host_id === currentUser.id;
         if (!currentPlayerData && !isSpectator) {
-            throw new Error('You are not a player in this game');
+            const notInGame = new Error('You are not a player in this game');
+            notInGame.notInGame = true;
+            throw notInGame;
         }
         document.body.classList.toggle('is-spectator', isSpectator);
         document.querySelector('.nav-tab[data-section="market"]')?.toggleAttribute('hidden', isSpectator);
@@ -168,7 +180,7 @@ function setupRealtimeSubscriptions() {
     // Host rights can move to another player mid-game (Manage players).
     getSocket().on('room:member_change', room => applyRoomUpdate(room));
     // Signed in as someone else in another tab: don't keep acting as them.
-    if (!isHotseatMode) reloadOnSignInChange(() => currentUser && currentUser.id);
+    if (!tabSeatTokens) reloadOnSignInChange(() => currentUser && currentUser.id);
 
     // Phones drop the socket when the screen locks or the browser goes to the
     // background, so catch up whenever the page comes back. The server also
@@ -428,8 +440,8 @@ function dismissHotseatInterstitial() {
         return;
     }
 
-    // Swap active token — apiFetch() reads localStorage on every call
-    setToken(record.token);
+    // Swap the active hotseat token; apiFetch() reads it on every call.
+    setHotseatActiveToken(record.token);
 
     // Update in-memory identity without an extra API round-trip
     currentUser = { id: record.userId, email: null, is_anonymous: true };
@@ -594,10 +606,8 @@ function showWinnerFromState(gameState, reason) {
         netWorth: player.netWorth || player.cash,
         bankrupt: player.bankrupt
     })).sort((a, b) => b.netWorth - a.netWorth);
-    if (isHotseatMode) {
-        clearHotseatSession();
-        if (currentRoom && currentRoom.invite_code) clearHotseatResume(currentRoom.invite_code);
-    }
+    // The tab keeps its players until it leaves, so the final screens still load.
+    if (isHotseatMode && currentRoom && currentRoom.invite_code) clearHotseatResume(currentRoom.invite_code);
     const winner = standings[0];
     const standingsHtml = standings.map((p, i) => `
         <div class="standings-row ${p.bankrupt ? 'bankrupt' : ''}">
