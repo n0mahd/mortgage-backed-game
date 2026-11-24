@@ -92,7 +92,7 @@ Other docs: player rules in `documents/game-rules.md` and `README.md`, open deci
   `src/js/auth.js` (password sign-in, create an account, email codes, `?next=`), `src/js/lobby.js`
   (My games: active and archived rooms, host offers, guest banner, set password; with
   `src/js/manage-room.js`, the host's Manage players sheet), `src/js/waiting.js` (with
-  `src/js/agent-invites.js` and `src/js/manage-link.js`), `src/js/hotseat.js`, `src/js/home-screen.js`.
+  `src/js/agent-invites.js`), `src/js/hotseat.js`, `src/js/home-screen.js`.
   Accounts, seat links, host transfer and archiving: `documents/accounts-and-game-management.md`.
   `src/js/room-resume.js`: getting back into a room (resume options and `requestRoomRejoin`).
   `src/js/rejoin-prompts.js`: the approve/decline prompt shown to other players.

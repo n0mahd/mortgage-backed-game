@@ -14,7 +14,7 @@
     <title>Sign in — Mortgage Backed Monopoly</title>
     <link rel="preload" href="src/assets/fonts/besley-latin.woff2" as="font" type="font/woff2" crossorigin>
     <link rel="stylesheet" href="src/css/tokens.css?v=14">
-    <link rel="stylesheet" href="src/css/style.css?v=52">
+    <link rel="stylesheet" href="src/css/style.css?v=58">
 </head>
 <body>
     <div class="container">
@@ -30,11 +30,10 @@
                 <div id="view-signin" data-auth-view="signin">
                     <div class="page-title">
                         <h1>Sign in</h1>
-                        <p>Use your username or email and your password.</p>
                     </div>
                     <p id="signin-guest-note" class="hint" hidden>
-                        You're playing as a guest on this device. Signing in to another account leaves those games here;
-                        <a href="#" data-auth-switch="register">create an account</a> instead to keep them.
+                        You're a guest here. Signing in to another account leaves your guest games behind;
+                        <a href="#" data-auth-switch="register">create an account</a> to keep them.
                     </p>
                     <form id="signin-form" class="auth-card" novalidate>
                         <div class="form-group">
@@ -58,9 +57,9 @@
                 <div id="view-register" data-auth-view="register" hidden>
                     <div class="page-title">
                         <h1>Create an account</h1>
-                        <p>Pick a username and password to sign in on any device and keep your games.</p>
+                        <p>Sign in on any device and keep your games.</p>
                     </div>
-                    <p id="register-keeps-games" class="hint" hidden>Your current games stay with you.</p>
+                    <p id="register-keeps-games" class="hint" hidden>Your guest games move to this account.</p>
                     <form id="register-form" class="auth-card" novalidate>
                         <div class="form-group">
                             <label for="register-username">Username</label>
@@ -90,7 +89,7 @@
                 <div id="step-email" data-auth-view="email" hidden>
                     <div class="page-title">
                         <h1>Sign in with email</h1>
-                        <p>Enter your email and we'll send a 6-digit code. No password needed.</p>
+                        <p>We'll email you a 6-digit code.</p>
                     </div>
                     <div class="auth-card">
                         <div class="form-group">
@@ -126,7 +125,7 @@
         </div>
     </div>
 
-    <script src="src/js/api.js?v=22"></script>
-    <script src="src/js/auth.js?v=11"></script>
+    <script src="src/js/api.js?v=23"></script>
+    <script src="src/js/auth.js?v=12"></script>
 </body>
 </html>

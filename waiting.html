@@ -14,7 +14,7 @@
     <title>Waiting room — Mortgage Backed Monopoly</title>
     <link rel="preload" href="src/assets/fonts/besley-latin.woff2" as="font" type="font/woff2" crossorigin>
     <link rel="stylesheet" href="src/css/tokens.css?v=14">
-    <link rel="stylesheet" href="src/css/style.css?v=52">
+    <link rel="stylesheet" href="src/css/style.css?v=58">
 </head>
 <body>
     <div class="container">
@@ -30,15 +30,11 @@
         <div class="content" id="guest-join-section" style="display: none;">
             <div class="auth-container">
                 <div class="page-title">
-                    <h1>Join game</h1>
-                    <p>Pick the name other players will see.</p>
+                    <h1 id="guest-join-title">Join game</h1>
+                    <p id="guest-join-subtitle" hidden></p>
                 </div>
                 <div id="hotseat-resume-options" class="hotseat-resume-options"></div>
-                <div class="auth-card">
-                    <div class="form-group">
-                        <label for="guest-room-code">Room code</label>
-                        <input type="text" id="guest-room-code" class="code-entry" readonly>
-                    </div>
+                <div class="auth-card" id="guest-join-card">
                     <div class="form-group">
                         <label for="guest-player-name">Your player name</label>
                         <input type="text" id="guest-player-name" placeholder="Your name" autocomplete="nickname" required>
@@ -58,6 +54,7 @@
                         <span class="room-status waiting" id="room-status">Waiting for players</span>
                         <span id="player-count">0/4 players</span>
                     </div>
+                    <p id="waiting-status" class="start-help" role="status" hidden></p>
                 </div>
 
                 <div class="invite-code-display">
@@ -81,13 +78,13 @@
 
                 <div class="host-controls" id="host-controls" style="display: none;">
                     <button class="btn btn-success btn-large" id="start-game-btn">Start Game</button>
-                    <p id="start-help-text" class="start-help">You need at least 2 players to start.</p>
+                    <div id="start-error" class="error-message" role="alert"></div>
                     <p id="spectator-help-text" class="start-help" hidden>You're watching, not playing. Invite at least 2 agents, then start.</p>
                     <a class="quiet-link" href="lobby.html" data-manage-room-link>Manage players</a>
 
                     <div class="invite-email-panel" id="loan-rates-panel">
                         <h4>House rules</h4>
-                        <p class="agent-invites-help">Interest per turn on every loan. Players pick how many turns (5 to 30, in steps of 5) when they borrow, and whether autopay pays the loan down or covers the interest only.</p>
+                        <p class="agent-invites-help">Players can change these mid-game by unanimous vote.</p>
                         <div class="form-group loan-rate-field">
                             <label for="loan-rate">Interest per turn (%)</label>
                             <input type="number" id="loan-rate" inputmode="decimal" min="0" max="25" step="0.5" value="5">
@@ -96,13 +93,11 @@
                             <label for="pass-go-amount">Pass GO ($)</label>
                             <input type="number" id="pass-go-amount" inputmode="numeric" min="0" max="1000" step="50" value="200">
                         </div>
-                        <p class="agent-invites-help">What everyone collects for passing GO, $0 to $1,000. Players can change either rule during the game if everyone agrees (Market › Rule proposals).</p>
                     </div>
 
                     <!-- Invite AI agents: one invite per agent (src/js/agent-invites.js) -->
                     <div class="agent-invites invite-email-panel" id="agent-invites" style="display: none;">
                         <h4>Invite AI agents</h4>
-                        <p class="agent-invites-help">Each invite seats one agent and controls only that seat. Give each agent its own name so players can tell them apart.</p>
                         <div class="agent-invite-create">
                             <input type="text" id="agent-invite-name" placeholder="Agent name (optional)" maxlength="40" autocomplete="off" aria-label="Agent name">
                             <button id="agent-invite-create-btn" class="btn btn-secondary">Invite an agent</button>
@@ -121,12 +116,6 @@
                     </div>
                 </div>
 
-                <div class="room-log">
-                    <h4>Activity</h4>
-                    <div id="activity-log" class="game-log">
-                        <div class="log-entry">Waiting for players to join…</div>
-                    </div>
-                </div>
             </div>
         </div>
     </div>
@@ -136,16 +125,16 @@
             <div class="modal-header">Agent invite</div>
             <section class="agent-invite-part" aria-labelledby="agent-invite-host-title">
                 <h4 id="agent-invite-host-title">Your part</h4>
-                <p class="modal-hint">Do this in your Claude app.</p>
+                <p class="modal-hint">Do this in your Claude app. Steps 1 and 2 are first time only.</p>
                 <ol class="steps agent-invite-steps">
-                    <li>Open <strong>Settings → Connectors → Add custom connector</strong> and enter <code id="agent-invite-mcp-url"></code>. First time only.</li>
-                    <li>Tap <strong>Connect</strong> on the Mortgage Backed connector. First time only.</li>
+                    <li>Open <strong>Settings → Connectors → Add custom connector</strong> and enter <code id="agent-invite-mcp-url"></code>.</li>
+                    <li>Tap <strong>Connect</strong> on the Mortgage Backed connector.</li>
                     <li>Start a new chat and turn on Mortgage Backed under <strong>+ → Connectors</strong>.</li>
                 </ol>
             </section>
             <section class="agent-invite-part" aria-labelledby="agent-invite-agent-title">
                 <h4 id="agent-invite-agent-title">The agent's part</h4>
-                <p class="modal-hint">Paste this into that chat. It holds the agent's key, shown only now: anyone with it can play that seat.</p>
+                <p class="modal-hint">Paste this into that chat. Shown only once; anyone with it can play this seat.</p>
             </section>
             <div class="form-group">
                 <textarea id="agent-invite-prompt" class="agent-invite-prompt" rows="9" readonly aria-labelledby="agent-invite-agent-title"></textarea>
@@ -158,12 +147,11 @@
     </div>
 
     <script src="/socket.io/socket.io.js"></script>
-    <script src="src/js/api.js?v=22"></script>
-    <script src="src/js/ui.js?v=2"></script>
-    <script src="src/js/room-resume.js?v=1"></script>
-    <script src="src/js/rejoin-prompts.js?v=2"></script>
-    <script src="src/js/agent-invites.js?v=2"></script>
-    <script src="src/js/waiting.js?v=27"></script>
-    <script src="src/js/manage-link.js?v=1"></script>
+    <script src="src/js/api.js?v=23"></script>
+    <script src="src/js/ui.js?v=3"></script>
+    <script src="src/js/room-resume.js?v=2"></script>
+    <script src="src/js/rejoin-prompts.js?v=3"></script>
+    <script src="src/js/agent-invites.js?v=3"></script>
+    <script src="src/js/waiting.js?v=28"></script>
 </body>
 </html>

@@ -174,12 +174,11 @@
         setStatus('');
         try {
             const link = await createSeatLink(roomId, memberId);
-            const note = `It lasts 7 days, and a new link for ${name} replaces it.`;
             if (await copyText(link.url)) {
-                setStatus(`Link for ${name} copied. Send it only to them. ${note}`);
+                setStatus(`Link for ${name} copied. Send it only to ${name}; it works for 7 days.`);
             } else {
                 showLinkOutput(link.url);
-                setStatus(`Copy this link and send it only to ${name}. ${note}`);
+                setStatus(`Copy this link and send it only to ${name}; it works for 7 days.`);
             }
         } catch (error) {
             setStatus(`Could not make a link: ${error.message}`, true);
@@ -206,14 +205,13 @@
 
     async function makeHost(memberId, button) {
         const name = memberName(memberId);
-        const question = `Offer host to ${name}?\n\nThey must accept, and they need an account (a username and password, or email) to do it. You stay host until they accept.`;
+        const question = `Offer host to ${name}? They accept from My games (needs an account).`;
         if (!confirm(question)) return;
         button.disabled = true;
         setStatus('');
         try {
             await offerHostTransfer(roomId, memberId);
             await refresh();
-            setStatus(`Offer sent. ${name} will see it in My games.`);
             changed();
         } catch (error) {
             button.disabled = false;

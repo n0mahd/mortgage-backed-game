@@ -32,6 +32,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const transferFromLink = new URLSearchParams(window.location.search).get('transfer');
     if (transferFromLink) {
+        // Open the section, so an error for a bad or used code is seen.
+        const more = document.querySelector('.resume-more');
+        if (more) more.open = true;
         document.getElementById('transfer-code').value = transferFromLink;
         document.getElementById('resume')?.scrollIntoView();
         continueWithTransferCode();

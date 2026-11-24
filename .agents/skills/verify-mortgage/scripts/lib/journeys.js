@@ -510,6 +510,8 @@ async function signIn(j, p, login, password = PASSWORD) {
 async function logOut(j, p) {
     if (!/lobby\.html/.test(p.page.url())) await j.goto(p, '/lobby.html');
     await j.click(p, '#logout-btn');
+    // A guest is asked first: logging out loses their games.
+    if (await j.visible(p, '#guestLogoutModal')) await j.click(p, '#guest-logout-confirm-btn');
     await j.url(p, /index\.html|\/$/);
     if (await j.token(p)) j.fail(`${p.name}: still holds a token after Log out`);
 }
@@ -971,7 +973,7 @@ const JOURNEYS = [
             await j.layout(guest, 'My games (guest banner)');
             await guest.page.locator('#guest-banner a', { hasText: /Create an account/i }).click();
             await j.url(guest, /auth\.html\?mode=register/);
-            await j.see(guest, '#register-keeps-games', 'Your current games stay with you.');
+            await j.see(guest, '#register-keeps-games', 'Your guest games move to this account.');
             const username = j.unique('gia');
             await j.fill(guest, '#register-username', username);
             await j.fill(guest, '#register-password', PASSWORD);
@@ -983,7 +985,7 @@ const JOURNEYS = [
             await j.see(guest, `#active-rooms-list [data-room-id="${roomId}"]`, 'In Progress');
             if ((await j.userId(guest)) !== guestId) j.fail('Registering made a new user instead of upgrading the guest');
             j.say('open the game again from My games');
-            await j.click(guest, `[data-room-open="${roomId}"]`);
+            await j.click(guest, `.room-card[data-room-id="${roomId}"] .room-name`);
             await inGame(j, guest);
             await j.see(guest, '.player-card.current-user', 'Gia');
             j.say('the account works from a new browser');
@@ -991,7 +993,7 @@ const JOURNEYS = [
             await signIn(j, other, username);
             await j.url(other, /lobby\.html/);
             await j.see(other, `#active-rooms-list [data-room-id="${roomId}"]`);
-            await j.click(other, `[data-room-open="${roomId}"]`);
+            await j.click(other, `.room-card[data-room-id="${roomId}"] .room-name`);
             await inGame(j, other);
             await j.see(other, '.player-card.current-user', 'Gia');
         },
@@ -1151,12 +1153,12 @@ const JOURNEYS = [
             await j.shot(host, 'my-games-two-rooms');
             await j.layout(host, 'My games (rooms)');
             j.say('open the in-progress game');
-            await j.click(host, `[data-room-open="${live.roomId}"]`);
+            await j.click(host, `.room-card[data-room-id="${live.roomId}"] .room-name`);
             await inGame(j, host);
             j.say('back, open the waiting room');
             await j.click(host, '.app-bar-back');
             await j.url(host, /lobby\.html/);
-            await j.click(host, `[data-room-open="${waitingRoom.roomId}"]`);
+            await j.click(host, `.room-card[data-room-id="${waitingRoom.roomId}"] .room-name`);
             await j.url(host, new RegExp(`waiting\\.html\\?room=${waitingRoom.roomId}`));
             await j.see(host, '#room-name', 'Journey Waiting');
             j.say('the other player sees the game too, without Host or Manage');
@@ -1187,7 +1189,7 @@ const JOURNEYS = [
             const room = j.sql('SELECT status FROM rooms WHERE id = ?', [roomId])[0];
             if (room.status !== 'in_progress') j.fail(`Archiving changed the room status to ${room.status}`);
             j.say('an archived game still opens');
-            await j.click(host, `[data-room-open="${roomId}"]`);
+            await j.click(host, `.room-card[data-room-id="${roomId}"] .room-name`);
             await inGame(j, host);
             await j.goto(host, '/lobby.html');
             j.say('unarchive');
@@ -1209,13 +1211,13 @@ const JOURNEYS = [
             await j.layout(host, 'Create game sheet');
             j.say('missing fields are refused');
             await j.click(host, '#create-room-btn');
-            if (!host.dialogs.some(d => /fill in all fields/i.test(d.message))) j.fail('Creating with empty fields gave no message');
+            await j.see(host, '#create-room-error', 'Name the game');
             j.say('max players out of range');
             await j.fill(host, '#room-name', 'Journey Room');
             await j.fill(host, '#host-player-name', 'Hal');
             await j.fill(host, '#max-players', 9);
             await j.click(host, '#create-room-btn');
-            if (!host.dialogs.some(d => /between 2 and 8/.test(d.message))) j.fail('Max players 9 was not refused');
+            await j.see(host, '#create-room-error', 'between 2 and 8');
             await j.fill(host, '#max-players', 3);
             await j.click(host, '#create-room-btn');
             await j.url(host, /waiting\.html\?room=/);
@@ -1313,8 +1315,8 @@ const JOURNEYS = [
             await j.fill(guest, '#resume-code', code.toLowerCase());
             await j.click(guest, '#resume-code-btn');
             await j.url(guest, /waiting\.html\?code=/);
-            await j.see(guest, '#guest-room-code');
-            if ((await guest.page.locator('#guest-room-code').inputValue()) !== code) j.fail('The join form does not show the normalised room code');
+            // The room is found from the lower-case code: its host is named.
+            await j.see(guest, '#guest-join-subtitle', 'Hosted by');
             await j.shot(guest, 'join-form');
             await j.layout(guest, 'Join form');
             await j.click(guest, '#guest-join-btn');
@@ -1410,7 +1412,7 @@ const JOURNEYS = [
             const other = await j.person('Ema-laptop', { device: 'desktop' });
             await emailSignIn(j, other, email);
             await j.see(other, `#active-rooms-list [data-room-id="${roomId}"]`);
-            await j.click(other, `[data-room-open="${roomId}"]`);
+            await j.click(other, `.room-card[data-room-id="${roomId}"] .room-name`);
             await j.url(other, new RegExp(`waiting\\.html\\?room=${roomId}`));
             const row = await j.see(other, '#players-list .player-item', 'Ema');
             if (!/You/.test(await row.innerText())) j.fail('The email player is not recognised as themselves on the new browser');
@@ -1498,8 +1500,8 @@ const JOURNEYS = [
             }
             const late = await j.person('Late', { device: 'phone' });
             await j.goto(late, `/waiting.html?code=${code}`);
-            await j.see(late, '#hotseat-resume-options', 'Continue as an existing player');
-            await j.see(late, '#hotseat-resume-options', /already full/);
+            await j.see(late, '#hotseat-resume-options', 'Already in this game?');
+            await j.see(late, '#hotseat-resume-options', /Pick your name/);
             if (await j.visible(late, '#guest-player-name')) j.fail('A full room still shows the join form');
             await j.shot(late, 'full-room');
             await j.layout(late, 'Full room options');
@@ -1521,13 +1523,13 @@ const JOURNEYS = [
             await j.fill(fresh, '#resume-code', code);
             await j.click(fresh, '#resume-code-btn');
             await j.url(fresh, /waiting\.html\?code=/);
-            await j.see(fresh, '#hotseat-resume-options', 'Continue as an existing player');
+            await j.see(fresh, '#hotseat-resume-options', 'Already in this game?');
             await j.shot(fresh, 'existing-player-options');
             await fresh.page.locator('#hotseat-resume-options button', { hasText: 'Gia' }).click();
             await j.see(fresh, '#hotseat-resume-options', 'Waiting for approval');
             await j.see(fresh, '#hotseat-resume-options', /Ask Hal/);
             if (await j.token(fresh)) j.fail('The asking browser got a token before approval');
-            const prompt = await j.see(host, '#rejoinPromptModal', 'wants to continue as Gia', { timeout: 15000 });
+            const prompt = await j.see(host, '#rejoinPromptModal', 'wants to play as Gia', { timeout: 15000 });
             await j.shot(host, 'rejoin-prompt');
             await j.layout(host, 'Rejoin prompt', [390]);
             await prompt.locator('[data-decision="approve"]').click();
@@ -1601,9 +1603,9 @@ const JOURNEYS = [
             await j.goto(p, '/');
             await j.fill(p, '#resume-code', code);
             await j.click(p, '#resume-code-btn');
-            await j.see(p, '#hotseat-resume-options', 'Continue this saved hotseat game');
+            await j.see(p, '#hotseat-resume-options', 'Saved game on this phone');
             await j.shot(p, 'resume-hotseat');
-            await p.page.getByRole('button', { name: 'Continue Hotseat' }).click();
+            await p.page.getByRole('button', { name: 'Everyone on this phone' }).click();
             await inGame(j, p);
             const g = await pageGame(p);
             if (!g || g.v !== before.version) j.fail(`Resumed hotseat game is at version ${g?.v}, the server at ${before.version}`);
@@ -1635,7 +1637,7 @@ const JOURNEYS = [
             await j.layout(host, 'Agent invite sheet');
             await closeInvite(j, host);
             if ((await host.page.locator('body').innerText()).includes(invite.key)) j.fail('The agent key stayed on the page after Done');
-            const row = await j.see(host, '.agent-invite-row', 'Waiting for the agent to join');
+            const row = await j.see(host, '.agent-invite-row', 'Not joined');
             j.say('agent joins with its own name; the host name wins');
             const joined = await j.mcpOk('join_game', { agent_key: invite.key, player_name: 'Robo' });
             if (!joined.joined) j.fail(`join_game: ${JSON.stringify(joined).slice(0, 200)}`);
@@ -1662,7 +1664,7 @@ const JOURNEYS = [
             j.say('invite another and revoke it before it joins');
             const pending = await inviteAgent(j, host, '');
             await closeInvite(j, host);
-            await j.see(host, '.agent-invite-row', 'Waiting for the agent to join');
+            await j.see(host, '.agent-invite-row', 'Not joined');
             await j.click(host, '[data-agent-seat-revoke]');
             await j.gone(host, '.agent-invite-row');
             const late = await j.mcp('join_game', { agent_key: pending.key });
@@ -1679,7 +1681,7 @@ const JOURNEYS = [
             await createRoom(j, host, { max: 3 });
             const invite = await inviteAgent(j, host, 'Giskard');
             await closeInvite(j, host);
-            const row = await j.see(host, '.agent-invite-row', 'Waiting for the agent to join');
+            const row = await j.see(host, '.agent-invite-row', 'Not joined');
             j.say('host switches apps: page hidden, network gone');
             await host.page.evaluate(() => {
                 Object.defineProperty(document, 'visibilityState', { configurable: true, get: () => 'hidden' });
@@ -1694,7 +1696,7 @@ const JOURNEYS = [
             if (await host.page.evaluate(() => getSocket().connected)) j.fail('Harness could not cut the socket');
             await j.mcpOk('join_game', { agent_key: invite.key });
             await sleep(1500);
-            if (!/Waiting for the agent/.test(await row.innerText())) j.note('The page saw the join while offline; the catch-up path was not exercised');
+            if (!/Not joined/.test(await row.innerText())) j.note('The page saw the join while offline; the catch-up path was not exercised');
             j.say('host comes back');
             await host.context.setOffline(false);
             await host.page.evaluate(() => {
@@ -1975,7 +1977,7 @@ const JOURNEYS = [
             await row.getByRole('button', { name: 'Make host' }).click();
             await j.see(host, '#manage-transfer', 'Host offer sent to Gia');
             await j.see(host, row, 'Offer sent');
-            if (!host.dialogs.some(d => d.type === 'confirm' && /need an account/.test(d.message))) j.fail('Make host did not explain that an account is needed');
+            if (!host.dialogs.some(d => d.type === 'confirm' && /needs an account/.test(d.message))) j.fail('Make host did not explain that an account is needed');
             await j.shot(host, 'offer-sent');
             j.say('guest sees the offer in My games');
             await j.click(guest, '.app-bar-back');
@@ -1998,7 +2000,7 @@ const JOURNEYS = [
             const room = j.sql('SELECT host_id FROM rooms WHERE id = ?', [roomId])[0];
             if (room.host_id !== guest.userId) j.fail('rooms.host_id did not change');
             j.say('new host sees host controls in the game');
-            await j.click(guest, `[data-room-open="${roomId}"]`);
+            await j.click(guest, `.room-card[data-room-id="${roomId}"] .room-name`);
             await inGame(j, guest);
             await j.see(guest, '.host-panel', 'Host controls');
             await j.shot(guest, 'new-host-controls');

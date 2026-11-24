@@ -14,7 +14,7 @@
     <title>Play on one phone — Mortgage Backed Monopoly</title>
     <link rel="preload" href="src/assets/fonts/besley-latin.woff2" as="font" type="font/woff2" crossorigin>
     <link rel="stylesheet" href="src/css/tokens.css?v=14">
-    <link rel="stylesheet" href="src/css/style.css?v=52">
+    <link rel="stylesheet" href="src/css/style.css?v=58">
 </head>
 <body>
     <div class="container">
@@ -26,36 +26,35 @@
             <div class="auth-container">
                 <div class="page-title">
                     <h1>Play on one phone</h1>
-                    <p>Add 2 to 6 players and pass the phone around. A hand-off screen hides each player's view between turns.</p>
+                    <p>Pass the phone between turns.</p>
                 </div>
 
                 <div class="auth-card">
                     <div id="player-name-fields">
                         <div class="form-group">
                             <label>Player 1</label>
-                            <input type="text" class="player-name-input" placeholder="Player 1 name" maxlength="20" autocomplete="off">
+                            <input type="text" class="player-name-input" maxlength="20" autocomplete="off" aria-label="Player 1">
                         </div>
                         <div class="form-group">
                             <label>Player 2</label>
-                            <input type="text" class="player-name-input" placeholder="Player 2 name" maxlength="20" autocomplete="off">
+                            <input type="text" class="player-name-input" maxlength="20" autocomplete="off" aria-label="Player 2">
                         </div>
                     </div>
 
                     <div class="add-player-row">
                         <button class="btn btn-secondary btn-sm" id="add-player-btn">Add Player</button>
-                        <span>Up to 6 players</span>
                     </div>
 
                     <div id="hotseat-error" class="error-message"></div>
 
-                    <button class="btn btn-primary btn-large" id="start-hotseat-btn">Start Local Game</button>
+                    <button class="btn btn-primary btn-large" id="start-hotseat-btn">Start game</button>
                 </div>
                 <a class="quiet-link" href="index.html">Back to home</a>
             </div>
         </div>
     </div>
 
-    <script src="src/js/api.js?v=22"></script>
-    <script src="src/js/hotseat.js?v=6"></script>
+    <script src="src/js/api.js?v=23"></script>
+    <script src="src/js/hotseat.js?v=7"></script>
 </body>
 </html>

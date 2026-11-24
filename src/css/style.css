@@ -4063,6 +4063,7 @@ button.policy-option:active:not(:disabled) { background: var(--mint-wash); }
 }
 
 .transfer-redeem { padding-bottom: var(--s3); }
+.transfer-redeem label.hint { display: block; }
 
 .forgot-link {
     display: inline-flex;
