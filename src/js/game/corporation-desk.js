@@ -188,7 +188,7 @@
                 <h4>Chairman moves <span class="corp-heading-note">${money(cash)} to spend</span></h4>
                 <div class="buy-shares-form">
                     <label for="dividend-${esc(corp.id)}">Pay a dividend, split by shares</label>
-                    <input type="number" inputmode="decimal" id="dividend-${esc(corp.id)}" min="1" max="${Math.floor(cash)}" value="${Math.floor(cash / 2) || ''}">
+                    <input type="number" inputmode="decimal" id="dividend-${esc(corp.id)}" min="1" max="${Math.floor(cash)}" placeholder="Up to ${money(Math.floor(cash))}">
                     <button class="btn btn-primary btn-sm" data-game-action="pay-dividend" data-corp-id="${esc(corp.id)}"${ok && cash >= 1 ? '' : ' disabled'}>Pay dividend</button>
                 </div>
                 <div class="moves-grid corp-moves">
@@ -369,12 +369,8 @@
             ? global.renderTradeAssetTag(money(summary.quote.price), 'Treasury cash', 'cash')
             : global.renderTradeAssetTag(`${global.ShareDeals.count(summary.newShares)} new share${summary.newShares === 1 ? '' : 's'}`, `Worth ${money(summary.quote.price)}`, 'shares');
         const verdict = offerVerdict(corp, offer, summary);
+        // The verdict already says what it does to the viewer's net worth.
         const rows = [];
-        const myStake = summary.stakes.find(item => item.userId === me());
-        if (myStake) {
-            const change = Math.round(myStake.change);
-            rows.push(`<tr><td>Your net worth</td><td class="${change > 0 ? 'up' : (change < 0 ? 'down' : '')}">${esc(global.ShareDeals.signedMoney(change))}</td></tr>`);
-        }
         if (summary.newShares > 0) {
             summary.stakes
                 .slice()
@@ -385,7 +381,7 @@
                     if (item.majorityAfter && !item.majorityBefore) note = you ? 'You take control' : 'Takes control';
                     else if (item.majorityBefore && !item.majorityAfter) note = you ? 'You lose control' : 'Loses control';
                     else if (you && item.majorityAfter) note = 'You keep control';
-                    rows.push(`<tr><td>${you ? `You own of ${esc(corp.ticker)}` : `${esc(item.name)} owns`}</td><td>${esc(item.percentBefore)} → ${esc(item.percentAfter)}${note ? `<small>${esc(note)}</small>` : ''}</td></tr>`);
+                    rows.push(`<tr><td>${you ? 'You own' : `${esc(item.name)} owns`}</td><td>${esc(item.percentBefore)} → ${esc(item.percentAfter)}${note ? `<small>${esc(note)}</small>` : ''}</td></tr>`);
                 });
         }
         const otherWarnings = summary.warnings.filter(warning => !/over book value/.test(warning) && !/will own over half/.test(warning));
@@ -457,7 +453,7 @@
         if (!(Number(price) > 0)) return 'Enter a price.';
         const summary = summarizeOffer(corp, offer, Number(price));
         const stake = summary.stakes.find(item => item.userId === me());
-        const forYou = stake ? ` For you: <strong>${esc(global.ShareDeals.signedMoney(stake.change))}</strong>${summary.newShares > 0 ? `, owning ${esc(stake.percentAfter)}` : ''}.` : '';
+        const forYou = stake ? ` For you: <strong>${Math.round(stake.change) === 0 ? 'no change' : esc(global.ShareDeals.signedMoney(stake.change))}</strong>${summary.newShares > 0 ? `, owning ${esc(stake.percentAfter)}` : ''}.` : '';
         if (offer.payWith === 'cash') return `${esc(corp.ticker)} would pay <strong>${money(price)}</strong> from its treasury.${forYou}`;
         if (!summary.newShares) return esc(summary.quote.noSharesReason || 'This price buys no shares.');
         const who = offer.offererId === me() ? 'You' : esc(offer.offererName);

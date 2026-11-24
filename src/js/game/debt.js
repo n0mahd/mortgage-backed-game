@@ -235,7 +235,7 @@ function renderBorrowingLimit() {
 function openNewLoanFor(key, amount) {
     document.getElementById('debtAction').value = 'issue';
     document.getElementById('debtIssuer').value = key;
-    document.getElementById('loanAmount').value = amount > 0 ? (Math.ceil(amount * 100) / 100).toFixed(2) : '';
+    document.getElementById('loanAmount').value = amount > 0 ? debtAmountInputValue(Math.ceil(amount * 100) / 100) : '';
     renderLoanTerms('loan');
     toggleDebtForm();
     document.querySelector('#debtModal .modal-content').scrollTop = 0;
@@ -290,7 +290,7 @@ function renderRefinanceDebtOptions() {
     `).join('');
 
     document.getElementById('debtsToRefinance').innerHTML = debtsHtml || '<p class="empty-state">No loans to refinance. Loans you or your corporations take out appear here.</p>';
-    document.getElementById('refinanceAmount').value = debts.length === 1 ? debtPrincipal(debts[0]).toFixed(2) : '';
+    document.getElementById('refinanceAmount').value = debts.length === 1 ? debtAmountInputValue(debtPrincipal(debts[0])) : '';
     lastRefinancePayoff = getRefinancePayoffAmount();
     renderLoanTerms('refinance');
     updateRefinanceSummary();
@@ -304,11 +304,16 @@ function handleRefinanceSelectionChange() {
     const typed = parseFloat(amountInput.value);
     const payoff = getRefinancePayoffAmount();
     if (!Number.isFinite(typed) || Math.abs(typed - lastRefinancePayoff) < 0.005) {
-        amountInput.value = payoff > 0 ? payoff.toFixed(2) : '';
+        amountInput.value = payoff > 0 ? debtAmountInputValue(payoff) : '';
         renderLoanTerms('refinance');
     }
     lastRefinancePayoff = payoff;
     updateRefinanceSummary();
+}
+
+// An amount for a money box: whole dollars stay whole ("550"), cents stay ("71.25").
+function debtAmountInputValue(value) {
+    return String(Math.round(Number(value || 0) * 100) / 100);
 }
 
 function getPersonalDebts() {

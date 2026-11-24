@@ -130,9 +130,42 @@ function renderLogEventIcon(category) {
     return `<span class="log-icon" role="img" aria-label="${escapeHtml(category.label)}">${category.icon}</span>`;
 }
 
+// Log amounts as everywhere else on the page: "$75", "$12.50".
+function logMoney(value) {
+    return formatMoney(Number(value || 0));
+}
+
+function logCount(value, noun) {
+    const n = Number(value || 0);
+    return `${n.toLocaleString('en-US')} ${noun}${n === 1 ? '' : 's'}`;
+}
+
+// Older events store a corporation borrower as "[MBS]".
+function logTicker(value) {
+    return String(value || '').replace(/^\[(.*)\]$/, '$1');
+}
+
+// The viewer's own name at the start of a log line reads "You" ("Your"
+// for "Alex's ..."). Not in hotseat games, where the viewer changes each turn.
+function logViewerName() {
+    if (typeof isHotseatMode !== 'undefined' && isHotseatMode) return null;
+    return (typeof currentPlayerData !== 'undefined' && currentPlayerData?.name) || null;
+}
+
+function logSentenceForViewer(sentence, name = logViewerName()) {
+    if (!name || !sentence.startsWith(name)) return sentence;
+    const rest = sentence.slice(name.length);
+    if (rest.startsWith("'s ")) return `Your ${rest.slice(3)}`;
+    if (!rest.startsWith(' ')) return sentence;
+    return `You${rest}`
+        .replace(/^You has /, 'You have ')
+        .replace(/^You was /, 'You were ')
+        .replace(/^You is /, 'You are ');
+}
+
 // The sentence for an event as HTML, with dollar amounts in bold.
 function formatLogEventHtml(type, data) {
-    return escapeHtml(formatLogEvent(type, data))
+    return escapeHtml(logSentenceForViewer(formatLogEvent(type, data)))
         .replace(/\$\d[\d,]*(?:\.\d+)?/g, amount => `<strong class="log-amount">${amount}</strong>`);
 }
 
@@ -183,7 +216,7 @@ function renderGameLogHtml(events, filterKey, currentPlayerName) {
     groups.push(group);
 
     const html = groups.filter(item => item.rows.length).map(item => `
-        ${item.player ? `<div class="log-turn">${escapeHtml(item.player)}'s turn</div>` : ''}
+        ${item.player ? `<div class="log-turn">${escapeHtml(item.player === logViewerName() ? 'Your' : `${item.player}'s`)} turn</div>` : ''}
         ${item.rows.map(renderGameLogRow).join('')}
     `).join('');
     if (html) return html;
@@ -198,7 +231,7 @@ function renderGameLogRow(event) {
     return `<div class="log-entry log-cat-${category.key}">
         ${renderLogEventIcon(category)}
         <div class="log-body">
-            <span class="log-meta"><span class="log-tag">${escapeHtml(category.label)}</span> <span class="log-time">${escapeHtml(formatLogTimestamp(event.created_at))}</span></span>
+            <span class="log-meta"><span class="log-time">${escapeHtml(formatLogTimestamp(event.created_at))}</span></span>
             <span class="log-message">${formatLogEventHtml(event.event_type, event.event_data)}</span>
         </div>
     </div>`;
@@ -220,15 +253,15 @@ function formatLogEvent(type, data) {
             return `${data.actor} rejected ${data.proposer}'s rule change (${data.label} → ${formatRuleLogValue(data.rule, data.to)})`;
         case 'rule_change_withdrawn':
             return data.reason === 'bankrupt'
-                ? `${data.actor}'s proposal to change ${data.label} was dropped: they are bankrupt`
-                : `${data.actor} withdrew their proposal to change ${data.label}`;
+                ? `${data.actor}'s proposal to change ${data.label} was dropped after bankruptcy`
+                : `${data.actor} withdrew the proposal to change ${data.label}`;
         case 'rule_change_expired':
             return `The vote to change ${data.label} to ${formatRuleLogValue(data.rule, data.to)} expired`;
         case 'rule_change_passed':
             return `Rule change passed: ${data.label} ${formatRuleLogValue(data.rule, data.from)} → ${formatRuleLogValue(data.rule, data.to)} (proposed by ${data.proposer}, agreed by all)`;
         case 'property_purchase':
-            if (data.actor) return `${data.actor} bought ${data.property} for ${data.buyer} for $${Number(data.price).toFixed(2)}`;
-            return `${data.buyer} purchased ${data.property} for $${Number(data.price).toFixed(2)}`;
+            if (data.actor) return `${data.actor} bought ${data.property} for ${data.buyer} for ${logMoney(data.price)}`;
+            return `${data.buyer} purchased ${data.property} for ${logMoney(data.price)}`;
         case 'rent_policy_changed': {
             const label = data.policy === 'payout' ? 'Payout: rent goes to its shareholders' : 'Reinvest: rent stays in its treasury';
             return data.method === 'unanimous'
@@ -242,15 +275,15 @@ function formatLogEvent(type, data) {
         case 'rent_policy_vote_rejected':
             return `${data.actor} rejected switching ${data.ticker} to ${data.policy === 'payout' ? 'Payout' : 'Reinvest'}`;
         case 'dividend_paid':
-            return `${data.ticker} paid a $${Number(data.amount).toFixed(2)} dividend: ${formatPayouts(data.payouts)}`;
+            return `${data.ticker} paid a ${logMoney(data.amount)} dividend: ${formatPayouts(data.payouts)}`;
         case 'rent_distributed':
             return `${data.ticker} passed ${data.payer}'s rent to its shareholders: ${formatPayouts(data.payouts)}`;
         case 'property_offer_made':
-            return `${data.offerer} offered ${(data.properties || []).join(', ')} to ${data.ticker} for $${Number(data.price).toFixed(2)} in ${data.payWith === 'cash' ? 'treasury cash' : 'new shares'}`;
+            return `${data.offerer} offered ${(data.properties || []).join(', ')} to ${data.ticker} for ${logMoney(data.price)} in ${data.payWith === 'cash' ? 'treasury cash' : 'new shares'}`;
         case 'property_offer_countered':
-            return `${data.actor} countered: ${(data.properties || []).join(', ')} to ${data.ticker} for $${Number(data.price).toFixed(2)}`;
+            return `${data.actor} countered: ${(data.properties || []).join(', ')} to ${data.ticker} for ${logMoney(data.price)}`;
         case 'property_offer_accepted':
-            return `${data.ticker} took ${(data.properties || []).join(', ')} from ${data.offerer} for ${Number(data.newShares) > 0 ? `${ShareDeals.count(data.newShares)} new shares` : `$${Number(data.price).toFixed(2)}`}`;
+            return `${data.ticker} took ${(data.properties || []).join(', ')} from ${data.offerer} for ${Number(data.newShares) > 0 ? `${ShareDeals.count(data.newShares)} new shares` : `${logMoney(data.price)}`}`;
         case 'property_offer_closed':
             return `The offer of ${(data.properties || []).join(', ')} to ${data.ticker} was ${data.status === 'expired' ? 'left to expire' : data.status}`;
         case 'ipo_created':
@@ -267,7 +300,7 @@ function formatLogEvent(type, data) {
             if (founderShares > 0) parts.push(`${founderShares} from founder`);
             if (treasuryShares > 0) parts.push(`${treasuryShares} from treasury`);
             const source = parts.length ? ` (${parts.join(', ')})` : '';
-            return `${data.buyer} bought ${data.shares} share(s) of ${data.ticker}${source} for $${Number(data.totalCost).toFixed(2)}`;
+            return `${data.buyer} bought ${logCount(data.shares, 'share')} of ${data.ticker}${source} for ${logMoney(data.totalCost)}`;
         }
         case 'chairman_changed':
             if (data.method === 'bankruptcy') return `${data.ticker} chairman changed to ${data.chairman} after bankruptcy`;
@@ -279,29 +312,29 @@ function formatLogEvent(type, data) {
         case 'chairman_vote_supported':
             return `${data.supporter} supported ${data.candidate} for ${data.ticker} chairman`;
         case 'debt_issued':
-            return `${data.actor ? `${data.actor} borrowed for ${data.issuer}` : `${data.issuer} borrowed`} $${Number(data.amount).toFixed(2)}${data.termTurns ? ` over ${data.termTurns} turn${Number(data.termTurns) === 1 ? '' : 's'}` : ''} at ${data.interestRate}% per turn`;
+            return `${data.actor ? `${data.actor} borrowed ${logMoney(data.amount)} for ${logTicker(data.issuer)}` : `${data.issuer} borrowed ${logMoney(data.amount)}`}${data.termTurns ? ` over ${data.termTurns} turn${Number(data.termTurns) === 1 ? '' : 's'}` : ''} at ${data.interestRate}% per turn`;
         case 'debt_payment':
             return data.paidOff
-                ? `${data.payer} paid off a loan ($${Number(data.amount).toFixed(2)})`
-                : `${data.payer} paid $${Number(data.amount).toFixed(2)} towards a loan`;
+                ? `${data.payer} paid off a loan (${logMoney(data.amount)})`
+                : `${data.payer} paid ${logMoney(data.amount)} towards a loan`;
         case 'debt_refinanced':
-            return `${data.borrower} refinanced ${data.refinancedDebtCount} debt(s) into $${Number(data.amount).toFixed(2)}${data.termTurns ? ` over ${data.termTurns} turns` : ''} at ${data.interestRate}% per turn and ${Number(data.netProceeds || 0) < 0 ? `paid $${(-Number(data.netProceeds)).toFixed(2)} down from cash` : `received $${Number(data.netProceeds || 0).toFixed(2)} net cash`}`;
+            return `${data.borrower} refinanced ${logCount(data.refinancedDebtCount, 'loan')} into ${logMoney(data.amount)}${data.termTurns ? ` over ${data.termTurns} turns` : ''} at ${data.interestRate}% per turn and ${Number(data.netProceeds || 0) < 0 ? `paid ${logMoney(-Number(data.netProceeds))} down from cash` : `received ${logMoney(data.netProceeds || 0)} net cash`}`;
         case 'debt_autopay':
             if (typeof data.autopay === 'boolean') return `${data.borrower} turned autopay ${data.autopay ? 'on' : 'off'} for a loan`;
             return `${data.borrower} set autopay to ${LoanMath.autopayLabel(data.autopay).toLowerCase()} for a loan`;
         case 'loan_matured':
             return data.repaid
-                ? `${data.borrower} repaid a loan in full at maturity ($${Number(data.amount).toFixed(2)})`
-                : `${data.borrower} couldn't repay a $${Number(data.amount).toFixed(2)} loan that came due`;
+                ? `${data.borrower} repaid a loan in full at maturity (${logMoney(data.amount)})`
+                : `${data.borrower} couldn't repay a ${logMoney(data.amount)} loan that came due`;
         case 'interest_accrual':
             return data.paid !== undefined
-                ? `${data.player} paid $${Number(data.paid).toFixed(2)} on loans (interest this turn: $${Number(data.interestCharged).toFixed(2)})`
-                : `${data.player} was charged $${Number(data.interestCharged).toFixed(2)} in interest`;
+                ? `${data.player} paid ${logMoney(data.paid)} on loans (interest this turn: ${logMoney(data.interestCharged)})`
+                : `${data.player} was charged ${logMoney(data.interestCharged)} in interest`;
         case 'corporation_insolvent': {
             const propertyCount = Array.isArray(data.releasedProperties) ? data.releasedProperties.length : 0;
             const sharePositions = Array.isArray(data.wipedSharePositions) ? data.wipedSharePositions.length : 0;
             const debtCount = Array.isArray(data.clearedDebts) ? data.clearedDebts.length : 0;
-            return `${data.ticker} became insolvent; ${propertyCount} propert${propertyCount === 1 ? 'y' : 'ies'} returned to the Bank, ${sharePositions} shareholder position(s) wiped, ${debtCount} debt(s) cleared`;
+            return `${data.ticker} became insolvent; ${propertyCount} propert${propertyCount === 1 ? 'y' : 'ies'} returned to the Bank, ${logCount(sharePositions, 'shareholder position')} wiped, ${logCount(debtCount, 'loan')} cleared`;
         }
         case 'game_paused':
             return `${data.actor || 'Host'} paused the game${data.reason ? `: ${data.reason}` : ''}`;
@@ -309,20 +342,20 @@ function formatLogEvent(type, data) {
             return `${data.actor || 'Host'} resumed the game`;
         case 'forced_payment':
             if (Number(data.unpaidAmount || 0) > 0) {
-                return `${data.from} owed $${Number(data.amountOwed || 0).toFixed(2)} to ${data.to}${data.reason ? ` for ${data.reason}` : ''}; paid $${Number(data.amount || 0).toFixed(2)}, $${Number(data.unpaidAmount || 0).toFixed(2)} unpaid`;
+                return `${data.from} owed ${logMoney(data.amountOwed || 0)} to ${data.to}${data.reason ? ` for ${data.reason}` : ''}; paid ${logMoney(data.amount || 0)}, ${logMoney(data.unpaidAmount || 0)} unpaid`;
             }
             if (data.fullRent) {
-                return `${data.from} paid $${Number(data.amount).toFixed(2)} to ${data.to} for ${data.reason} (full rent $${Number(data.fullRent).toFixed(2)}, less their ${data.ownPercent}% stake)`;
+                return `${data.from} paid ${logMoney(data.amount)} to ${data.to} for ${data.reason} (full rent ${logMoney(data.fullRent)}, less the payer's ${data.ownPercent}% stake)`;
             }
-            return `${data.from} paid $${Number(data.amount).toFixed(2)} to ${data.to}${data.reason ? ` for ${data.reason}` : ''}`;
+            return `${data.from} paid ${logMoney(data.amount)} to ${data.to}${data.reason ? ` for ${data.reason}` : ''}`;
         case 'jail_fine_paid':
-            return `${data.player} paid $${Number(data.amount).toFixed(2)} to leave Jail`;
+            return `${data.player} paid ${logMoney(data.amount)} to leave Jail`;
         case 'jail_card_used':
             return `${data.player} used a Get Out of Jail Free card`;
         case 'tax_payment':
-            return `${data.from} paid $${Number(data.amount).toFixed(2)} to ${data.to}${data.reason ? ` for ${data.reason}` : ''}`;
+            return `${data.from} paid ${logMoney(data.amount)} to ${data.to}${data.reason ? ` for ${data.reason}` : ''}`;
         case 'bankruptcy_claim_payment':
-            return `${data.player} paid $${Number(data.amount).toFixed(2)} toward ${data.reason} owed to ${data.creditor}`;
+            return `${data.player} paid ${logMoney(data.amount)} toward ${data.reason} owed to ${data.creditor}`;
         case 'bankruptcy_claim_settled':
             return `${data.player} settled ${data.reason} owed to ${data.creditor}`;
         case 'bankruptcy':
@@ -332,10 +365,10 @@ function formatLogEvent(type, data) {
             const shares = (data.returnedSharePositions || []).reduce((sum, item) => sum + Number(item.shares || 0), 0);
             const transferredShares = (data.transferredSharePositions || []).reduce((sum, item) => sum + Number(item.shares || 0), 0);
             const destination = data.assetDestinationName || 'the Bank';
-            return `${data.player} liquidation: ${propertyCount} propert${propertyCount === 1 ? 'y' : 'ies'} to ${destination}, ${shares} share(s) returned, ${transferredShares} share(s) transferred`;
+            return `${data.player}'s liquidation: ${propertyCount} propert${propertyCount === 1 ? 'y' : 'ies'} to ${destination}, ${logCount(shares, 'share')} returned, ${logCount(transferredShares, 'share')} transferred`;
         }
         case 'turn_end':
-            return `${data.player} ended their turn — it's now ${data.nextPlayer}'s turn`;
+            return `${data.player} ended the turn — it's now ${data.nextPlayer}'s turn`;
         case 'trade_offer_proposed':
             return data.counterOfferId
                 ? `${data.proposer} countered ${data.recipient}'s trade offer`
@@ -349,28 +382,28 @@ function formatLogEvent(type, data) {
         case 'trade_offer_expired':
             return `${data.proposer}'s trade offer to ${data.recipient} expired`;
         case 'transaction':
-            return `Trade: ${data.player1} ↔ ${data.player2} ($${data.player1Cash} + ${data.player1Assets} assets ↔ $${data.player2Cash} + ${data.player2Assets} assets)`;
+            return `Trade: ${data.player1} ↔ ${data.player2} (${logMoney(data.player1Cash)} + ${data.player1Assets} assets ↔ ${logMoney(data.player2Cash)} + ${data.player2Assets} assets)`;
         case 'payment':
             if (Object.prototype.hasOwnProperty.call(data, 'newShares')) {
                 const shares = Number(data.newShares || 0);
-                return `${data.from} put $${Number(data.amount).toFixed(2)} into ${data.to}${shares ? ` for ${ShareDeals.count(shares)} new share${shares === 1 ? '' : 's'} (${data.to} now has ${ShareDeals.count(data.totalShares)})` : ''}`;
+                return `${data.from} put ${logMoney(data.amount)} into ${data.to}${shares ? ` for ${ShareDeals.count(shares)} new share${shares === 1 ? '' : 's'} (${data.to} now has ${ShareDeals.count(data.totalShares)})` : ''}`;
             }
-            return `${data.from} paid $${Number(data.amount).toFixed(2)} to ${data.to}`;
+            return `${data.from} paid ${logMoney(data.amount)} to ${data.to}`;
         case 'game_started':
             return 'Game started';
         case 'game_ended':
             return `Game over — ${data.reason}`;
         case 'house_purchase':
-            if (data.actor && data.actor !== data.player) return `${data.actor} built houses/hotels for ${data.player} for $${Number(data.cost).toFixed(2)} from its treasury`;
-            return `${data.player} bought houses/hotels for $${Number(data.cost).toFixed(2)}`;
+            if (data.actor && data.actor !== data.player) return `${data.actor} built houses/hotels for ${data.player} for ${logMoney(data.cost)} from its treasury`;
+            return `${data.player} bought houses/hotels for ${logMoney(data.cost)}`;
         case 'property_auction_started':
             return `${data.startedBy} started an auction for ${data.property}`;
         case 'property_auction_bid':
-            return `${data.bidder} bid $${Number(data.amount).toFixed(2)} for ${data.property}`;
+            return `${data.bidder} bid ${logMoney(data.amount)} for ${data.property}`;
         case 'property_auction_passed':
             return `${data.player} passed on ${data.property}`;
         case 'property_auction_won':
-            return `${data.winner} won ${data.property} at auction for $${Number(data.amount).toFixed(2)}${data.reason === 'timeout' ? ' after timeout' : ''}`;
+            return `${data.winner} won ${data.property} at auction for ${logMoney(data.amount)}${data.reason === 'timeout' ? ' after timeout' : ''}`;
         case 'property_auction_no_sale':
             return `Auction ended with no sale for ${data.property}${data.reason === 'timeout' ? ' after timeout' : ''}`;
         case 'property_auction_canceled':
@@ -382,14 +415,14 @@ function formatLogEvent(type, data) {
         case 'card_draw':
             return `${data.player} drew ${deckDisplayName(data.deckType)}: "${data.card}"${data.effect ? ` Applied: ${data.effect}.` : ''}`;
         case 'pass_go':
-            return `${data.player} passed GO — collected $${data.amount}`;
+            return `${data.player} passed GO — collected ${logMoney(data.amount)}`;
         default:
             return `${type}: ${JSON.stringify(data)}`;
     }
 }
 
 function formatPayouts(payouts) {
-    return (payouts || []).map(p => `$${Number(p.amount).toFixed(2)} to ${p.name}`).join(', ');
+    return (payouts || []).map(p => `${logMoney(p.amount)} to ${p.name}`).join(', ');
 }
 
 function formatLogTimestamp(value) {

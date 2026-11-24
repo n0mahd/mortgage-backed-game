@@ -66,7 +66,7 @@ test('hostile player names render as text in tooltips and the recent log', async
     const buy = page.locator('#game .action-btn-buy');
     await expect(buy).toBeDisabled();
     await expect(buy).toHaveAttribute('title', `Owned by ${HOSTILE}.`);
-    await expect(page.locator('.recent-log')).toContainText(`Alice paid $5.00 to ${HOSTILE}`);
+    await expect(page.locator('.recent-log')).toContainText(`You paid $5 to ${HOSTILE}`);
 
     expect(await page.locator('#gameContent [onmouseover], #gameContent img[onerror]').count()).toBe(0);
     await buy.hover({ force: true });

@@ -241,7 +241,7 @@ test("refinance a corporation's loans down to a smaller one", async ({ page, req
     await page.check('#refinance-debt-0');
     await page.check('#refinance-debt-1');
     // The amount starts at the selected balance: the same loans on a new term.
-    await expect(page.locator('#refinanceAmount')).toHaveValue('250.00');
+    await expect(page.locator('#refinanceAmount')).toHaveValue('250');
     await expect(page.locator('#refinanceSummary')).toContainText('Same balance on a new term');
     await page.fill('#refinanceAmount', '100');
     await expect(page.locator('#refinanceSummary')).toContainText("$150 is paid down from LOAN's cash");
@@ -290,7 +290,7 @@ test('the Debt sheet shows a company loan coming due and fixes it from there', a
     // Borrow: the form opens for DUE with the shortfall filled in, and the preview shows it gets through.
     await card.getByRole('button', { name: 'Borrow $71' }).click();
     await expect(page.locator('#debtIssuer')).toHaveValue('corporation:corp-due');
-    await expect(page.locator('#loanAmount')).toHaveValue('71.00');
+    await expect(page.locator('#loanAmount')).toHaveValue('71');
     await expect(page.locator('#loanShortfallHint')).toContainText('DUE is $71 short at End Turn');
     await expect(page.locator('#loanLimit')).toContainText('You can borrow up to $40');
     await expect(page.locator('#loanPreview')).toContainText('DUE cash $244 → $315');
@@ -308,7 +308,7 @@ test('the Debt sheet shows a company loan coming due and fixes it from there', a
     await expect(page.locator('#debtsToRefinance input[data-debt-id="debt-due"]')).toBeChecked();
     await expect(page.locator('#debtsToRefinance input[data-debt-id="debt-later"]')).not.toBeChecked();
     await expect(page.locator('#debtsToRefinance')).toContainText('due this turn');
-    await expect(page.locator('#refinanceAmount')).toHaveValue('300.00');
+    await expect(page.locator('#refinanceAmount')).toHaveValue('300');
     // 10 turns at 5% with autopay: $38.85 a turn, so $205.15 is left after End Turn.
     await expect(page.locator('#refinancePreview')).toContainText('Taken at End Turn $315 → $38.85');
     await expect(page.locator('#refinancePreview')).toContainText('Cash after End Turn $205.15 ✓');

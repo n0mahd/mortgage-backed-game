@@ -180,24 +180,27 @@
 
     // ---- Shared pieces ----
 
-    function ownersBar(rows) {
-        const total = rows.reduce((sum, row) => sum + row.shares, 0);
+    // Percentages are of every share the company has (total), as on the
+    // Corporations sheet; shares in its own treasury get a row of their own.
+    function ownersBar(rows, total) {
         const segments = rows.filter(row => row.shares > 0 && total > 0).map(row =>
             `<span style="--owner-color:${esc(global.getPlayerColor(playerById(row.userId)))};--owner-share:${((row.shares / total) * 100).toFixed(2)}%"></span>`).join('');
         return `<div class="corp-owners-bar" aria-hidden="true">${segments}</div>`;
     }
 
-    function ownersList(rows) {
-        const total = rows.reduce((sum, row) => sum + row.shares, 0);
+    function ownersList(rows, total, treasury) {
+        const pct = shares => formatPercent(total > 0 ? (shares / total) * 100 : 0);
         return `<ul class="corp-owner-list">${rows.map(row => `
             <li class="corp-owner-row">
                 <span><i class="corp-owner-dot" style="--owner-color:${esc(global.getPlayerColor(playerById(row.userId)))}"></i>${esc(row.label || nameFor(row.userId, row.name))}</span>
-                <span>${formatPercent(total > 0 ? (row.shares / total) * 100 : 0)}</span>
-            </li>`).join('')}</ul>`;
+                <span>${pct(row.shares)}</span>
+            </li>`).join('')}${treasury > 0 ? `
+            <li class="corp-owner-row"><span>Treasury</span><span>${pct(treasury)}</span></li>` : ''}</ul>`;
     }
 
-    function owners(rows) {
-        return `${ownersBar(rows)}${ownersList(rows)}`;
+    function owners(rows, total, treasury = 0) {
+        const all = Number(total) > 0 ? Number(total) : rows.reduce((sum, row) => sum + row.shares, 0);
+        return `${ownersBar(rows, all)}${ownersList(rows, all, Number(treasury || 0))}`;
     }
 
     function afterOwners(q, acquirer) {
@@ -457,12 +460,10 @@
         result.innerHTML = `
             <h4>After the merger</h4>
             <table class="share-deal-table">
-                <tr><td>${esc(acquirer.ticker)} today</td><td>${money(q.acquirerValue)}</td></tr>
-                <tr><td>+ ${esc(target.ticker)} today</td><td>${money(q.targetValue)}</td></tr>
                 ${q.cash > 0 ? `<tr><td>− Cash paid to ${esc(target.ticker)}'s owners</td><td>${money(q.cash)}</td></tr>` : ''}
                 <tr><td><b>Merged ${esc(mergedTicker)} is worth</b></td><td>${money(q.mergedValue)}<small>${count(q.totalSharesAfter)} shares at ${global.ShareDeals.perShare(q.shareValueAfter)}</small></td></tr>
             </table>
-            ${owners(afterOwners(q, acquirer))}
+            ${owners(afterOwners(q, acquirer), q.totalSharesAfter, acquirer.treasuryShares)}
             <h4>What each player ends up with</h4>
             ${playersTable(q, target.ticker, mergedTicker)}
             ${errors.map(error => `<p class="share-deal-warning">${esc(error)}</p>`).join('')}
@@ -488,12 +489,11 @@
                 <div class="corp-stat"><span class="stat-label">${esc(acquirer.ticker)} is worth</span><span class="corp-stat-value">${money(nav(acquirer))}</span></div>
                 <div class="corp-stat"><span class="stat-label">${esc(target.ticker)} is worth</span><span class="corp-stat-value">${money(nav(target))}</span></div>
             </div>
-            <p class="corp-hint">Worth = properties + cash − loans</p>
-            <p class="corp-hint"><b>${esc(acquirer.ticker)}</b>: ${count(acquirer.totalShares)} shares</p>
-            ${owners(activeHolders(acquirer))}
-            <p class="corp-hint"><b>${esc(target.ticker)}</b>: ${count(target.totalShares)} shares</p>
-            ${owners(activeHolders(target))}
-            ${holdsTreasury ? `<p class="corp-hint">${count(target.treasuryShares)} ${esc(target.ticker)} shares sit in its own treasury. They get nothing, so its owners' shares are worth ${money(ownersValueOf(target))}.</p>` : ''}
+            <p class="corp-hint"><b>${esc(acquirer.ticker)}</b></p>
+            ${owners(activeHolders(acquirer), acquirer.totalShares, acquirer.treasuryShares)}
+            <p class="corp-hint"><b>${esc(target.ticker)}</b></p>
+            ${owners(activeHolders(target), target.totalShares, target.treasuryShares)}
+            ${holdsTreasury ? `<p class="corp-hint">${esc(target.ticker)}'s treasury shares get nothing, so its owners' shares are worth ${money(ownersValueOf(target))}.</p>` : ''}
         `;
         if (box && box.dataset.html !== html) {
             box.innerHTML = html;
@@ -639,7 +639,7 @@
                     ${proposal.ticker ? `<tr><td>New ticker</td><td>${esc(proposal.ticker)}<small>${esc(acquirer.ticker)} is renamed</small></td></tr>` : ''}
                 </table>
                 <h4>Who owns the merged ${esc(mergedTicker)}</h4>
-                ${owners(afterOwners(q, acquirer))}
+                ${owners(afterOwners(q, acquirer), q.totalSharesAfter, acquirer.treasuryShares)}
                 ${isTargetChair ? `<p class="share-deal-warning">${esc(target.ticker)} closes and you stop being its chairman.</p>` : ''}
                 <h4>Votes</h4>
                 <p class="corp-hint">${esc(votes || 'Nobody votes.')}. It goes through the moment yes votes reach ${count(t.neededShares)}.${esc(excluded)}</p>

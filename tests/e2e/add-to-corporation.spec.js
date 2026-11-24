@@ -93,7 +93,7 @@ test('the chairman adds a property to their LLC for new shares', async ({ browse
     await expect(preview).toContainText('You put Illinois Ave into MBS and get 2 new shares.');
     await expect(preview).toContainText('$1,200 → $1,440');
     await expect(preview).toContainText('7 of 10 → 9 of 12 (75%)');
-    await expect(preview).toContainText('Your net worth$0');
+    await expect(preview).toContainText('Your net worthNo change');
 
     // A gift instead: Alex's 3 shares gain $72.
     await sam.page.check('#addToCorpShares input[value="gift"]');

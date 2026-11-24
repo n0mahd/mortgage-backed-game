@@ -195,7 +195,7 @@ test('a player offers a property, the chairman counters and the offerer accepts'
     const preview = alex.page.locator('#propertyOfferPreview');
     // Book value $240 at $0.1125 a share: 2,133.3, so 2,133 new shares (nearest share).
     await expect(preview).toContainText('You give MBS Illinois Avenue for 2,133 new MBS shares.');
-    await expect(preview).toContainText('Your net worth$0');
+    await expect(preview).toContainText('Your net worthNo change');
 
     await alex.page.check('input[name="propertyOfferBasis"][value="set"]');
     await alex.page.fill('#propertyOfferPriceInput', '300');
@@ -221,12 +221,12 @@ test('a player offers a property, the chairman counters and the offerer accepts'
     await expect(offerCard.locator('.trade-offer-sides')).toContainText('2,667 new shares');
     // MBS: $1,350 + $240 over 14,667 shares; Sam's 6,000 go from $675 to $650.
     await expect(offerCard.locator('.offer-verdict')).toContainText('Alex is asking $60 more than Illinois Avenue is worth. Accepting costs you $25');
-    await expect(offerCard.locator('.share-deal-table')).toContainText('Your net worth−$25');
+    await expect(offerCard).not.toContainText('Your net worth');
     await expect(offerCard.locator('.offer-counter')).toBeHidden();
     await offerCard.locator('[data-game-action="toggle-property-counter"]').click();
     await expect(offerCard.locator('.offer-counter')).toBeVisible();
     await offerCard.locator('[data-game-action="fill-property-counter"]').click();
-    await expect(offerCard.locator('.offer-counter-result')).toContainText('Alex would get 2,133 new shares. For you: $0');
+    await expect(offerCard.locator('.offer-counter-result')).toContainText('Alex would get 2,133 new shares. For you: no change');
     await offerCard.locator('.offer-counter-input').fill('260');
     await expect(offerCard.locator('[data-response="counter"]')).toHaveText('Send counter at $260');
     await offerCard.locator('[data-response="counter"]').click();

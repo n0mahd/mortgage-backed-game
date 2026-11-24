@@ -72,6 +72,13 @@
         return `${rounded > 0 ? '+' : '−'}${money(rounded)}`;
     }
 
+    // The viewer's net worth change as a preview row: "+$40", "−$25", or
+    // "No change" (a bare "$0" reads like a balance).
+    function netWorthRow(change) {
+        const rounded = Math.round(Number(change || 0));
+        return { label: 'Your net worth', value: rounded === 0 ? 'No change' : signedMoney(rounded), tone: rounded > 0 ? 'up' : (rounded < 0 ? 'down' : '') };
+    }
+
     function list(items) {
         if (items.length <= 1) return items.join('');
         return `${items.slice(0, -1).join(', ')} and ${items[items.length - 1]}`;
@@ -205,7 +212,7 @@
                     });
                 }
             });
-            if (corps.size) rows.push({ label: 'Your net worth', value: signedMoney(netChange), tone: Math.round(netChange) > 0 ? 'up' : (Math.round(netChange) < 0 ? 'down' : '') });
+            if (corps.size) rows.push(netWorthRow(netChange));
         }
 
         // Control: anyone who ends up with over half can replace the chairman.
@@ -294,7 +301,7 @@
                 label: `Your ${corp.ticker} shares`,
                 value: `${count(mine)} of ${count(total)} → ${count(mine + newShares)} of ${count(total + newShares)} (${percent(mine + newShares, total + newShares)})`,
             },
-            { label: 'Your net worth', value: signedMoney(netChange), tone: Math.round(netChange) > 0 ? 'up' : (Math.round(netChange) < 0 ? 'down' : '') },
+            netWorthRow(netChange),
         ];
         const warnings = [];
         if (Math.round(netChange) < 0) {
@@ -331,7 +338,7 @@
         if (Math.round(quote.price) !== Math.round(quote.value)) {
             rows.push({ label: 'Book value', value: `${money(quote.value)} (price ${quote.price > quote.value ? '+' : '−'}${money(Math.abs(quote.price - quote.value))})` });
         }
-        if (newShares > 0) rows.push({ label: 'Value per share', value: `${perShare(perShareBefore)} → ${perShare(perShareAfter)}` });
+        if (newShares > 0 && perShare(perShareBefore) !== perShare(perShareAfter)) rows.push({ label: 'Value per share', value: `${perShare(perShareBefore)} → ${perShare(perShareAfter)}` });
         const holders = new Map((corp.shareholders || []).map(item => [item.userId, Number(item.shares || 0)]));
         if (!holders.has(offererId)) holders.set(offererId, 0);
         const warnings = [];
@@ -352,7 +359,7 @@
                 rows.push({ label: who(userId), value: `${percent(before, total)} → ${percent(after, totalAfter)}` });
             }
             if (userId === viewerId) {
-                rows.push({ label: 'Your net worth', value: signedMoney(change), tone: Math.round(change) > 0 ? 'up' : (Math.round(change) < 0 ? 'down' : '') });
+                rows.push(netWorthRow(change));
             }
             if (after > totalAfter / 2 && before <= total / 2 && userId !== corp.chairmanId) {
                 warnings.push(`${who(userId)} will own over half of ${corp.ticker} and ${userId === viewerId ? 'can' : 'could'} replace the chairman.`);
@@ -404,7 +411,7 @@
         if (newShares > 0) {
             sentences.push(`${corp.ticker} issues ${count(newShares)} new share${newShares === 1 ? '' : 's'} to ${receiverName === 'You' ? 'you' : receiverName}.`);
             rows.push({ label: `${corp.ticker} value`, value: `${money(nav)} → ${money(navAfter)}` });
-            rows.push({ label: 'Value per share', value: `${perShare(perShareBefore)} → ${perShare(perShareAfter)}` });
+            if (perShare(perShareBefore) !== perShare(perShareAfter)) rows.push({ label: 'Value per share', value: `${perShare(perShareBefore)} → ${perShare(perShareAfter)}` });
             rows.push({
                 label: receiverName === 'You' ? `Your ${corp.ticker} shares` : `${receiverName}'s ${corp.ticker} shares`,
                 value: `${count(receiverBefore)} of ${count(total)} → ${count(receiverAfter)} of ${count(totalAfter)} (${percent(receiverAfter, totalAfter)})`,
@@ -417,7 +424,7 @@
                 change = held * (perShareAfter - perShareBefore);
             }
             if (change !== null) {
-                rows.push({ label: 'Your net worth', value: signedMoney(change), tone: Math.round(change) > 0 ? 'up' : (Math.round(change) < 0 ? 'down' : '') });
+                rows.push(netWorthRow(change));
             }
             if (fairShares !== null && newShares !== fairShares) {
                 const shift = Math.abs(newShares - fairShares) * perShareAfter;

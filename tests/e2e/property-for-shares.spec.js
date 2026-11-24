@@ -91,7 +91,7 @@ test('a player trades a property into an LLC for its shares', async ({ browser, 
     await expect(preview).toContainText('An even trade is 3 of 12 MBS shares (25%)');
     await alex.page.click('[data-game-action="use-even-shares"]');
     await expect(shareInput).toHaveValue('3');
-    await expect(preview).toContainText('Your net worth$0');
+    await expect(preview).toContainText('Your net worthNo change');
 
     await alex.page.click('#executeTradeBtn');
     await expect(alex.page.locator('#market-status')).toContainText('Trade proposal sent');

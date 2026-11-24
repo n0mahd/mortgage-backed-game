@@ -619,7 +619,7 @@ function useEvenShares() {
     updateMarketActionState();
 }
 
-// Market panes: New trade, Send money, Trade proposals, Rule proposals, Past transactions.
+// Market panes: New trade, Send money, Trade proposals, Rule proposals, Past trades.
 const MARKET_PANES = ['trade', 'payment', 'proposals', 'rules', 'history'];
 let marketPane = null;
 
@@ -1090,7 +1090,8 @@ function tradeAssetName(assetId) {
 function tradeSharesName(lot) {
     const corp = currentGame?.game_state?.corporations?.find(item => item.id === lot.corpId);
     const shares = Number(lot.shares || 0);
-    return `${shares} ${corp ? corp.ticker : 'LLC'} share${shares === 1 ? '' : 's'}`;
+    const pct = corp && Number(corp.totalShares) > 0 ? ` (${ShareDeals.percent(shares, corp.totalShares)})` : '';
+    return `${ShareDeals.count(shares)} ${corp ? corp.ticker : 'LLC'} share${shares === 1 ? '' : 's'}${pct}`;
 }
 
 function formatTradeOfferAge(createdAt) {

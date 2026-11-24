@@ -45,8 +45,8 @@ test('the even trade counts the shares the giver already holds', () => {
     // 2,000 x (12,000 - 3,000) / 12,000 = 1,500, not 2,000 x 12,000 / 12,000.
     const even = ShareDeals.summarize(gameState, terms(1), 'lee', options).evenShares;
     expect(even).toEqual({ ticker: 'MBS', shares: 1500, total: 12000 });
-    expect(netWorth('lee', 1500)).toBe('$0');
-    expect(netWorth('priya', 1500)).toBe('$0');
+    expect(netWorth('lee', 1500)).toBe('No change');
+    expect(netWorth('priya', 1500)).toBe('No change');
 });
 
 test('the even trade shows before a share count is typed', () => {
@@ -66,8 +66,8 @@ describe('a company paying with new shares', () => {
     test('fair is the value in at today\'s value per share, and leaves everyone level', () => {
         // $2,000 x 12,000 / $10,000.
         expect(issue(0, 'lee').fairShares).toBe(2400);
-        expect(row(issue(2400, 'lee'), 'Your net worth')).toBe('$0');
-        expect(row(issue(2400, 'priya'), 'Your net worth')).toBe('$0');
+        expect(row(issue(2400, 'lee'), 'Your net worth')).toBe('No change');
+        expect(row(issue(2400, 'priya'), 'Your net worth')).toBe('No change');
         expect(issue(2400, 'lee').warnings).toEqual([]);
     });
 
