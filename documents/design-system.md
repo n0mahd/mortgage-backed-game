@@ -134,8 +134,9 @@ sheet is still open.
 
 **Turn alerts offer** (`#turnAlertsPrompt`, `maybeShowTurnAlertsPrompt` in `device-alerts.js`). A mint
 card at the top of the Game tab, once per device, for players whose alerts are off or who are on iPhone
-Safari: a bold title ("Know when it's your turn") and Turn on alerts beside Not now. On iPhone Safari one
-line says alerts need the Home Screen first, and the button is Set up alerts, which opens the sheet. Either button, or turning alerts on
+Safari: a bold title ("Know when it's your turn"), one line ("Alerts when the app is running in the
+background"), and Turn on alerts beside Not now. On iPhone Safari the button is Set up alerts, which
+opens the sheet with the Home Screen steps. Either button, or turning alerts on
 from the bell, retires it for good on that device (`localStorage` `turn_alerts_prompt_done`). Never shown
 in hotseat games, to a watching host, after the game ends, or where notifications are blocked.
 

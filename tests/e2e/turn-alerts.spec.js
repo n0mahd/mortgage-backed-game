@@ -170,7 +170,6 @@ test.describe('Turn alerts', () => {
         const safari = await iphone(browser);
         const page = await signedInGame(safari, room, alice.token);
         const prompt = page.locator('#turnAlertsPrompt');
-        await expect(prompt).toContainText('Home Screen');
         await prompt.getByRole('button', { name: 'Set up alerts' }).click();
         await expect(prompt).toBeHidden();
         await expect(page.locator('#turnAlertsModal')).toHaveClass(/active/);
