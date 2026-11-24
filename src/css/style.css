@@ -4518,12 +4518,13 @@ button.policy-option:active:not(:disabled) { background: var(--mint-wash); }
 }
 
 .turn-alerts-prompt-text {
-    margin: var(--s1) 0 var(--s3);
+    margin: var(--s1) 0 0;
     font-size: var(--text-footnote);
     line-height: 1.45;
 }
 
 .turn-alerts-prompt-actions {
+    margin-top: var(--s3);
     display: flex;
     flex-wrap: wrap;
     gap: var(--s2);

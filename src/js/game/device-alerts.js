@@ -169,13 +169,13 @@ async function maybeShowTurnAlertsPrompt() {
     if (turnAlertsPromptDone()) return;
     const state = await TurnNotifications.status().catch(() => 'unavailable');
     const copy = {
-        off: ["Turn on alerts and this device will buzz when it's your turn, even with the game closed.", 'Turn on alerts'],
-        'needs-home-screen': ["Get a buzz when it's your turn, even with the game closed. On iPhone, that needs the game on your Home Screen first.", 'Set up alerts'],
+        off: ['', 'Turn on alerts'],
+        'needs-home-screen': ['On iPhone, alerts need the game on your Home Screen first.', 'Set up alerts'],
     }[state];
     if (!copy) return;
     const prompt = document.getElementById('turnAlertsPrompt');
     prompt.dataset.state = state;
-    document.getElementById('turnAlertsPromptText').textContent = copy[0];
+    setText('turnAlertsPromptText', copy[0]);
     document.getElementById('turnAlertsPromptYes').textContent = copy[1];
     prompt.hidden = false;
 }
