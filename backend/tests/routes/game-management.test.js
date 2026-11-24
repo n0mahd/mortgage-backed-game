@@ -134,7 +134,7 @@ describe('seat links', () => {
         expect(me.body.id).toBe(g.id);
 
         const again = await request(app).post('/api/seat-links/redeem').send({ token }).expect(400);
-        expect(again.body.error).toBe('This link has expired or was replaced');
+        expect(again.body.error).toBe('This link has expired or was replaced. Ask the host for a new one.');
     });
 
     test('a new link replaces the older one', async () => {

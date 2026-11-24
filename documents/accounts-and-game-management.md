@@ -85,7 +85,7 @@ All JSON. Errors are `{ error }` with a 4xx status (`RoomError`).
   - guest seat: `{ token, user, room }` (link now used);
   - account seat, caller already signed in as it: `{ room }`;
   - account seat otherwise: `{ requires_sign_in: true, room: { id, name } }`.
-  400 `This link has expired or was replaced` for unknown, used, revoked or expired links.
+  400 `This link has expired or was replaced. Ask the host for a new one.` for unknown, used, revoked or expired links.
 - `GET /api/host-transfers/mine` → `[{ id, room_id, room_name, from_player_name, created_at }]`.
 - `POST /api/host-transfers/:id/accept` → `{ room }`; 403 with `code: 'account_required'` if the
   caller is a guest. `POST /api/host-transfers/:id/decline` → `{ ok: true }`.
@@ -99,7 +99,8 @@ All JSON. Errors are `{ error }` with a 4xx status (`RoomError`).
   email code (kept). Honors `?next=<same-origin path>` after sign-in.
 - `lobby.html` (My games): Active and Archived lists, Archive/Unarchive per game, pending host
   offers at the top (Accept, Decline; a guest is asked to create an account first), a banner
-  inviting guests to create an account, and for hosts a Manage sheet: per player "Copy link", per
+  inviting guests to create an account, a confirmation before a guest logs out (their games are
+  lost), the account's name in the app bar, and for hosts a Manage sheet: per player "Copy link", per
   agent "New key", "Make host", and cancel a pending offer. The page and an open Manage sheet stay
   live: room events (`room:member_change`, `room:status_change`, `room:host_transfer`) and every
   socket rejoin resync them, and so does the page being shown again, the network coming back and a

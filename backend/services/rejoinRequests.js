@@ -7,7 +7,8 @@
 // - the seat's own player (moving devices), or the host;
 // - if the seat is the host's, any other player in the room;
 // - a whole-room (hotseat) request needs the host.
-// Email seats are never handed out this way: those players sign in with email.
+// Account seats (username/password or email) are never handed out this way:
+// those players sign in.
 // Nor are AI agent seats: only the seat's agent key plays them
 // (services/agentSeats.js), so a token for one would bypass the host's invite.
 
@@ -26,6 +27,12 @@ function isClosedToNewMembers(room, members) {
 
 function isAnonymousUser(userId) {
     return !!db.prepare(`SELECT 1 FROM users WHERE id = ? AND is_anonymous = 1`).get(userId);
+}
+
+// A same-device (hotseat) game: every seat is a guest and none is an agent,
+// so the whole room can be asked for at once.
+function isWholeRoomRejoinable(members) {
+    return members.length > 0 && members.every(member => !member.is_agent && isAnonymousUser(member.user_id));
 }
 
 function getLiveRequest(requestId) {
@@ -63,9 +70,9 @@ function createRejoinRequest({ inviteCode, memberId }) {
         if (!member) throw new RoomError(404, 'Player not found in this room');
         if (member.is_agent) throw new RoomError(403, 'AI player seats are played only by their agent. The host can invite a new agent.');
         if (!isAnonymousUser(member.user_id)) {
-            throw new RoomError(403, 'This player signed in with email. Sign in with that email to continue.');
+            throw new RoomError(403, `${member.player_name || 'This player'} has an account. Sign in to continue.`);
         }
-    } else if (!members.every(member => isAnonymousUser(member.user_id) && !member.is_agent)) {
+    } else if (!isWholeRoomRejoinable(members)) {
         throw new RoomError(403, 'Only same-device games can be resumed this way. Sign in to continue.');
     }
 
@@ -184,6 +191,7 @@ function cancelRejoinRequest({ requestId, secret }) {
 }
 
 module.exports = {
+    isWholeRoomRejoinable,
     createRejoinRequest,
     listApprovableRequests,
     decideRejoinRequest,

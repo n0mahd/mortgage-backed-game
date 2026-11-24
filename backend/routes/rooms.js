@@ -21,6 +21,7 @@ const {
     canViewRoom,
 } = require('../services/rooms');
 const {
+    isWholeRoomRejoinable,
     createRejoinRequest,
     listApprovableRequests,
     decideRejoinRequest,
@@ -53,11 +54,14 @@ router.post('/', requireAuth, roomCreateRateLimit, (req, res) => {
     res.json(createRoom({ hostUserId: req.userId, name, maxPlayers: max_players, playerName: player_name, spectate: spectate === true }));
 });
 
-// GET /api/rooms/by-code/:code — find room by invite code
+// GET /api/rooms/by-code/:code — find room by invite code, with
+// whole_room_rejoin (true for a same-device game)
 router.get('/by-code/:code', (req, res) => {
     const room = getRoomByInviteCode(req.params.code);
     if (!room) return res.status(404).json({ error: 'Room not found' });
-    res.json(getRoomWithMembers(room.id));
+    const withMembers = getRoomWithMembers(room.id);
+    // Whether "Everyone on this phone" can ask for every seat (a hotseat game).
+    res.json({ ...withMembers, whole_room_rejoin: isWholeRoomRejoinable(withMembers.room_members) });
 });
 
 // Rejoining a started room after losing your token: see

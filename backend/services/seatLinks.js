@@ -16,7 +16,7 @@ const { sha256Hex, toSqliteDate } = require('../helpers');
 const { RoomError, getRoomWithMembers, requireRoomHost } = require('./rooms');
 
 const LINK_TTL_MS = 7 * 24 * 60 * 60 * 1000;
-const LINK_INVALID = 'This link has expired or was replaced';
+const LINK_INVALID = 'This link has expired or was replaced. Ask the host for a new one.';
 
 // Returns { token, expiresAt } for a non-agent member of the host's room.
 function createSeatLink({ roomId, memberId, hostUserId }) {
