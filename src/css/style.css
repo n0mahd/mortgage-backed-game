@@ -4541,6 +4541,60 @@ button.policy-option:active:not(:disabled) { background: var(--mint-wash); }
     line-height: 1.45;
 }
 
+/* What this device needs for alerts, as numbered steps. */
+.turn-alerts-steps {
+    margin: 0 0 var(--s3);
+    padding: 0;
+    list-style: none;
+}
+
+.turn-alerts-steps[hidden] { display: none; }
+
+.turn-alerts-steps li {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--s3);
+    padding: var(--s2) 0;
+}
+
+.turn-alerts-steps li + li { border-top: 1px solid var(--rule); }
+
+.turn-alerts-step-mark {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    width: 26px;
+    height: 26px;
+    border-radius: 50%;
+    background: var(--mint-wash);
+    color: var(--forest);
+    font-size: var(--text-footnote);
+    font-weight: 700;
+}
+
+.turn-alerts-steps li.is-done .turn-alerts-step-mark {
+    background: var(--emerald);
+    color: var(--paper);
+}
+
+.turn-alerts-steps li.is-done strong { color: var(--ink-2); }
+
+.turn-alerts-steps strong {
+    display: block;
+    font-size: var(--text-sub);
+    font-weight: 600;
+    color: var(--ink);
+    line-height: 26px;
+}
+
+.turn-alerts-steps small {
+    display: block;
+    font-size: var(--text-footnote);
+    color: var(--ink-2);
+    line-height: 1.4;
+}
+
 .turn-alerts-status {
     margin: 0;
     font-size: var(--text-footnote);

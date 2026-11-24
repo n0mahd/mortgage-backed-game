@@ -122,21 +122,26 @@ keeps its room. A fourth control goes in a sheet, not the bar.
 
 **Turn alerts sheet** (`#turnAlertsModal`, rendered by `renderTurnAlerts` in `game.js`). A standard sheet
 whose copy depends on the device (`TurnNotifications.status()`):
-- iPhone Safari: `.modal-hint` says alerts need the game on the Home Screen, and `.turn-alerts-note`
-  (a quiet note surface) says it's a shortcut to the site, not an App Store app. Actions: Add to Home
-  Screen (primary), Not now.
-- Off: Turn on alerts (primary), Not now.
+- Under the hint, `.turn-alerts-steps` lists what this device still needs, numbered (a mint circle;
+  emerald with a tick once done), each a bold line with an optional footnote.
+- iPhone Safari: `.modal-hint` says alerts need the game on the Home Screen; steps: add it, open it
+  from the Home Screen, turn on alerts there and tap Allow. `.turn-alerts-note` (a quiet note
+  surface) says it's a shortcut to the site, not an App Store app. Actions: Add to Home Screen
+  (primary), Not now.
+- Off: steps Tap Turn on alerts below, Tap Allow (in the Home Screen app, a ticked "On your Home
+  Screen" first). Actions: Turn on alerts (primary), Not now.
 - On: Send a test alert, Turn off alerts, Done, all secondary: nothing urgent is left to do.
-- Blocked or unsupported: one sentence on where to fix it (iPhone Settings or the browser's site
-  settings), and Done.
+- Blocked in the Home Screen app: steps through iPhone Settings (Notifications, Mortgage Backed,
+  Allow Notifications, come back to the bell). Blocked in a browser, or unsupported: one sentence on
+  where to fix it, and Done.
 Results of an action show in `.turn-alerts-status` (emerald, footnote) rather than a toast, because the
 sheet is still open.
 
 **Turn alerts offer** (`#turnAlertsPrompt`, `maybeShowTurnAlertsPrompt` in `device-alerts.js`). A mint
 card at the top of the Game tab, once per device, for players whose alerts are off or who are on iPhone
 Safari: a bold title ("Know when it's your turn"), one line ("Alerts when the app is running in the
-background"), and Turn on alerts beside Not now. On iPhone Safari the button is Set up alerts, which
-opens the sheet with the Home Screen steps. Either button, or turning alerts on
+background"), and Turn on alerts beside Not now. Turn on alerts opens the Turn alerts sheet, whose
+steps say what this device needs (Home Screen first on iPhone Safari). Either button, or turning alerts on
 from the bell, retires it for good on that device (`localStorage` `turn_alerts_prompt_done`). Never shown
 in hotseat games, to a watching host, after the game ends, or where notifications are blocked.
 

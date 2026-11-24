@@ -145,7 +145,7 @@ test.describe('Turn alerts', () => {
         await context.close();
     });
 
-    test('the Game tab offers alerts once, and Not now keeps it away', async ({ browser, request }) => {
+    test('the Game tab offers alerts once, and Turn on alerts shows the steps', async ({ browser, request }) => {
         const { room, alice } = await setupGame(request);
         const context = await browser.newContext();
         await context.addInitScript(() => {
@@ -156,8 +156,12 @@ test.describe('Turn alerts', () => {
         await expect(prompt).toBeVisible();
         await expect(prompt).toContainText("Know when it's your turn");
         await expect(prompt.getByRole('button', { name: 'Turn on alerts' })).toBeVisible();
-        await prompt.getByRole('button', { name: 'Not now' }).click();
+        await prompt.getByRole('button', { name: 'Turn on alerts' }).click();
         await expect(prompt).toBeHidden();
+        const sheet = page.locator('#turnAlertsModal');
+        await expect(sheet).toHaveClass(/active/);
+        await expect(sheet.locator('#turnAlertsSteps li')).toHaveText([/Tap Turn on alerts below/, /Tap Allow/]);
+        await sheet.getByRole('button', { name: 'Not now' }).click();
 
         await page.reload();
         await expect(page.locator('.player-card.current-user')).toContainText('Alice');
@@ -165,16 +169,48 @@ test.describe('Turn alerts', () => {
         await context.close();
     });
 
-    test('on iPhone Safari the offer leads to the Home Screen steps', async ({ browser, request }) => {
+    test('on iPhone Safari, Turn on alerts lists the Home Screen steps', async ({ browser, request }) => {
         const { room, alice } = await setupGame(request);
         const safari = await iphone(browser);
         const page = await signedInGame(safari, room, alice.token);
         const prompt = page.locator('#turnAlertsPrompt');
-        await prompt.getByRole('button', { name: 'Set up alerts' }).click();
+        await prompt.getByRole('button', { name: 'Turn on alerts' }).click();
         await expect(prompt).toBeHidden();
-        await expect(page.locator('#turnAlertsModal')).toHaveClass(/active/);
-        await expect(page.getByRole('button', { name: 'Add to Home Screen' })).toBeVisible();
+        const sheet = page.locator('#turnAlertsModal');
+        await expect(sheet).toHaveClass(/active/);
+        const steps = sheet.locator('#turnAlertsSteps li');
+        await expect(steps).toHaveCount(3);
+        await expect(steps.nth(0)).toContainText('Add the game to your Home Screen');
+        await expect(steps.nth(2)).toContainText('Allow');
+        await expect(sheet.getByRole('button', { name: 'Add to Home Screen' })).toBeVisible();
         await safari.close();
+    });
+
+    test('the Home Screen app shows the steps left, and how to unblock', async ({ browser, request }) => {
+        const { room, alice } = await setupGame(request);
+        const app = await iphone(browser, { standalone: true });
+        await app.addInitScript(() => {
+            Object.defineProperty(Notification, 'permission', { configurable: true, get: () => 'default' });
+        });
+        const page = await signedInGame(app, room, alice.token);
+        await page.locator('#turnAlertsPrompt').getByRole('button', { name: 'Turn on alerts' }).click();
+        const steps = page.locator('#turnAlertsSteps li');
+        await expect(steps).toHaveCount(3);
+        await expect(steps.nth(0)).toHaveClass(/is-done/);
+        await expect(steps.nth(0)).toContainText('On your Home Screen');
+        await expect(steps.nth(2)).toContainText('When your iPhone asks');
+        await app.close();
+
+        const blocked = await iphone(browser, { standalone: true });
+        await blocked.addInitScript(() => {
+            Object.defineProperty(Notification, 'permission', { configurable: true, get: () => 'denied' });
+        });
+        const blockedPage = await signedInGame(blocked, room, alice.token);
+        await blockedPage.click('#turn-alerts-btn');
+        await expect(blockedPage.locator('#turnAlertsHint')).toContainText('off for Mortgage Backed');
+        await expect(blockedPage.locator('#turnAlertsSteps li')).toHaveCount(4);
+        await expect(blockedPage.locator('#turnAlertsSteps li').nth(1)).toContainText('Notifications, then Mortgage Backed');
+        await blocked.close();
     });
 
     test('no offer where notifications are blocked', async ({ browser, request }) => {

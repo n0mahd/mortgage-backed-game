@@ -33,13 +33,43 @@ async function openMoveDeviceModal() {
 // ---------------------------------------------------------------
 const TURN_ALERT_HINT = "Get a buzz when it's your turn and the game isn't open.";
 
+// Each step is [title, detail]; a third item true marks it done.
+function turnAlertSteps(state) {
+    const iphone = TurnNotifications.isIos();
+    const standalone = TurnNotifications.isStandalone();
+    const device = iphone ? 'iPhone' : 'browser';
+    switch (state) {
+        case 'needs-home-screen':
+            return [
+                ['Add the game to your Home Screen', 'Tap Add to Home Screen below and follow the steps.'],
+                ['Open it from your Home Screen', 'Tap the Mortgage Backed icon next to your apps.'],
+                ['Turn on alerts there', 'Tap Turn on alerts, then Allow when your iPhone asks.'],
+            ];
+        case 'off':
+            return [
+                ...(iphone && standalone ? [['On your Home Screen', '', true]] : []),
+                ['Tap Turn on alerts below', ''],
+                ['Tap Allow', `When your ${device} asks to send notifications.`],
+            ];
+        case 'denied':
+            return iphone && standalone ? [
+                ['Open the Settings app', ''],
+                ['Tap Notifications, then Mortgage Backed', ''],
+                ['Turn on Allow Notifications', ''],
+                ['Come back and tap the bell', 'Then Turn on alerts.'],
+            ] : [];
+        default:
+            return [];
+    }
+}
+
 function turnAlertCopy(state) {
     const standalone = TurnNotifications.isStandalone();
     switch (state) {
         case 'needs-home-screen':
             return {
                 hint: `${TURN_ALERT_HINT} On iPhone, that needs the game on your Home Screen.`,
-                note: "Adding it puts a Mortgage icon next to your apps that opens this game full screen. It's a shortcut to the site, not an App Store app, so there's nothing to download.",
+                note: "It's a shortcut to the site, not an App Store app, so there's nothing to download.",
                 actions: [['add-to-home-screen', 'Add to Home Screen', 'btn-primary'], ['close', 'Not now', 'btn-secondary']],
             };
         case 'off':
@@ -55,7 +85,7 @@ function turnAlertCopy(state) {
         case 'denied':
             return {
                 hint: standalone
-                    ? 'Notifications are off for Mortgage. Turn them on in Settings, Notifications, Mortgage, then come back here.'
+                    ? 'Notifications are off for Mortgage Backed. To turn them on:'
                     : "Notifications are blocked for this site. Allow them in your browser's site settings, then come back here.",
                 actions: [['close', 'Done', 'btn-secondary']],
             };
@@ -78,14 +108,29 @@ function setText(id, text) {
     element.hidden = !text;
 }
 
+function renderTurnAlertSteps(steps) {
+    const list = document.getElementById('turnAlertsSteps');
+    list.innerHTML = steps.map(([title, detail, done], index) => `
+        <li class="${done ? 'is-done' : ''}">
+            <span class="turn-alerts-step-mark" aria-hidden="true">${done ? '✓' : index + 1}</span>
+            <div>
+                <strong>${escapeHtml(title)}${done ? '<span class="sr-only"> (done)</span>' : ''}</strong>
+                ${detail ? `<small>${escapeHtml(detail)}</small>` : ''}
+            </div>
+        </li>`).join('');
+    list.hidden = !steps.length;
+}
+
 async function renderTurnAlerts(statusMessage) {
     const actions = document.getElementById('turnAlertsActions');
     actions.innerHTML = '';
     setText('turnAlertsHint', 'Checking this device…');
     setText('turnAlertsNote', '');
+    renderTurnAlertSteps([]);
     const state = await TurnNotifications.status().catch(() => 'unavailable');
     const copy = turnAlertCopy(state);
     setText('turnAlertsHint', copy.hint);
+    renderTurnAlertSteps(turnAlertSteps(state));
     setText('turnAlertsNote', copy.note);
     setText('turnAlertsStatus', statusMessage);
     actions.innerHTML = copy.actions.map(([action, label, style]) =>
@@ -168,37 +213,16 @@ function finishTurnAlertsPrompt() {
 async function maybeShowTurnAlertsPrompt() {
     if (turnAlertsPromptDone()) return;
     const state = await TurnNotifications.status().catch(() => 'unavailable');
-    const copy = {
-        off: 'Turn on alerts',
-        'needs-home-screen': 'Set up alerts',
-    }[state];
-    if (!copy) return;
-    const prompt = document.getElementById('turnAlertsPrompt');
-    prompt.dataset.state = state;
-    document.getElementById('turnAlertsPromptYes').textContent = copy;
-    prompt.hidden = false;
+    if (state !== 'off' && state !== 'needs-home-screen') return;
+    document.getElementById('turnAlertsPrompt').hidden = false;
 }
 
+// Turn on alerts opens the sheet, which lists what this device needs.
 async function handleTurnAlertsPromptAction(event) {
     const button = event.target.closest('[data-turn-alerts-prompt]');
     if (!button) return;
-    const prompt = document.getElementById('turnAlertsPrompt');
-    const state = prompt.dataset.state;
     finishTurnAlertsPrompt();
-    if (button.dataset.turnAlertsPrompt !== 'yes') return;
-    if (state !== 'off') {
-        await openTurnAlertsModal();
-        return;
-    }
-    // Straight from the tap, so the browser shows its permission prompt.
-    try {
-        await TurnNotifications.enable();
-        refreshTurnAlertsButton();
-        showToast("Alerts are on. You'll get one when it's your turn.");
-    } catch (error) {
-        openModal('turnAlertsModal');
-        await renderTurnAlerts(error.message || "That didn't work. Try again.");
-    }
+    if (button.dataset.turnAlertsPrompt === 'yes') await openTurnAlertsModal();
 }
 
 async function shareMoveDeviceLink() {
