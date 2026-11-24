@@ -160,7 +160,7 @@ test.describe('Turn alerts', () => {
         await expect(prompt).toBeHidden();
         const sheet = page.locator('#turnAlertsModal');
         await expect(sheet).toHaveClass(/active/);
-        await expect(sheet.locator('#turnAlertsSteps li')).toHaveText([/Tap Turn on alerts below/, /Tap Allow/]);
+        await expect(sheet.locator('#turnAlertsSteps li')).toHaveText([/Allow notifications/]);
         await sheet.getByRole('button', { name: 'Not now' }).click();
 
         await page.reload();
@@ -195,10 +195,10 @@ test.describe('Turn alerts', () => {
         const page = await signedInGame(app, room, alice.token);
         await page.locator('#turnAlertsPrompt').getByRole('button', { name: 'Turn on alerts' }).click();
         const steps = page.locator('#turnAlertsSteps li');
-        await expect(steps).toHaveCount(3);
+        await expect(steps).toHaveCount(2);
         await expect(steps.nth(0)).toHaveClass(/is-done/);
         await expect(steps.nth(0)).toContainText('On your Home Screen');
-        await expect(steps.nth(2)).toContainText('When your iPhone asks');
+        await expect(steps.nth(1)).toContainText('Your iPhone asks once');
         await app.close();
 
         const blocked = await iphone(browser, { standalone: true });

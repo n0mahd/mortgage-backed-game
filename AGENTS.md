@@ -149,6 +149,10 @@ Other docs: player rules in `documents/game-rules.md` and `README.md`, open deci
   to end headless.
   Its bot relies on the `data-game-action` buttons and modal/Market ids listed there; update
   `.agents/skills/verify-mortgage/scripts/lib/bot.js` when renaming them.
+- UX and copy review: the `ux-review` skill, `.agents/skills/ux-review/SKILL.md`. Reviewers stage real
+  game states on their own dev ports, screenshot every screen at 390px and 1280px, and report text to
+  cut, duplicated facts, structural fixes and bugs; fixes then land per area on separate branches. Past
+  audits and the open backlog are in `.agents/skills/ux-review/audits/`.
 
 ## Rules
 
@@ -179,6 +183,10 @@ Other docs: player rules in `documents/game-rules.md` and `README.md`, open deci
   the same files: after merging `origin/main` in, `npm run test:static` fails if a changed file still
   has `origin/main`'s `?v=`, and `npm run check:deploy` must pass right before copying files to
   production (it compares with what the live site serves).
+- **Say less.** Every UI sentence must answer a question a player would otherwise have: no
+  descriptions under clear titles, no fact shown twice on a screen, state shown visually rather than
+  in words (`documents/design-system.md`, Writing). The `ux-review` skill audits and fixes this
+  regularly.
 - **Design system.** New UI uses the existing classes and tokens: no inline styles, no raw hex. Turn
   actions go in `renderActionButtons()`, optional moves in the moves grid, host-only controls in
   `renderHostPanel()`. Check 320, 375 and 390px widths; `tests/e2e/mobile-layout.spec.js` guards the

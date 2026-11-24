@@ -128,8 +128,8 @@ whose copy depends on the device (`TurnNotifications.status()`):
   from the Home Screen, turn on alerts there and tap Allow. `.turn-alerts-note` (a quiet note
   surface) says it's a shortcut to the site, not an App Store app. Actions: Add to Home Screen
   (primary), Not now.
-- Off: steps Tap Turn on alerts below, Tap Allow (in the Home Screen app, a ticked "On your Home
-  Screen" first). Actions: Turn on alerts (primary), Not now.
+- Off: one step, Allow notifications (in the Home Screen app, a ticked "On your Home Screen" first).
+  No step repeats the button under it. Actions: Turn on alerts (primary), Not now.
 - On: Send a test alert, Turn off alerts, Done, all secondary: nothing urgent is left to do.
 - Blocked in the Home Screen app: steps through iPhone Settings (Notifications, Mortgage Backed,
   Allow Notifications, come back to the bell). Blocked in a browser, or unsupported: one sentence on
@@ -234,6 +234,21 @@ bar). `.turn-warning.danger` for blocking problems inline; plain `.turn-warning`
 - No scroll-reveal, marquees, or looping animation.
 
 ## Writing
+
+**Say less.** Players skim; every extra sentence makes the ones that matter harder to find. Start a
+screen, card or sheet from a title and its buttons, then add a line only if a player would otherwise
+be stuck or make a costly mistake.
+- No description under a title that already says it ("Know when it's your turn" needs no "Turn on
+  alerts so you know when it's your turn").
+- Never state a fact twice on one screen. Cash, a square, a status or a price appears once; pick the
+  place that matters and remove the others.
+- Show state, don't narrate it: a tick, a filled icon, a badge, a number or a colour beats "Alerts are
+  on for this device" or "You are in jail".
+- If a label needs a sentence to explain it, change the label ("Buy $200", not "Action" plus a hint).
+- No asides, definitions of jargon, tips or encouragement. Use the plain word instead of the jargon.
+- A step never repeats the button right under it ("Tap Turn on alerts below").
+- Keep consequences people can't see elsewhere, in money terms: "Ending your turn pays $120 on loans".
+- Review with a screenshot at 390px, not just the code: duplication shows up on screen.
 
 - Plain verbs and the same name through a flow: "Create IPO" opens "Create IPO", "Buy Property" buys it.
 - Money is always `formatMoney`: `$1,500`, cents only when they matter.

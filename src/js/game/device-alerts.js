@@ -48,8 +48,7 @@ function turnAlertSteps(state) {
         case 'off':
             return [
                 ...(iphone && standalone ? [['On your Home Screen', '', true]] : []),
-                ['Tap Turn on alerts below', ''],
-                ['Tap Allow', `When your ${device} asks to send notifications.`],
+                ['Allow notifications', `Your ${device} asks once, after you tap Turn on alerts.`],
             ];
         case 'denied':
             return iphone && standalone ? [
