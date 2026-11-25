@@ -34,7 +34,7 @@ const PATHWAYS = [
     { id: 'turn.end', group: 'Turn', label: 'End a turn', match: ev('turn_end') },
 
     // ----- jail -----
-    { id: 'jail.pay-fine', group: 'Jail', label: 'Pay the $50 fine to leave Jail', match: ev('jail_fine_paid'), hint: 'In Jail, before rolling: Pay $50 Fine.', stage: 'in-jail' },
+    { id: 'jail.pay-fine', group: 'Jail', label: 'Pay the $50 fine to leave Jail', match: ev('jail_fine_paid'), hint: 'In Jail, before rolling: Pay $50.', stage: 'in-jail' },
     { id: 'jail.use-card', group: 'Jail', label: 'Use a Get Out of Jail Free card', match: ev('jail_card_used'), hint: 'In Jail with a card: Use Card.', stage: 'in-jail-with-card' },
     { id: 'jail.doubles-out', group: 'Jail', label: 'Roll doubles to leave Jail', match: ev('dice_roll', d => d.jailReleased), stage: 'in-jail' },
     { id: 'jail.stay', group: 'Jail', label: 'Fail to roll doubles in Jail', match: ev('dice_roll', d => d.inJail), hint: 'In Jail: Roll Doubles.', stage: 'in-jail' },
@@ -172,6 +172,16 @@ const PATHWAYS = [
     { id: 'refuse.trade-not-owned', group: 'Refusals', label: 'Propose a trade the rules refuse', match: act('propose_trade', (d, s) => s.refused), uiAlso: true, hint: 'Offer more cash than you have, or a trade with nothing in it (the form should block it).' },
 
     // ----- people and devices (seen by the harness, not the engine) -----
+    // ----- the Game tab (harness-observed on bot seats) -----
+    { id: 'ui.buy-one-tap', group: 'Game tab', label: 'Buy $X in the dock buys at once (no sheet) for a player who runs no company', ui: true },
+    { id: 'ui.buy-whos-buying', group: 'Game tab', label: "Buy opens Who's buying? for a player who runs a company", ui: true, hint: 'Run a company, then land on an unowned street and tap Buy.', stage: 'corporation-buys' },
+    { id: 'ui.square-card-for-sale', group: 'Game tab', label: 'Square card names an unowned square you landed on, with its rents', ui: true },
+    { id: 'ui.square-card-stamp', group: 'Game tab', label: 'Square card stamps the money a landing moved (rent or tax)', ui: true },
+    { id: 'ui.move-tools', group: 'Game tab', label: 'Move tools row shows only the moves open now', ui: true },
+    { id: 'ui.cash-since-turn', group: 'Game tab', label: '"Since your last turn" on the ticket stub', ui: true },
+    { id: 'ui.turn-alerts-card', group: 'Game tab', label: 'One-time turn alerts card: Not now hides it for good on this device', ui: true },
+    { id: 'ui.game-over-standings', group: 'Game tab', label: 'Final standings on the ticket after reloading a finished game', ui: true },
+
     { id: 'ui.email-sign-in', group: 'People', label: 'Sign in with an emailed code', ui: true },
     { id: 'ui.guest-join', group: 'People', label: 'Join from an invite link as a guest', ui: true },
     { id: 'ui.reload-resync', group: 'People', label: 'Reload mid-game and catch up', ui: true },

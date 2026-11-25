@@ -648,6 +648,12 @@ async function actWait(j, p, loc, label) {
     j.fail(`${p.name}: "${label}" had no visible effect within 10s (version stayed ${before})`);
 }
 
+// Recent events live on their own tab (the Game tab no longer lists recent actions).
+async function logTab(p) {
+    const tab = p.page.locator('.nav-tab[data-section="log"]');
+    if (await tab.count() && !((await tab.getAttribute('class')) || '').includes('active')) await tab.click().catch(() => {});
+}
+
 async function gameTab(p) {
     const tab = p.page.locator('.nav-tab[data-section="game"]');
     if (await tab.count() && !((await tab.getAttribute('class')) || '').includes('active')) await tab.click().catch(() => {});
@@ -1751,10 +1757,12 @@ const JOURNEYS = [
                 j.log(`agent: ${done.join(', ')}`);
                 if (!done.includes('roll_dice')) j.fail(`The agent's turn did not roll: ${done.join(', ')}`);
                 await caughtUp(j, host, roomId);
-                await j.see(host, '.recent-log', /Claude P/);
+                await logTab(host);
+                await j.see(host, '#full-game-log', /Claude P/);
+                await gameTab(host);
             }
             await j.shot(host, 'after-agent-turns');
-            const log = await host.page.locator('.recent-log').innerText();
+            const log = await host.page.locator('#full-game-log').innerText();
             if (!/Claude P rolled/.test(log)) j.note(`Host's recent log after agent turns: ${log.replace(/\s+/g, ' ').slice(0, 200)}`);
         },
     },
@@ -1788,7 +1796,9 @@ const JOURNEYS = [
                 await agentTurn(j, key);
             }
             await caughtUp(j, host, roomId);
-            await j.see(host, '.recent-log', /Claude [AB]/);
+            await logTab(host);
+            await j.see(host, '#full-game-log', /Claude [AB]/);
+            await gameTab(host);
             j.say('host pauses');
             await j.click(host, '[data-game-action="host-pause"]');
             await j.see(host, '[data-game-action="host-resume"]');

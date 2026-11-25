@@ -587,11 +587,18 @@ class Autoplay {
         const wantsCorp = this.explore?.wants('desk.buy-for-corp');
         if ((buy || wantsCorp) && await this.usable(buyButton)) {
             const sheet = seat.page.locator('#buyPropertyModal');
+            // The button names the price the engine charges.
+            const label = (await buyButton.innerText().catch(() => '')).trim();
+            const shown = Number(((/\$([\d,.]+)/.exec(label) || [])[1] || '').replace(/,/g, ''));
+            if (prop && shown !== Number(prop.price)) {
+                this.ctx.finding({ severity: 'medium', category: 'ui', seat, title: `Buy button shows "${label}" for ${prop.name}, which costs $${prop.price}`, detail: '' });
+            }
             // The same test the page uses to decide whether Buy opens the sheet.
             const runsCompany = await seat.page.evaluate(id => ShareDeals.corporationsRunBy(currentGame.game_state, id).length > 0, me.userId);
             if (runsCompany) {
                 await buyButton.click();
                 await sheet.waitFor({ state: 'visible' });
+                this.ctx.markUi('ui.buy-whos-buying');
                 await this.firstTime('buy-modal', [seat], 'buy-property-modal');
                 const forCorp = wantsCorp && seat.page.locator('#buyForChoices input[name="buyFor"]:not([value=""]):not(:disabled)').first();
                 if (forCorp && await forCorp.count()) {
@@ -604,7 +611,13 @@ class Autoplay {
                     await this.act(seat, 'start auction', () => seat.page.locator('#start-auction-btn').click());
                 }
             } else if (buy) {
-                await this.act(seat, 'buy property', () => buyButton.click());
+                // One tap: no sheet, the property is bought at once.
+                const r = await this.act(seat, 'buy property', () => buyButton.click());
+                if (await sheet.isVisible().catch(() => false)) {
+                    this.ctx.finding({ severity: 'medium', category: 'ui', seat, title: 'Buy opened a sheet for a player who runs no company', detail: '' });
+                } else if (r.changed && this.server().state.properties.find(p => p.id === propId)?.ownerId === seat.userId) {
+                    this.ctx.markUi('ui.buy-one-tap');
+                }
             } else {
                 await this.act(seat, 'start auction', () => this.gameButton(seat, 'start-auction').click());
             }
@@ -866,6 +879,9 @@ class Autoplay {
                 this.ctx.finding({ severity: 'high', category: 'sync', seat, title: 'Game did not load after a page reload', detail: 'No "Current Turn:" within 20s' });
                 await this.ctx.shot(seat, 'reload-failed');
             });
+            if (seat.alertsCardDismissed && await seat.page.locator('#turnAlertsPrompt').isVisible().catch(() => false)) {
+                this.ctx.finding({ severity: 'medium', category: 'ui', seat, title: 'Turn alerts card came back after a reload', detail: 'Not now should keep it gone on this device.' });
+            }
             this.ctx.log(`    resilience: reloaded ${seat.name}`);
             this.ctx.markUi('ui.reload-resync');
         }
@@ -939,6 +955,7 @@ class Autoplay {
             this.explore.active = null;
             await this.explore.maybeStage(seat, this.server().state);
         }
+        await this.checkGameTab(seat).catch(err => this.ctx.log(`    (game tab check skipped: ${String(err.message || err).split('\n')[0]})`));
         for (let step = 0; step < 25; step++) {
             await this.handleOffers();
             if (this.explore) {
@@ -1007,6 +1024,7 @@ class Autoplay {
                 }
                 await this.act(seat, me.inJail ? 'roll for doubles' : 'roll dice', () => roll.click());
                 await this.firstTime('after-roll', [seat], 'after-roll');
+                await this.checkSquareCard(seat);
                 continue;
             }
 
@@ -1187,7 +1205,109 @@ class Autoplay {
             }
             await this.ctx.shot(seat, 'game-over');
         }
+        if (this.server().state.ended) await this.checkStandingsAfterReload();
         this.runInvariants('game end');
+    }
+
+    // The square card under the ticket names the square the current player landed on:
+    // streets, railroads, utilities and taxes. Cards, corners and Jail get none, and an
+    // open auction for the square has its own card instead.
+    async checkSquareCard(seat) {
+        const { state } = this.server();
+        const me = state.players[state.currentPlayerIndex];
+        if (!me || me.userId !== seat.userId || state.ended || seat.human) return;
+        const pos = Number(me.position || 0);
+        const propId = BOARD_PROPERTY_AT[pos];
+        const prop = propId ? state.properties.find(p => p.id === propId) : null;
+        const tax = pos === 4 ? 'Income Tax' : pos === 38 ? 'Luxury Tax' : null;
+        const auctionOnIt = state.auction?.status === 'open' && state.auction.propertyId === propId;
+        const expected = !me.inJail && (tax || (prop && !auctionOnIt));
+        const card = seat.page.locator('#game.section.active #gameContent .square-card');
+        let label = null;
+        for (let i = 0; i < (expected ? 15 : 3); i++) {
+            if (await card.count().catch(() => 0)) { label = await card.first().getAttribute('aria-label').catch(() => null); break; }
+            await sleep(200);
+        }
+        if (expected && !label) {
+            this.ctx.finding({ severity: 'medium', category: 'ui', seat, title: `No square card after landing on ${tax || prop.name}`, detail: '' });
+            await this.ctx.shot(seat, 'no-square-card');
+            return;
+        }
+        if (!expected) {
+            if (label && !me.inJail) this.ctx.finding({ severity: 'low', category: 'ui', seat, title: `Square card "${label}" shown on square ${pos}, which has none`, detail: '' });
+            return;
+        }
+        const name = tax || prop.name;
+        if (label.split(' ')[0] !== name.split(' ')[0]) {
+            this.ctx.finding({ severity: 'medium', category: 'ui', seat, title: `Square card says "${label}" after landing on ${name}`, detail: '' });
+            await this.ctx.shot(seat, 'wrong-square-card');
+            return;
+        }
+        const stamp = await card.first().locator('.square-stamp').innerText().catch(() => '');
+        if (prop && !prop.ownerId) {
+            this.ctx.markUi('ui.square-card-for-sale');
+            await this.firstTime('square-card-for-sale', [seat], 'square-card-for-sale');
+        } else if (stamp) {
+            this.ctx.markUi('ui.square-card-stamp');
+            this.ctx.log(`    ${seat.name}: square card ${label}: ${stamp.replace(/\s+/g, ' ')}`);
+            await this.firstTime('square-card-stamp', [seat], 'square-card-stamp');
+        }
+    }
+
+    // Start of a bot turn on the Game tab: the one-time turn-alerts card is answered once
+    // and stays gone; the move tools show only usable moves; "Since your last turn" sits
+    // on the ticket's stub.
+    async checkGameTab(seat) {
+        if (seat.human) return;
+        await this.gameTab(seat);
+        const prompt = seat.page.locator('#turnAlertsPrompt');
+        if (await prompt.isVisible().catch(() => false)) {
+            await this.firstTime('turn-alerts-card', [seat], 'turn-alerts-card');
+            await prompt.getByRole('button', { name: 'Not now' }).click();
+            const done = await seat.page.evaluate(() => localStorage.getItem('turn_alerts_prompt_done')).catch(() => null);
+            if (await prompt.isVisible().catch(() => false) || done !== 'true') {
+                this.ctx.finding({ severity: 'medium', category: 'ui', seat, title: 'Turn alerts card stays after Not now', detail: `turn_alerts_prompt_done=${done}` });
+            } else {
+                seat.alertsCardDismissed = true;
+                this.ctx.markUi('ui.turn-alerts-card');
+            }
+        }
+        const tools = await seat.page.locator('#game.section.active .move-tools .move-tool').evaluateAll(list => list.map(b => ({
+            name: b.getAttribute('aria-label'), disabled: b.disabled || b.getAttribute('aria-disabled') === 'true',
+        }))).catch(() => []);
+        const off = tools.filter(t => t.disabled);
+        if (off.length) this.ctx.finding({ severity: 'low', category: 'ui', seat, title: `Disabled move tools shown: ${off.map(t => t.name).join(', ')}`, detail: 'The tool row shows only moves that are open now.' });
+        else if (tools.length) {
+            this.ctx.markUi('ui.move-tools');
+            await this.firstTime('move-tools', [seat], 'move-tools');
+        }
+        const stub = await seat.page.locator('#game.section.active .ticket-stub').first().innerText().catch(() => '');
+        if (/Since your last turn/.test(stub)) {
+            this.ctx.markUi('ui.cash-since-turn');
+            await this.firstTime('cash-since-turn', [seat], 'cash-since-turn');
+        }
+    }
+
+    // A finished game reloaded: the ticket keeps the final standings, one row per player.
+    async checkStandingsAfterReload() {
+        const seat = this.seats.find(s => !s.human && !s.offline) || this.seats[0];
+        const { state } = this.server();
+        try {
+            await seat.page.reload();
+            await this.gameTab(seat);
+            const rows = seat.page.locator('#gameContent .ticket-standings .ticket-standing');
+            await rows.first().waitFor({ timeout: 15000 });
+            const n = await rows.count();
+            if (n !== state.players.length) {
+                this.ctx.finding({ severity: 'medium', category: 'ui', seat, title: `Game over standings list ${n} rows for ${state.players.length} players after a reload`, detail: '' });
+            } else {
+                this.ctx.markUi('ui.game-over-standings');
+            }
+            await this.ctx.shot(seat, 'game-over-reloaded');
+        } catch (err) {
+            this.ctx.finding({ severity: 'high', category: 'ui', seat, title: 'No final standings on the Game tab after reloading a finished game', detail: String(err.message || err).split('\n')[0] });
+            await this.ctx.shot(seat, 'game-over-reload-failed');
+        }
     }
 
     summary() {

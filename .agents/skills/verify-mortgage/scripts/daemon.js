@@ -257,7 +257,15 @@ let alertsBrowserPromise = null;
 function startAlertsBrowser() {
     if (!alertsBrowserPromise) {
         const { chromium } = require(path.join(runs.REPO_ROOT, 'node_modules', '@playwright', 'test'));
-        alertsBrowserPromise = chromium.launch({ headless: !run.headed, channel: 'chromium' }).then(b => (alertsBrowser = b));
+        const opts = { headless: !run.headed, channel: 'chromium' };
+        if (process.env.VERIFY_CHROMIUM) opts.executablePath = process.env.VERIFY_CHROMIUM;
+        // Like startBrowser: fall back to the system Chromium when Playwright's is missing.
+        alertsBrowserPromise = chromium.launch(opts)
+            .catch(err => {
+                log(`bundled chromium (alerts) failed (${err.message.split('\n')[0]}); trying /usr/bin/chromium`);
+                return chromium.launch({ ...opts, executablePath: '/usr/bin/chromium' });
+            })
+            .then(b => (alertsBrowser = b));
     }
     return alertsBrowserPromise;
 }

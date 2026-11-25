@@ -190,7 +190,7 @@ Other docs: player rules in `documents/game-rules.md` and `README.md`, open deci
   in words (`documents/design-system.md`, Writing). The `ux-review` skill audits and fixes this
   regularly.
 - **Design system.** New UI uses the existing classes and tokens: no inline styles, no raw hex. Turn
-  actions go in `renderActionButtons()`, optional moves in the moves grid, host-only controls in
+  actions go in `renderActionButtons()`, optional moves in the move tools (`renderMoveTools()`), host-only controls in
   `renderHostPanel()`. Check 320, 375 and 390px widths; `tests/e2e/mobile-layout.spec.js` guards the
   phone layout.
 - **Live screens.** No screen may load data once and then go stale. Every page or panel that shows

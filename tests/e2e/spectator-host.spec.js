@@ -52,7 +52,7 @@ test('a watching host runs a game played only by agents', async ({ page, request
     await page.locator('#start-game-btn').click();
     await page.waitForURL(/game\.html\?room=/);
     await expect(page.locator('.moves')).toContainText('Watching');
-    await expect(page.locator('[data-game-action="roll"]')).toHaveCount(0);
+    await expect(page.locator('[data-game-action="roll-dice"]')).toHaveCount(0);
     await expect(page.locator('.nav-tab[data-section="market"]')).toBeHidden();
     await expect(page.locator('.seat-list')).toContainText('Claude A');
 

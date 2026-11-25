@@ -76,16 +76,17 @@ Game screen (phone)
 │                              │ turn alerts (sticky, translucent)
 ├──────────────────────────────┤
 │ ▓ Your turn            ⚀ ⚁  │ turn ticket: whose turn, dice,
-│ ▓ $612        Net $1,632    │ your cash, 4-step rail
-│ ▓ ━━━━ ──── ──── ────       │
-│ You are on Vermont Ave       │ context: landing, warnings, card,
-│ [auction / debt warning]     │ pause, auction
-│ Moves  [Build] [IPO] [Debt]  │ optional moves grid
-│ Players  (you, then others)  │ grouped rows, expand to details
-│ Recent actions               │
+│ ▓ $612       Since last +$40 │ your cash, stub with the money
+│                              │ since your last turn
+│ ┌ Vermont Ave · for sale ──┐ │ square card: the square landed on,
+│ │ Rent $6 · Set $12 · …    │ │ rent ladder or a stamp (−$20)
+│ [auction / debt warning]     │ warnings, pause, auction
+│ [Build][Trade][Borrow][IPO]  │ move tools: only the open moves
+│ Players  (you, then others)  │ one list, expand to details
 │ Host controls (host only)    │ dashed, away from turn actions
 ├──────────────────────────────┤
-│ [End Turn]  [ Roll Dice   ]  │ action dock (your turn only)
+│ [Auction]      [ Buy $100 ]  │ action dock (your turn only):
+│                              │ Roll Dice, Buy/Auction, End Turn
 ├──────────────────────────────┤
 │ Game Market Recent ev. Board │ tab bar
 └──────────────────────────────┘
@@ -96,8 +97,8 @@ Game screen (phone)
 **Buttons** (`.btn` plus a variant). Height 48 by default, 54 in the dock, 44 minimum for `.btn-sm`.
 Press state scales to 0.97; there are no hover-only affordances.
 - `.btn-primary` / `.btn-success`: the one action the screen wants. At most one per view, plus the dock.
-- `.btn-secondary`: tinted mint, for alternatives (Start Auction, Decline, Cancel).
-- `.btn-warning`: gold tint, for actions that cost money or pause play (Pay $50 Fine, Pause Game).
+- `.btn-secondary`: tinted mint, for alternatives (Auction, Decline, Cancel).
+- `.btn-warning`: gold tint, for actions that cost money or pause play (Pay $50, Pause Game).
 - `.btn-danger`: outlined red, for destructive actions (End Game, Declare Bankruptcy).
 - `.btn-ghost`: text-only, in app bars.
 - `.btn-gold`, `.btn-on-dark`: only on forest backgrounds (landing hero, invite code).
@@ -274,7 +275,7 @@ be stuck or make a costly mistake.
 - Money is always `formatMoney`: `$1,500`, cents only when they matter.
 - The satirical voice (see the brand book) lives in marketing copy and empty states, never in a button
   or an error. Errors say what happened and what to do.
-- Existing button labels that tests match on stay Title Case (`End Turn`, `Roll Dice`, `Start Auction`).
+- Existing button labels that tests match on stay Title Case (`End Turn`, `Roll Dice`, `Roll Doubles`).
   New labels use sentence case.
 - Name things the way the phone does. It's "Add to Home Screen", Apple's wording, never "install" or
   "download the app": the game isn't an App Store app, and people should know nothing is being installed.
@@ -285,7 +286,7 @@ be stuck or make a costly mistake.
 1. Use existing classes before writing CSS. Add new component CSS to the matching section of
    `style.css`, using tokens only (no raw hex, no inline styles except data-driven colors such as
    `--property-color` or `--token-color`).
-2. Turn actions go in `renderActionButtons()`; optional moves go in the moves grid; host-only controls go
+2. Turn actions go in `renderActionButtons()`; optional moves go in the move tools (`renderMoveTools()`); host-only controls go
    in `renderHostPanel()`.
 3. Check it at 320px, 375px, and 390px wide, and at 1280px. App bar controls are `.app-bar-icon`s with
    an inline SVG and an `aria-label`; there's room for three after the room code, no more. `tests/e2e/mobile-layout.spec.js` guards
