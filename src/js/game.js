@@ -228,9 +228,15 @@ async function refreshRoomInfo() {
 }
 
 // Fetch the latest game and apply it only if it is newer than what is shown.
+// A resync asked for while one is in flight runs once more after it: the one in
+// flight may have fetched the game before the change that prompted the new ask.
+let gameResyncAgain = false;
 function resyncGame() {
     if (!currentRoom || gameActionInFlight) return Promise.resolve();
-    if (gameResyncInFlight) return gameResyncInFlight;
+    if (gameResyncInFlight) {
+        gameResyncAgain = true;
+        return gameResyncInFlight;
+    }
     gameResyncInFlight = (async () => {
         try {
             const game = await getGameByRoomId(currentRoom.id);
@@ -242,6 +248,10 @@ function resyncGame() {
             console.warn('Game resync failed:', error);
         } finally {
             gameResyncInFlight = null;
+            if (gameResyncAgain) {
+                gameResyncAgain = false;
+                resyncGame();
+            }
         }
     })();
     return gameResyncInFlight;
