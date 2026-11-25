@@ -155,8 +155,8 @@ test.describe('thorough real-player UI game flow', () => {
                 chanceCards: [card('chance', 'ch-11')],
             });
             await reloadGamePages(pages, ['Carol']);
-            await rollWithDiceAndExpect(pages.Carol, [1, 3], /drew card: Pay a poor tax of \$15/i);
-            await expect(pages.Carol.locator('.card-effect-summary')).toContainText(/Applied: paid \$15\.00/i);
+            await rollWithDiceAndExpect(pages.Carol, [1, 3], /drew Chance: "Pay a poor tax of \$15/i);
+            await expect(pages.Carol.locator('.card-effect-summary')).toContainText(/paid \$15\.00/i);
             await shot(testInfo, pages.Carol, '21-carol-draws-chance-card');
 
             await endTurnNoAssert(pages.Carol);
@@ -172,7 +172,7 @@ test.describe('thorough real-player UI game flow', () => {
                 communityChestCards: [card('community_chest', 'cc-7')],
             });
             await reloadGamePages(pages, ['Dave']);
-            await rollWithDiceAndExpect(pages.Dave, [1, 1], /drew card: Grand Opera Night/i);
+            await rollWithDiceAndExpect(pages.Dave, [1, 1], /drew Community Chest: "Grand Opera Night/i);
             await expectPlayerCashGreaterThan(pages.Dave, 'Dave', 1500);
             await shot(testInfo, pages.Dave, '23-dave-draws-community-chest-card');
 
@@ -190,7 +190,7 @@ test.describe('thorough real-player UI game flow', () => {
                 diceRolled: { Alice: false },
             });
             await reloadGamePages(pages, ['Alice']);
-            await rollWithDiceAndExpect(pages.Alice, [1, 1], /landed on Go to Jail/i);
+            await rollWithDiceAndExpect(pages.Alice, [1, 1], /moved to Go to Jail/i);
             await expectPlayerState(pages.Alice, 'Alice', player => player.inJail === true && player.position === 10);
             await shot(testInfo, pages.Alice, '25-alice-sent-to-jail');
 
@@ -201,7 +201,7 @@ test.describe('thorough real-player UI game flow', () => {
                 diceRolled: { Alice: false },
             });
             await reloadGamePages(pages, ['Alice']);
-            await rollWithDiceAndExpect(pages.Alice, [1, 2], /is in Jail \(turn 1\/3\)/i);
+            await rollWithDiceAndExpect(pages.Alice, [1, 2], /stayed in Jail/i);
             await expectPlayerState(pages.Alice, 'Alice', player => player.inJail === true && player.jailTurns === 1);
             await shot(testInfo, pages.Alice, '26-alice-jail-turn-without-doubles');
 
@@ -231,10 +231,20 @@ test.describe('thorough real-player UI game flow', () => {
             });
             await reloadGamePages(pages, ['Alice']);
             await endTurnExpectingGameOver(pages.Alice);
+            // Alice's own bankruptcy shows its summary first; the standings open when it closes.
+            await expect(pages.Alice.locator('#liquidationModal')).toBeVisible({ timeout: 10000 });
+            await shot(testInfo, pages.Alice, '27b-alice-bankruptcy-summary');
+            await pages.Alice.locator('#liquidationModal [data-close-modal]').click();
             await expect(pages.Alice.locator('#winnerModal')).toBeVisible({ timeout: 10000 });
             await expect(pages.Alice.locator('#winnerName')).toContainText('Bob', { timeout: 10000 });
             await expect(pages.Alice.locator('#winnerReason')).toContainText(/last player standing|BANKRUPT|Game over/i, { timeout: 10000 });
             await shot(testInfo, pages.Alice, '28-final-winner-modal-bankruptcy-ending');
+
+            // A reload keeps the final standings on the Game tab's ticket.
+            await pages.Bob.reload();
+            await expect(pages.Bob.locator('#gameContent .ticket-standings .ticket-standing')).toHaveCount(PLAYER_NAMES.length, { timeout: 10000 });
+            await expect(pages.Bob.locator('#gameContent .ticket-title')).toContainText('Bob');
+            await shot(testInfo, pages.Bob, '29-final-standings-after-reload');
 
             for (const name of PLAYER_NAMES) {
                 expect(issues[name].errors, `${name} browser issues:\n${issues[name].summary()}`).toEqual([]);
@@ -289,7 +299,8 @@ async function waitForGameLoaded(page) {
 }
 
 async function openTab(page, tabName, sectionId = tabName.toLowerCase()) {
-    await page.getByRole('button', { name: new RegExp(`^${tabName}$`, 'i') }).click();
+    // By section: the Game tab reads "Your turn" while your turn waits on another tab.
+    await page.locator(`.nav-tab[data-section="${sectionId}"]`).click();
     await expect(page.locator(`#${sectionId}`)).toHaveClass(/active/);
 }
 
@@ -302,14 +313,31 @@ async function buyCurrentSquare(page, expectedText) {
     await expect(page.locator('#gameContent .square-card')).toContainText('Yours', { timeout: 10000 });
 }
 
+// The Build move tool appears once a colour group is complete.
 async function buyHouses(page) {
-    await openTab(page, 'Board');
-    await page.getByRole('button', { name: /buy houses/i }).click();
+    await openTab(page, 'Game');
+    await activeGameButton(page, 'open-house').click();
     await expect(page.locator('#houseModal')).toBeVisible();
-    await page.locator('#houseModalProperties button').filter({ hasText: '+' }).nth(0).click();
-    await page.locator('#houseModalProperties button').filter({ hasText: '+' }).nth(1).click();
+    const plus = page.locator('#houseModalProperties [data-game-action="adjust-house"][data-delta="1"]');
+    await plus.nth(0).click();
+    await plus.nth(1).click();
     await clickAndWaitForGameVersion(page, page.locator('#confirm-house-purchase-btn'));
-    await expect(page.locator('#gameContent')).toContainText(/Properties/, { timeout: 10000 });
+    await expect.poll(() => page.evaluate(() => currentGame.game_state.properties
+        .filter(prop => ['prop-0', 'prop-1'].includes(prop.id))
+        .reduce((sum, prop) => sum + Number(prop.houses || 0), 0)), { timeout: 10000 }).toBe(2);
+}
+
+// The Borrow sheet's loan list: the first loan's balance and turns left.
+async function expectFirstLoan(page, balanceText, turnsText) {
+    await openTab(page, 'Game');
+    await activeGameButton(page, 'open-debt').click();
+    await expect(page.locator('#debtAction')).toHaveValue('loans');
+    const loan = page.locator('#loanList .loan-row').first();
+    await expect(loan.locator('.loan-balance')).toHaveText(balanceText, { timeout: 10000 });
+    await expect(loan).toContainText(turnsText);
+    await expect(loan.locator('[data-loan-autopay]')).toHaveValue('pay_down');
+    await page.locator('[data-close-modal="debtModal"]').click();
+    await expect(page.locator('#debtModal')).toBeHidden({ timeout: 10000 });
 }
 
 async function issueDebt(page, amount, rate) {
@@ -327,8 +355,7 @@ async function issueDebt(page, amount, rate) {
     await expect(page.locator('#loanTermQuote')).toContainText(/a turn for 10 turns, .* in total/);
     await clickAndWaitForGameVersion(page, page.locator('#process-debt-btn'));
     await expect(page.locator('#debtModal')).toBeHidden({ timeout: 10000 });
-    await expect(page.locator('#gameContent')).toContainText(`${formatMoneyForUi(amount)} · 10 turns left`, { timeout: 10000 });
-    await expect(page.locator('#gameContent')).toContainText(/Autopay \$[\d,.]+ next turn/, { timeout: 10000 });
+    await expectFirstLoan(page, formatMoneyForUi(amount), '10 turns left');
 }
 
 // Pays off the first loan from the Debt page.
@@ -354,7 +381,6 @@ async function settleDebt(page, amount) {
     await expect(page.locator('#loanList .loan-row').first().locator('.loan-balance')).not.toHaveText(before, { timeout: 10000 });
     await page.locator('[data-close-modal="debtModal"]').click();
     await expect(page.locator('#debtModal')).toBeHidden({ timeout: 10000 });
-    await expect(page.locator('#gameContent')).toContainText(/Debts/, { timeout: 10000 });
 }
 
 // An IPO always creates 12,000 shares, all the founder's.
@@ -365,7 +391,7 @@ async function createIpo(page, ticker, assetId) {
     await page.locator('#ipoTicker').fill(ticker);
     await page.locator(`#ipo-asset-${assetId}`).check();
     await clickAndWaitForGameVersion(page, page.locator('#create-ipo-btn'));
-    await expect(page.locator('#gameContent')).toContainText(ticker, { timeout: 10000 });
+    await expect(page.locator('#full-game-log')).toContainText(`created IPO ${ticker}`, { timeout: 10000 });
 }
 
 // Corporations sheet: the list, then this ticker's detail (and a tab on phones).
@@ -399,7 +425,7 @@ async function issueCorporationDebt(page, ticker, amount) {
     await page.locator('#loanAmount').fill(String(amount));
     await clickAndWaitForGameVersion(page, page.locator('#process-debt-btn'));
     await expect(page.locator('#debtModal')).toBeHidden({ timeout: 10000 });
-    await expect(page.locator('#gameContent')).toContainText(new RegExp(`borrowed \\$[\\d,.]+ for ${ticker}`, 'i'), { timeout: 10000 });
+    await expect(page.locator('#full-game-log')).toContainText(new RegExp(`borrowed \\$[\\d,.]+ for ${ticker}`, 'i'), { timeout: 10000 });
 }
 
 async function proposeChairmanVote(page, ticker, candidateName) {
@@ -426,14 +452,17 @@ async function rollAndPayRent(page, dice, ownerName) {
     await openTab(page, 'Game');
     await page.evaluate(dice => { window.__E2E_NEXT_DICE = dice.slice(); }, dice);
     await clickAndWaitForGameVersion(page, activeGameButton(page, 'roll-dice'));
-    await expect(page.locator('#gameContent')).toContainText(new RegExp(`paid \\$\\d+(?:\\.\\d+)? to ${ownerName} for Rent`, 'i'), { timeout: 10000 });
+    await expect(page.locator('#full-game-log')).toContainText(new RegExp(`paid \\$\\d+(?:\\.\\d+)? to ${ownerName} for Rent`, 'i'), { timeout: 10000 });
+    // The square card stamps the rent from the payer's side.
+    await expect(page.locator('#gameContent .square-card .square-stamp')).toContainText(/−\$\d+/, { timeout: 10000 });
 }
 
 async function rollWithDiceAndExpect(page, dice, expectedText) {
     await openTab(page, 'Game');
     await page.evaluate(dice => { window.__E2E_NEXT_DICE = dice.slice(); }, dice);
     await clickAndWaitForGameVersion(page, activeGameButton(page, 'roll-dice'));
-    await expect(page.locator('#gameContent')).toContainText(expectedText, { timeout: 10000 });
+    // Recent events; the Game tab shows only the square card and the card drawn.
+    await expect(page.locator('#full-game-log')).toContainText(expectedText, { timeout: 10000 });
 }
 
 // Nothing to buy: no Buy button in the dock, End Turn instead.
@@ -444,6 +473,7 @@ async function expectBuyUnavailable(page) {
 
 async function tradeCashForProperty(page, cashFrom, propertyFrom, cashAmount, propertyId) {
     await openTab(page, 'Market');
+    await page.locator('#marketTab-trade').click();
     await selectByVisibleText(page.locator('#player1Select'), cashFrom);
     await page.locator('#player1Cash').fill(String(cashAmount));
     await selectByVisibleText(page.locator('#player2Select'), propertyFrom);
@@ -456,6 +486,7 @@ async function tradeCashForProperty(page, cashFrom, propertyFrom, cashAmount, pr
 
 async function makePayment(page, fromName, toName, amount) {
     await openTab(page, 'Market');
+    await page.locator('#marketTab-payment').click();
     // You always pay from your own cash, so there's no From box.
     await expect(page.locator('#paymentFromPlayer')).toHaveCount(0);
     await selectByVisibleText(page.locator('#paymentToPlayer'), toName);
@@ -637,8 +668,13 @@ async function reloadGamePages(pages, names) {
     }));
 }
 
+// Your own name reads "Name (you)" in the Market's player lists.
 async function selectByVisibleText(locator, label) {
-    await locator.selectOption({ label });
+    await expect.poll(() => locator.evaluate((select, text) => [...select.options]
+        .some(option => option.text === text || option.text === `${text} (you)`), label), { timeout: 10000 }).toBe(true);
+    const value = await locator.evaluate((select, text) => [...select.options]
+        .find(option => option.text === text || option.text === `${text} (you)`).value, label);
+    await locator.selectOption(value);
 }
 
 async function shot(testInfo, page, name) {
