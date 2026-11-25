@@ -29,7 +29,21 @@
         if (!user) {
             try {
                 await redeemDeviceTransferCode(code);
-            } catch {
+            } catch (error) {
+                // Only a code the server refused is spent; a busy server or no network
+                // leaves it good for the next launch.
+                if (error.status === 429) {
+                    showSignInAgain('Too many sign-in attempts from this network. Wait a few minutes, then open the icon again.');
+                    return;
+                }
+                if (error.status >= 500) {
+                    showSignInAgain(error.message);
+                    return;
+                }
+                if (!error.status) {
+                    showSignInAgain("Couldn't reach the game. Check your connection, then open the icon again.");
+                    return;
+                }
                 showSignInAgain("This icon's sign-in link has expired. In Safari, open your game, tap the bell, and add it to your Home Screen again. Or sign in from the home page.");
                 return;
             }

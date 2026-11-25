@@ -119,6 +119,20 @@ test.describe('Turn alerts', () => {
         await app.close();
     });
 
+    test('a busy server or no network does not call the icon\'s link expired', async ({ browser }) => {
+        const app = await iphone(browser, { standalone: true });
+        const page = await app.newPage();
+        await page.route('**/api/auth/redeem-transfer', route => route.fulfill({ status: 429, contentType: 'application/json', body: JSON.stringify({ error: 'Too many attempts. Try again later.' }) }));
+        await page.goto(`${BASE}/home-screen.html?code=ZZZZ2222`);
+        await expect(page.locator('#home-screen-launch-text')).toContainText('open the icon again');
+        await expect(page.locator('#home-screen-launch-text')).not.toContainText('expired');
+        await page.unroute('**/api/auth/redeem-transfer');
+        await page.route('**/api/auth/redeem-transfer', route => route.abort('internetdisconnected'));
+        await page.reload();
+        await expect(page.locator('#home-screen-launch-text')).toContainText('connection');
+        await app.close();
+    });
+
     test('desktop browsers explain blocked notifications', async ({ browser, request }) => {
         const { room, alice } = await setupGame(request);
         const context = await browser.newContext();
