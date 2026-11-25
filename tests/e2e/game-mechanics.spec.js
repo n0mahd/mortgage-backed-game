@@ -805,7 +805,7 @@ test.describe('Game mechanics — UI', () => {
         await expect(modal).toContainText('Properties returned to the Bank');
         await expect(modal).toContainText('Governance closed after insolvency');
         await expect(modal).toContainText('No assets');
-        await expect(modal).toContainText('No corporation debt');
+        await expect(modal.locator('[data-corp-panel="debt"]')).toHaveCount(0);
         await expect(modal.getByRole('button', { name: /^Buy$/ })).toHaveCount(0);
 
         const fetched = await (await request.get(`${BASE_API}/games/${game.id}`, {

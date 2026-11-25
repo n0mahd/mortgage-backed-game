@@ -67,12 +67,10 @@
         const runs = global.ShareDeals.runsCorporation(corp, me());
         const total = Number(corp.totalShares || 0);
         const mine = global.ShareDeals.sharesHeld(corp, me());
-        const pct = global.ShareDeals.percent(mine, total);
-        const effect = policy === 'payout'
-            ? (mine > 0
-                ? `Rent goes straight to shareholders. You hold ${pct}, so on ${corp.ticker}'s properties you pay only the other ${global.ShareDeals.percent(total - mine, total)} of the rent.`
-                : 'Rent goes straight to the shareholders, split by shares.')
-            : `Everyone pays full rent into the ${corp.ticker} treasury, shareholders included. ${mine > 0 ? `Your ${pct} stake grows with it.` : ''}`;
+        // The toggle says where rent goes; only a holder's discount needs saying.
+        const effect = policy === 'payout' && mine > 0
+            ? `You pay only ${global.ShareDeals.percent(total - mine, total)} of the rent on ${corp.ticker}'s properties.`
+            : '';
         const other = policy === 'payout' ? 'reinvest' : 'payout';
         const otherLabel = other === 'payout' ? 'Payout' : 'Reinvest';
         // The current policy is the selected half of a two-way toggle; the
@@ -84,9 +82,7 @@
         if (runs && !corp.rentPolicyVote) {
             const rolledThisTurn = isMyTurn() && hasRolled();
             const canSwitch = canAct() && !rolledThisTurn;
-            const note = !canAct() ? holdNote()
-                : (rolledThisTurn ? 'You have rolled. You can switch again after your turn.'
-                    : (isMyTurn() ? 'Switch before you roll.' : ''));
+            const note = !canAct() ? holdNote() : (rolledThisTurn ? 'Locked until your turn ends' : '');
             const debt = (corp.debts || []).reduce((sum, d) => sum + Number(d.principal || 0), 0);
             const debtWarning = other === 'payout' && debt > 0
                 ? `<p class="share-deal-warning">${esc(corp.ticker)} owes ${money(debt)}. In Payout its treasury stops growing, but interest is still charged to it.</p>`
@@ -107,7 +103,7 @@
                 <div class="policy-toggle" role="group" aria-label="Rent policy">
                     ${policy === 'reinvest' ? current + otherOption : otherOption + current}
                 </div>
-                <p>${esc(effect)}</p>
+                ${effect ? `<p>${esc(effect)}</p>` : ''}
                 ${renderRentPolicyVote(corp)}
                 ${controls}
             </div>
@@ -121,7 +117,7 @@
     }
 
     function proposeButton(corp, policy, label) {
-        return `<button class="btn btn-secondary btn-sm" data-game-action="propose-rent-policy" data-corp-id="${esc(corp.id)}" data-policy="${policy}">Ask every shareholder to switch to ${label}</button>`;
+        return `<button class="btn btn-secondary btn-sm" data-game-action="propose-rent-policy" data-corp-id="${esc(corp.id)}" data-policy="${policy}">Ask to switch to ${label}</button>`;
     }
 
     // An open rent-policy vote: who agreed, who hasn't yet, and Agree / Reject
@@ -144,7 +140,7 @@
             <div class="chairman-vote-row">
                 <div>
                     <strong>Switch to ${vote.policy === 'payout' ? 'Payout' : 'Reinvest'}?</strong>
-                    <span>Proposed by ${esc(vote.proposedByName || 'a shareholder')}. Agreed: ${esc(agreed.map(nameOf).join(', ') || 'nobody yet')}. Waiting for: ${esc(waiting.map(nameOf).join(', '))}. It switches when everyone agrees; one no closes it.</span>
+                    <span>Agreed: ${esc(agreed.map(nameOf).join(', ') || 'nobody yet')}. Waiting for: ${esc(waiting.map(nameOf).join(', '))}. Everyone must agree.</span>
                 </div>
                 ${canAnswer ? `
                     <button class="btn btn-primary btn-sm" data-game-action="vote-rent-policy" data-corp-id="${esc(corp.id)}" data-approve="true">Agree</button>
@@ -185,19 +181,18 @@
         const cash = Number(corp.cash || 0);
         return `
             <div class="corp-runner-tools">
-                <h4>Chairman moves <span class="corp-heading-note">${money(cash)} to spend</span></h4>
+                <h4>Chairman moves</h4>
                 <div class="buy-shares-form">
-                    <label for="dividend-${esc(corp.id)}">Pay a dividend, split by shares</label>
+                    <label for="dividend-${esc(corp.id)}">Dividend</label>
                     <input type="number" inputmode="decimal" id="dividend-${esc(corp.id)}" min="1" max="${Math.floor(cash)}" placeholder="Up to ${money(Math.floor(cash))}">
                     <button class="btn btn-primary btn-sm" data-game-action="pay-dividend" data-corp-id="${esc(corp.id)}"${ok && cash >= 1 ? '' : ' disabled'}>Pay dividend</button>
                 </div>
                 <div class="moves-grid corp-moves">
                     ${buildButton(corp)}
-                    <button class="btn btn-secondary btn-sm" data-game-action="trade-as-corporation" data-corp-id="${esc(corp.id)}">Trade as ${esc(corp.ticker)}<small>Opens the Market</small></button>
+                    <button class="btn btn-secondary btn-sm" data-game-action="trade-as-corporation" data-corp-id="${esc(corp.id)}">Trade as ${esc(corp.ticker)}</button>
                     ${borrowButton(corp)}
                     ${extraMoves}
                 </div>
-                <small>To buy a property for ${esc(corp.ticker)}, land on it and choose ${esc(corp.ticker)} when you buy.</small>
             </div>
         `;
     }
@@ -249,7 +244,7 @@
         global.openMarketPane('trade');
         global.setTradingAs('player1', me(), corpId);
         const corp = corpById(corpId);
-        global.showMarketStatus(`You're trading for ${corp?.ticker || 'the company'}: its treasury cash, properties and treasury shares. Pick who to trade with.`, 'info');
+        global.showMarketStatus(`Trading as ${corp?.ticker || 'the company'}.`, 'info');
         document.querySelector('#market .market-tabs')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }
 
@@ -266,8 +261,7 @@
         return `
             <div class="offer-property-for-shares">
                 <button class="btn btn-success" data-game-action="open-property-offer" data-corp-id="${esc(corp.id)}">Offer a property to ${esc(corp.ticker)}</button>
-                <small>At book value or your price, for new ${esc(corp.ticker)} shares or treasury cash. ${esc(corp.chairmanName || 'The chairman')} accepts, declines or counters.</small>
-                <button class="btn btn-secondary btn-sm" data-game-action="offer-property-for-shares" data-corp-id="${esc(corp.id)}">Or trade it for ${esc(corp.chairmanName || 'the chairman')}'s own shares</button>
+                <button class="btn btn-secondary btn-sm" data-game-action="offer-property-for-shares" data-corp-id="${esc(corp.id)}">Trade with ${esc(corp.chairmanName || 'the chairman')} instead</button>
             </div>
         `;
     }
@@ -359,7 +353,7 @@
         const title = offer.awaiting === 'offerer'
             ? `${corp.chairmanId === me() ? 'You' : (corp.chairmanName || corp.ticker)} countered: ${corp.ticker} pays ${money(summary.quote.price)} for ${names}`
             : `${offerer} ${isOfferer ? 'want' : 'wants'} to sell ${names} to ${corp.ticker}`;
-        const kind = `Offer to ${corp.ticker}${canAnswer ? (isOfferer ? ' · your answer' : ' · you decide as chairman') : ''}`;
+        const kind = `Offer to ${corp.ticker}${canAnswer ? (isOfferer ? ' · your answer' : ' · your call') : ''}`;
         const assetTags = global.sortTradeAssetIds(offer.assetIds).map(id => {
             const property = global.tradeAssetProperty(id);
             const value = Number((state().players || []).flatMap(p => p.properties || []).find(p => p.id === id)?.value ?? property?.price ?? 0);
@@ -387,7 +381,7 @@
         const otherWarnings = summary.warnings.filter(warning => !/over book value/.test(warning) && !/will own over half/.test(warning));
         const waitingOn = offer.awaiting === 'offerer'
             ? offer.offererName
-            : `${corp.chairmanName || 'the chairman'}, ${corp.ticker}'s chairman`;
+            : (corp.chairmanName || `${corp.ticker}'s chairman`);
         const id = esc(offer.id);
         return `
             <div class="trade-offer-card${expired ? ' trade-offer-expired' : ''}" data-property-offer-id="${id}">
@@ -504,7 +498,7 @@
     }
 
     let offerCorpId = null;
-    // "Set my price" follows the ticked properties' book value until typed in.
+    // "My price" follows the ticked properties' book value until typed in.
     let offerPriceTyped = false;
 
     function openPropertyOffer(corpId) {
@@ -513,8 +507,7 @@
         offerCorpId = corpId;
         global.closeModal('corporationModal');
         document.getElementById('propertyOfferTitle').textContent = `Offer a property to ${corp.ticker}`;
-        document.getElementById('propertyOfferHint').textContent = `${corp.chairmanName || 'The chairman'} decides. ${corp.ticker} will own it and collect its rent.`;
-        document.getElementById('propertyOfferCashNote').textContent = `${corp.ticker} buys it outright. Its treasury has ${money(corp.cash)}.`;
+        document.getElementById('propertyOfferCashNote').textContent = `${corp.ticker} has ${money(corp.cash)}`;
         const container = document.getElementById('propertyOfferAssets');
         container.innerHTML = (currentPlayerData?.properties || []).map(p => {
             const built = global.groupHasBuildingsUi(p.color);

@@ -278,7 +278,7 @@ test('the chairman trades as the company and buys a property for it', async ({ b
     await sam.page.fill('#player1Cash', '200');
     await sam.page.check('#player2Assets input[value="prop-13"]');
     await sam.page.click('#executeTradeBtn');
-    await expect(sam.page.locator('#market-status')).toContainText('Trade proposal sent');
+    await expect(sam.page.locator('#market-status')).toContainText('Sent to');
 
     await kim.page.locator('.nav-tab[data-section="market"]').click();
     await showMarketPane(kim.page, 'Trade proposals');
@@ -313,7 +313,7 @@ test('the chairman buys a property for MBS with new shares, at the fair count', 
     await expect(sam.page.locator('#tradePreview')).toContainText('MBS issues 1,956 new shares to Kim.');
     await expect(sam.page.locator('#tradePreview')).not.toContainText('than fair');
     await sam.page.click('#executeTradeBtn');
-    await expect(sam.page.locator('#market-status')).toContainText('Trade proposal sent');
+    await expect(sam.page.locator('#market-status')).toContainText('Sent to');
 
     await kim.page.locator('.nav-tab[data-section="market"]').click();
     await showMarketPane(kim.page, 'Trade proposals');
@@ -397,7 +397,7 @@ test('the chairman picks the company under They give to add a property, and send
     await expect(sam.page.locator('#executeTradeBtn')).toBeDisabled();
     await sam.page.check('#player1Assets input[value="prop-15"]');
     await expect(sam.page.locator('#player2Destination')).toContainText('2,133 new shares');
-    await expect(sam.page.locator('#tradePreview')).toContainText('Before you confirm');
+    await expect(sam.page.locator('#tradePreview')).toContainText('Your MBS shares');
     await sam.page.click('#executeTradeBtn');
     await expect(sam.page.locator('#market-status')).toContainText('Added to MBS');
     await expect.poll(async () => (await fetchState(request, game, users.Sam)).corporations[0].totalShares).toBe(14133);
@@ -407,7 +407,7 @@ test('the chairman picks the company under They give to add a property, and send
     // Back to a normal trade: the headings and cash boxes return.
     await sam.page.selectOption('#player2Select', ids.kim);
     await expect(sam.page.locator('#player2Heading')).toHaveText('They give');
-    await expect(sam.page.locator('#executeTradeBtn')).toHaveText('Propose Transaction');
+    await expect(sam.page.locator('#executeTradeBtn')).toHaveText('Send offer');
     await expect(sam.page.locator('#player1CashGroup')).toBeVisible();
 
     // Send money into MBS for new shares: $135 at $1,590 over 14,133 shares.
@@ -429,7 +429,7 @@ test('the chairman picks the company under They give to add a property, and send
     await showMarketPane(alex.page, 'Send money');
     await alex.page.selectOption('#paymentToPlayer', 'corp:corp-mbs');
     await alex.page.fill('#paymentAmount', '10');
-    await expect(alex.page.locator('#paymentReturn')).toContainText('as a gift');
+    await expect(alex.page.locator('#paymentReturn')).toContainText('A gift to');
     await expect(alex.page.locator('input[name="paymentReturnChoice"]')).toHaveCount(0);
     await alex.context.close();
 });

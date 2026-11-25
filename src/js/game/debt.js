@@ -12,8 +12,8 @@ function openDebtModal() {
         option.disabled = !canAct;
     });
     select.value = canAct && !getManagedLoans().length ? 'issue' : 'loans';
-    document.getElementById('loanRatesHint').textContent =
-        `Loans this game cost ${LoanMath.loanRate(currentGame.game_state)}% interest per turn, for ${LoanMath.MIN_LOAN_TERM} to ${LoanMath.MAX_LOAN_TERM} turns. Paying the loan down every turn clears it by the last turn; with interest only, the whole balance is due then.`;
+    // The rate is a house rule, so it's said where a new loan is set up.
+    document.getElementById('loanRatesHint').textContent = `${LoanMath.loanRate(currentGame.game_state)}% interest per turn.`;
     document.getElementById('debtIssuer').innerHTML = debtIssuerOptionsHtml();
     document.getElementById('loanAmount').value = '';
     ['loan', 'refinance'].forEach(prefix => {
@@ -58,21 +58,19 @@ function renderLoanList() {
 function renderLoanRow(debt, corp, isMyTurn, canAct) {
     const status = LoanMath.loanStatus(debt, { dueThisTurn: loanDueOnMyTurn(corp, isMyTurn) });
     const cash = corp ? Number(corp.cash || 0) : Number(currentPlayerData?.cash || 0);
-    const borrower = corp ? `${corp.ticker} (corporation)` : 'Personal';
     const autopayId = `loan-autopay-${debt.id}`;
-    const whoseTurn = corp ? 'the chairman\'s' : 'your';
     const amountId = `loan-pay-${debt.id}`;
     const ids = `data-debt-id="${escapeHtml(debt.id)}" data-corp-id="${escapeHtml(corp ? corp.id : '')}"`;
-    let schedule;
+    // The badge has the turns left and the select the amount autopay takes;
+    // only what they don't show is said.
+    let schedule = '';
     if (status.dueInFull) {
         const when = status.dueThisTurn ? 'when you end this turn' : `at the end of ${corp ? 'the chairman\'s' : 'your'} next turn`;
         schedule = `${formatMoney(status.nextPayment)} is due in full ${when}. If there isn't the cash, ${corp ? `${corp.ticker} becomes insolvent` : 'you go bankrupt'}.`;
-    } else if (status.autopay === 'pay_down') {
-        schedule = `Autopay takes ${formatMoney(status.nextPayment)} at the end of ${whoseTurn} turn, paying the loan off in ${status.turnsLeft} turns.`;
     } else if (status.autopay === 'interest_only') {
-        schedule = `Autopay takes the ${formatMoney(status.nextPayment)} interest at the end of ${whoseTurn} turn. The balance stays the same and is all due when the term ends.`;
-    } else {
-        schedule = `Autopay is off: ${formatMoney(status.interestNext)} interest is added to the balance at the end of ${whoseTurn} turn.`;
+        schedule = 'The whole balance is due when the term ends.';
+    } else if (status.autopay === 'off') {
+        schedule = `${formatMoney(status.interestNext)} interest is added to the balance at End Turn.`;
     }
     const autopayOptions = LoanMath.AUTOPAY_MODES.map(mode => {
         const amount = mode.value === 'pay_down' ? status.installment : mode.value === 'interest_only' ? status.interestNext : 0;
@@ -86,14 +84,14 @@ function renderLoanRow(debt, corp, isMyTurn, canAct) {
                 <span class="loan-balance">${formatMoney(status.balance)}</span>
                 <span class="badge ${status.dueInFull ? 'badge-danger' : 'badge-info'}">${escapeHtml(status.turnsLabel)}</span>
             </div>
-            <p class="debt-detail">${escapeHtml(borrower)} · ${escapeHtml(status.termLabel)}</p>
-            <p class="loan-schedule">${escapeHtml(schedule)}</p>
+            ${corp ? `<p class="debt-detail">${escapeHtml(corp.ticker)}</p>` : ''}
+            ${schedule ? `<p class="loan-schedule">${escapeHtml(schedule)}</p>` : ''}
             <div class="loan-autopay">
                 <label class="field-label" for="${escapeHtml(autopayId)}">Autopay each turn</label>
                 <select id="${escapeHtml(autopayId)}" data-loan-autopay ${ids}${status.dueInFull ? ' disabled' : ''}>${autopayOptions}</select>
             </div>
             <div class="loan-pay">
-                <label class="field-label" for="${escapeHtml(amountId)}">Pay an amount</label>
+                <label class="sr-only" for="${escapeHtml(amountId)}">Amount to pay</label>
                 <div class="inline-action-row">
                     <input type="number" inputmode="decimal" min="0" step="0.01" id="${escapeHtml(amountId)}" placeholder="Up to ${escapeHtml(formatMoney(Math.min(cash, status.balance)))}"${payDisabled}>
                     <button type="button" class="btn btn-secondary btn-sm" data-loan-pay ${ids}${payDisabled}>Pay</button>
@@ -178,7 +176,7 @@ function renderLoanTerms(prefix) {
     }
     const q = LoanMath.loanQuote(amount, rate, turns);
     if (autopay === 'pay_down') {
-        quote.textContent = `${formatMoney(q.payment)} a turn for ${turns} turns, ${formatMoney(q.total)} in total. Nothing is owed after the last payment.`;
+        quote.textContent = `${formatMoney(q.payment)} a turn for ${turns} turns, ${formatMoney(q.total)} in total.`;
     } else if (autopay === 'interest_only') {
         quote.textContent = `${formatMoney(q.interest)} interest a turn, then ${formatMoney(q.finalPayment)} on the last turn: ${formatMoney(q.interestOnlyTotal)} in total.`;
     } else {
@@ -193,7 +191,7 @@ function selectedLoanTerm(selectId) {
 
 function debtIssuerOptionsHtml() {
     return debtBorrowers().map(borrower =>
-        `<option value="${escapeHtml(borrower.key)}">${escapeHtml(borrower.corp ? `${borrower.corp.ticker} Corporation` : 'Personal')}</option>`
+        `<option value="${escapeHtml(borrower.key)}">${escapeHtml(borrower.corp ? borrower.corp.ticker : 'Personal')}</option>`
     ).join('');
 }
 
@@ -271,7 +269,7 @@ function renderRefinanceBorrowerOptions() {
     const select = document.getElementById('refinanceBorrower');
     const previous = select.value;
     const borrowers = refinanceBorrowers();
-    select.innerHTML = borrowers.map(borrower => `<option value="${escapeHtml(borrower.key)}">${escapeHtml(borrower.corp ? `${borrower.corp.ticker} (corporation)` : 'Personal')}</option>`).join('');
+    select.innerHTML = borrowers.map(borrower => `<option value="${escapeHtml(borrower.key)}">${escapeHtml(borrower.corp ? borrower.corp.ticker : 'Personal')}</option>`).join('');
     if (borrowers.some(borrower => borrower.key === previous)) select.value = previous;
     document.getElementById('refinanceBorrowerGroup').style.display = borrowers.length > 1 ? '' : 'none';
     renderRefinanceDebtOptions();
@@ -326,7 +324,7 @@ function debtPrincipal(debt) {
 
 function debtOptionLabel(debt, index, corp) {
     const status = LoanMath.loanStatus(debt, { dueThisTurn: loanDueOnMyTurn(corp) });
-    return `Loan #${index + 1}: ${formatMoney(debtPrincipal(debt))}, ${escapeHtml(status.termLabel)}, ${escapeHtml(status.turnsLabel.toLowerCase())}`;
+    return `${formatMoney(debtPrincipal(debt))} · ${escapeHtml(status.turnsLabel.toLowerCase())}`;
 }
 
 function getSelectedRefinanceDebtItems() {
@@ -377,7 +375,7 @@ function updateRefinanceSummary() {
         summary.textContent = `${balance} ${formatMoney(-difference)} is paid down from ${whose} cash${short ? `, which has only ${formatMoney(cash)}` : ''}.`;
         summary.classList.toggle('debt-flow-warning', short);
     } else {
-        summary.textContent = `${balance} Same balance on a new term; no cash changes hands.`;
+        summary.textContent = 'No cash changes hands.';
     }
 }
 
@@ -405,6 +403,7 @@ function renderRefinancePreview(borrower, selected) {
 
 function toggleDebtForm() {
     const action = document.getElementById('debtAction').value;
+    document.getElementById('loanRatesHint').hidden = action === 'loans';
     document.getElementById('loansView').style.display = action === 'loans' ? 'block' : 'none';
     document.getElementById('issueDebtForm').style.display = action === 'issue' ? 'block' : 'none';
     document.getElementById('refinanceDebtForm').style.display = action === 'refinance' ? 'block' : 'none';

@@ -71,7 +71,6 @@
             <!-- Market Section -->
             <div class="section" id="market">
                 <h2>Market</h2>
-                <p class="section-lede">Trades wait for the other player to accept. Payments move cash right away.</p>
 
                 <div class="segmented market-tabs" role="tablist" aria-label="Market">
                     <button type="button" class="segmented-option" role="tab" id="marketTab-trade" aria-controls="marketPane-trade" aria-selected="false" data-market-pane="trade">New trade</button>
@@ -90,7 +89,7 @@
                         <div class="transaction-side">
                             <h3 id="player1Heading">You give</h3>
                             <div class="form-group">
-                                <label for="player1Select">Player or company</label>
+                                <label for="player1Select" class="sr-only">Who gives</label>
                                 <select id="player1Select"></select>
                             </div>
                             <div class="form-group" id="player1CashGroup">
@@ -106,7 +105,7 @@
                         <div class="transaction-side">
                             <h3 id="player2Heading">They give</h3>
                             <div class="form-group">
-                                <label for="player2Select">Player or company</label>
+                                <label for="player2Select" class="sr-only">Who gives back</label>
                                 <select id="player2Select"></select>
                             </div>
                             <div class="form-group" id="player2CashGroup">
@@ -119,18 +118,14 @@
                     </div>
                     <div id="tradePreview" class="trade-preview" hidden></div>
                     <div class="market-submit">
-                        <button class="btn btn-success" id="executeTradeBtn">Propose Transaction</button>
+                        <button class="btn btn-success" id="executeTradeBtn">Send offer</button>
                     </div>
                 </div>
 
                 <div class="market-pane" id="marketPane-payment" role="tabpanel" aria-labelledby="marketTab-payment" hidden>
                     <div class="payment-panel">
                         <div class="form-group">
-                            <label for="paymentFromPlayer">From</label>
-                            <select id="paymentFromPlayer"></select>
-                        </div>
-                        <div class="form-group">
-                            <label for="paymentToPlayer">To player or company</label>
+                            <label for="paymentToPlayer">To</label>
                             <select id="paymentToPlayer"></select>
                         </div>
                         <div class="form-group">
@@ -139,7 +134,7 @@
                         </div>
                         <div class="trade-destination" id="paymentReturn"></div>
                         <div class="trade-preview" id="paymentPreview" hidden></div>
-                        <button class="btn btn-success" id="makePaymentBtn">Make Payment</button>
+                        <button class="btn btn-success" id="makePaymentBtn">Send</button>
                     </div>
                 </div>
 
@@ -209,7 +204,7 @@
                 <label>Ticker symbol</label>
                 <input type="text" id="ipoTicker" placeholder="e.g., PROP" autocapitalize="characters" autocomplete="off">
             </div>
-            <p class="modal-hint">The company issues 12,000 shares and you hold all of them. 12,000 splits evenly: a half is 6,000, a third 4,000, a quarter 3,000, a sixth 2,000.</p>
+            <p class="modal-hint">You'll own all 12,000 shares.</p>
             <div class="form-group">
                 <label>Properties to include</label>
                 <div class="asset-list" id="ipoAssets"></div>
@@ -225,7 +220,6 @@
     <div class="modal" id="addCashToCorpModal">
         <div class="modal-content">
             <div class="modal-header" id="addCashToCorpTitle">Add cash</div>
-            <p class="modal-hint" id="addCashToCorpHint"></p>
             <div class="form-group">
                 <label for="addCashToCorpAmount">Amount <span id="addCashToCorpMax"></span></label>
                 <input type="number" id="addCashToCorpAmount" min="0" step="0.01" inputmode="decimal" placeholder="$0">
@@ -242,7 +236,6 @@
     <div class="modal" id="addToCorpModal">
         <div class="modal-content">
             <div class="modal-header" id="addToCorpTitle">Add properties</div>
-            <p class="modal-hint" id="addToCorpHint"></p>
             <div class="form-group">
                 <label>Properties to add</label>
                 <div class="asset-list" id="addToCorpAssets"></div>
@@ -270,7 +263,6 @@
     <div class="modal" id="propertyOfferModal">
         <div class="modal-content">
             <div class="modal-header" id="propertyOfferTitle">Offer a property</div>
-            <p class="modal-hint" id="propertyOfferHint"></p>
             <div class="form-group">
                 <label>Properties to offer</label>
                 <div class="asset-list" id="propertyOfferAssets"></div>
@@ -279,11 +271,11 @@
                 <p class="trade-destination-title">At what price?</p>
                 <label class="trade-destination-option">
                     <input type="radio" name="propertyOfferBasis" value="book" checked>
-                    <span><strong>Book value</strong><small>Price plus buildings. Fair to everyone: no holder gains or loses value.</small></span>
+                    <span><strong>Fair price</strong></span>
                 </label>
                 <label class="trade-destination-option">
                     <input type="radio" name="propertyOfferBasis" value="set">
-                    <span><strong>Set my price</strong><small>You name it. The chairman accepts, declines or counters.</small></span>
+                    <span><strong>My price</strong></span>
                 </label>
                 <div class="form-group" id="propertyOfferPriceGroup" hidden>
                     <label for="propertyOfferPriceInput">Your price</label>
@@ -294,11 +286,11 @@
                 <p class="trade-destination-title">Paid with</p>
                 <label class="trade-destination-option">
                     <input type="radio" name="propertyOfferPayWith" value="shares" checked>
-                    <span><strong>New shares</strong><small>Issued at today's value per share.</small></span>
+                    <span><strong>New shares</strong></span>
                 </label>
                 <label class="trade-destination-option">
                     <input type="radio" name="propertyOfferPayWith" value="cash">
-                    <span><strong>Treasury cash</strong><small id="propertyOfferCashNote">The company buys it outright.</small></span>
+                    <span><strong>Cash</strong><small id="propertyOfferCashNote"></small></span>
                 </label>
             </div>
             <div class="trade-preview" id="propertyOfferPreview" hidden></div>
@@ -314,7 +306,7 @@
             <div class="modal-header">Debt</div>
             <p class="modal-hint" id="loanRatesHint"></p>
             <div class="form-group">
-                <label for="debtAction">What do you want to do?</label>
+                <label for="debtAction" class="sr-only">Show</label>
                 <select id="debtAction">
                     <option value="loans">Your loans</option>
                     <option value="issue">Take a new loan</option>
@@ -496,7 +488,7 @@
     <script src="src/js/number-inputs.js?v=1"></script>
     <script src="src/js/ui.js?v=2"></script>
     <script src="src/js/rejoin-prompts.js?v=2"></script>
-    <script src="src/js/board.js?v=17"></script>
+    <script src="src/js/board.js?v=18"></script>
     <script src="src/js/game/action-dispatcher.js?v=15"></script>
     <script src="src/js/game/turn-alert.js?v=1"></script>
     <script src="src/js/game/turn-end-outlook.js?v=6"></script>
@@ -516,7 +508,7 @@
     <script src="src/js/game/corporations.js?v=9"></script>
     <script src="src/js/game/mergers.js?v=3"></script>
     <script src="src/js/game/market.js?v=13"></script>
-    <script src="src/js/game/rule-proposals.js?v=3"></script>
+    <script src="src/js/game/rule-proposals.js?v=4"></script>
     <script src="src/js/game/device-alerts.js?v=1"></script>
     <script src="src/js/game.js?v=70"></script>
 </body>

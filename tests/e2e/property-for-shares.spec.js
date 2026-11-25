@@ -94,7 +94,7 @@ test('a player trades a property into an LLC for its shares', async ({ browser, 
     await expect(preview).toContainText('Your net worthNo change');
 
     await alex.page.click('#executeTradeBtn');
-    await expect(alex.page.locator('#market-status')).toContainText('Trade proposal sent');
+    await expect(alex.page.locator('#market-status')).toContainText('Sent to');
 
     // Sam sees the deal from his side, with what it means for him.
     await sam.page.click('.nav-tab[data-section="market"]');

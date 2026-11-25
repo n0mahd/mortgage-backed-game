@@ -3286,8 +3286,9 @@ button.policy-option:active:not(:disabled) { background: var(--mint-wash); }
     .modal-content.corp-sheet.is-detail { max-width: 920px; }
     .corp-summary-list { grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); }
     .modal-content.corp-sheet:not(.is-detail) { max-width: 720px; }
-    .corp-stats { grid-template-columns: repeat(4, 1fr); }
+    .corp-stats { grid-template-columns: none; grid-auto-flow: column; grid-auto-columns: 1fr; }
     .corp-tabs { display: none; }
+    .corp-panel-move { display: none; }
     .corp-detail-cols {
         display: grid;
         grid-template-columns: 1.15fr 1fr;
