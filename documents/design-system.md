@@ -202,7 +202,7 @@ board color goes before the name so groups are recognisable at a glance.
 
 **Segmented control** (`.segmented` with `.segmented-option` buttons, `role="tablist"`/`"tab"`). Tabs
 inside one page section, like the Market's New trade, Send money, Trade proposals, Rule proposals and
-Past transactions. Two by two on phones, one row from 480px (the Market's fifth tab runs across the
+Past trades. Two by two on phones, one row from 480px (the Market's fifth tab runs across the
 bottom on phones); the selected option is forest with white text. A `.segmented-count` pill shows how
 many items wait in a pane.
 

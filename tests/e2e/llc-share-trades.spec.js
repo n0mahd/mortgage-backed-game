@@ -65,7 +65,7 @@ test('a player can sell LLC shares through the Market tab', async ({ browser, re
     await alice.page.selectOption('#player1Select', users.Alice.user.id);
     await alice.page.selectOption('#player2Select', users.Bob.user.id);
     const shareInput = alice.page.locator('#player1Assets .trade-share-input');
-    await expect(alice.page.locator('#player1Assets')).toContainText('ALC shares (holds 10 of 10)');
+    await expect(alice.page.locator('#player1Assets')).toContainText('ALC shares (10 · 100%)');
     await shareInput.fill('4');
     await alice.page.fill('#player2Cash', '90');
     await expect(alice.page.locator('#executeTradeBtn')).toBeEnabled();
@@ -82,8 +82,8 @@ test('a player can sell LLC shares through the Market tab', async ({ browser, re
     await showMarketPane(bob.page, 'New trade');
     await bob.page.selectOption('#player1Select', users.Bob.user.id);
     await bob.page.selectOption('#player2Select', users.Alice.user.id);
-    await expect(bob.page.locator('#player1Assets')).toContainText('ALC shares (holds 4 of 10)');
-    await expect(bob.page.locator('#player2Assets')).toContainText('ALC shares (holds 6 of 10)');
+    await expect(bob.page.locator('#player1Assets')).toContainText('ALC shares (4 · 40%)');
+    await expect(bob.page.locator('#player2Assets')).toContainText('ALC shares (6 · 60%)');
 
     const fetched = await apiJson(request, 'get', `${BASE_API}/games/${(await alice.page.evaluate(() => currentGame.id))}`, {
         headers: { Authorization: `Bearer ${users.Alice.token}` },

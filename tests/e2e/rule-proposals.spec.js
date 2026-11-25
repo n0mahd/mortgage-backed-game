@@ -72,7 +72,7 @@ test('Alice proposes Pass GO $300, Bob votes yes, and the rule changes on both s
     const pane = alicePage.locator('#ruleProposalsPane');
     await expect(pane.locator('.house-rule').first()).toContainText('Pass GO');
     await expect(pane.locator('.house-rule').first()).toContainText('$200');
-    await expect(pane.locator('.house-rule').first()).toContainText('Set by host');
+    await expect(pane.locator('.house-rule').first()).not.toContainText('Changed by vote');
 
     await pane.locator('[data-game-action="rule-start"]').click();
     // The form starts one step up from today's value.

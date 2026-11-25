@@ -2142,7 +2142,7 @@ input[type="radio"] {
     .segmented { grid-template-columns: repeat(4, 1fr); }
 }
 
-/* The Market has five panes: two by two on phones with Past transactions across the
+/* The Market has five panes: two by two on phones with Past trades across the
    bottom, one row when there is room. */
 .market-tabs .segmented-option:last-child { grid-column: 1 / -1; }
 
@@ -3270,8 +3270,9 @@ button.policy-option:active:not(:disabled) { background: var(--mint-wash); }
     .modal-content.corp-sheet.is-detail { max-width: 920px; }
     .corp-summary-list { grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); }
     .modal-content.corp-sheet:not(.is-detail) { max-width: 720px; }
-    .corp-stats { grid-template-columns: repeat(4, 1fr); }
+    .corp-stats { grid-template-columns: none; grid-auto-flow: column; grid-auto-columns: 1fr; }
     .corp-tabs { display: none; }
+    .corp-panel-move { display: none; }
     .corp-detail-cols {
         display: grid;
         grid-template-columns: 1.15fr 1fr;
@@ -3326,6 +3327,11 @@ button.policy-option:active:not(:disabled) { background: var(--mint-wash); }
     font-variant-numeric: lining-nums proportional-nums;
     color: var(--ink-2);
 }
+
+.corp-asset-row > span:first-child { display: inline-flex; align-items: center; gap: var(--s2); }
+.corp-asset-row .board-house,
+.corp-asset-row .board-hotel { font-size: 11px; }
+.corp-asset-row .board-house { width: 18px; height: 17px; }
 
 .corp-status-warning {
     padding: var(--s2) var(--s3);

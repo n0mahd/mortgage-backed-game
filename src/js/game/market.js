@@ -84,9 +84,8 @@ function populatePlayerDropdowns() {
 
     const player1Select = document.getElementById('player1Select');
     const player2Select = document.getElementById('player2Select');
-    const paymentFromPlayer = document.getElementById('paymentFromPlayer');
     const paymentToPlayer = document.getElementById('paymentToPlayer');
-    if (!player1Select || !player2Select || !paymentFromPlayer || !paymentToPlayer) return;
+    if (!player1Select || !player2Select || !paymentToPlayer) return;
 
     const previous = {
         player1: player1Select.value,
@@ -97,14 +96,11 @@ function populatePlayerDropdowns() {
 
     player1Select.innerHTML = marketPartyOptionsHtml(gameState);
     player2Select.innerHTML = marketPartyOptionsHtml(gameState);
-    paymentFromPlayer.innerHTML = gameState.players.map(p => `<option value="${escapeHtml(p.userId)}">${escapeHtml(p.name)}</option>`).join('');
     paymentToPlayer.innerHTML = marketPartyOptionsHtml(gameState, currentUser.id);
 
     setSelectValue(player1Select, previous.player1 || currentUser.id, currentUser.id);
     setSelectValue(player2Select, previous.player2 || firstOtherId, firstOtherId || currentUser.id);
-    setSelectValue(paymentFromPlayer, currentUser.id, currentUser.id);
     setSelectValue(paymentToPlayer, previous.paymentTo || firstOtherId, firstOtherId);
-    paymentFromPlayer.disabled = true;
     enforceDistinctPlayers(player1Select, player2Select);
 
     if (!player1Select.dataset.assetsBound) {
@@ -270,7 +266,7 @@ function updatePlayerAssets(playerNumber) {
             return `
                 <div class="asset-checkbox asset-shares">
                     <input type="number" class="trade-share-input" id="${inputId}" data-corp-id="${escapeHtml(corp.id)}" data-total-shares="${Number(corp.totalShares)}" min="0" max="${Number(corp.sharesOwned)}" step="1" value="0">
-                    <label for="${inputId}">${escapeHtml(corp.ticker)} shares (holds ${ShareDeals.count(corp.sharesOwned)} of ${ShareDeals.count(corp.totalShares)})</label>
+                    <label for="${inputId}">${escapeHtml(corp.ticker)} shares (${ShareDeals.count(corp.sharesOwned)} · ${ShareDeals.percent(corp.sharesOwned, corp.totalShares)})</label>
                     <span class="trade-share-pct" aria-live="polite"></span>
                 </div>
             `;
@@ -323,12 +319,12 @@ function renderMergeChoice(playerNumber, mode) {
     const option = (value, title, detail) => `
         <label class="trade-destination-option">
             <input type="radio" name="tradeMergeChoice" value="${value}"${(merging ? 'merge' : 'trade') === value ? ' checked' : ''}>
-            <span><strong>${escapeHtml(title)}</strong><small>${escapeHtml(detail)}</small></span>
+            <span><strong>${escapeHtml(title)}</strong>${detail ? `<small>${escapeHtml(detail)}</small>` : ''}</span>
         </label>`;
     container.innerHTML = `
         <p class="trade-destination-title">What does ${escapeHtml(target.ticker)} give?</p>
-        ${pair.runsBoth ? '' : option('trade', 'Some of its properties or cash', `${target.chairmanName || 'Its chairman'}, ${target.ticker}'s chairman, accepts or declines.`)}
-        ${option('merge', `The whole company: merge ${target.ticker} into ${acquirer.ticker}`, `${target.ticker}'s owners vote. Everything ${target.ticker} has joins ${acquirer.ticker}, and ${target.ticker} closes.`)}
+        ${pair.runsBoth ? '' : option('trade', 'Some of its properties or cash', '')}
+        ${option('merge', `Merge all of ${target.ticker} into ${acquirer.ticker}`, `${target.ticker}'s owners vote.`)}
     `;
     container.dataset.html = '';
 }
@@ -359,7 +355,7 @@ function renderTradeFormMode(mode) {
         if (group) group.hidden = adding;
     });
     const button = document.getElementById('executeTradeBtn');
-    if (button) button.textContent = adding ? `Add to ${mode.corp.ticker}` : (activeTradeCounter() ? 'Send Counteroffer' : 'Propose Transaction');
+    if (button) button.textContent = adding ? `Add to ${mode.corp.ticker}` : (activeTradeCounter() ? 'Send counter' : 'Send offer');
     renderTradeCounterBanner();
     if (!adding) {
         // Both sides are you (you and a company you run): say why that can't work.
@@ -373,7 +369,7 @@ function renderTradeFormMode(mode) {
     const picked = document.querySelector('#player2Destination input[name="tradeAddReturn"]:checked:not(:disabled)');
     if (picked && !document.querySelector('#player2Destination input[name="tradeAddReturn"]:disabled')) tradeAddChoice = picked.value;
     const ids = Array.from(document.querySelectorAll('#player1Assets input[type="checkbox"]:checked')).map(cb => cb.value);
-    const choice = addToCorporationReturn(mode.corp, ids, tradeAddChoice, 'tradeAddReturn');
+    const choice = addToCorporationReturn(mode.corp, ids, tradeAddChoice, 'tradeAddReturn', null, { title: false });
     const holdNote = currentGame.game_state.auction?.status !== 'open' ? '' : `<p class="hint">You can add properties to ${escapeHtml(mode.corp.ticker)} once the auction closes.</p>`;
     const destination = document.getElementById('player2Destination');
     const html = choice.html + holdNote;
@@ -410,7 +406,7 @@ function renderCorporationTradeAssets(container, playerNumber, corp, holderKey) 
     const sharesHtml = treasury > 0 ? `
         <div class="asset-checkbox asset-shares">
             <input type="number" class="trade-share-input" id="${inputId}" data-corp-id="${escapeHtml(corp.id)}" data-total-shares="${Number(corp.totalShares)}" min="0" max="${treasury}" step="1" value="0">
-            <label for="${inputId}">${escapeHtml(corp.ticker)} treasury shares (has ${ShareDeals.count(treasury)} of ${ShareDeals.count(corp.totalShares)})</label>
+            <label for="${inputId}">${escapeHtml(corp.ticker)} shares for sale (${ShareDeals.count(treasury)} · ${ShareDeals.percent(treasury, corp.totalShares)})</label>
             <span class="trade-share-pct" aria-live="polite"></span>
         </div>` : '';
     // It can also pay a player with new shares it issues (not another company).
@@ -418,7 +414,7 @@ function renderCorporationTradeAssets(container, playerNumber, corp, holderKey) 
     const newSharesHtml = issuesToPlayer ? `
         <div class="asset-checkbox asset-shares">
             <input type="number" class="trade-new-shares-input" id="${playerNumber}NewShares" data-corp-id="${escapeHtml(corp.id)}" min="0" step="1" value="0">
-            <label for="${playerNumber}NewShares">New ${escapeHtml(corp.ticker)} shares it issues</label>
+            <label for="${playerNumber}NewShares">New ${escapeHtml(corp.ticker)} shares</label>
         </div>` : '';
     container.innerHTML = (propsHtml + sharesHtml + newSharesHtml) || `<p class="empty-state">${escapeHtml(corp.ticker)} has no properties or treasury shares to offer. It can still pay cash.</p>`;
     container.dataset.playerId = holderKey;
@@ -461,24 +457,45 @@ function renderTradeDestination(playerNumber) {
     const corps = !companySide && giver && receiver && giver.userId !== receiver.userId && (giver.properties || []).length
         ? ShareDeals.corporationsRunBy(gameState, receiver.userId)
         : [];
-    const previous = container.dataset.receiverId === receiver?.userId ? selectedTradeDestination(playerNumber) : null;
+    const sameReceiver = container.dataset.receiverId === receiver?.userId;
+    const previous = (sameReceiver ? selectedTradeDestination(playerNumber) : null) ?? pendingTradeDestination[playerNumber] ?? null;
     container.dataset.receiverId = receiver?.userId || '';
-    if (!corps.length) {
+    // Asked only once a property is ticked on this side.
+    const ticked = Array.from(document.querySelectorAll(`#${playerNumber}Assets input[type="checkbox"]:checked`))
+        .some(input => input.value !== GAME_JAIL_CARD_ASSET_ID);
+    if (!corps.length || !ticked) {
         container.innerHTML = '';
+        container.dataset.destinationHtml = '';
         return;
     }
+    pendingTradeDestination[playerNumber] = null;
     const giverName = giver.userId === currentUser.id ? 'your' : `${giver.name}'s`;
-    const option = (value, title, detail) => `
+    const option = (value, title) => `
         <label class="trade-destination-option">
             <input type="radio" name="${playerNumber}-destination" value="${escapeHtml(value)}"${value === (previous || '') ? ' checked' : ''}>
-            <span><strong>${escapeHtml(title)}</strong><small>${escapeHtml(detail)}</small></span>
+            <span><strong>${escapeHtml(title)}</strong></span>
         </label>
     `;
-    container.innerHTML = `
+    const html = `
         <p class="trade-destination-title">Where should ${escapeHtml(giverName)} properties go?</p>
-        ${option('', `To ${receiver.name}`, `${receiver.name} owns them outright.`)}
-        ${corps.map(corp => option(corp.id, `Into ${corp.ticker} (${receiver.name} runs it)`, `${corp.ticker} owns them and collects the rent, so every ${corp.ticker} share is worth more. Ask for ${corp.ticker} shares in return.`)).join('')}
+        ${option('', `To ${receiver.name}`)}
+        ${corps.map(corp => option(corp.id, `Into ${corp.ticker}, for ${corp.ticker} shares`)).join('')}
     `;
+    // Unchanged, it's left alone, so a radio being tapped keeps its state.
+    if (container.dataset.destinationHtml === html && container.innerHTML) return;
+    container.innerHTML = html;
+    container.dataset.destinationHtml = html;
+}
+
+// A destination picked before its property is ticked (from a corporation's
+// sheet, or a counteroffer), applied once the radios show.
+const pendingTradeDestination = { player1: null, player2: null };
+
+// In a plain trade, the destination radios follow the ticked properties.
+function refreshTradeDestinations(mode) {
+    if (mode.kind !== 'trade' || mode.one.corp || mode.two.corp) return;
+    renderTradeDestination('player1');
+    renderTradeDestination('player2');
 }
 
 function selectedTradeDestination(playerNumber) {
@@ -536,7 +553,7 @@ function renderShareIssueSummary(issue, options = {}) {
         const button = options.showUse && issue.fairShares > 0
             ? ` <button type="button" class="btn btn-secondary btn-sm" data-game-action="use-fair-new-shares" data-side="${escapeHtml(issue.side)}">Use ${ShareDeals.count(issue.fairShares)}</button>`
             : '';
-        fair = `<p class="share-deal-even">Fair is ${ShareDeals.count(issue.fairShares)} new ${escapeHtml(issue.corp.ticker)} shares at today's value per share.${button}</p>`;
+        fair = `<p class="share-deal-even">Fair is ${ShareDeals.count(issue.fairShares)} new ${escapeHtml(issue.corp.ticker)} shares.${button}</p>`;
     }
     if (!fair && !issue.sentences.length) return '';
     return renderShareDealSummary(issue).replace(/<\/div>\s*$/, `${fair}</div>`);
@@ -619,7 +636,7 @@ function useEvenShares() {
     updateMarketActionState();
 }
 
-// Market panes: New trade, Send money, Trade proposals, Rule proposals, Past transactions.
+// Market panes: New trade, Send money, Trade proposals, Rule proposals, Past trades.
 const MARKET_PANES = ['trade', 'payment', 'proposals', 'rules', 'history'];
 let marketPane = null;
 
@@ -711,10 +728,9 @@ function offerPropertyForShares(corpId) {
     openMarketPane('trade');
     document.getElementById('player1Select').value = currentUser.id;
     document.getElementById('player2Select').value = corp.chairmanId;
+    pendingTradeDestination.player1 = corp.id;
     updatePlayerAssets('player1');
     updatePlayerAssets('player2');
-    const radio = document.querySelector(`#player1Destination input[value="${CSS.escape(corp.id)}"]`);
-    if (radio) radio.checked = true;
     updateMarketActionState();
     const shareInput = document.querySelector(`#player2Assets .trade-share-input[data-corp-id="${CSS.escape(corp.id)}"]`);
     showMarketStatus(`Tick the property you're offering, then enter how many ${corp.ticker} shares you want back.`, 'info');
@@ -740,6 +756,7 @@ function updateMarketActionState() {
 
     const mode = tradeFormMode();
     const addPreview = renderTradeFormMode(mode);
+    refreshTradeDestinations(mode);
     let tradeValid = false;
     if (mode.kind === 'merge') {
         tradeValid = true;
@@ -751,7 +768,11 @@ function updateMarketActionState() {
         tradeValid = tradeHasOffer && tradeCashCovered;
     }
     if (tradeBtn) tradeBtn.disabled = !tradeValid;
-    if (paymentBtn) paymentBtn.disabled = !renderPaymentReturn().valid;
+    if (paymentBtn) {
+        paymentBtn.disabled = !renderPaymentReturn().valid;
+        const amount = paymentTerms().amount;
+        paymentBtn.textContent = amount > 0 ? `Send ${formatMoney(amount)}` : 'Send';
+    }
     renderTradePreview(addPreview);
 }
 
@@ -775,7 +796,7 @@ function renderPaymentReturn() {
         html = choice.html;
         previewHtml = addToCorporationPreviewHtml(terms.to.corp, [], choice.issueShares, terms.amount);
     } else if (terms.to.corp) {
-        html = `<p class="hint">Goes into the ${escapeHtml(terms.to.corp.ticker)} treasury as a gift: every ${escapeHtml(terms.to.corp.ticker)} share rises in value. For shares in return, offer ${escapeHtml(terms.to.player?.name || 'its chairman')} a trade.</p>`;
+        html = `<p class="hint">A gift to ${escapeHtml(terms.to.corp.ticker)}: you get no shares for it. For shares, offer ${escapeHtml(terms.to.player?.name || 'its chairman')} a trade.</p>`;
     }
     if (container && container.dataset.html !== html) {
         container.innerHTML = html;
@@ -853,7 +874,7 @@ function renderTradeOffers() {
         const html = `
             <div class="trade-offer-card${expired ? ' trade-offer-expired' : ''}">
                 <div class="trade-offer-header">
-                    <strong>${escapeHtml(offer.proposedByName)} ${offer.counterToOfferId ? 'sent a counteroffer' : 'proposed a trade'}</strong>
+                    <strong>${escapeHtml(tradeOfferTitle(offer))}</strong>
                     <div class="trade-offer-meta">
                         <span>${escapeHtml(formatTradeOfferAge(offer.createdAt))}</span>
                         ${offer.expiresAt ? `<span>${escapeHtml(formatTradeOfferExpiry(offer.expiresAt))}</span>` : ''}
@@ -862,11 +883,11 @@ function renderTradeOffers() {
                 ${renderTradeOfferPreview(offer)}
                 <div class="trade-offer-sides">
                     <div>
-                        <h4>${escapeHtml(tradeSideName(offer, 'player1'))} gives</h4>
+                        <h4>${escapeHtml(tradeSideGives(offer, 'player1'))}</h4>
                         ${renderTradeOfferSide(offer.player1Cash, offer.player1AssetIds, offer.player1Shares, offer.player1PropertiesToCorpId, offer.player1NewShares, offer.player1CorpTicker)}
                     </div>
                     <div>
-                        <h4>${escapeHtml(tradeSideName(offer, 'player2'))} gives</h4>
+                        <h4>${escapeHtml(tradeSideGives(offer, 'player2'))}</h4>
                         ${renderTradeOfferSide(offer.player2Cash, offer.player2AssetIds, offer.player2Shares, offer.player2PropertiesToCorpId, offer.player2NewShares, offer.player2CorpTicker)}
                     </div>
                 </div>
@@ -877,7 +898,7 @@ function renderTradeOffers() {
                         ${canCancel ? `<button class="btn btn-secondary btn-sm" data-game-action="cancel-trade-offer" data-offer-id="${escapeHtml(offer.id)}">${expired ? 'Clear Expired' : (canAccept ? 'Decline' : 'Cancel')}</button>` : ''}
                         ${canHostCancel ? `<button class="btn btn-danger btn-sm" data-game-action="host-cancel-trade-offer" data-offer-id="${escapeHtml(offer.id)}">${expired ? 'Clear Expired' : 'Host Cancel'}</button>` : ''}
                     </div>
-                ` : `<p class="empty-state">${canClearExpired ? 'Clear this expired offer from the involved player view.' : 'Waiting on the involved players'}</p>`}
+                ` : `<p class="empty-state">${escapeHtml(expired || canClearExpired ? 'Expired' : `Waiting on ${offer.recipientId === currentUser.id ? 'you' : offer.recipientName}`)}</p>`}
             </div>
         `;
         return { waiting: canAccept, html };
@@ -886,15 +907,23 @@ function renderTradeOffers() {
     setTradeOffersHtml(container, cards.map(card => card.html).join(''));
 }
 
-// Game updates re-render often: leave an unchanged list alone, and keep the
-// caret in a counter price being typed when it does change.
-// A pending offer's plain-language summary: new shares a company issues, or a
-// trade with LLC shares in it.
+// "Your offer to Kim", "Sam's counteroffer to you".
+function tradeOfferTitle(offer) {
+    const from = offer.proposedById === currentUser.id ? 'Your' : `${offer.proposedByName}'s`;
+    const to = offer.recipientId === currentUser.id ? 'you' : offer.recipientName;
+    return `${from} ${offer.counterToOfferId ? 'counteroffer' : 'offer'} to ${to}`;
+}
+
+// A pending offer's numbers: new shares a company issues, or a trade with LLC
+// shares in it. The sides below already list what moves, so no sentences.
 function renderTradeOfferPreview(offer) {
     const issue = summarizeTradeShareIssue(offer);
-    if (issue && issue.newShares > 0) return renderShareIssueSummary(issue);
-    return tradeInvolvesLLC(offer) ? renderShareDealSummary(summarizeShareDeal(offer)) : '';
+    if (issue && issue.newShares > 0) return renderShareIssueSummary({ ...issue, sentences: [] });
+    return tradeInvolvesLLC(offer) ? renderShareDealSummary({ ...summarizeShareDeal(offer), sentences: [] }) : '';
 }
+
+// Game updates re-render often: leave an unchanged list alone, and keep the
+// caret in a counter price being typed when it does change.
 
 function setTradeOffersHtml(container, html) {
     if (container.dataset.html === html) return;
@@ -956,11 +985,11 @@ function renderPastTrades() {
                 </div>
                 <div class="trade-offer-sides">
                     <div>
-                        <h4>${escapeHtml(tradeSideName(offer, 'player1'))} gives</h4>
+                        <h4>${escapeHtml(tradeSideGives(offer, 'player1'))}</h4>
                         ${renderTradeOfferSide(offer.player1Cash, offer.player1AssetIds, offer.player1Shares, offer.player1PropertiesToCorpId, offer.player1NewShares, offer.player1CorpTicker)}
                     </div>
                     <div>
-                        <h4>${escapeHtml(tradeSideName(offer, 'player2'))} gives</h4>
+                        <h4>${escapeHtml(tradeSideGives(offer, 'player2'))}</h4>
                         ${renderTradeOfferSide(offer.player2Cash, offer.player2AssetIds, offer.player2Shares, offer.player2PropertiesToCorpId, offer.player2NewShares, offer.player2CorpTicker)}
                     </div>
                 </div>
@@ -1031,17 +1060,23 @@ function pastTradeOutcome(offer) {
     return { label: 'Canceled', badgeClass: 'badge-info', detail: `${offer.resolvedByName || offer.proposedByName} canceled` };
 }
 
+// "You", "Kim", or "MBS (via Kim)" for a company side.
 function tradeSideName(offer, side) {
     const ticker = offer[`${side}CorpTicker`];
-    const name = offer[`${side}Name`];
-    return ticker ? `${ticker} (via ${name})` : name;
+    const name = offer[`${side}Id`] === currentUser.id ? 'You' : offer[`${side}Name`];
+    return ticker ? `${ticker} (via ${name === 'You' ? 'you' : name})` : name;
+}
+
+function tradeSideGives(offer, side) {
+    const name = tradeSideName(offer, side);
+    return `${name} ${name === 'You' ? 'give' : 'gives'}`;
 }
 
 function renderTradeOfferSide(cash, assetIds, shareLots, intoCorpId, newShares = 0, ticker = null) {
     const intoCorp = intoCorpId ? currentGame?.game_state?.corporations?.find(corp => corp.id === intoCorpId) : null;
     const tags = [];
     if (Number(cash || 0) > 0) {
-        tags.push(renderTradeAssetTag(formatMoney(cash), 'Cash', 'cash'));
+        tags.push(renderTradeAssetTag(formatMoney(cash), '', 'cash'));
     }
     sortTradeAssetIds(assetIds).forEach(id => {
         const property = tradeAssetProperty(id);
@@ -1053,10 +1088,10 @@ function renderTradeOfferSide(cash, assetIds, shareLots, intoCorpId, newShares =
         tags.push(renderTradeAssetTag(property.name, group, 'property', getPropertyColorValue(property.color)));
     });
     (shareLots || []).forEach(lot => {
-        tags.push(renderTradeAssetTag(tradeSharesName(lot), 'LLC shares', 'shares'));
+        tags.push(renderTradeAssetTag(tradeSharesName(lot), '', 'shares'));
     });
     if (Number(newShares || 0) > 0) {
-        tags.push(renderTradeAssetTag(`${ShareDeals.count(newShares)} new ${ticker || ''} shares`.replace('  ', ' '), 'Newly issued', 'shares'));
+        tags.push(renderTradeAssetTag(`${ShareDeals.count(newShares)} new ${ticker || ''} shares`.replace('  ', ' '), '', 'shares'));
     }
     if (tags.length === 0) return '<p class="empty-state">Nothing</p>';
     return `<ul class="trade-asset-list">${tags.join('')}</ul>`;
@@ -1090,7 +1125,8 @@ function tradeAssetName(assetId) {
 function tradeSharesName(lot) {
     const corp = currentGame?.game_state?.corporations?.find(item => item.id === lot.corpId);
     const shares = Number(lot.shares || 0);
-    return `${shares} ${corp ? corp.ticker : 'LLC'} share${shares === 1 ? '' : 's'}`;
+    const pct = corp && Number(corp.totalShares) > 0 ? ` (${ShareDeals.percent(shares, corp.totalShares)})` : '';
+    return `${ShareDeals.count(shares)} ${corp ? corp.ticker : 'LLC'} share${shares === 1 ? '' : 's'}${pct}`;
 }
 
 function formatTradeOfferAge(createdAt) {
@@ -1167,9 +1203,7 @@ function counterTradeOffer(offerId) {
         document.querySelectorAll(`#${formSide}Assets .trade-share-input`).forEach(updateTradeSharePercent);
         const newSharesInput = document.getElementById(`${formSide}NewShares`);
         if (newSharesInput) newSharesInput.value = Number(offer[`${offerSide}NewShares`] || 0);
-        const intoCorpId = offer[`${offerSide}PropertiesToCorpId`] || '';
-        const destination = document.querySelector(`#${formSide}Destination input[value="${CSS.escape(intoCorpId)}"]`);
-        if (destination) destination.checked = true;
+        pendingTradeDestination[formSide] = offer[`${offerSide}PropertiesToCorpId`] || null;
     });
     tradeCounterOfferId = offer.id;
     showMarketPane('trade');
@@ -1203,7 +1237,7 @@ function renderTradeCounterBanner() {
     const offer = activeTradeCounter();
     banner.hidden = !offer;
     if (!offer) return;
-    banner.querySelector('.trade-counter-text').textContent = `Countering ${offer.proposedByName}'s offer. Change the terms below and send it back. Their offer stays open until you do.`;
+    banner.querySelector('.trade-counter-text').textContent = `Countering ${offer.proposedByName}'s offer. It stays open until you send yours.`;
 }
 
 async function acceptTradeOffer(offerId) {
@@ -1276,9 +1310,10 @@ async function executeTransaction() {
             const countered = terms.counterOfferId ? tradeOfferById(terms.counterOfferId) : null;
             tradeCounterOfferId = null;
             showMarketPane('proposals');
+            const to = tradeSide('player2').player?.name;
             showMarketStatus(countered
-                ? `Counteroffer sent to ${countered.proposedByName}. Their original offer is closed as countered.`
-                : 'Trade proposal sent. It will execute when the other player accepts.', 'success');
+                ? `Counteroffer sent to ${countered.proposedByName}.`
+                : `Sent to ${to || 'the other player'}.`, 'success');
             resetTradeForm();
         },
     });
@@ -1304,6 +1339,8 @@ async function submitTradeAddToCorporation(corp) {
 }
 
 function resetTradeForm() {
+    pendingTradeDestination.player1 = null;
+    pendingTradeDestination.player2 = null;
     document.getElementById('player1Cash').value = 0;
     document.getElementById('player2Cash').value = 0;
     ['player1', 'player2'].forEach(side => {
@@ -1333,7 +1370,7 @@ async function makePayment() {
         errorText: 'Failed to make payment.',
         showError: showMarketError,
         onSaved: () => {
-            showMarketStatus(to.corp ? `Paid into ${to.corp.ticker}.` : 'Payment completed successfully.', 'success');
+            showMarketStatus(to.corp ? `Paid into ${to.corp.ticker}.` : `Sent ${formatMoney(amount)} to ${to.player?.name || 'them'}.`, 'success');
             document.getElementById('paymentAmount').value = '';
             updateMarketActionState();
         },

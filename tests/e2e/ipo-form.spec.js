@@ -87,15 +87,16 @@ test('an IPO is created without a price, and treasury shares sell at NAV', async
     await trsyCard.click();
     const trsy = page.locator('#corporationModal .corp-detail');
     await expect(trsy.locator('.corp-stats')).toContainText('$50');
-    await expect(trsy).toContainText('Buy treasury shares at $50.00 each (up to 3)');
-    await expect(trsy).toContainText('1 share costs $50');
+    await expect(trsy).toContainText('Buy TRSY shares at $50.00 each');
+    await expect(page.locator('#buyShares-corp-trsy')).toHaveAttribute('placeholder', /^Up to 3 /);
     await expect(trsy).not.toContainText('Price:');
 
     await page.locator('#buyShares-corp-trsy').fill('2');
+    await expect(page.locator('#buySharesTotal-corp-trsy')).toHaveText(/^2 shares \(.+%\) for \$100$/);
     await trsy.locator('button[data-game-action="buy-shares"]').click();
     await expect(page.locator('#corporationModal')).toBeHidden();
     await page.click('.nav-tab[data-section="log"]');
-    await expect(page.locator('#log')).toContainText('bought 2 share(s) of TRSY (2 from treasury) for $100.00');
+    await expect(page.locator('#log')).toContainText('bought 2 shares of TRSY (2 from treasury) for $100');
     const corp = await page.evaluate(() => currentGame.game_state.corporations.find(c => c.ticker === 'TRSY'));
     expect(corp.cash).toBe(700);
     expect(corp.treasuryShares).toBe(1);

@@ -76,9 +76,10 @@ test('a player trades a property into an LLC for its shares', async ({ browser, 
     await openCorporation(alex.page, 'corp-mbs');
     await alex.page.click('[data-game-action="offer-property-for-shares"][data-corp-id="corp-mbs"]');
     await expect(alex.page.locator('#market')).toHaveClass(/active/);
-    await expect(alex.page.locator('#player1Destination input[value="corp-mbs"]')).toBeChecked();
-
+    // Where the property goes is asked once it's ticked, already set to MBS.
+    await expect(alex.page.locator('#player1Destination input')).toHaveCount(0);
     await alex.page.check('#player1Assets input[value="prop-bw"]');
+    await expect(alex.page.locator('#player1Destination input[value="corp-mbs"]')).toBeChecked();
     const shareInput = alex.page.locator('#player2Assets .trade-share-input[data-corp-id="corp-mbs"]');
     await shareInput.fill('4');
     await expect(alex.page.locator('#player2Assets .trade-share-pct')).toHaveText('= 33.3%');
@@ -91,17 +92,19 @@ test('a player trades a property into an LLC for its shares', async ({ browser, 
     await expect(preview).toContainText('An even trade is 3 of 12 MBS shares (25%)');
     await alex.page.click('[data-game-action="use-even-shares"]');
     await expect(shareInput).toHaveValue('3');
-    await expect(preview).toContainText('Your net worth$0');
+    await expect(preview).toContainText('Your net worthNo change');
 
     await alex.page.click('#executeTradeBtn');
-    await expect(alex.page.locator('#market-status')).toContainText('Trade proposal sent');
+    await expect(alex.page.locator('#market-status')).toContainText('Sent to');
 
     // Sam sees the deal from his side, with what it means for him.
     await sam.page.click('.nav-tab[data-section="market"]');
     await showMarketPane(sam.page, 'Trade proposals');
     const offer = sam.page.locator('#tradeOffersList .trade-offer-card');
-    await expect(offer).toContainText('Alex puts Boardwalk into MBS.', { timeout: 10000 });
-    await expect(offer).toContainText('You give Alex 3 of 12 MBS shares (25%).');
+    // The gives boxes say what moves; the table says what it does to Sam.
+    await expect(offer).toContainText("Alex's offer to you", { timeout: 10000 });
+    await expect(offer.locator('.trade-asset-tag.shares')).toContainText('3 MBS shares (25%)');
+    await expect(offer).not.toContainText('Alex puts Boardwalk into MBS.');
     await expect(offer).toContainText('12 → 9 (100% → 75%)');
     await expect(offer.locator('.trade-asset-tag.property')).toContainText('Into MBS');
     await sam.page.click('[data-game-action="accept-trade-offer"]');

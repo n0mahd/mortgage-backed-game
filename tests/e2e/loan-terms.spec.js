@@ -90,7 +90,7 @@ test('the host sets the loan rate and Pass GO in the waiting room', async ({ pag
     expect(game.game_state.settings.passGoAmount).toBe(250);
     await page.click('.nav-tab[data-section="game"]');
     await page.click('#game [data-game-action="open-debt"]');
-    await expect(page.locator('#loanRatesHint')).toContainText('4.5% interest per turn, for 5 to 30 turns');
+    await expect(page.locator('#loanRatesHint')).toContainText('4.5% interest per turn.');
 });
 
 test('a rate out of range is refused before the game starts', async ({ page, request }) => {
@@ -121,7 +121,7 @@ test('take a loan on a chosen term, change autopay and pay it off', async ({ pag
     // Terms of 5 to 30 turns in steps of 5 are in the dropdown, all at the one rate.
     await expect(page.locator('#loanTerm option')).toHaveText(['5 turns', '10 turns', '15 turns', '20 turns', '25 turns', '30 turns']);
     await page.selectOption('#loanTerm', '5');
-    await expect(page.locator('#loanTermQuote')).toContainText('$69.29 a turn for 5 turns, $346.45 in total. Nothing is owed after the last payment.');
+    await expect(page.locator('#loanTermQuote')).toContainText('$69.29 a turn for 5 turns, $346.45 in total.');
     await page.selectOption('#loanAutopay', 'interest_only');
     await expect(page.locator('#loanTermQuote')).toContainText('$15 interest a turn, then $315 on the last turn: $375 in total.');
     await page.selectOption('#loanAutopay', 'off');
@@ -137,12 +137,14 @@ test('take a loan on a chosen term, change autopay and pay it off', async ({ pag
     await expect(page.locator('#process-debt-btn')).toBeHidden();
     const row = page.locator('#loanList .loan-row');
     await expect(row).toContainText('5 turns left');
-    await expect(row).toContainText('Autopay is off');
+    await expect(row).toContainText('$15 interest is added to the balance at End Turn.');
     await Promise.all([actionSaved(page), row.locator('[data-loan-autopay]').selectOption('interest_only')]);
-    await expect(row).toContainText('Autopay takes the $15 interest');
+    await expect(row).toContainText('The whole balance is due when the term ends.');
+    await expect(row.locator('[data-loan-autopay] option:checked')).toHaveText('Interest only · $15');
     expect((await fetchAlice(request, game, alice)).debts[0].autopay).toBe('interest_only');
     await Promise.all([actionSaved(page), row.locator('[data-loan-autopay]').selectOption('pay_down')]);
-    await expect(row).toContainText('Autopay takes $69.29 at the end of your turn, paying the loan off in 5 turns.');
+    await expect(row.locator('[data-loan-autopay] option:checked')).toHaveText('Pay down loan · $69.29');
+    await expect(row.locator('.loan-schedule')).toHaveCount(0);
     expect((await fetchAlice(request, game, alice)).debts[0].autopay).toBe('pay_down');
 
     await row.locator('input[type="number"]').fill('100');
@@ -241,8 +243,8 @@ test("refinance a corporation's loans down to a smaller one", async ({ page, req
     await page.check('#refinance-debt-0');
     await page.check('#refinance-debt-1');
     // The amount starts at the selected balance: the same loans on a new term.
-    await expect(page.locator('#refinanceAmount')).toHaveValue('250.00');
-    await expect(page.locator('#refinanceSummary')).toContainText('Same balance on a new term');
+    await expect(page.locator('#refinanceAmount')).toHaveValue('250');
+    await expect(page.locator('#refinanceSummary')).toContainText('No cash changes hands.');
     await page.fill('#refinanceAmount', '100');
     await expect(page.locator('#refinanceSummary')).toContainText("$150 is paid down from LOAN's cash");
     await page.selectOption('#refinanceTerm', '5');
@@ -290,7 +292,7 @@ test('the Debt sheet shows a company loan coming due and fixes it from there', a
     // Borrow: the form opens for DUE with the shortfall filled in, and the preview shows it gets through.
     await card.getByRole('button', { name: 'Borrow $71' }).click();
     await expect(page.locator('#debtIssuer')).toHaveValue('corporation:corp-due');
-    await expect(page.locator('#loanAmount')).toHaveValue('71.00');
+    await expect(page.locator('#loanAmount')).toHaveValue('71');
     await expect(page.locator('#loanShortfallHint')).toContainText('DUE is $71 short at End Turn');
     await expect(page.locator('#loanLimit')).toContainText('You can borrow up to $40');
     await expect(page.locator('#loanPreview')).toContainText('DUE cash $244 → $315');
@@ -308,7 +310,7 @@ test('the Debt sheet shows a company loan coming due and fixes it from there', a
     await expect(page.locator('#debtsToRefinance input[data-debt-id="debt-due"]')).toBeChecked();
     await expect(page.locator('#debtsToRefinance input[data-debt-id="debt-later"]')).not.toBeChecked();
     await expect(page.locator('#debtsToRefinance')).toContainText('due this turn');
-    await expect(page.locator('#refinanceAmount')).toHaveValue('300.00');
+    await expect(page.locator('#refinanceAmount')).toHaveValue('300');
     // 10 turns at 5% with autopay: $38.85 a turn, so $205.15 is left after End Turn.
     await expect(page.locator('#refinancePreview')).toContainText('Taken at End Turn $315 → $38.85');
     await expect(page.locator('#refinancePreview')).toContainText('Cash after End Turn $205.15 ✓');

@@ -70,7 +70,7 @@ test.describe('Host cleanup controls', () => {
         await page.waitForLoadState('domcontentloaded');
         await page.getByRole('button', { name: 'Market' }).click();
         await showMarketPane(page, 'Trade proposals');
-        await expect(page.locator('#tradeOffersList')).toContainText('Bob proposed a trade', { timeout: 5000 });
+        await expect(page.locator('#tradeOffersList')).toContainText("Bob's offer to", { timeout: 5000 });
 
         page.once('dialog', dialog => dialog.accept());
         await page.getByRole('button', { name: 'Host Cancel' }).click();
@@ -113,7 +113,7 @@ test.describe('Host cleanup controls', () => {
         await page.waitForLoadState('domcontentloaded');
         await page.getByRole('button', { name: 'Market' }).click();
         await showMarketPane(page, 'Trade proposals');
-        await expect(page.locator('#tradeOffersList')).toContainText('Bob proposed a trade', { timeout: 5000 });
+        await expect(page.locator('#tradeOffersList')).toContainText("Bob's offer to", { timeout: 5000 });
         await expect(page.locator('#tradeOffersList')).toContainText('expired');
 
         page.once('dialog', dialog => dialog.accept());

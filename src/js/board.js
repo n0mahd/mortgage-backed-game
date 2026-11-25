@@ -332,8 +332,10 @@ function renderBoardTurn(gameState, currentUserId) {
     return `<div class="board-turn">
         ${renderDicePair(dice, { rolling })}
         <div class="board-turn-copy">
-            <span class="board-turn-label">${label}</span>
-            <strong class="board-turn-name">${isMine ? 'You' : escapeHtml(current.name)}</strong>
+            ${label === 'Your turn'
+                ? '<strong class="board-turn-name">Your turn</strong>'
+                : `<span class="board-turn-label">${label}</span>
+            <strong class="board-turn-name">${isMine ? 'You' : escapeHtml(current.name)}</strong>`}
         </div>
         ${action}
     </div>`;

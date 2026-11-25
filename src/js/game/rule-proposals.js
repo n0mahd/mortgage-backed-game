@@ -96,7 +96,7 @@
                             <div class="house-rule">
                                 <dt>${escapeHtml(RULES[rule].label)}</dt>
                                 <dd>${escapeHtml(formatValue(rule, ruleValue(gameState, rule)))}
-                                    <span class="player-badge${changed ? ' badge-gold' : ''}">${changed ? 'Changed by vote' : 'Set by host'}</span></dd>
+                                    ${changed ? '<span class="player-badge badge-gold">Changed by vote</span>' : ''}</dd>
                             </div>`;
                     }).join('')}
                 </dl>

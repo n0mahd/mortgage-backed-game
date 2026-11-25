@@ -86,7 +86,6 @@ test.describe('thorough real-player UI game flow', () => {
             await shot(testInfo, pages.Alice, '13-alice-creates-ipo');
 
             await expectCorporationDetails(pages.Alice, 'BRWN', /Alice \(you\)[\s\S]*12,000 · 100\.0%/i);
-            await expectCorporationDetails(pages.Alice, 'BRWN', /No treasury shares for sale/i);
             await issueCorporationDebt(pages.Alice, 'BRWN', 100);
             await shot(testInfo, pages.Alice, '13b-alice-issues-corporation-debt');
 
@@ -107,7 +106,7 @@ test.describe('thorough real-player UI game flow', () => {
                 },
             });
             await reloadGamePages(pages, ['Bob', 'Carol']);
-            await proposeChairmanVote(pages.Bob, 'BRWN', 'Bob');
+            await proposeChairmanVote(pages.Bob, 'BRWN', 'You');
             await supportChairmanVote(pages.Carol, 'BRWN');
             await expectCorporationDetails(pages.Carol, 'BRWN', /Chairman Bob/i);
             await shot(testInfo, pages.Carol, '14b-carol-supports-chairman-vote');
@@ -388,7 +387,7 @@ async function expectCorporationDetails(page, ticker, shareholderText) {
     await openTab(page, 'Game');
     const card = await openCorporationDetail(page, ticker);
     await expect(card).toContainText(/Chairman|chairman/);
-    await expect(card).toContainText(/Treasury cash/i);
+    await expect(card.locator('.corp-stats')).toContainText(/Cash/);
     await expect(card).toContainText(shareholderText);
     await page.locator('#corporationModal').getByRole('button', { name: /close/i }).click();
     await expect(page.locator('#corporationModal')).toBeHidden({ timeout: 10000 });
@@ -399,11 +398,11 @@ async function issueCorporationDebt(page, ticker, amount) {
     await activeGameButton(page, 'open-debt').click();
     await expect(page.locator('#debtModal')).toBeVisible();
     await page.locator('#debtAction').selectOption('issue');
-    await selectByVisibleText(page.locator('#debtIssuer'), `${ticker} Corporation`);
+    await selectByVisibleText(page.locator('#debtIssuer'), ticker);
     await page.locator('#loanAmount').fill(String(amount));
     await clickAndWaitForGameVersion(page, page.locator('#process-debt-btn'));
     await expect(page.locator('#debtModal')).toBeHidden({ timeout: 10000 });
-    await expect(page.locator('#gameContent')).toContainText(new RegExp(`borrowed for ${ticker}`, 'i'), { timeout: 10000 });
+    await expect(page.locator('#gameContent')).toContainText(new RegExp(`borrowed \\$[\\d,.]+ for ${ticker}`, 'i'), { timeout: 10000 });
 }
 
 async function proposeChairmanVote(page, ticker, candidateName) {
@@ -412,7 +411,7 @@ async function proposeChairmanVote(page, ticker, candidateName) {
     await selectByVisibleText(card.locator('select[id^="chairmanVoteCandidate-"]'), candidateName);
     await clickAndWaitForGameVersion(page, card.getByRole('button', { name: /propose/i }));
     await expect(card).toContainText(candidateName, { timeout: 10000 });
-    await expect(card).toContainText(/4,500\/12,000 shares supporting/i, { timeout: 10000 });
+    await expect(card).toContainText(/37\.5% backing/i, { timeout: 10000 });
     await page.locator('#corporationModal').getByRole('button', { name: /close/i }).click();
     await expect(page.locator('#corporationModal')).toBeHidden({ timeout: 10000 });
 }
@@ -460,9 +459,8 @@ async function tradeCashForProperty(page, cashFrom, propertyFrom, cashAmount, pr
 
 async function makePayment(page, fromName, toName, amount) {
     await openTab(page, 'Market');
-    const fromSelect = page.locator('#paymentFromPlayer');
-    await expect(fromSelect).toBeDisabled({ timeout: 10000 });
-    await expect(fromSelect.locator('option:checked')).toHaveText(fromName, { timeout: 10000 });
+    // You always pay from your own cash, so there's no From box.
+    await expect(page.locator('#paymentFromPlayer')).toHaveCount(0);
     await selectByVisibleText(page.locator('#paymentToPlayer'), toName);
     await page.locator('#paymentAmount').fill(String(amount));
     await clickAndWaitForGameVersion(page, page.locator('#makePaymentBtn'));

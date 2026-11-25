@@ -238,7 +238,7 @@ test.describe('Trading — offer colors', () => {
         await page.goto(`${BASE}/game.html?room=${room.id}`);
         await page.getByRole('button', { name: 'Market' }).click();
         const card = page.locator('#tradeOffersList .trade-offer-card');
-        await expect(card).toContainText('Matt proposed a trade', { timeout: 5000 });
+        await expect(card).toContainText("Matt's offer to you", { timeout: 5000 });
 
         // Board order groups the oranges together ahead of the green.
         await expect(card.locator('.trade-asset-tag.property').first()).toContainText('St. James Place');
@@ -331,7 +331,7 @@ test.describe('Trading — past transactions', () => {
         await expect(page.locator('#tradeOffersList')).toContainText('No pending trade offers');
         await expect(page.locator('#marketProposalsCount')).toBeHidden();
 
-        await showMarketPane(page, 'Past transactions');
+        await showMarketPane(page, 'Past trades');
         await expect(page.locator('#tradeOffersList')).toBeHidden();
         const past = page.locator('#pastTradesList .trade-history-card');
         await expect(past).toHaveCount(2, { timeout: 5000 });
@@ -390,13 +390,13 @@ test.describe('Trading — counteroffers', () => {
         await expect(page.locator('#player2Select')).toHaveValue(guestId);
         await expect(page.locator('#player1-asset-prop-0')).toBeChecked();
         await expect(page.locator('#player2Cash')).toHaveValue('10');
-        await expect(page.locator('#executeTradeBtn')).toHaveText('Send Counteroffer');
+        await expect(page.locator('#executeTradeBtn')).toHaveText('Send counter');
 
         // Stop countering clears the form; Counter again brings the terms back.
         await page.getByRole('button', { name: 'Stop countering' }).click();
         await expect(page.locator('#tradeCounterBanner')).toBeHidden();
         await expect(page.locator('#player1-asset-prop-0')).not.toBeChecked();
-        await expect(page.locator('#executeTradeBtn')).toHaveText('Propose Transaction');
+        await expect(page.locator('#executeTradeBtn')).toHaveText('Send offer');
         await page.getByRole('tab', { name: /Trade proposals/ }).click();
         await offers.getByRole('button', { name: 'Counter' }).click();
         await expect(page.locator('#player1-asset-prop-0')).toBeChecked();
@@ -404,10 +404,10 @@ test.describe('Trading — counteroffers', () => {
         await page.fill('#player2Cash', '40');
         await page.click('#executeTradeBtn');
         await expect(page.locator('#market-status')).toContainText('Counteroffer sent to Bob', { timeout: 5000 });
-        await expect(offers).toContainText('Alice sent a counteroffer');
+        await expect(offers).toContainText('Your counteroffer to Bob');
         await expect(page.locator('#tradeCounterBanner')).toBeHidden();
 
-        await page.getByRole('tab', { name: 'Past transactions' }).click();
+        await page.getByRole('tab', { name: 'Past trades' }).click();
         await expect(page.locator('#market-status')).toBeEmpty();
         const past = page.locator('#pastTradesList .trade-history-card').first();
         await expect(past.locator('.badge')).toHaveText('Countered');
@@ -464,7 +464,7 @@ test.describe('Trading — past transactions filter', () => {
         await page.goto(`${BASE}/game.html?room=${room.id}`);
         await expect(page.locator('.game-header')).toBeVisible();
         await page.getByRole('button', { name: 'Market' }).click();
-        await showMarketPane(page, 'Past transactions');
+        await showMarketPane(page, 'Past trades');
         const cards = page.locator('#pastTradesList .trade-history-card');
 
         await expect(page.locator('#pastTradesFilter')).toHaveValue('mine');
@@ -505,7 +505,7 @@ test.describe('Trading — past transactions filter', () => {
         await page.goto(`${BASE}/game.html?room=${room.id}`);
         await expect(page.locator('.game-header')).toBeVisible();
         await page.getByRole('button', { name: 'Market' }).click();
-        await showMarketPane(page, 'Past transactions');
+        await showMarketPane(page, 'Past trades');
         const cards = page.locator('#pastTradesList .trade-history-card');
         await expect(cards).toHaveCount(10);
         await expect(page.locator('.trade-history-more')).toContainText('Showing 10 of 12 trades.');

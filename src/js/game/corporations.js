@@ -24,7 +24,7 @@ async function openIPOModal() {
     const existing = document.getElementById('ipoExistingCorps');
     existing.hidden = runCorps.length === 0;
     existing.innerHTML = runCorps.length ? `
-        <small>Or add these properties to a company you already run:</small>
+        <small>Or add to:</small>
         ${runCorps.map(corp => `<button class="btn btn-secondary btn-sm" data-game-action="open-add-to-corporation" data-corp-id="${escapeHtml(corp.id)}">Add to ${escapeHtml(corp.ticker)}</button>`).join('')}
     ` : '';
     // A built group goes into an IPO whole, so ticking one street ticks the group.
@@ -85,12 +85,17 @@ function renderCorporationAssetGroups(assets) {
                     <span>${escapeHtml(color)}</span>
                     <span class="corp-asset-set${items.length >= total ? ' complete' : ''}">${escapeHtml(setLabel)}</span>
                 </div>
-                ${items.map(asset => `
+                ${items.map(asset => {
+                    // The board's copy has the houses; its value counts them.
+                    const property = allProperties.find(prop => prop.id === asset.id);
+                    const value = property ? propertyAssetValue(property) : Number(asset.value || 0);
+                    return `
                     <div class="corp-asset-row">
-                        <span>${escapeHtml(asset.name)}</span>
-                        <span class="corp-asset-value">${formatMoney(Number(asset.value || 0))}</span>
+                        <span>${escapeHtml(asset.name)}${property ? boardBuildings(property) : ''}</span>
+                        <span class="corp-asset-value">${formatMoney(value)}</span>
                     </div>
-                `).join('')}
+                `;
+                }).join('')}
             </div>
         `;
     }).join('')}</div>`;
@@ -170,7 +175,7 @@ function updateBuySharesTotal(input) {
     if (!corp || !out) return;
     const shares = Math.max(0, Math.floor(Number(input.value) || 0));
     const cost = Math.round(shares * getCorporationShareValue(corp) * 100) / 100;
-    const text = shares > 0 ? `${ShareDeals.count(shares)} share${shares === 1 ? ' costs' : 's cost'} ${formatMoney(cost)}` : '';
+    const text = shares > 0 ? `${ShareDeals.count(shares)} share${shares === 1 ? '' : 's'} (${ShareDeals.percent(shares, corp.totalShares)}) for ${formatMoney(cost)}` : '';
     if (out.textContent !== text) out.textContent = text;
 }
 
@@ -270,10 +275,10 @@ function renderCorporationStats(corp) {
     const tile = (label, value, extra = '') => `<div class="corp-stat${extra}"><span class="stat-label">${label}</span><span class="corp-stat-value">${value}</span></div>`;
     return `
         <div class="corp-stats">
-            ${tile('Worth (net assets)', formatMoney(getCorporationNetAssetValue(corp)))}
+            ${tile('Worth', formatMoney(getCorporationNetAssetValue(corp)))}
             ${tile('Share price', ShareDeals.perShare(getCorporationShareValue(corp)))}
-            ${tile('Treasury cash', formatMoney(Number(corp.cash || 0)))}
-            ${debt > 0 ? tile('Owes', formatMoney(debt), ' is-owed') : tile('Debt', 'None')}
+            ${tile('Cash', formatMoney(Number(corp.cash || 0)))}
+            ${debt > 0 ? tile('Owes', formatMoney(debt), ' is-owed') : ''}
         </div>
     `;
 }
@@ -297,20 +302,25 @@ function renderCorporationOwners(corp) {
         }).join('')
         : '<li class="empty-state">No active shareholders</li>';
     const treasury = getTreasuryListedShares(corp);
+    const treasuryRow = treasury > 0 ? `
+                <li class="corp-owner-row">
+                    <span>For sale</span>
+                    <span>${ShareDeals.count(treasury)} · ${ownershipPercent(treasury, corp.totalShares)}%</span>
+                </li>` : '';
     return `
-        <h4>Owners <span class="corp-heading-note">${ShareDeals.count(corp.totalShares)} shares</span></h4>
+        <h4>Owners</h4>
         ${renderOwnersBar(corp)}
-        <ul class="corp-owner-list">${rows}</ul>
-        ${treasury > 0 ? `<p class="corp-hint">${ShareDeals.count(treasury)} more in the treasury, for sale.</p>` : ''}
+        <ul class="corp-owner-list">${rows}${treasuryRow}</ul>
         ${renderChairmanGovernance(corp)}
     `;
 }
 
-// the chairman can build from the Properties tab too, above the
-// list so it's in view without scrolling.
-function renderCorporationBuildMove(corp) {
+// The chairman's Build houses and Borrow, repeated on the phone's Properties
+// and Debt tabs; from 720px, where Chairman moves shows beside them, CSS hides
+// the repeat.
+function renderCorporationPanelMove(corp, button) {
     if (!ShareDeals.runsCorporation(corp, currentUser.id)) return '';
-    return `<div class="moves-grid corp-moves">${CorporationDesk.buildButton(corp)}</div>`;
+    return `<div class="moves-grid corp-moves corp-panel-move">${button}</div>`;
 }
 
 function renderCorporationDebts(corp) {
@@ -320,16 +330,17 @@ function renderCorporationDebts(corp) {
         ? debts.map(d => {
             const dueThisTurn = gameState.players[gameState.currentPlayerIndex]?.userId === corp.chairmanId;
             const status = LoanMath.loanStatus(d, { dueThisTurn });
-            return `<li>${formatMoney(d.principal)}, ${escapeHtml(status.termLabel)}: ${escapeHtml(status.turnsLabel.toLowerCase())}. ${escapeHtml(LoanMath.paymentNote(d, dueThisTurn))}.</li>`;
+            return `<li>${formatMoney(d.principal)} · ${escapeHtml(status.turnsLabel.toLowerCase())} · ${escapeHtml(corpLoanAutopayLabel(status))}</li>`;
         }).join('')
-        : '<li class="empty-state">No corporation debt</li>';
-    // say who can borrow for the corporation, and let them do it here.
-    const who = ShareDeals.isClosed(corp)
-        ? ''
-        : ShareDeals.runsCorporation(corp, currentUser.id)
-            ? `<div class="moves-grid corp-moves">${CorporationDesk.borrowButton(corp)}</div>`
-            : `<p class="corp-hint">Only ${escapeHtml(corp.ticker)}'s chairman${corp.chairmanName ? `, ${escapeHtml(corp.chairmanName)},` : ''} can borrow for it.</p>`;
-    return `<h4>Debt</h4><ul class="corp-debt-list">${rows}</ul>${who}`;
+        : '';
+    return `<ul class="corp-debt-list">${rows}</ul>${ShareDeals.isClosed(corp) ? '' : renderCorporationPanelMove(corp, CorporationDesk.borrowButton(corp))}`;
+}
+
+// "autopay off", "pays $51.80 a turn", "due in full".
+function corpLoanAutopayLabel(status) {
+    if (status.dueInFull) return `${formatMoney(status.nextPayment)} due in full`;
+    if (status.autopay === 'off') return 'autopay off';
+    return `autopay ${formatMoney(status.nextPayment)}`;
 }
 
 // What the viewer can do here, by role: the chairman runs it; anyone with
@@ -351,11 +362,11 @@ function renderCorporationOverview(corp) {
     const runsIt = ShareDeals.runsCorporation(corp, currentUser.id);
     const hasProperties = (currentPlayerData?.properties || []).length > 0 && !currentPlayerData?.bankrupt;
     const addMove = runsIt && hasProperties
-        ? `<button class="btn btn-secondary btn-sm" data-game-action="open-add-to-corporation" data-corp-id="${escapeHtml(corp.id)}"${canAct ? '' : ' disabled'}>Add properties<small>${canAct ? 'Yours in, for new shares' : anytimeMoveHoldNote()}</small></button>`
+        ? `<button class="btn btn-secondary btn-sm" data-game-action="open-add-to-corporation" data-corp-id="${escapeHtml(corp.id)}"${canAct ? '' : ' disabled'}>Add properties${canAct ? '' : `<small>${anytimeMoveHoldNote()}</small>`}</button>`
         : '';
     const hasCash = Number(currentPlayerData?.cash || 0) > 0 && !currentPlayerData?.bankrupt;
     const addCashMove = runsIt && hasCash
-        ? `<button class="btn btn-secondary btn-sm" data-game-action="open-add-cash-to-corporation" data-corp-id="${escapeHtml(corp.id)}">Add cash<small>Into the treasury, for new shares</small></button>`
+        ? `<button class="btn btn-secondary btn-sm" data-game-action="open-add-cash-to-corporation" data-corp-id="${escapeHtml(corp.id)}">Add cash</button>`
         : '';
     const buyable = getBuyableListedShares(corp);
     const listed = getTreasuryListedShares(corp);
@@ -363,33 +374,36 @@ function renderCorporationOverview(corp) {
     const buyHtml = canAct && buyable > 0
         ? `
             <div class="buy-shares-form">
-                <label for="buyShares-${escapeHtml(corp.id)}">Buy treasury shares at ${ShareDeals.perShare(shareValue)} each (up to ${ShareDeals.count(buyable)})</label>
-                <input type="number" inputmode="numeric" id="buyShares-${escapeHtml(corp.id)}" data-corp-id="${escapeHtml(corp.id)}" min="1" max="${buyable}" value="1">
+                <label for="buyShares-${escapeHtml(corp.id)}">Buy ${escapeHtml(corp.ticker)} shares at ${ShareDeals.perShare(shareValue)} each</label>
+                <input type="number" inputmode="numeric" id="buyShares-${escapeHtml(corp.id)}" data-corp-id="${escapeHtml(corp.id)}" min="1" max="${buyable}" placeholder="Up to ${ShareDeals.count(buyable)} (${ShareDeals.percent(buyable, corp.totalShares)})">
                 <span class="corp-hint" id="buySharesTotal-${escapeHtml(corp.id)}" aria-live="polite"></span>
                 <button class="btn btn-primary" data-game-action="buy-shares" data-corp-id="${escapeHtml(corp.id)}">Buy</button>
             </div>
         `
-        : `<p class="corp-hint">${listed > 0
-            ? `Treasury shares for sale: ${ShareDeals.count(listed)} at ${ShareDeals.perShare(shareValue)} each.${currentGame.game_state.auction?.status === 'open' ? ' You can buy them once the auction closes.' : ''}`
-            : 'No treasury shares for sale. To buy shares a player holds, make them an offer in the Market.'}</p>`;
+        : (listed > 0
+            ? `<p class="corp-hint">${ShareDeals.count(listed)} shares for sale at ${ShareDeals.perShare(shareValue)} each.${currentGame.game_state.auction?.status === 'open' ? ' You can buy them once the auction closes.' : ''}</p>`
+            : '');
     return `
         ${CorporationDesk.renderPropertyOffers(corp)}
         ${CorporationDesk.renderRentPolicy(corp)}
         ${CorporationDesk.renderRunnerTools(corp, addMove + addCashMove)}
-        <div class="corp-buy"><h4>Shares</h4>${buyHtml}</div>
+        ${buyHtml ? `<div class="corp-buy"><h4>Shares</h4>${buyHtml}</div>` : ''}
         ${CorporationDesk.renderOfferButton(corp)}
     `;
 }
 
 function renderCorporationDetail(corp) {
-    const tab = CORP_SHEET_TABS.includes(corpSheetTab) ? corpSheetTab : 'overview';
+    // No loans, no Debt tab.
+    const hasDebt = (corp.debts || []).length > 0;
+    const tabKeys = CORP_SHEET_TABS.filter(key => key !== 'debt' || hasDebt);
+    const tab = tabKeys.includes(corpSheetTab) ? corpSheetTab : 'overview';
     const labels = {
         overview: ShareDeals.runsCorporation(corp, currentUser.id) ? 'Run it' : 'Overview',
         owners: 'Owners',
         assets: 'Properties',
         debt: 'Debt',
     };
-    const tabs = CORP_SHEET_TABS.map(key => `
+    const tabs = tabKeys.map(key => `
         <button type="button" class="segmented-option" role="tab" data-corp-tab-button data-game-action="corporation-tab" data-tab="${key}" aria-selected="${key === tab}">${labels[key]}</button>
     `).join('');
     return `
@@ -397,10 +411,10 @@ function renderCorporationDetail(corp) {
             <button type="button" class="corp-back" data-game-action="corporation-list">‹ All corporations</button>
             <div class="corp-detail-head">
                 <div>
-                    <h3 class="corp-detail-title">${escapeHtml(corp.ticker)} <span>${escapeHtml(corp.name)}</span></h3>
+                    <h3 class="corp-detail-title">${escapeHtml(corp.ticker)}${corp.name && corp.name !== `${corp.ticker} Corporation` ? ` <span>${escapeHtml(corp.name)}</span>` : ''}</h3>
                     <p class="corp-summary-role">${escapeHtml(corporationRoleLine(corp))}</p>
                 </div>
-                ${corporationStatusBadge(corp)}
+                ${ShareDeals.isClosed(corp) ? corporationStatusBadge(corp) : ''}
             </div>
             ${renderCorporationStats(corp)}
             <div class="segmented corp-tabs" role="tablist" aria-label="${escapeHtml(corp.ticker)}">${tabs}</div>
@@ -410,8 +424,8 @@ function renderCorporationDetail(corp) {
                 </div>
                 <div class="corp-col">
                     <section class="corp-panel" data-corp-panel="owners">${renderCorporationOwners(corp)}</section>
-                    <section class="corp-panel" data-corp-panel="assets">${renderCorporationBuildMove(corp)}<h4>Properties <span class="corp-heading-note">${(corp.assets || []).length}</span></h4>${renderCorporationAssetGroups(Array.isArray(corp.assets) ? corp.assets : [])}</section>
-                    <section class="corp-panel" data-corp-panel="debt">${renderCorporationDebts(corp)}</section>
+                    <section class="corp-panel" data-corp-panel="assets">${ShareDeals.isClosed(corp) ? '' : renderCorporationPanelMove(corp, CorporationDesk.buildButton(corp))}<h4>Properties <span class="corp-heading-note">${(corp.assets || []).length}</span></h4>${renderCorporationAssetGroups(Array.isArray(corp.assets) ? corp.assets : [])}</section>
+                    ${hasDebt ? `<section class="corp-panel" data-corp-panel="debt"><h4>Debt</h4>${renderCorporationDebts(corp)}</section>` : ''}
                 </div>
             </div>
         </div>
@@ -422,67 +436,69 @@ function renderChairmanGovernance(corp) {
     if (ShareDeals.isClosed(corp)) {
         return `
             <div class="chairman-governance">
-                <h4>Changing the chairman</h4>
+                <h4>Chairman</h4>
                 <p class="empty-state">${ShareDeals.isMerged(corp) ? 'Closed after the merger.' : 'Governance closed after insolvency.'}</p>
             </div>
         `;
     }
     const myShares = ShareDeals.sharesHeld(corp, currentUser.id);
-    const candidates = chairmanCandidateOptions(corp);
-    const voteOptions = candidates.map(player =>
-        `<option value="${escapeHtml(player.userId)}">${escapeHtml(player.name)}</option>`
-    ).join('');
-    const required = majorityThresholdUi(corp);
     const openVotes = (corp.chairmanVotes || []).filter(vote => vote.status === 'open');
-    const openVotesHtml = openVotes.length
-        ? openVotes.map(vote => {
-            const supportedShares = voteSupportSharesUi(corp, vote);
-            const alreadySupported = (vote.supporters || []).some(supporter => supporter.userId === currentUser.id);
-            const canSupport = myShares > 0 && !alreadySupported;
-            return `
-                <div class="chairman-vote-row">
-                    <div>
-                        <strong>${escapeHtml(vote.candidateName)}</strong>
-                        <span>${ShareDeals.count(supportedShares)}/${ShareDeals.count(corp.totalShares)} shares supporting, ${ShareDeals.count(required)} needed</span>
-                    </div>
-                    ${canSupport ? `<button class="btn btn-primary btn-sm" data-game-action="support-chairman-vote" data-corp-id="${escapeHtml(corp.id)}" data-vote-id="${escapeHtml(vote.id)}">Support</button>` : ''}
+    const nameOf = player => (player.userId === currentUser.id ? 'You' : player.name);
+    const optionsFor = candidates => candidates.map(player =>
+        `<option value="${escapeHtml(player.userId)}">${escapeHtml(nameOf(player))}</option>`
+    ).join('');
+    // The chairman is never a candidate, and a candidate with an open vote
+    // is backed with Support on that vote instead.
+    const majorityCandidates = chairmanCandidateOptions(corp);
+    const voteCandidates = majorityCandidates.filter(player => !openVotes.some(vote => vote.candidateUserId === player.userId));
+    const openVotesHtml = openVotes.map(vote => {
+        const supportedShares = voteSupportSharesUi(corp, vote);
+        const alreadySupported = (vote.supporters || []).some(supporter => supporter.userId === currentUser.id);
+        const canSupport = myShares > 0 && !alreadySupported;
+        const candidate = vote.candidateUserId === currentUser.id ? 'You' : vote.candidateName;
+        return `
+            <div class="chairman-vote-row">
+                <div>
+                    <strong>${escapeHtml(candidate)}</strong>
+                    <span>${ShareDeals.percent(supportedShares, corp.totalShares)} backing, needs over 50%</span>
                 </div>
-            `;
-        }).join('')
-        : '<p class="empty-state">No open chairman votes</p>';
-
-    return `
-        <div class="chairman-governance">
-            <h4>Changing the chairman</h4>
-            <p>Changing chairman requires ${ShareDeals.count(required)}/${ShareDeals.count(corp.totalShares)} shares.</p>
-            ${hasMajoritySharesUi(corp, currentUser.id) ? `
+                ${canSupport ? `<button class="btn btn-primary btn-sm" data-game-action="support-chairman-vote" data-corp-id="${escapeHtml(corp.id)}" data-vote-id="${escapeHtml(vote.id)}">Support</button>` : ''}
+            </div>
+        `;
+    }).join('');
+    const majorityControl = hasMajoritySharesUi(corp, currentUser.id) && majorityCandidates.length ? `
                 <div class="governance-control">
-                    <label>Majority change:</label>
-                    <select id="chairmanMajority-${escapeHtml(corp.id)}">${voteOptions}</select>
+                    <label for="chairmanMajority-${escapeHtml(corp.id)}">Make chairman</label>
+                    <select id="chairmanMajority-${escapeHtml(corp.id)}">${optionsFor(majorityCandidates)}</select>
                     <button class="btn btn-primary btn-sm" data-game-action="change-chairman-majority" data-corp-id="${escapeHtml(corp.id)}">Change Chairman</button>
                 </div>
-            ` : ''}
-            ${myShares > 0 ? `
+            ` : '';
+    const voteControl = myShares > 0 && voteCandidates.length ? `
                 <div class="governance-control">
-                    <label>Propose vote:</label>
-                    <select id="chairmanVoteCandidate-${escapeHtml(corp.id)}">${voteOptions}</select>
+                    <label for="chairmanVoteCandidate-${escapeHtml(corp.id)}">Vote for chairman</label>
+                    <select id="chairmanVoteCandidate-${escapeHtml(corp.id)}">${optionsFor(voteCandidates)}</select>
                     <button class="btn btn-secondary btn-sm" data-game-action="propose-chairman-vote" data-corp-id="${escapeHtml(corp.id)}">Propose</button>
                 </div>
-            ` : ''}
-            <div>
-                ${openVotesHtml}
-            </div>
+            ` : '';
+    if (!openVotesHtml && !majorityControl && !voteControl) return '';
+    return `
+        <div class="chairman-governance">
+            <h4>Chairman <span class="corp-heading-note">needs over 50%</span></h4>
+            ${majorityControl}
+            ${voteControl}
+            ${openVotesHtml ? `<div>${openVotesHtml}</div>` : ''}
         </div>
     `;
 }
 
+// Who could replace the chairman: the founder and every shareholder, never
+// the chairman themself.
 function chairmanCandidateOptions(corp) {
     const players = currentGame.game_state.players || [];
-    return players.filter(player =>
-        player.userId === corp.chairmanId ||
+    return players.filter(player => player.userId !== corp.chairmanId && !player.bankrupt && (
         player.userId === corp.founderId ||
         ShareDeals.sharesHeld(corp, player.userId) > 0
-    );
+    ));
 }
 
 function majorityHolderName(corp) {
@@ -561,7 +577,6 @@ function openAddToCorporationModal(corpId) {
     closeModal('corporationModal');
     closeModal('ipoModal');
     document.getElementById('addToCorpTitle').textContent = `Add properties to ${corp.ticker}`;
-    document.getElementById('addToCorpHint').textContent = `${corp.ticker} will own them and collect their rent, so every ${corp.ticker} share is worth more.`;
     const container = document.getElementById('addToCorpAssets');
     container.innerHTML = addToCorporationAssetsHtml(currentPlayerData?.properties || [], 'add-corp-asset');
     container.dataset.html = addToCorporationAssetsHtml(currentPlayerData?.properties || [], 'add-corp-asset');
@@ -609,28 +624,31 @@ function addToCorpOptions(extra = {}) {
 // you run: radios named radioName, and whether new shares end up chosen.
 // Shared by the Add properties sheet and the Market's trade and Send money forms.
 // cash is null for properties, or the amount being paid in.
-function addToCorporationReturn(corp, ids, choice, radioName, cash = null) {
+// options.title: false where a "You get back" heading already asks it.
+function addToCorporationReturn(corp, ids, choice, radioName, cash = null, options = {}) {
     const quote = ShareDeals.contributionQuote(currentGame.game_state, corp, currentUser.id, ids, addToCorpOptions({ cash: cash || 0 }));
     const canIssue = (ids.length > 0 || cash > 0) && quote.newShares > 0;
     const picked = canIssue ? choice : 'gift';
-    const keeps = quote.otherShares > 0 ? "so the other holders' stakes keep their value" : 'and you still hold every share';
     const sharesDetail = canIssue
-        ? `${ShareDeals.count(quote.newShares)} new share${quote.newShares === 1 ? '' : 's'} at today's value per share, ${keeps}.`
-        : (quote.noSharesReason || (cash === null ? 'Pick a property to see how many shares it is worth.' : 'Enter an amount to see how many shares it buys.'));
-    const giftDetail = quote.otherShares > 0
-        ? `Every ${corp.ticker} share rises in value, including the other holders'.`
-        : `Every ${corp.ticker} share rises in value.`;
+        ? `${ShareDeals.count(quote.newShares)} share${quote.newShares === 1 ? '' : 's'}`
+        : (quote.noSharesReason || '');
+    // A gift moves value to the other holders: name them.
+    const others = (corp.shareholders || [])
+        .filter(holder => holder.userId !== currentUser.id && Number(holder.shares || 0) > 0)
+        .map(holder => holder.name);
+    const giftDetail = others.length ? `${ShareDeals.list(others)} gain${others.length === 1 ? 's' : ''} too.` : '';
+    const small = text => (text ? `<small>${escapeHtml(text)}</small>` : '');
     return {
         issueShares: picked === 'shares',
         html: `
-            <p class="trade-destination-title">What do you get back?</p>
+            ${options.title === false ? '' : '<p class="trade-destination-title">What do you get back?</p>'}
             <label class="trade-destination-option">
                 <input type="radio" name="${radioName}" value="shares"${picked === 'shares' ? ' checked' : ''}${canIssue ? '' : ' disabled'}>
-                <span><strong>New ${escapeHtml(corp.ticker)} shares</strong><small>${escapeHtml(sharesDetail)}</small></span>
+                <span><strong>New ${escapeHtml(corp.ticker)} shares</strong>${small(sharesDetail)}</span>
             </label>
             <label class="trade-destination-option">
                 <input type="radio" name="${radioName}" value="gift"${picked === 'gift' ? ' checked' : ''}>
-                <span><strong>Nothing, it's a gift</strong><small>${escapeHtml(giftDetail)}</small></span>
+                <span><strong>Nothing, it's a gift</strong>${small(giftDetail)}</span>
             </label>
         `,
     };
@@ -639,7 +657,7 @@ function addToCorporationReturn(corp, ids, choice, radioName, cash = null) {
 function addToCorporationPreviewHtml(corp, ids, issueShares, cash = 0) {
     if (!ids.length && !(cash > 0)) return '';
     const summary = ShareDeals.summarizeContribution(currentGame.game_state, corp, currentUser.id, ids, issueShares, addToCorpOptions({ cash }));
-    return `<h4>Before you confirm</h4>${renderShareDealSummary(summary)}`;
+    return renderShareDealSummary({ ...summary, sentences: [] });
 }
 
 // Redraws the "what do you get back" choice and the preview whenever the
@@ -700,7 +718,6 @@ function openAddCashToCorporationModal(corpId) {
     addCashToCorpId = corp.id;
     closeModal('corporationModal');
     document.getElementById('addCashToCorpTitle').textContent = `Add cash to ${corp.ticker}`;
-    document.getElementById('addCashToCorpHint').textContent = `The cash goes into ${corp.ticker}'s treasury, where you can spend it on property, houses and loan payments as chairman.`;
     const input = document.getElementById('addCashToCorpAmount');
     input.value = '';
     input.max = Math.max(0, Number(currentPlayerData?.cash || 0));

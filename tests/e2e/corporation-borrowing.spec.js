@@ -99,17 +99,18 @@ test('the chairman borrows for the corporation from its sheet', async ({ browser
         return fetched.game_state.corporations[0].cash;
     }).toBe(300);
 
-    // The Debt tab offers the same move.
+    // Now MBS owes, it has a Debt tab, which lists the loan and offers the same move.
     await openCorporation(sam.page, 'corp-mbs', 'debt');
+    await expect(sam.page.locator('#corporationModal [data-corp-panel="debt"]')).toContainText('$200 · 10 turns left');
     await expect(sam.page.locator('#corporationModal [data-corp-panel="debt"] [data-game-action="borrow-for-corporation"]')).toBeVisible();
     await sam.context.close();
 });
 
-test("a shareholder who isn't chairman is told who can borrow", async ({ browser, request }) => {
+test("a shareholder who isn't chairman can't borrow for it", async ({ browser, request }) => {
     const { room, users } = await setupGame(request, 0);
     const alex = await openGame(browser, room, users.Alex);
-    await openCorporation(alex.page, 'corp-mbs', 'debt');
-    await expect(alex.page.locator('#corporationModal [data-corp-panel="debt"]')).toContainText("Only MBS's chairman, Sam, can borrow for it.");
+    await openCorporation(alex.page, 'corp-mbs');
+    await expect(alex.page.locator('#corporationModal [data-corp-tab-button][data-tab="debt"]')).toHaveCount(0);
     await expect(alex.page.locator('[data-game-action="borrow-for-corporation"]')).toHaveCount(0);
     await alex.context.close();
 });

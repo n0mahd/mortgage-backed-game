@@ -124,7 +124,7 @@ test('the chairman switches to Payout and pays a dividend', async ({ browser, re
     await expect.poll(() => alex.page.evaluate(() => currentGame.game_state.corporations[0].rentPolicy)).toBe('payout');
     await alex.page.click('[data-close-modal="corporationModal"]');
     await openCorporation(alex.page, 'corp-mbs');
-    await expect(alex.page.locator('.corp-rent-policy')).toContainText(/You hold 30%.*only the other 70%/);
+    await expect(alex.page.locator('.corp-rent-policy')).toContainText("You pay only 70% of the rent on MBS's properties.");
 
     await sam.page.fill('#dividend-corp-mbs', '300');
     await sam.page.click('[data-game-action="pay-dividend"][data-corp-id="corp-mbs"]');
@@ -143,7 +143,7 @@ test("the chairman can't switch rent policy on their own turn after rolling", as
     const sam = await openGame(browser, room, users.Sam);
     await openCorporation(sam.page, 'corp-mbs');
     await expect(sam.page.locator('[data-game-action="set-rent-policy"][data-policy="payout"]')).toBeDisabled();
-    await expect(sam.page.locator('.corp-rent-policy')).toContainText('You can switch again after your turn.');
+    await expect(sam.page.locator('.corp-rent-policy')).toContainText('Locked until your turn ends');
     await sam.context.close();
 });
 
@@ -195,7 +195,7 @@ test('a player offers a property, the chairman counters and the offerer accepts'
     const preview = alex.page.locator('#propertyOfferPreview');
     // Book value $240 at $0.1125 a share: 2,133.3, so 2,133 new shares (nearest share).
     await expect(preview).toContainText('You give MBS Illinois Avenue for 2,133 new MBS shares.');
-    await expect(preview).toContainText('Your net worth$0');
+    await expect(preview).toContainText('Your net worthNo change');
 
     await alex.page.check('input[name="propertyOfferBasis"][value="set"]');
     await alex.page.fill('#propertyOfferPriceInput', '300');
@@ -221,12 +221,12 @@ test('a player offers a property, the chairman counters and the offerer accepts'
     await expect(offerCard.locator('.trade-offer-sides')).toContainText('2,667 new shares');
     // MBS: $1,350 + $240 over 14,667 shares; Sam's 6,000 go from $675 to $650.
     await expect(offerCard.locator('.offer-verdict')).toContainText('Alex is asking $60 more than Illinois Avenue is worth. Accepting costs you $25');
-    await expect(offerCard.locator('.share-deal-table')).toContainText('Your net worth−$25');
+    await expect(offerCard).not.toContainText('Your net worth');
     await expect(offerCard.locator('.offer-counter')).toBeHidden();
     await offerCard.locator('[data-game-action="toggle-property-counter"]').click();
     await expect(offerCard.locator('.offer-counter')).toBeVisible();
     await offerCard.locator('[data-game-action="fill-property-counter"]').click();
-    await expect(offerCard.locator('.offer-counter-result')).toContainText('Alex would get 2,133 new shares. For you: $0');
+    await expect(offerCard.locator('.offer-counter-result')).toContainText('Alex would get 2,133 new shares. For you: no change');
     await offerCard.locator('.offer-counter-input').fill('260');
     await expect(offerCard.locator('[data-response="counter"]')).toHaveText('Send counter at $260');
     await offerCard.locator('[data-response="counter"]').click();
@@ -278,7 +278,7 @@ test('the chairman trades as the company and buys a property for it', async ({ b
     await sam.page.fill('#player1Cash', '200');
     await sam.page.check('#player2Assets input[value="prop-13"]');
     await sam.page.click('#executeTradeBtn');
-    await expect(sam.page.locator('#market-status')).toContainText('Trade proposal sent');
+    await expect(sam.page.locator('#market-status')).toContainText('Sent to');
 
     await kim.page.locator('.nav-tab[data-section="market"]').click();
     await showMarketPane(kim.page, 'Trade proposals');
@@ -313,13 +313,13 @@ test('the chairman buys a property for MBS with new shares, at the fair count', 
     await expect(sam.page.locator('#tradePreview')).toContainText('MBS issues 1,956 new shares to Kim.');
     await expect(sam.page.locator('#tradePreview')).not.toContainText('than fair');
     await sam.page.click('#executeTradeBtn');
-    await expect(sam.page.locator('#market-status')).toContainText('Trade proposal sent');
+    await expect(sam.page.locator('#market-status')).toContainText('Sent to');
 
     await kim.page.locator('.nav-tab[data-section="market"]').click();
     await showMarketPane(kim.page, 'Trade proposals');
     const offer = kim.page.locator('.trade-offer-card').first();
     await expect(offer).toContainText('1,956 new MBS shares', { timeout: 10000 });
-    await expect(offer).toContainText('MBS issues 1,956 new shares to you.');
+    await expect(offer).not.toContainText('MBS issues');
     await offer.locator('[data-game-action="accept-trade-offer"]').click();
 
     await expect.poll(async () => (await fetchState(request, game, users.Sam)).properties.find(p => p.id === 'prop-13').ownerId).toBe('corp-mbs');
@@ -396,8 +396,8 @@ test('the chairman picks the company under They give to add a property, and send
     await expect(sam.page.locator('#executeTradeBtn')).toHaveText('Add to MBS');
     await expect(sam.page.locator('#executeTradeBtn')).toBeDisabled();
     await sam.page.check('#player1Assets input[value="prop-15"]');
-    await expect(sam.page.locator('#player2Destination')).toContainText('2,133 new shares');
-    await expect(sam.page.locator('#tradePreview')).toContainText('Before you confirm');
+    await expect(sam.page.locator('#player2Destination')).toContainText('2,133 shares');
+    await expect(sam.page.locator('#tradePreview')).toContainText('Your MBS shares');
     await sam.page.click('#executeTradeBtn');
     await expect(sam.page.locator('#market-status')).toContainText('Added to MBS');
     await expect.poll(async () => (await fetchState(request, game, users.Sam)).corporations[0].totalShares).toBe(14133);
@@ -407,14 +407,14 @@ test('the chairman picks the company under They give to add a property, and send
     // Back to a normal trade: the headings and cash boxes return.
     await sam.page.selectOption('#player2Select', ids.kim);
     await expect(sam.page.locator('#player2Heading')).toHaveText('They give');
-    await expect(sam.page.locator('#executeTradeBtn')).toHaveText('Propose Transaction');
+    await expect(sam.page.locator('#executeTradeBtn')).toHaveText('Send offer');
     await expect(sam.page.locator('#player1CashGroup')).toBeVisible();
 
     // Send money into MBS for new shares: $135 at $1,590 over 14,133 shares.
     await showMarketPane(sam.page, 'Send money');
     await sam.page.selectOption('#paymentToPlayer', 'corp:corp-mbs');
     await sam.page.fill('#paymentAmount', '135');
-    await expect(sam.page.locator('#paymentReturn')).toContainText('1,200 new shares');
+    await expect(sam.page.locator('#paymentReturn')).toContainText('1,200 shares');
     await sam.page.click('#makePaymentBtn');
     await expect(sam.page.locator('#market-status')).toContainText('Paid into MBS');
     await expect.poll(async () => (await fetchState(request, game, users.Sam)).corporations[0].totalShares).toBe(15333);
@@ -429,7 +429,7 @@ test('the chairman picks the company under They give to add a property, and send
     await showMarketPane(alex.page, 'Send money');
     await alex.page.selectOption('#paymentToPlayer', 'corp:corp-mbs');
     await alex.page.fill('#paymentAmount', '10');
-    await expect(alex.page.locator('#paymentReturn')).toContainText('as a gift');
+    await expect(alex.page.locator('#paymentReturn')).toContainText('A gift to');
     await expect(alex.page.locator('input[name="paymentReturnChoice"]')).toHaveCount(0);
     await alex.context.close();
 });
@@ -458,9 +458,11 @@ test('the sheet lists corporations, then shows one in tabs on a phone and in two
     await openCorporation(wide.page, 'corp-mbs');
     const desk = wide.page.locator('#corporationModal .corp-detail');
     await expect(desk.locator('.corp-tabs')).toBeHidden();
-    for (const panel of ['overview', 'owners', 'assets', 'debt']) {
+    for (const panel of ['overview', 'owners', 'assets']) {
         await expect(desk.locator(`[data-corp-panel="${panel}"]`)).toBeVisible();
     }
+    // MBS owes nothing, so there's no Debt panel.
+    await expect(desk.locator('[data-corp-panel="debt"]')).toHaveCount(0);
     const width = await wide.page.locator('#corporationModal .modal-content').evaluate(el => el.getBoundingClientRect().width);
     expect(width).toBeGreaterThan(800);
     await wide.page.screenshot({ path: 'test-results/corporation-detail-1280.png' });

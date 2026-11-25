@@ -572,7 +572,8 @@ class Explore {
             const target = values.find(v => v !== corp.chairmanId) || values[0];
             await select.selectOption(target);
             await bot.act(seat, 'change chairman by majority', () => modal.locator(`[data-game-action="change-chairman-majority"][data-corp-id="${corp.id}"]`).click(), { allowRejection: true });
-        } else {
+        } else if ((corp.shareholders || []).some(h => Number(h.shares) > 0 && h.userId !== corp.chairmanId) || (corp.founderId && corp.founderId !== corp.chairmanId)) {
+            // With nobody else to make chairman, the control is rightly hidden.
             this.ctx.finding({ severity: 'medium', category: 'ui', seat, title: 'Majority shareholder sees no Change Chairman control', detail: `${corp.ticker}: holds ${this.holds(corp, me)}/${corp.totalShares}` });
         }
         await bot.closeModals(seat);
