@@ -23,7 +23,6 @@
             <div class="modal-content">
                 <div class="modal-header" id="rejoinPromptTitle">Rejoin request</div>
                 <p class="rejoin-prompt-text"></p>
-                <p class="rejoin-prompt-hint"></p>
                 <p class="rejoin-prompt-warning" role="alert" hidden></p>
                 <p class="error-message rejoin-prompt-error"></p>
                 <div class="sheet-actions modal-actions">
@@ -43,11 +42,8 @@
         shownId = request.id;
         const name = request.playerName;
         el.querySelector('.rejoin-prompt-text').textContent = name
-            ? `Someone on another device wants to continue as ${name}.`
-            : 'Someone on another device wants to continue this whole game.';
-        el.querySelector('.rejoin-prompt-hint').textContent = name
-            ? `Approve only if ${name} just asked you. Approving signs that device in as ${name}.`
-            : 'Approve only if you just asked for this. Approving signs that device in as every player.';
+            ? `A device wants to play as ${name}. Approve only if ${name} just asked you.`
+            : 'A device wants to play every seat in this game. Approve only if you just asked for this.';
         const warning = el.querySelector('.rejoin-prompt-warning');
         warning.textContent = request.otherRecentRequests > 0
             ? 'More than one device asked for this in the last 10 minutes. Decline unless you are sure this one is theirs.'

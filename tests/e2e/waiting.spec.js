@@ -104,7 +104,7 @@ test.describe('Waiting Room', () => {
         await page.locator('#resume-code').fill(resumeRoom.invite_code);
         await page.getByRole('button', { name: /Join Game/i }).click();
         await page.waitForURL(/waiting\.html\?code=/, { timeout: 10000 });
-        await expect(page.locator('#hotseat-resume-options')).toContainText('Continue as an existing player', { timeout: 10000 });
+        await expect(page.locator('#hotseat-resume-options')).toContainText('Already in this game?', { timeout: 10000 });
 
         await page.getByRole('button', { name: 'Resume Guest' }).click();
         await expect(page.locator('#hotseat-resume-options')).toContainText('Waiting for approval');
@@ -113,7 +113,7 @@ test.describe('Waiting Room', () => {
 
         const prompt = hostPage.locator('#rejoinPromptModal');
         await expect(prompt).toBeVisible({ timeout: 10000 });
-        await expect(prompt).toContainText('wants to continue as Resume Guest');
+        await expect(prompt).toContainText('wants to play as Resume Guest');
         await prompt.getByRole('button', { name: 'Approve' }).click();
         await expect(prompt).toBeHidden();
 

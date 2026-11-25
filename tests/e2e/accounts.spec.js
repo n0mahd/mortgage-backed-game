@@ -114,7 +114,7 @@ test.describe('Accounts', () => {
 
         await page.locator('#guest-banner').getByRole('link', { name: 'Create an account' }).click();
         await page.waitForURL(/auth\.html\?mode=register/);
-        await expect(page.locator('#register-keeps-games')).toHaveText('Your current games stay with you.');
+        await expect(page.locator('#register-keeps-games')).toHaveText('Your guest games move to this account.');
         const username = uniqueUsername('up');
         await page.locator('#register-username').fill(username);
         await page.locator('#register-password').fill(PASSWORD);
@@ -148,7 +148,7 @@ test.describe('My games', () => {
         await expect(page.locator('#active-rooms-list')).toContainText('Archive Me');
         await expect(page.locator('#archived-rooms-section')).toBeHidden();
 
-        await page.locator(`[data-room-open="${room.id}"]`).click();
+        await page.locator(`.room-card[data-room-id="${room.id}"] .room-name`).click();
         await page.waitForURL(new RegExp(`waiting\\.html\\?room=${room.id}`));
     });
 });
@@ -234,7 +234,7 @@ test.describe('Manage players', () => {
         await page.locator(`[data-room-manage="${room.id}"]`).click();
         const danaRow = page.locator('.manage-player-row', { hasText: 'Dana' });
         page.once('dialog', dialog => {
-            expect(dialog.message()).toContain('need an account');
+            expect(dialog.message()).toContain('needs an account');
             dialog.accept();
         });
         await danaRow.getByRole('button', { name: 'Make host' }).click();

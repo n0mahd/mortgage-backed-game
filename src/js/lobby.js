@@ -46,13 +46,13 @@ function renderAccount() {
     const isGuest = !!user.is_anonymous;
     const name = user.username || user.email || '';
     // The guest banner says it; the app bar keeps its room for Sign in and Log out.
-    document.getElementById('user-email').textContent = isGuest ? '' : name;
+    document.getElementById('account-name').textContent = isGuest ? '' : name;
     document.getElementById('signin-link').hidden = !isGuest;
     document.getElementById('guest-banner').hidden = !isGuest;
-    document.getElementById('account-summary').hidden = isGuest;
-    document.getElementById('account-name').textContent = name;
     // Email accounts sign in with codes; a password lets them use a username too.
-    document.getElementById('set-password-btn').hidden = isGuest || !!user.has_password;
+    const canSetPassword = !isGuest && !user.has_password;
+    document.getElementById('account-summary').hidden = !canSetPassword;
+    document.getElementById('set-password-btn').hidden = !canSetPassword;
 }
 
 // The account can change elsewhere too (a password set on another device, a
@@ -106,12 +106,21 @@ async function saveAccountPassword(event) {
         lobbyUser = data.user || { ...lobbyUser, has_password: true };
         renderAccount();
         closeModal('setPasswordModal');
-        showToast('Password saved. You can sign in with it on any device.');
+        showToast('Password saved.');
     } catch (error) {
         errorEl.textContent = error.message || 'Could not save your password. Please try again.';
     } finally {
         button.disabled = false;
     }
+}
+
+// A guest can't sign back in, so logging out loses their games: confirm first.
+function onLogoutClick() {
+    if (lobbyUser && lobbyUser.is_anonymous) {
+        document.getElementById('guestLogoutModal').classList.add('active');
+        return;
+    }
+    handleLogout();
 }
 
 // ── Host offers made to me ──────────────────────────────────────
@@ -132,7 +141,7 @@ async function loadHostOffers() {
     document.getElementById('host-offers-list').innerHTML = offers.map(offer => `
         <div class="host-offer" data-host-offer="${escapeHtml(offer.id)}">
             <div class="room-name">${escapeHtml(offer.room_name)}</div>
-            <p class="room-info">${escapeHtml(offer.from_player_name || 'The host')} offered to make you host. You can start, pause and manage the game once you accept.</p>
+            <p class="room-info">${escapeHtml(offer.from_player_name || 'The host')} offered to make you host.</p>
             <div class="room-card-actions">
                 <button class="btn btn-secondary btn-sm" data-host-offer-accept="${escapeHtml(offer.id)}">Accept</button>
                 <button class="btn btn-secondary btn-sm" data-host-offer-decline="${escapeHtml(offer.id)}">Decline</button>
@@ -272,10 +281,8 @@ function renderRoomCard(room) {
                 <span class="room-invite-code">${escapeHtml(room.invite_code)}</span>
                 <span>${memberCount} of ${maxPlayers} players</span>
                 ${room.is_host ? '<span class="badge">Host</span>' : ''}
-                <span>Created ${formatTimeAgo(room.created_at)}</span>
             </div>
             <div class="room-card-actions">
-                <button class="btn btn-secondary btn-sm" data-room-open="${id}">Open</button>
                 ${canManage ? `<button class="btn btn-secondary btn-sm" data-room-manage="${id}">Manage</button>` : ''}
                 ${room.archived
                     ? `<button class="btn btn-secondary btn-sm" data-room-unarchive="${id}">Unarchive</button>`
@@ -319,8 +326,7 @@ function openManageSheet(roomId) {
 function onRoomListClick(event) {
     const button = event.target.closest('button');
     if (button) {
-        if (button.dataset.roomOpen) openLobbyRoom(button.dataset.roomOpen);
-        else if (button.dataset.roomManage) openManageSheet(button.dataset.roomManage);
+        if (button.dataset.roomManage) openManageSheet(button.dataset.roomManage);
         else if (button.dataset.roomArchive) setRoomArchived(button.dataset.roomArchive, true, button);
         else if (button.dataset.roomUnarchive) setRoomArchived(button.dataset.roomUnarchive, false, button);
         return;
@@ -343,6 +349,7 @@ function closeModal(modalId) {
         document.getElementById('max-players').value = '4';
         document.getElementById('host-player-name').value = '';
         document.getElementById('host-spectate').checked = false;
+        document.getElementById('create-room-error').textContent = '';
         syncSpectateField();
     }
     if (modalId === 'setPasswordModal') {
@@ -364,16 +371,20 @@ async function createRoom() {
     const spectate = document.getElementById('host-spectate').checked;
     const playerName = spectate ? '' : document.getElementById('host-player-name').value.trim();
 
+    const errorEl = document.getElementById('create-room-error');
+    errorEl.textContent = '';
     if (!roomName || (!spectate && !playerName)) {
-        alert('Please fill in all fields');
+        errorEl.textContent = spectate ? 'Name the game.' : 'Name the game and yourself.';
         return;
     }
 
     if (!Number.isInteger(maxPlayers) || maxPlayers < 2 || maxPlayers > 8) {
-        alert('Max players must be between 2 and 8');
+        errorEl.textContent = 'Players must be between 2 and 8.';
         return;
     }
 
+    const button = document.getElementById('create-room-btn');
+    button.disabled = true;
     try {
         const room = await createNewRoom(roomName, maxPlayers, playerName, { spectate });
         closeModal('createRoomModal');
@@ -387,7 +398,9 @@ async function createRoom() {
         navigateToWaitingRoom(room.id);
     } catch (error) {
         console.error('Error creating room:', error);
-        alert('Error creating game: ' + error.message);
+        errorEl.textContent = error.message || "Couldn't create the game. Try again.";
+    } finally {
+        button.disabled = false;
     }
 }
 
@@ -407,7 +420,9 @@ window.addEventListener('click', (event) => {
 });
 
 document.addEventListener('DOMContentLoaded', () => {
-    document.getElementById('logout-btn')?.addEventListener('click', handleLogout);
+    document.getElementById('logout-btn')?.addEventListener('click', onLogoutClick);
+    document.getElementById('guest-logout-confirm-btn')?.addEventListener('click', handleLogout);
+    document.getElementById('guest-logout-cancel-btn')?.addEventListener('click', () => closeModal('guestLogoutModal'));
     document.getElementById('show-create-room-btn')?.addEventListener('click', showCreateRoomModal);
     document.getElementById('create-room-btn')?.addEventListener('click', createRoom);
     document.getElementById('cancel-create-room-btn')?.addEventListener('click', () => closeModal('createRoomModal'));

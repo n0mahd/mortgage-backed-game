@@ -27,9 +27,8 @@
 
             <div id="resume" class="resume-card">
                 <p id="signed-out-notice" class="signed-out-notice" hidden>
-                    This browser isn't signed in to that game yet. On the device you've been playing on,
-                    tap "Play on another device" and enter its code under "Other ways back in". You can also
-                    enter your room code, or <a href="auth.html">sign in</a> if you have an account.
+                    This browser isn't signed in to that game. Enter the code from
+                    <strong>Play on another device</strong> below, or <a href="auth.html">sign in</a>.
                 </p>
                 <p id="seat-link-status" class="hint" role="status" hidden></p>
                 <label class="resume-label" for="resume-code">Have a room code?</label>
@@ -43,15 +42,14 @@
                 <div id="hotseat-resume-options" class="hotseat-resume-options"></div>
 
                 <details class="resume-more">
-                    <summary>Other ways back in</summary>
+                    <summary>Lost access to a game?</summary>
 
                     <div id="transfer-redeem" class="transfer-redeem">
-                        <p class="hint">Moving from another phone or browser? In your game, tap "Play on another device" to get a code.</p>
+                        <label class="hint" for="transfer-code">Code from <strong>Play on another device</strong></label>
                         <div class="input-row">
                             <input type="text" id="transfer-code" class="code-input"
                                    placeholder="ABCD 2345" maxlength="9" autocomplete="one-time-code"
-                                   autocapitalize="characters" spellcheck="false"
-                                   aria-label="Code from another device">
+                                   autocapitalize="characters" spellcheck="false">
                             <button id="transfer-code-btn" class="btn btn-secondary">Continue here</button>
                         </div>
                         <div id="transfer-error" class="resume-error" role="alert"></div>
@@ -59,13 +57,13 @@
 
                     <a id="forgot-code-link" class="forgot-link" href="#">Forgot your room code?</a>
                     <div id="forgot-code-form" class="forgot-subform">
-                        <p class="hint">We'll email you the codes for every game you're in.</p>
+                        <p class="hint">We'll email the room codes for your games.</p>
                         <div class="input-row forgot-row">
                             <input type="email" id="forgot-email" class="email-input-field"
                                    placeholder="you@example.com" inputmode="email" autocomplete="email" aria-label="Email">
                             <button id="send-forgot-code-btn" class="btn btn-secondary">Send Codes</button>
                         </div>
-                        <div id="forgot-success" class="forgot-success" role="status">Sent. Check your email for your room codes.</div>
+                        <div id="forgot-success" class="forgot-success" role="status">Sent. Check your email.</div>
                         <div id="forgot-error" class="resume-error" role="alert"></div>
                     </div>
                 </details>
@@ -75,14 +73,13 @@
                 <a href="auth.html?mode=register" class="btn btn-gold btn-large">Create New Game</a>
                 <a href="hotseat.html" class="btn btn-on-dark btn-large">Play on one phone</a>
             </div>
-            <p class="hero-signin">Already have an account? <a href="auth.html">Sign in</a> to see your games.</p>
+            <p class="hero-signin">Have an account? <a href="auth.html">Sign in</a></p>
         </div>
     </section>
 
     <main class="landing-body">
         <section class="landing-section" id="features">
             <h2>Every instrument from 2008</h2>
-            <p class="section-lede">Classic Monopoly, plus the financial engineering that made the crisis possible.</p>
 
             <div class="deed-cards">
                 <article class="deed-card" style="--deed-color:#2D6A4F">
@@ -96,9 +93,9 @@
                 <article class="deed-card" style="--deed-color:#2C3E9E">
                     <header><span>Credit</span><h3>Borrow against everything</h3></header>
                     <dl>
-                        <div><dt>Interest per turn</dt><dd>5%</dd></div>
-                        <div><dt>Collateral</dt><dd>Your streets</dd></div>
-                        <div><dt>Maximum leverage</dt><dd>∞</dd></div>
+                        <div><dt>Interest per turn</dt><dd>Host's call</dd></div>
+                        <div><dt>Borrow up to</dt><dd>90% of what you own</dd></div>
+                        <div><dt>Loan terms</dt><dd>5–30 turns</dd></div>
                     </dl>
                     <p class="deed-footnote">As God and Lehman intended.</p>
                 </article>
@@ -131,9 +128,9 @@
         <p>Built with <a href="https://claude.ai/claude-code" target="_blank" rel="noopener">Claude Code</a>.</p>
     </footer>
 
-    <script src="src/js/api.js?v=22"></script>
-    <script src="src/js/room-resume.js?v=1"></script>
-    <script src="src/js/index.js?v=1"></script>
+    <script src="src/js/api.js?v=23"></script>
+    <script src="src/js/room-resume.js?v=2"></script>
+    <script src="src/js/index.js?v=2"></script>
     <script src="src/js/seat-link.js?v=1"></script>
 </body>
 </html>

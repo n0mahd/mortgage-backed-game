@@ -9,8 +9,8 @@ function addPlayerField() {
     div.className = 'form-group';
     div.innerHTML = `
         <label>Player ${playerNumber}</label>
-        <input type="text" class="player-name-input"
-               placeholder="Player ${playerNumber} name" maxlength="20">
+        <input type="text" class="player-name-input" maxlength="20" autocomplete="off"
+               aria-label="Player ${playerNumber}">
     `;
     container.appendChild(div);
 
@@ -41,8 +41,10 @@ async function startHotseatGame() {
     }
 
     btn.disabled = true;
-    btn.textContent = 'Setting up game…';
+    btn.textContent = 'Starting…';
 
+    // The players' tokens stay in this tab's hotseat session (api.js), so the
+    // browser's own sign-in is never replaced.
     try {
         const tokenRecords = [];
         for (const name of names) {
@@ -50,37 +52,39 @@ async function startHotseatGame() {
             tokenRecords.push({ userId: data.user.id, token: data.token, name });
         }
 
-        setToken(tokenRecords[0].token);
+        setHotseatSession(tokenRecords, null);
 
         const room = await createNewRoom(`${names[0]}'s Local Game`, names.length, names[0]);
         const roomId = room.id;
 
         // Server-authoritative actions need every local player joined with their own token.
         for (let i = 1; i < tokenRecords.length; i++) {
-            setToken(tokenRecords[i].token);
+            setHotseatActiveToken(tokenRecords[i].token);
             await joinRoom(roomId, tokenRecords[i].name);
         }
-        setToken(tokenRecords[0].token);
+        setHotseatActiveToken(tokenRecords[0].token);
 
         await startGame(roomId);
 
-        setHotseatSession(tokenRecords);
+        setHotseatSession(tokenRecords, roomId);
         saveHotseatResume(room, tokenRecords);
 
         navigateToGameRoom(roomId);
 
     } catch (err) {
         console.error('Hotseat setup error:', err);
-        errorEl.textContent = 'Setup failed: ' + err.message;
+        clearHotseatSession();
+        errorEl.textContent = "Couldn't start the game. Try again.";
         btn.disabled = false;
-        btn.textContent = 'Start Local Game';
+        btn.textContent = 'Start game';
     }
 }
 
 document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('add-player-btn').addEventListener('click', addPlayerField);
     document.getElementById('start-hotseat-btn').addEventListener('click', startHotseatGame);
-    document.addEventListener('keypress', (e) => {
-        if (e.key === 'Enter') startHotseatGame();
+    // Enter in a name field starts the game; elsewhere it does what it normally does.
+    document.getElementById('player-name-fields').addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' && e.target.classList.contains('player-name-input')) startHotseatGame();
     });
 });

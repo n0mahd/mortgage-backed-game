@@ -312,13 +312,26 @@ describe('rejoin requests', () => {
         expect((await collect(asked)).body).toEqual({ status: 'cancelled' });
     });
 
-    test('403 for an email seat: those players sign in with email', async () => {
+    test('403 for an account seat, whatever the sign-in method: those players sign in', async () => {
         const room = createRoomFixture(db, user1.id, { inviteCode: 'CLAIM9', maxPlayers: 2 });
         addRoomMemberFixture(db, room.id, user2.id, 'Bob');
 
         const res = await askToRejoin('CLAIM9', room.room_members[0].id);
         expect(res.status).toBe(403);
-        expect(res.body.error).toMatch(/email/);
+        expect(res.body.error).toBe(`${room.room_members[0].player_name} has an account. Sign in to continue.`);
+        expect(res.body.error).not.toMatch(/email/);
+    });
+
+    test('by-code says whether the whole room can be asked for (same-device games only)', async () => {
+        const a = createUserFixture(db, { anonymous: true });
+        const b = createUserFixture(db, { anonymous: true });
+        const local = createRoomFixture(db, a.id, { inviteCode: 'LOCAL1', status: 'in_progress' });
+        addRoomMemberFixture(db, local.id, b.id, 'Bea');
+        expect((await request(app).get('/api/rooms/by-code/LOCAL1')).body.whole_room_rejoin).toBe(true);
+
+        const online = createRoomFixture(db, user1.id, { inviteCode: 'ONLIN1', status: 'in_progress' });
+        addRoomMemberFixture(db, online.id, a.id, 'Ann');
+        expect((await request(app).get('/api/rooms/by-code/ONLIN1')).body.whole_room_rejoin).toBe(false);
     });
 
     test('400 while the room is still open for new players', async () => {

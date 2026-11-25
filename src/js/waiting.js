@@ -20,7 +20,6 @@ async function initWaitingRoom() {
     }
 
     if (!roomId) {
-        alert('No room ID provided');
         window.location.href = 'index.html';
         return;
     }
@@ -29,10 +28,6 @@ async function initWaitingRoom() {
     if (!user) return;
 
     currentUser = user;
-    const emailDisplay = document.getElementById('user-email');
-    if (emailDisplay) {
-        emailDisplay.textContent = currentUser.email || 'Guest';
-    }
 
     await loadRoomDataById(roomId);
     subscribeToRoomUpdatesById(roomId);
@@ -64,22 +59,20 @@ async function showGuestJoinSection() {
     const leaveBtn = document.getElementById('leave-room-btn');
     if (leaveBtn) leaveBtn.style.display = 'none';
 
-    const codeInput = document.getElementById('guest-room-code');
-    if (codeInput) codeInput.value = normalizedRoomCode;
-
     const optionsEl = document.getElementById('hotseat-resume-options');
     const hasLocalHotseatResume = RoomResume.showSavedHotseat(optionsEl, normalizedRoomCode);
-    if (!hasLocalHotseatResume) {
-        try {
-            const room = await getRoomByCode(normalizedRoomCode);
-            const hasExistingPlayerResume = RoomResume.showExistingMembers(optionsEl, normalizedRoomCode, room);
-            setGuestJoinFormVisible(!hasExistingPlayerResume);
-        } catch (err) {
-            console.warn('Could not load room resume options:', err);
-            setGuestJoinFormVisible(true);
-        }
-    } else {
+    let room = null;
+    try {
+        room = await getRoomByCode(normalizedRoomCode);
+    } catch (err) {
+        console.warn('Could not load the room:', err);
+    }
+    showGuestJoinHeading(room);
+    if (hasLocalHotseatResume) {
         setGuestJoinFormVisible(false);
+    } else {
+        const hasExistingPlayerResume = !!room && RoomResume.showExistingMembers(optionsEl, normalizedRoomCode, room);
+        setGuestJoinFormVisible(!hasExistingPlayerResume);
     }
 
     const nameInput = document.getElementById('guest-player-name');
@@ -90,11 +83,20 @@ async function showGuestJoinSection() {
     }
 }
 
+// The room's name and host, so the player knows which game they're joining.
+function showGuestJoinHeading(room) {
+    if (!room) return;
+    const host = (room.room_members || []).find(member => member.user_id === room.host_id);
+    document.getElementById('guest-join-title').textContent = room.name || 'Join game';
+    const subtitle = document.getElementById('guest-join-subtitle');
+    subtitle.textContent = host && host.player_name ? `Hosted by ${host.player_name}` : '';
+    subtitle.hidden = !subtitle.textContent;
+}
+
+// A full or started room shows only "Already in this game?", not the name form.
 function setGuestJoinFormVisible(visible) {
-    const nameGroup = document.getElementById('guest-player-name')?.closest('.form-group');
-    const joinBtn = document.getElementById('guest-join-btn');
-    if (nameGroup) nameGroup.style.display = visible ? '' : 'none';
-    if (joinBtn) joinBtn.style.display = visible ? '' : 'none';
+    const card = document.getElementById('guest-join-card');
+    if (card) card.hidden = !visible;
 }
 
 async function joinAsGuest() {
@@ -104,7 +106,7 @@ async function joinAsGuest() {
     let createdAnonymousSession = false;
 
     if (!playerName) {
-        errorEl.textContent = 'Please enter your player name';
+        errorEl.textContent = 'Enter your name.';
         return;
     }
 
@@ -132,9 +134,6 @@ async function joinAsGuest() {
         document.getElementById('waiting-room-section').style.display = 'block';
         const leaveBtn = document.getElementById('leave-room-btn');
         if (leaveBtn) leaveBtn.style.display = '';
-
-        const emailDisplay = document.getElementById('user-email');
-        if (emailDisplay) emailDisplay.textContent = playerName;
 
         history.replaceState(null, '', `waiting.html?room=${encodeURIComponent(room.id)}`);
 
@@ -167,8 +166,7 @@ async function loadRoomDataById(id) {
         renderRoom(await getRoomById(id));
     } catch (error) {
         console.error('Error loading room:', error);
-        alert('Error loading room: ' + error.message);
-        window.location.href = 'index.html';
+        showPageLoadError(`Couldn't load this room: ${error.message}`);
     }
 }
 
@@ -181,6 +179,14 @@ function renderRoom(room) {
         `${room.room_members.length}/${room.max_players} players`;
 
     isHost = currentUser && room.host_id === currentUser.id;
+    const me = currentUser && room.room_members.find(member => member.user_id === currentUser.id);
+    document.getElementById('user-email').textContent = currentUser
+        ? currentUser.username || currentUser.email || (me && me.player_name) || 'Guest'
+        : '';
+    renderWaitingStatus(room);
+    document.querySelectorAll('[data-manage-room-link]').forEach(link => {
+        link.href = `lobby.html?manage=${encodeURIComponent(room.id)}`;
+    });
 
     // Host rights can move to another player (Manage players).
     document.getElementById('host-controls').style.display = isHost ? 'block' : 'none';
@@ -227,14 +233,10 @@ function subscribeToRoomUpdatesById(id) {
         async (room) => {
             renderRoom(room);
             if (isHost) AgentInvites.refresh();
-            logActivity('Player list updated');
         },
         async (room) => {
             updateRoomStatus(room.status, room.room_members ? room.room_members.length : undefined, room.max_players);
-            if (room.status === 'in_progress') {
-                logActivity('Game is starting!');
-                setTimeout(() => navigateToGameRoom(id), 1500);
-            }
+            if (room.status === 'in_progress') navigateToGameRoom(id);
         },
         resyncRoom
     );
@@ -260,7 +262,6 @@ function renderPlayers(members) {
                 ${currentUser && member.user_id === currentUser.id ?
                     '<span class="player-badge badge-info">You</span>' : ''}
             </div>
-            <div class="player-item-meta">Joined ${formatTimeAgo(member.joined_at)}</div>
         </div>
     `).join('');
 }
@@ -281,16 +282,12 @@ function updateStartButtonState(playerCount) {
     const startBtn = document.getElementById('start-game-btn');
     if (!isHost || !startBtn) return;
 
-    const helpText = document.getElementById('start-help-text');
-
     if (playerCount < 2) {
         startBtn.disabled = true;
         startBtn.textContent = 'Need at least 2 players';
-        if (helpText) helpText.style.display = '';
     } else {
         startBtn.disabled = false;
         startBtn.textContent = `Start Game (${playerCount} players)`;
-        if (helpText) helpText.style.display = 'none';
     }
 }
 
@@ -343,40 +340,29 @@ function readPassGoAmount() {
 }
 
 async function startGameFromLobby() {
-    if (!isHost) {
-        alert('Only the host can start the game');
-        return;
-    }
+    if (!isHost || !currentRoom || currentRoom.room_members.length < 2) return;
 
-    if (!currentRoom || currentRoom.room_members.length < 2) {
-        alert('Need at least 2 players to start');
-        return;
-    }
-
+    const startBtn = document.getElementById('start-game-btn');
+    const errorEl = document.getElementById('start-error');
+    errorEl.textContent = '';
     try {
-        const startBtn = document.getElementById('start-game-btn');
         startBtn.disabled = true;
-        startBtn.textContent = 'Starting game...';
+        startBtn.textContent = 'Starting…';
 
         const activeRoomId = currentRoom.id;
         await startGame(activeRoomId, { loanRate: readLoanRate(), passGoAmount: readPassGoAmount() });
-
-        logActivity('Game started! Redirecting...');
-
-        setTimeout(() => navigateToGameRoom(activeRoomId), 1000);
+        navigateToGameRoom(activeRoomId);
 
     } catch (error) {
         console.error('Error starting game:', error);
-        alert('Error starting game: ' + error.message);
-
-        const startBtn = document.getElementById('start-game-btn');
-        startBtn.disabled = false;
-        startBtn.textContent = 'Start Game';
+        errorEl.textContent = error.message || "Couldn't start the game. Try again.";
+        updateStartButtonState(currentRoom.room_members.length);
     }
 }
 
 async function leaveRoom() {
-    if (!confirm('Are you sure you want to leave this room?')) return;
+    const roomName = currentRoom && currentRoom.name ? currentRoom.name : 'this room';
+    if (!confirm(`Leave ${roomName}? Your seat opens for someone else.`)) return;
 
     try {
         const activeRoomId = currentRoom ? currentRoom.id : roomId;
@@ -408,19 +394,14 @@ async function checkGameStatusById(id) {
     }
 }
 
-function logActivity(message) {
-    const logContainer = document.getElementById('activity-log');
-    const timestamp = new Date().toLocaleTimeString();
-
-    const entry = document.createElement('div');
-    entry.className = 'log-entry';
-    entry.textContent = `[${timestamp}] ${message}`;
-
-    logContainer.insertBefore(entry, logContainer.firstChild);
-
-    while (logContainer.children.length > 10) {
-        logContainer.removeChild(logContainer.lastChild);
-    }
+// Players who aren't the host see who starts the game.
+function renderWaitingStatus(room) {
+    const statusEl = document.getElementById('waiting-status');
+    if (!statusEl) return;
+    const host = room.room_members.find(member => member.user_id === room.host_id);
+    const show = !isHost && room.status === 'waiting';
+    statusEl.textContent = show ? `Waiting for ${host && host.player_name ? host.player_name : 'the host'} to start` : '';
+    statusEl.hidden = !show;
 }
 
 window.addEventListener('beforeunload', () => {

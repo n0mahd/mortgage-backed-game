@@ -82,11 +82,14 @@ test.describe('Lobby', () => {
     test('logout clears session', async ({ page }) => {
         await page.waitForLoadState('domcontentloaded');
 
-        const logoutBtn = page.locator('button, a').filter({ hasText: /logout|sign out|log out/i }).first();
+        const logoutBtn = page.locator('#logout-btn');
         if (await logoutBtn.count() > 0) {
+            await logoutBtn.click();
+            // This test's user is a guest: logging out asks first, since their games are lost.
+            await expect(page.locator('#guestLogoutModal')).toBeVisible();
             await Promise.all([
                 page.waitForURL(/index\.html|\/$/, { timeout: 5000 }).catch(() => {}),
-                logoutBtn.click(),
+                page.locator('#guest-logout-confirm-btn').click(),
             ]);
             const storedToken = await page.evaluate(() => localStorage.getItem('auth_token'));
             expect(storedToken).toBeFalsy();

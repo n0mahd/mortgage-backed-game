@@ -135,7 +135,7 @@ async function handleVerifyCode() {
     const email = document.getElementById('sent-to-email').textContent;
 
     if (!token) {
-        errorEl.textContent = 'Please enter the 6-digit code';
+        errorEl.textContent = 'Enter the 6-digit code.';
         return;
     }
 

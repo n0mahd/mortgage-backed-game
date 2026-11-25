@@ -24,8 +24,11 @@ function formatTimeAgo(dateString) {
     return date.toLocaleDateString();
 }
 
+// Replaces the page's content (under the app bar, so any "Loading…" spinner
+// goes too) with the error and a Try again button.
 function showPageLoadError(message) {
-    const container = document.querySelector('.container') || document.body;
+    const contents = [...document.querySelectorAll('.content')];
+    const content = contents.find(el => el.offsetParent !== null) || contents[0];
     const notice = document.createElement('div');
     notice.className = 'turn-warning danger';
     notice.setAttribute('role', 'alert');
@@ -36,7 +39,12 @@ function showPageLoadError(message) {
     retry.textContent = 'Try again';
     retry.addEventListener('click', () => window.location.reload());
     notice.append(text, retry);
-    container.prepend(notice);
+    if (content) {
+        content.replaceChildren(notice);
+        content.style.display = '';
+    } else {
+        document.body.prepend(notice);
+    }
 }
 
 // Copies text to the clipboard. Resolves true when it worked; older browsers

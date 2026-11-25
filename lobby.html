@@ -21,7 +21,7 @@
         <header class="app-bar">
             <a class="app-bar-brand" href="index.html">Mortgage Backed Monopoly</a>
             <div class="user-info">
-                <span id="user-email"></span>
+                <span id="user-email"><span id="account-name"></span></span>
                 <a id="signin-link" class="btn btn-ghost btn-sm" href="auth.html?next=lobby.html" hidden>Sign in</a>
                 <button id="logout-btn" class="btn btn-ghost btn-sm">Log out</button>
             </div>
@@ -31,18 +31,16 @@
             <div class="lobby-container">
                 <div class="page-title">
                     <h1>My games</h1>
-                    <p>Pick up where you left off, or start a new room for your friends.</p>
                 </div>
 
                 <!-- Guests: invite them to keep their games with an account -->
                 <p id="guest-banner" class="account-banner" hidden>
-                    You're playing as a guest, so your games live only on this device.
-                    <a href="auth.html?mode=register&amp;next=lobby.html">Create an account</a> to keep them across devices.
+                    Guest games live only on this device.
+                    <a href="auth.html?mode=register&amp;next=lobby.html">Create an account</a> to keep them.
                 </p>
 
-                <!-- Accounts: who is signed in, and a password for email accounts -->
+                <!-- Email accounts without a password can add one (the name is in the app bar) -->
                 <div id="account-summary" class="account-summary" hidden>
-                    <span>Signed in as <strong id="account-name"></strong></span>
                     <button id="set-password-btn" class="btn btn-secondary btn-sm" hidden>Set password</button>
                 </div>
 
@@ -68,7 +66,7 @@
                 </div>
 
                 <div class="rooms-section" id="archived-rooms-section" hidden>
-                    <div class="section-heading"><h3>Archived</h3><span>Only hidden from your list</span></div>
+                    <div class="section-heading"><h3>Archived</h3></div>
                     <div id="archived-rooms-list" class="rooms-list"></div>
                 </div>
             </div>
@@ -84,20 +82,34 @@
                 <input type="text" id="room-name" placeholder="Sunday Night Game" required>
             </div>
             <div class="form-group">
-                <label for="max-players">Max players (2–8)</label>
+                <label for="max-players">Players (2–8)</label>
                 <input type="number" id="max-players" min="2" max="8" value="4" inputmode="numeric">
             </div>
             <div class="asset-checkbox">
                 <input type="checkbox" id="host-spectate">
-                <label for="host-spectate">Just watch: only AI agents (and people you invite) play</label>
+                <label for="host-spectate">I'll watch, not play</label>
             </div>
             <div class="form-group" id="host-player-name-group">
                 <label for="host-player-name">Your player name</label>
-                <input type="text" id="host-player-name" placeholder="Your in-game name" autocomplete="nickname" required>
+                <input type="text" id="host-player-name" autocomplete="nickname" required>
             </div>
+            <div id="create-room-error" class="error-message" role="alert"></div>
             <div class="sheet-actions">
                 <button id="create-room-btn" class="btn btn-success">Create Game</button>
                 <button id="cancel-create-room-btn" class="btn btn-secondary">Cancel</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- A guest logging out can never open their games again: confirm first -->
+    <div class="modal" id="guestLogoutModal" role="dialog" aria-modal="true" aria-labelledby="guest-logout-title">
+        <div class="modal-content">
+            <div class="modal-header" id="guest-logout-title">Log out of this guest?</div>
+            <p class="modal-hint">You'll lose your guest games for good. Create an account to keep them.</p>
+            <div class="sheet-actions">
+                <a id="guest-logout-register" class="btn btn-primary" href="auth.html?mode=register&amp;next=lobby.html">Create an account</a>
+                <button type="button" id="guest-logout-confirm-btn" class="btn btn-danger">Log out anyway</button>
+                <button type="button" id="guest-logout-cancel-btn" class="btn btn-secondary">Cancel</button>
             </div>
         </div>
     </div>
@@ -106,7 +118,7 @@
     <div class="modal" id="setPasswordModal">
         <form class="modal-content" id="set-password-form" novalidate>
             <div class="modal-header">Set password</div>
-            <p class="modal-hint">Then you can sign in with your username or email and this password.</p>
+            <p class="modal-hint">Sign in with this password as well as email codes.</p>
             <div class="form-group">
                 <label for="set-password-username">Username (optional)</label>
                 <input type="text" id="set-password-username" autocomplete="username" autocapitalize="none" spellcheck="false" maxlength="24">
@@ -151,7 +163,7 @@
     <div class="modal" id="manageAgentKeyModal">
         <div class="modal-content">
             <div class="modal-header">New agent key</div>
-            <p class="modal-hint">The old key no longer works. Paste this into the agent's chat: it holds the new key, shown only now, and tells the agent it already has its seat.</p>
+            <p class="modal-hint">The old key no longer works. Paste this into the agent's chat. Shown only once.</p>
             <p class="modal-hint">Connector address: <code id="manage-agent-key-mcp-url"></code></p>
             <div class="form-group">
                 <textarea id="manage-agent-key-prompt" class="agent-invite-prompt" rows="9" readonly aria-label="Agent invite with the new key"></textarea>
@@ -164,10 +176,10 @@
     </div>
 
     <script src="/socket.io/socket.io.js"></script>
-    <script src="src/js/api.js?v=22"></script>
+    <script src="src/js/api.js?v=23"></script>
     <script src="src/js/number-inputs.js?v=1"></script>
-    <script src="src/js/ui.js?v=2"></script>
-    <script src="src/js/manage-room.js?v=3"></script>
-    <script src="src/js/lobby.js?v=22"></script>
+    <script src="src/js/ui.js?v=3"></script>
+    <script src="src/js/manage-room.js?v=4"></script>
+    <script src="src/js/lobby.js?v=23"></script>
 </body>
 </html>

@@ -5,12 +5,19 @@ window.API_BASE = window.API_BASE || '/api';
 
 // ----------------------------------------------------------------
 // Session storage: the one place that knows where tokens live.
-// localStorage 'auth_token' is the active player's token; sessionStorage
-// 'hotseat_tokens' lists every player of a same-device (hotseat) game as
-// [{ userId, token, name }]. Tests read these keys directly.
+// localStorage 'auth_token' is this browser's sign-in, shared by every tab.
+// A same-device (hotseat) game never touches it, so starting one can't sign
+// anyone out: its players live in this tab's sessionStorage, 'hotseat_tokens'
+// as [{ userId, token, name }], with 'hotseat_room' (the room id) and
+// 'hotseat_active_token' (whose turn it is). Only the game page for that room
+// uses them (useHotseatSession); every other page uses 'auth_token'.
+// Tests read these keys directly.
 // ----------------------------------------------------------------
 
+let hotseatTokensInUse = false;
+
 function getToken() {
+    if (hotseatTokensInUse) return sessionStorage.getItem('hotseat_active_token');
     return localStorage.getItem('auth_token');
 }
 
@@ -25,20 +32,44 @@ function clearToken() {
 function getHotseatSession() {
     try {
         const records = JSON.parse(sessionStorage.getItem('hotseat_tokens') || 'null');
-        return Array.isArray(records) ? records : null;
+        return Array.isArray(records) && records.length > 0 ? records : null;
     } catch {
         return null;
     }
 }
 
-// Saves the hotseat players and makes the first one active.
-function setHotseatSession(records) {
+// Saves this tab's hotseat players for roomId (null while the game is being
+// set up) with the first one active, and uses them for API calls from now on.
+function setHotseatSession(records, roomId) {
     sessionStorage.setItem('hotseat_tokens', JSON.stringify(records));
-    setToken(records[0].token);
+    sessionStorage.setItem('hotseat_active_token', records[0].token);
+    if (roomId) sessionStorage.setItem('hotseat_room', String(roomId));
+    else sessionStorage.removeItem('hotseat_room');
+    hotseatTokensInUse = true;
+}
+
+// Game page: when this tab holds the hotseat players for roomId, API calls
+// use them and this returns the records; otherwise null.
+function useHotseatSession(roomId) {
+    const records = getHotseatSession();
+    if (!records || !roomId || sessionStorage.getItem('hotseat_room') !== String(roomId)) return null;
+    if (!sessionStorage.getItem('hotseat_active_token')) {
+        sessionStorage.setItem('hotseat_active_token', records[0].token);
+    }
+    hotseatTokensInUse = true;
+    return records;
+}
+
+// Hands the hotseat game to another of its players.
+function setHotseatActiveToken(token) {
+    sessionStorage.setItem('hotseat_active_token', token);
 }
 
 function clearHotseatSession() {
     sessionStorage.removeItem('hotseat_tokens');
+    sessionStorage.removeItem('hotseat_active_token');
+    sessionStorage.removeItem('hotseat_room');
+    hotseatTokensInUse = false;
 }
 
 // ----------------------------------------------------------------
@@ -109,7 +140,8 @@ function getSocket() {
 
 function replaceStoredToken(oldToken, newToken) {
     if (!oldToken || !newToken || oldToken === newToken) return;
-    if (getToken() === oldToken) setToken(newToken);
+    if (localStorage.getItem('auth_token') === oldToken) setToken(newToken);
+    if (sessionStorage.getItem('hotseat_active_token') === oldToken) setHotseatActiveToken(newToken);
 
     const sessionTokens = getHotseatSession();
     if (sessionTokens && swapTokenInRecords(sessionTokens, oldToken, newToken)) {
@@ -216,6 +248,7 @@ async function handleLogout() {
         await apiFetch('/auth/signout', { method: 'POST' });
     } catch {}
     clearToken();
+    clearHotseatSession();
     window.location.href = 'index.html';
 }
 

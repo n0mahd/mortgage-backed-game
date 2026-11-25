@@ -27,9 +27,9 @@ Navigate to the site and enter your email address. A one-time code will be sent 
 
 ### Playing on Another Device
 
-To move your game to another phone or browser, tap **Play on another device** at the top of the game screen. It shows a one-time code and a link that work for 10 minutes. Open the link on the other device, or enter the code on the home page under "Have a code from another device?". Both devices stay signed in. Players who signed in with email can also just sign in with their email on the new device.
+To move your game to another phone or browser, tap **Play on another device** at the top of the game screen. It shows a one-time code and a link that work for 10 minutes. Open the link on the other device, or enter the code on the home page under "Lost access to a game?". Both devices stay signed in. Players who signed in with email can also just sign in with their email on the new device.
 
-Rejoining by room code ("Continue as an existing player") only works for guest players, never for players who signed in with email.
+Rejoining by room code ("Already in this game?") only works for guest players, never for players with an account (username and password, or email): they sign in instead.
 
 ### Your Turn
 

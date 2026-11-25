@@ -8,7 +8,7 @@
     let seats = [];
 
     const STATUS_TEXT = {
-        pending: 'Waiting for the agent to join',
+        pending: 'Not joined',
         joined: 'Joined',
     };
 
@@ -42,7 +42,9 @@
     function render() {
         const list = document.getElementById('agent-invite-list');
         const pending = seats.filter(seat => seat.status === 'pending').length;
-        setStatus(pending === 0 ? '' : `${pending} invited agent${pending === 1 ? " hasn't" : "s haven't"} joined yet. Invites stop working once the game starts.`);
+        setStatus(pending === 0 ? '' : pending === 1
+            ? "1 agent hasn't joined. Start now and it's left out."
+            : `${pending} agents haven't joined. Start now and they're left out.`);
         if (seats.length === 0) {
             list.innerHTML = '';
             return;

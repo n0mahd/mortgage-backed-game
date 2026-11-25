@@ -102,10 +102,9 @@ test('a rate out of range is refused before the game starts', async ({ page, req
     await expect(page.locator('#loan-rates-panel')).toBeVisible({ timeout: 5000 });
     await expect(page.locator('#start-game-btn')).toBeEnabled();
     await page.fill('#loan-rate', '40');
-    const dialog = page.waitForEvent('dialog');
     await page.click('#start-game-btn');
-    const message = (await dialog).message();
-    expect(message).toContain('loan rate must be between 0% and 25%');
+    await expect(page.locator('#start-error')).toContainText('loan rate must be between 0% and 25%');
+    await expect(page.locator('#start-game-btn')).toBeEnabled();
 });
 
 test('take a loan on a chosen term, change autopay and pay it off', async ({ page, request }) => {

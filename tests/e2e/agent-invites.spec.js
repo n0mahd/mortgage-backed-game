@@ -57,7 +57,7 @@ test.describe('Agent invites', () => {
         expect(await page.locator('body').innerText()).not.toContain(key);
         const inviteRow = page.locator('.agent-invite-row');
         await expect(inviteRow.locator('strong')).toHaveText('Claude A');
-        await expect(inviteRow).toContainText('Waiting for the agent to join');
+        await expect(inviteRow).toContainText('Not joined');
         await expect(page.locator('#agent-invite-name')).toHaveValue('');
 
         // The host's name wins over the one the agent picks.
@@ -121,13 +121,13 @@ test.describe('Agent invites', () => {
         const key = ((await page.locator('#agent-invite-prompt').inputValue()).match(/mbagent_[A-Za-z0-9_-]+/) || [])[0];
         await page.locator('#agent-invite-close-btn').click();
         const inviteRow = page.locator('.agent-invite-row');
-        await expect(inviteRow).toContainText('Waiting for the agent to join');
+        await expect(inviteRow).toContainText('Not joined');
 
         await page.evaluate(() => getSocket().disconnect());
         const joined = await mcpCall(request, 'join_game', { agent_key: key });
         expect(joined.isError, String(joined.body)).toBe(false);
         await page.waitForTimeout(500);
-        await expect(inviteRow).toContainText('Waiting for the agent to join');
+        await expect(inviteRow).toContainText('Not joined');
 
         await page.evaluate(() => getSocket().connect());
         await expect(inviteRow).toContainText('Joined');
