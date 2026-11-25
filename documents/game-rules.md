@@ -111,12 +111,10 @@ End Turn is only valid after you have rolled. The UI disables it before rolling,
 
 When you land on an unowned property:
 
-1. A toast shows: *"[Property] is unowned — buy it via the Game tab."*
-2. Switch to the **Game** tab and click **Buy Property**.
-3. Review the property and fixed purchase price.
-4. Click **Buy Property** — the price is deducted from your cash immediately.
+1. The **Game** tab shows the square as a title deed with its rents, and the action dock shows **Auction** and **Buy $X** (the fixed price; Buy is missing when you can't pay it).
+2. Tap **Buy $X**: the price is deducted from your cash immediately. If you run a corporation, Buy first asks **Who's buying?**, you or the corporation.
 
-If you choose not to buy the property, click **Start Auction** from the purchase modal:
+If you choose not to buy the property, tap **Auction** in the dock:
 
 - Active players bid or pass from the **Game** tab.
 - Bids must exceed the current high bid and must be affordable by the bidder.
@@ -261,7 +259,7 @@ Anyone who doesn't run a corporation can offer it properties. Tap **Offer a prop
 - **At what price?** **Fair price** (book value: price plus buildings; nobody gains or loses value) or **My price**.
 - **Paid with** **new shares** at today's value per share, or **cash** from its treasury.
 
-The preview shows the new shares, each holder's stake before and after, the value per share, and your net-worth change. The offer then waits in **Market > Trade proposals** like any trade (the Moves grid shows **Trade proposals** while one waits for your answer, and the corporation's card links to it). The card shows what each side gives, says in one line how far the price is from book value and what it means for you, and lists the stakes before and after. The chairman can **Accept**, **Decline** or **Counter** with another price (**Its worth** fills in book value). A counter goes back to the offerer, who can accept, counter or withdraw. Offers expire after 10 minutes, and are checked again on acceptance (the property must still be yours and free of loans). A deal that hands the offerer more than half the shares makes them chairman. The chairman's own properties go in only at book value, through **Add properties**.
+The preview shows the new shares, each holder's stake before and after, the value per share, and your net-worth change. The offer then waits in **Market > Trade proposals** like any trade (the Game tab's **Trade** move shows a count while one waits for your answer, and the corporation's card links to it). The card shows what each side gives, says in one line how far the price is from book value and what it means for you, and lists the stakes before and after. The chairman can **Accept**, **Decline** or **Counter** with another price (**Its worth** fills in book value). A counter goes back to the offerer, who can accept, counter or withdraw. Offers expire after 10 minutes, and are checked again on acceptance (the property must still be yours and free of loans). A deal that hands the offerer more than half the shares makes them chairman. The chairman's own properties go in only at book value, through **Add properties**.
 
 ### Mergers
 
@@ -324,7 +322,7 @@ Before the game starts, the host sets one interest rate per turn in the waiting 
 
 ### Taking a loan
 
-1. Go to the **Game** tab → **Manage Debt** → **Take a new loan**.
+1. On the **Game** tab, tap **Borrow** → **Take a new loan**.
 2. Enter the loan amount. No property is pledged: your loans are limited by your whole portfolio. All your loans together can reach **90% of the book value of what you own**, so you always keep at least 10% equity:
 
    ```
@@ -360,7 +358,7 @@ On a loan's last turn the whole balance is due when you end your turn, with or w
 
 ### The Debt page
 
-**Manage Debt → Your loans** starts with **When you end this turn**: a card for you and for each corporation you run that has loans, showing its cash, the loans due in full, the autopay payments, any unpaid interest that will be added, and the cash left after End Turn. If that would leave you bankrupt or the corporation insolvent, the card shows how much is missing, with buttons to refinance the loan that's due or to borrow the amount.
+**Borrow → Your loans** starts with **When you end this turn**: a card for you and for each corporation you run that has loans, showing its cash, the loans due in full, the autopay payments, any unpaid interest that will be added, and the cash left after End Turn. If that would leave you bankrupt or the corporation insolvent, the card shows how much is missing, with buttons to refinance the loan that's due or to borrow the amount.
 
 Below it is each loan you can manage (your own and those of corporations you run) with its balance and turns left; a corporation's loan is marked with its ticker. A loan due in full, on interest only or with autopay off says what that means. For each loan you can:
 
@@ -371,11 +369,11 @@ Below it is each loan you can manage (your own and those of corporations you run
 
 **Take a new loan** and **Refinance loans** show your borrowing limit as a sum (90% of book value, less what's already owed) and an **After** box. It shows cash, what End Turn takes, total owed and the cash left after End Turn, and updates as you type, so you can see whether the loan gets you through the turn.
 
-You can change autopay, pay, refinance or borrow at any time from **Manage Debt** in Moves; only the autopay payments wait for your End Turn. Paying more than is owed only takes what is owed.
+You can change autopay, pay, refinance or borrow at any time from **Borrow** on the Game tab; only the autopay payments wait for your End Turn. Paying more than is owed only takes what is owed.
 
 ### Refinancing
 
-1. Go to **Manage Debt** → **Refinance loans**.
+1. Tap **Borrow** → **Refinance loans**.
 2. If you run a corporation with loans, choose whose loans: yours or the corporation's.
 3. Select one or more of those loans. The new amount starts at their combined balance.
 4. Enter the new loan amount, pick a term and choose Autopay (Pay down loan by default):
@@ -477,8 +475,8 @@ Going to Jail ends your move. Even if the roll that took you there was doubles, 
 
 At the start of each turn while in Jail, choose one available option:
 
-- **Roll for doubles** → if you roll doubles, you are released immediately and move that many spaces.
-- **Pay the $50 fine** → leave Jail, then roll normally to move.
+- **Roll Doubles** → if you roll doubles, you are released immediately and move that many spaces.
+- **Pay $50** (the fine) → leave Jail, then roll normally to move.
 - **Use a Get Out of Jail Free card** → leave Jail, then roll normally to move.
 - **No doubles, turns 1–2** → still in Jail; turn ends.
 - **No doubles, turn 3** → forced to pay **$50 bail**, then move.

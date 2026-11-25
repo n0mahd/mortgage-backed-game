@@ -90,7 +90,7 @@ Full rent ladders are tracked in the app.
 
 ### Buy Property
 
-Tap **Buy Property** after landing on an unowned property. Cash is deducted immediately and the property appears on your player card.
+Tap **Buy $X** in the action dock after landing on an unowned property. Cash is deducted immediately and the property appears in your deeds. If you run a corporation, Buy asks **Who's buying?** first, you or the corporation.
 
 ---
 
@@ -110,7 +110,7 @@ The chairman can also offer to **merge** another corporation into theirs: in **M
 
 ### Take a Loan (Mortgage-Backed Securities)
 
-Tap **Manage Debt → Take a new loan**. Set a **loan amount** (you receive this cash immediately) and choose a **term of 5 to 30 turns, in steps of 5**. Nothing is pledged: all your loans together can reach 90% of the book value of what you own (properties at price plus buildings, shares at book value per share), and the form shows how much you can still borrow. The host sets one interest rate per turn for every loan in the waiting room before the game starts (default 5%); a rule vote can change it for new loans.
+Tap **Borrow → Take a new loan** on the Game tab. Set a **loan amount** (you receive this cash immediately) and choose a **term of 5 to 30 turns, in steps of 5**. Nothing is pledged: all your loans together can reach 90% of the book value of what you own (properties at price plus buildings, shares at book value per share), and the form shows how much you can still borrow. The host sets one interest rate per turn for every loan in the waiting room before the game starts (default 5%); a rule vote can change it for new loans.
 
 Every time you end your turn a loan charges a turn of interest. **Autopay** takes a payment from your cash: **Pay down loan** (the default) takes the installment that pays the loan off by the end of its term, so after the last payment you owe nothing; **Interest only** takes just the interest, leaving the balance due at the end; **Off** takes nothing and the unpaid interest is added to the balance, where it compounds. On the last turn the whole balance is due, and if you can't pay it you go bankrupt.
 
@@ -118,11 +118,11 @@ Every time you end your turn a loan charges a turn of interest. **Autopay** take
 
 ### Your Loans
 
-**Manage Debt → Your loans** shows each loan's balance, turns left and next payment. Change autopay (Pay down loan, Interest only or Off), pay any amount, or pay the loan off, at any time. Paying more than is owed only takes what is owed.
+**Borrow → Your loans** shows each loan's balance, turns left and next payment. Change autopay (Pay down loan, Interest only or Off), pay any amount, or pay the loan off, at any time. Paying more than is owed only takes what is owed.
 
 ### Refinance Debt
 
-Tap **Manage Debt → Refinance loans**. Choose whose loans (yours, or a corporation you run), select one or more of them, set the new loan amount and pick a term. The selected loans are replaced by one new loan on that term at the game's rate. A larger amount pays out the difference as cash (within the 90% borrowing limit); a smaller one pays the balance down from the borrower's cash.
+Tap **Borrow → Refinance loans**. Choose whose loans (yours, or a corporation you run), select one or more of them, set the new loan amount and pick a term. The selected loans are replaced by one new loan on that term at the game's rate. A larger amount pays out the difference as cash (within the 90% borrowing limit); a smaller one pays the balance down from the borrower's cash.
 
 ---
 
@@ -144,7 +144,7 @@ Pending trade offers expire after the configured trade-offer timeout. Expired of
 
 ### Auctions
 
-If you land on an unowned property and do not buy it, click **Start Auction** from the purchase modal. Active players can bid or pass from the Game tab. The high bidder pays the winning bid and receives the property once every other active player has passed; if everyone passes before a bid, the property remains unowned. Auctions have a two-minute idle timeout that refreshes on bids and passes; the next game action resolves an expired auction to the high bidder, or no sale if there were no bids.
+If you land on an unowned property and do not buy it, tap **Auction** in the action dock. Active players can bid or pass from the Game tab. The high bidder pays the winning bid and receives the property once every other active player has passed; if everyone passes before a bid, the property remains unowned. Auctions have a two-minute idle timeout that refreshes on bids and passes; the next game action resolves an expired auction to the high bidder, or no sale if there were no bids.
 
 The host can cancel a stuck auction. Canceling an auction does not move cash or property.
 
