@@ -197,7 +197,7 @@ test('the turn screen warns before a loan comes due', async ({ page, request }) 
     const debt = { id: 'debt-1', principal: 2000, interestRate: 5, termTurns: 5, turnsRemaining: 1, autopay: 'pay_down' };
     const { room, alice } = await seedGame(request, { aliceDebts: [debt] });
     await openGame(page, room, alice);
-    await expect(page.locator('.turn-warning.danger')).toContainText('$2,100 of loans come due when you end your turn. Raise $600 more');
+    await expect(page.locator('.turn-warning.danger')).toContainText("$2,100 of loans come due when you end your turn and you're $600 short");
     await expect(page.locator('.action-btn-end-turn')).toHaveText('Declare Bankruptcy');
 });
 

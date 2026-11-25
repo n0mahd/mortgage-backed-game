@@ -64,19 +64,20 @@ function renderLandingSummary(landing, currentPlayer, isMyTurn) {
     `;
 }
 
+// The reason the engine records when the host gives none (turns.js pauseGame).
+const DEFAULT_PAUSE_REASON = 'Host paused the game';
+
 function renderPauseBanner(gameState) {
     if (!gameState?.paused) return '';
     const pause = gameState.pause || {};
-    const pausedBy = pause.pausedByName || 'Host';
-    const reason = pause.reason || 'Host paused the game';
-    const time = pause.pausedAt ? `Paused ${formatTimeAgo(pause.pausedAt)}.` : '';
+    const pausedBy = pause.pausedByName || 'The host';
+    const time = pause.pausedAt ? ` ${formatTimeAgo(pause.pausedAt)}` : '';
+    // The default reason only repeats that the host paused; a typed one says why.
+    const reason = pause.reason && pause.reason !== DEFAULT_PAUSE_REASON ? pause.reason : '';
     return `
         <div class="pause-panel" id="pausePanel">
-            <div>
-                <span class="pause-label">Game Paused</span>
-                <strong>${escapeHtml(reason)}</strong>
-            </div>
-            <p>${escapeHtml(`${pausedBy} paused the session. ${time}`.trim())}</p>
+            <strong>${escapeHtml(`${pausedBy} paused the game${time}.`)}</strong>
+            ${reason ? `<p>${escapeHtml(reason)}</p>` : ''}
         </div>
     `;
 }
@@ -92,7 +93,7 @@ function renderCompanyLoanWarnings(currentPlayer) {
         let message;
         let tone = 'danger';
         if (company.goesInsolvent) {
-            message = `${company.ticker} is ${formatMoney(-company.cashAfter)} short of the ${formatMoney(company.maturing)} of loans that come due when you end your turn. If it can't repay them it becomes insolvent and is closed.`;
+            message = `${company.ticker} is ${formatMoney(-company.cashAfter)} short of the ${formatMoney(company.maturing)} of loans that come due when you end your turn, or it closes.`;
         } else if (company.shortAutopay) {
             tone = '';
             message = `${company.ticker} doesn't have the cash for its full loan payment. End Turn adds the rest to its loan as unpaid interest.`;
@@ -111,6 +112,8 @@ function renderPersonalCashWarning(currentPlayer, isMyTurn) {
     const { claim, unpaid, loanPayments, maturing, cash, cashAfter } = outlook;
     const shortfall = formatMoney(outlook.shortfall);
     const loanNote = loanPayments > 0 ? `, then ${formatMoney(loanPayments)} in loan payments` : '';
+    // How to avoid it and what happens if you don't, said once.
+    const raiseIt = 'Borrow, sell or trade to raise it, or End Turn makes you bankrupt.';
     let message;
     let tone = 'danger';
 
@@ -123,8 +126,8 @@ function renderPersonalCashWarning(currentPlayer, isMyTurn) {
             const short = formatMoney(unpaid - cash);
             if (!outlook.creditorActive) {
                 message = isMyTurn
-                    ? `You have ${owed} unpaid to ${creditor}, who is out of the game. You can't roll again; End Turn will declare bankruptcy.`
-                    : `${currentPlayer.name} has ${owed} unpaid to ${creditor}, who is out of the game.`;
+                    ? `You owe ${creditor} ${owed}, but they're out of the game. You can't roll again; End Turn makes you bankrupt.`
+                    : `${currentPlayer.name} owes ${creditor} ${owed}, but they're out of the game.`;
             } else if (cash >= unpaid) {
                 tone = '';
                 message = isMyTurn
@@ -132,8 +135,8 @@ function renderPersonalCashWarning(currentPlayer, isMyTurn) {
                     : `${currentPlayer.name} owes ${owed} to ${creditor}. It will be paid from their cash before they roll again.`;
             } else {
                 message = isMyTurn
-                    ? `You owe ${owed} to ${creditor}. Raise ${short} more to pay it and roll again, or End Turn will declare bankruptcy.`
-                    : `${currentPlayer.name} owes ${owed} to ${creditor} and must raise ${short} more before rolling again.`;
+                    ? `You owe ${creditor} ${owed} and are ${short} short. Raise it to roll again, or End Turn makes you bankrupt.`
+                    : `${currentPlayer.name} owes ${creditor} ${owed} and is ${short} short.`;
             }
         } else if (outlook.settlesClaim) {
             tone = '';
@@ -142,21 +145,22 @@ function renderPersonalCashWarning(currentPlayer, isMyTurn) {
                 : `${currentPlayer.name} owes ${owed} to ${creditor}. It will be paid from their cash when they end the turn.`;
         } else if (!outlook.creditorActive) {
             message = isMyTurn
-                ? `You have ${owed} unpaid to ${creditor}, who is out of the game, so End Turn will declare bankruptcy.`
-                : `${currentPlayer.name} has ${owed} unpaid to ${creditor}, who is out of the game.`;
+                ? `You owe ${creditor} ${owed}, but they're out of the game, so End Turn makes you bankrupt.`
+                : `${currentPlayer.name} owes ${creditor} ${owed}, but they're out of the game.`;
         } else {
+            const short = outlook.shortfall === unpaid ? '' : ` and are ${shortfall} short`;
             message = isMyTurn
-                ? `You have ${owed} unpaid to ${creditor}. Raise ${shortfall} more before ending your turn or End Turn will declare bankruptcy.`
-                : `${currentPlayer.name} has ${owed} unpaid to ${creditor} and must raise ${shortfall} more before ending the turn.`;
+                ? `You owe ${creditor} ${owed}${short}. ${raiseIt}`
+                : `${currentPlayer.name} owes ${creditor} ${owed} and is ${shortfall} short.`;
         }
     } else if (cash < 0) {
         message = isMyTurn
-            ? `You are ${formatMoney(-cash)} below zero. Raise ${shortfall} before ending your turn or End Turn will declare bankruptcy.`
-            : `${currentPlayer.name} is ${formatMoney(-cash)} below zero and must recover before ending the turn.`;
+            ? `You're ${formatMoney(-cash)} below zero${outlook.shortfall === -cash ? '' : ` and need ${shortfall}`}. ${raiseIt}`
+            : `${currentPlayer.name} is ${formatMoney(-cash)} below zero.`;
     } else if (cashAfter < 0) {
         message = isMyTurn
-            ? `${formatMoney(maturing)} of loans come due when you end your turn. Raise ${shortfall} more or End Turn will declare bankruptcy.`
-            : `${currentPlayer.name} has ${formatMoney(maturing)} of loans coming due and must raise ${shortfall} before ending the turn.`;
+            ? `${formatMoney(maturing)} of loans come due when you end your turn and you're ${shortfall} short. ${raiseIt}`
+            : `${currentPlayer.name} has ${formatMoney(maturing)} of loans coming due and is ${shortfall} short.`;
     } else if (maturing > 0 && isMyTurn) {
         tone = '';
         message = `End Turn repays ${formatMoney(maturing)} of loans that come due, leaving you ${formatMoney(cashAfter)}.`;
@@ -175,51 +179,61 @@ function renderAuctionPanel(gameState) {
     const isHighBidder = auction.highBidderId === currentUser.id;
     const currentPlayer = gameState.players.find(player => player.userId === currentUser.id);
     const canAct = currentPlayer && !currentPlayer.bankrupt && !passed && !isHighBidder;
-    const isHost = isRoomHost();
-    const minBid = currentBid + 1;
+    startAuctionCountdown();
+    // Bids are whole dollars: the lowest that beats the high bid.
+    const minBid = Math.floor(currentBid) + 1;
     const status = auction.highBidderName
-        ? `High bid: $${currentBid.toFixed(2)} by ${auction.highBidderName}`
+        ? `${isHighBidder ? 'You lead' : `${auction.highBidderName} leads`} at ${formatMoney(currentBid)}`
         : 'No bids yet';
-    const expiryText = formatAuctionExpiry(auction.expiresAt);
-    const actionState = passed
-        ? '<p class="auction-note">You passed on this auction.</p>'
-        : (isHighBidder
-            ? '<p class="auction-note">You are the current high bidder.</p>'
-            : '');
+    const expiryText = formatAuctionExpiry(auction);
 
     return `
         <div class="auction-panel" id="auctionPanel">
             <div class="auction-header">
                 <div>
-                    <span class="auction-label">Property Auction</span>
+                    <span class="auction-label">Auction</span>
                     <h3>${propertyDot(auction.propertyId)}${escapeHtml(auction.propertyName || property?.name || 'Property')}</h3>
                 </div>
-                <strong>${escapeHtml(status)}</strong>
+                <strong class="${auction.highBidderName ? '' : 'is-empty'}">${escapeHtml(status)}</strong>
             </div>
-            <p>${escapeHtml(auction.startedByName || 'A player')} started this auction. Resolve it before the turn can continue.</p>
-            ${expiryText ? `<p class="auction-note">${escapeHtml(expiryText)}</p>` : ''}
-            ${actionState}
+            ${passed ? '<p class="auction-note">You passed</p>' : ''}
             ${canAct ? `
                 <div class="auction-actions">
-                    <input type="number" id="auctionBidAmount" min="${minBid}" step="1" value="${minBid}" aria-label="Auction bid amount">
+                    <input type="number" id="auctionBidAmount" min="${minBid}" step="1" inputmode="numeric" value="${minBid}" aria-label="Your bid in dollars">
                     <button class="btn btn-success btn-sm" data-game-action="place-auction-bid">Bid</button>
                     <button class="btn btn-secondary btn-sm" data-game-action="pass-auction">Pass</button>
                 </div>
             ` : ''}
-            ${isHost ? `
-                <div class="auction-host-actions">
-                    <button class="btn btn-danger btn-sm" data-game-action="host-cancel-auction">Cancel Auction</button>
-                </div>
-            ` : ''}
+            ${expiryText ? `<p class="auction-expiry" id="auctionExpiry">${escapeHtml(expiryText)}</p>` : ''}
         </div>
     `;
 }
 
-function formatAuctionExpiry(expiresAt) {
-    const seconds = secondsUntil(expiresAt);
+// Bids and passes restart the clock; once it runs out the next action closes the
+// auction (auctions.js), selling to the high bidder if there is one.
+function formatAuctionExpiry(auction) {
+    const seconds = secondsUntil(auction.expiresAt);
     if (seconds === null) return '';
-    if (seconds <= 0) return 'Auction timeout reached. The next action will resolve it.';
-    return `Timeout if idle for ${seconds}s more.`;
+    if (seconds <= 0) return "Time's up: the next move closes it.";
+    const clock = `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`;
+    return `Closes in ${clock} if no one bids or passes${auction.highBidderName ? '. High bid wins' : ''}.`;
+}
+
+// Ticks the auction clock each second between renders; stops once no auction is shown.
+let auctionCountdownTimer = null;
+function startAuctionCountdown() {
+    if (auctionCountdownTimer) return;
+    auctionCountdownTimer = setInterval(() => {
+        const element = document.getElementById('auctionExpiry');
+        const auction = currentGame?.game_state?.auction;
+        if (!element || !auction || auction.status !== 'open') {
+            clearInterval(auctionCountdownTimer);
+            auctionCountdownTimer = null;
+            return;
+        }
+        const text = formatAuctionExpiry(auction);
+        if (element.textContent !== text) element.textContent = text;
+    }, 1000);
 }
 
 function renderTurnChecklist(gameState, currentPlayer, landing, isMyTurn) {
@@ -236,7 +250,7 @@ function renderTurnChecklist(gameState, currentPlayer, landing, isMyTurn) {
         },
         {
             label: 'Resolve',
-            state: !hasMoved ? 'upcoming' : (landing.canBuy || gameState.auction?.status === 'open' ? 'current' : 'complete'),
+            state: !hasMoved ? 'upcoming' : (landing.canBuy || gameState.auction?.status === 'open' ? 'current' : (rollAgain ? 'upcoming' : 'complete')),
             detail: landing.canBuy ? 'Property available' : landing.squareName,
         },
         {
@@ -312,10 +326,12 @@ function getLandingSummary(gameState, player) {
 
     if (isBuyableSquare && property && property.ownerId) {
         const ownerName = describeOwner(gameState, property.ownerId, property.ownerName).label;
+        const mine = property.ownerId === player.userId;
         return {
             squareName: square.name,
-            detail: property.ownerId === player.userId ? 'You already own this square.' : `Owned by ${ownerName}.${corporationRentNote(gameState, property.ownerId, player.userId)}`,
+            detail: mine ? 'You already own this square.' : `Owned by ${ownerName}.${corporationRentNote(gameState, property.ownerId, player.userId)}`,
             canBuy: false,
+            owner: mine ? 'self' : 'other',
         };
     }
 
@@ -421,15 +437,13 @@ function renderActionButtons(landing) {
         </div>
     ` : '';
     const endTurnClass = owesMoney ? 'btn-danger' : (hasRolled && !buyInDock ? 'btn-success' : 'btn-secondary');
-    const endTurnDisabled = !canEndTurn || auctionOpen
-        ? `disabled title="${auctionOpen ? 'Resolve auction before ending your turn' : 'Roll before ending your turn'}"`
-        : '';
+    const endTurnDisabled = !canEndTurn ? 'disabled title="Roll before ending your turn"' : '';
     // After doubles on an unowned property, Action (buy or auction) takes the primary slot and Roll Again
     // takes End Turn's, which stays unavailable until the final roll anyway.
     const rollAgainButton = rollAgain && buyInDock && !rollBlocked
         ? `<button class="btn btn-secondary" data-game-action="roll-dice">${escapeHtml(rollButtonLabel)}</button>`
         : '';
-    const endTurnButton = rollAgainButton || `<button class="btn ${endTurnClass} action-btn-end-turn" data-game-action="end-turn" ${endTurnDisabled}>${escapeHtml(auctionOpen ? 'Resolve Auction' : endTurnLabel)}</button>`;
+    const endTurnButton = rollAgainButton || `<button class="btn ${endTurnClass} action-btn-end-turn" data-game-action="end-turn" ${endTurnDisabled}>${escapeHtml(endTurnLabel)}</button>`;
     const primaryButton = buyInDock
         ? `<button class="btn btn-success action-btn-buy" data-game-action="open-buy-property">Action</button>`
         : (!hasRolled && !auctionOpen ? `<button class="btn btn-primary" data-game-action="roll-dice" ${rollDisabled}>${escapeHtml(rollButtonLabel)}</button>` : '');
@@ -438,7 +452,9 @@ function renderActionButtons(landing) {
         ? '<button class="btn btn-secondary btn-sm action-btn-buy" disabled>Auction Open<small>Bid in the panel above</small></button>'
         : `<button class="btn btn-secondary btn-sm action-btn-buy" disabled title="${escapeHtml(landing.detail)}">${escapeHtml(buyUnavailableLabel(landing))}<small>${escapeHtml(landing.squareName)}</small></button>`);
 
-    return `
+    // While an auction is open the dock would hold only a disabled button, and on a
+    // phone it covers the auction's Bid and Pass, so it steps aside.
+    const dock = auctionOpen ? '' : `
         <div class="action-buttons turn-dock">
             <div class="dock-inner">
                 ${jailChoiceButtons}
@@ -447,7 +463,10 @@ function renderActionButtons(landing) {
                     ${primaryButton}
                 </div>
             </div>
-        </div>
+        </div>`;
+
+    return `
+        ${dock}
         ${renderMovesGrid(`
             ${renderAnytimeMoves(gameState, currentPlayer, auctionOpen)}
             ${renderProposalsButton()}
@@ -477,8 +496,8 @@ function renderMovesGrid(buttonsHtml) {
 }
 
 function buyUnavailableLabel(landing) {
-    if (landing.detail.startsWith('Owned by')) return 'Property Owned';
-    if (landing.detail.startsWith('You already own')) return 'Already Yours';
+    if (landing.owner === 'other') return 'Property Owned';
+    if (landing.owner === 'self') return 'Already Yours';
     return 'No Property to Buy';
 }
 
@@ -515,7 +534,7 @@ function renderSpectatorNote() {
     return `
         <section class="moves">
             <div class="section-heading"><h3>Watching</h3></div>
-            <p class="empty-state">You're hosting this game without a seat. The players move on their own; host controls are below.</p>
+            <p class="empty-state">You're watching. Host controls are below.</p>
         </section>
     `;
 }
@@ -535,8 +554,8 @@ function renderHostPanel(gameState) {
     return `
         <section class="host-panel" aria-label="Host controls">
             <h3>Host controls</h3>
-            <p>Only you can see these. They affect every player.</p>
             <div class="host-actions">
+                ${gameState.auction?.status === 'open' ? '<button class="btn btn-danger btn-sm" data-game-action="host-cancel-auction">Cancel Auction</button>' : ''}
                 ${paused
                     ? '<button class="btn btn-success btn-sm" data-game-action="host-resume">Resume Game</button>'
                     : '<button class="btn btn-warning btn-sm" data-game-action="host-pause">Pause Game</button>'}

@@ -139,6 +139,8 @@ async function loadGameData(roomId) {
 
         // Render game state
         renderGameState(gameState);
+        // An ended game opens on the final standings, also after a reload.
+        if (gameState.ended) showWinnerFromState(gameState, winnerReasonFromState(gameState));
 
         // A resumed or reloaded hotseat game starts on player 1's token; hand the
         // device to whoever's turn it is.
@@ -252,6 +254,7 @@ async function applyGameUpdate(game, options = {}) {
     if (!options.force && incomingVersion < currentVersion) return;
 
     const wasMyTurn = isMyTurnIn(currentGame);
+    const wasEnded = !!currentGame?.game_state?.ended;
     currentGame = game;
     lastGameSyncAt = Date.now();
     const gameState = game.game_state;
@@ -268,7 +271,9 @@ async function applyGameUpdate(game, options = {}) {
     Mergers.refresh();
     refreshCorporationSheets();
 
-    if (gameState.ended && !options.suppressWinner) {
+    // The standings open once, when the game ends. While this player's own action is
+    // in flight, performGameAction opens them, after any bankruptcy summary.
+    if (gameState.ended && !wasEnded && !options.suppressWinner && !gameActionInFlight) {
         showWinnerFromState(gameState, winnerReasonFromState(gameState));
     }
 }
@@ -301,15 +306,14 @@ function renderGameState(gameState) {
                     ${renderLastCardSummary(gameState, currentPlayer)}
                 </div>
                 ${renderAuctionPanel(gameState)}
-                ${renderCashSinceTurn(gameState, currentUser?.id)}
-                ${isSpectator ? renderSpectatorNote() : (paused ? renderPausedActions(gameState) : (isMyTurn ? renderActionButtons(landing) : renderNonTurnActions()))}
+                ${gameState.ended ? renderGameOverActions() : `
+                    ${renderCashSinceTurn(gameState, currentUser?.id)}
+                    ${isSpectator ? renderSpectatorNote() : (paused ? renderPausedActions(gameState) : (isMyTurn ? renderActionButtons(landing) : renderNonTurnActions()))}
+                `}
             </div>
 
             <div>
-                <div class="section-heading">
-                    <h3>Players</h3>
-                    <span>${gameState.players.filter(p => !p.bankrupt).length} still solvent</span>
-                </div>
+                <div class="section-heading"><h3>Players</h3></div>
                 <div class="players-grid">
                     ${orderedPlayers.map(player => renderPlayerCard(player, player.userId === currentUser.id)).join('')}
                 </div>
@@ -369,9 +373,11 @@ function renderGameLog() {
     logContainer.innerHTML = renderGameLogHtml(recentGameEvents, logEventFilter, currentPlayer ? currentPlayer.name : null);
 }
 
-// The Game tab's last five events, in the same rows as the Recent events tab.
+// The Game tab's last few events, in the same rows as the Recent events tab,
+// which has the rest.
+const GAME_TAB_RECENT_ACTIONS = 3;
 function renderGameTabRecentActions() {
-    const rows = recentGameEvents.slice(0, 5).map(renderGameLogRow).join('');
+    const rows = recentGameEvents.slice(0, GAME_TAB_RECENT_ACTIONS).map(renderGameLogRow).join('');
     return rows || '<div class="log-entry"><span class="log-message empty-state">No moves yet.</span></div>';
 }
 
@@ -483,18 +489,14 @@ function dismissHotseatInterstitial() {
 // Host-triggered end game: the server ranks players by net worth.
 async function hostEndGame() {
     if (!confirm('End the game now and declare a winner by net worth?')) return;
-    await submitGameAction('host_end_game', {}, {
-        errorText: 'Failed to end game',
-        onSaved: () => showWinnerFromState(currentGame.game_state, 'Host ended the game.'),
-    });
+    await submitGameAction('host_end_game', {}, { errorText: 'Failed to end game' });
 }
 
 async function hostPauseGame() {
-    if (!confirm('Pause the game for everyone? Players will not be able to take normal actions until the host resumes.')) return;
-    await submitGameAction('host_pause_game', { reason: 'Host paused the game' }, {
+    if (!confirm('Pause the game for everyone? No one can play until you resume.')) return;
+    await submitGameAction('host_pause_game', {}, {
         errorText: 'Failed to pause game.',
         showError: showToast,
-        onSaved: () => showToast('Game paused.'),
     });
 }
 
@@ -503,7 +505,6 @@ async function hostResumeGame() {
     await submitGameAction('host_resume_game', {}, {
         errorText: 'Failed to resume game.',
         showError: showToast,
-        onSaved: () => showToast('Game resumed.'),
     });
 }
 
@@ -533,6 +534,7 @@ async function performGameAction(type, payload = {}) {
 
     gameActionInFlight = true;
     setGameActionUiBusy(true);
+    const endedBefore = !!currentGame?.game_state?.ended;
 
     try {
         // One actionId for every retry: the server applies an action once and
@@ -557,12 +559,13 @@ async function performGameAction(type, payload = {}) {
         }
         try {
             const events = result.events || [];
-            const sequenceWinnerAfterLiquidation = !!result.game?.game_state?.ended && hasLiquidationEvent(events);
-            await applyGameUpdate(result.game, { force: true, suppressWinner: sequenceWinnerAfterLiquidation });
+            const endedNow = !!result.game?.game_state?.ended && !endedBefore;
+            await applyGameUpdate(result.game, { force: true, suppressWinner: true });
+            // One sheet at a time: a bankruptcy summary first, the standings when it closes.
             const liquidationShown = showLiquidationSummaryFromEvents(events);
-            if (sequenceWinnerAfterLiquidation && liquidationShown) {
+            if (endedNow && liquidationShown) {
                 pendingWinnerStateAfterLiquidation = result.game.game_state;
-            } else if (sequenceWinnerAfterLiquidation) {
+            } else if (endedNow) {
                 showWinnerFromState(result.game.game_state, winnerReasonFromState(result.game.game_state));
             }
         } catch (renderError) {
@@ -661,14 +664,38 @@ function showWinnerFromState(gameState, reason) {
             <span class="net-worth">${formatMoney(Math.round(Number(p.netWorth || 0)))}</span>
         </div>
     `).join('');
-    document.getElementById('winnerName').textContent = winner ? winner.name : 'Game Over';
+    const everyoneBankrupt = standings.length > 0 && standings.every(p => p.bankrupt);
+    document.getElementById('winnerName').textContent = !winner ? 'Game over' : (everyoneBankrupt ? "It's a draw" : `${winner.name} wins`);
     document.getElementById('winnerReason').textContent = reason || '';
     document.getElementById('finalStandings').innerHTML = standingsHtml;
     openModal('winnerModal');
 }
 
+// Why the game ended, from the engine's "Game over - <reason>" log line (finishGame in
+// turns.js), without the winner's name the sheet already shows.
 function winnerReasonFromState(gameState) {
-    return gameState?.gameLog?.length ? gameState.gameLog[gameState.gameLog.length - 1].message : 'Game over';
+    const log = gameState?.gameLog || [];
+    const line = [...log].reverse().find(entry => /^Game over - /.test(entry.message || ''));
+    if (!line) return '';
+    const reason = line.message.replace(/^Game over - /, '');
+    if (/^Host ended the game/.test(reason)) return 'The host ended the game. Ranked by net worth.';
+    if (/last player standing/.test(reason)) return 'Last player standing';
+    if (/draw/.test(reason)) return 'Everyone went bankrupt';
+    return reason;
+}
+
+// Game over: what's left to do on the Game tab is look at the standings again.
+function renderGameOverActions() {
+    return `
+        <div class="game-over-actions">
+            <button class="btn btn-primary" data-game-action="show-final-standings">Final standings</button>
+        </div>
+    `;
+}
+
+function showFinalStandings() {
+    const gameState = currentGame?.game_state;
+    if (gameState?.ended) showWinnerFromState(gameState, winnerReasonFromState(gameState));
 }
 
 function hasLiquidationEvent(events) {
@@ -686,13 +713,13 @@ function showLiquidationSummaryFromEvents(events) {
     const returnedShares = formatSharePositions(data.returnedSharePositions);
     const transferredShares = formatSharePositions(data.transferredSharePositions, true);
 
-    const title = `${data.player || 'Player'} Bankruptcy Summary`;
-    const summary = `${data.player || 'The player'} went bankrupt${data.creditor ? ` owing ${data.creditor}` : ''}. Direct properties were ${data.assetDestinationType === 'bank' ? 'returned to' : 'transferred to'} ${destination}.`;
+    const title = `${data.player || 'A player'} is bankrupt`;
+    const summary = `${data.player || 'They'} couldn't pay ${data.creditor || 'the Bank'}.`;
     const rows = [
         ['Cause', reason],
-        ['Properties', propertyNames.length ? `${propertyNames.join(', ')} to ${destination}; houses/hotels cleared` : 'No direct properties moved'],
-        ['Shares', [returnedShares, transferredShares].filter(Boolean).join('; ') || 'No player-held shares moved'],
-        ['Debts', 'Personal debts cleared'],
+        ['Properties', propertyNames.length ? `${propertyNames.join(', ')} to ${destination}, without houses` : 'None'],
+        ['Shares', [returnedShares, transferredShares].filter(Boolean).join('; ') || 'None'],
+        ['Loans', 'Cleared'],
     ];
 
     document.getElementById('liquidationModalTitle').textContent = title;
@@ -712,8 +739,9 @@ function formatSharePositions(positions, transferred = false) {
     return positions.map(item => {
         const shares = Number(item.shares || 0);
         const ticker = item.ticker || 'corporation';
-        if (transferred && item.to) return `${shares} ${ticker} share(s) to ${item.to}`;
-        return `${shares} ${ticker} share(s) returned to availability`;
+        const count = `${ShareDeals.count(shares)} ${ticker} share${shares === 1 ? '' : 's'}`;
+        if (transferred && item.to) return `${count} to ${item.to}`;
+        return `${count} back to ${ticker}`;
     }).join(', ');
 }
 
@@ -796,8 +824,7 @@ function bindStaticGameControls() {
     bindMarketTabs();
 
     // Escape or a tap on the dimmed backdrop closes a dialog, like its Cancel button.
-    // The Game Over dialog stays until the player chooses Back to Lobby.
-    const dismissableModal = () => Array.from(document.querySelectorAll('.modal.active')).filter(modal => modal.id !== 'winnerModal').pop();
+    const dismissableModal = () => Array.from(document.querySelectorAll('.modal.active')).pop();
     document.addEventListener('keydown', (event) => {
         if (event.key !== 'Escape') return;
         const modal = dismissableModal();

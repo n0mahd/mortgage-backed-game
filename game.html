@@ -15,7 +15,7 @@
     <title>Game — Mortgage Backed Monopoly</title>
     <link rel="preload" href="src/assets/fonts/besley-latin.woff2" as="font" type="font/woff2" crossorigin>
     <link rel="stylesheet" href="src/css/tokens.css?v=14">
-    <link rel="stylesheet" href="src/css/style.css?v=57">
+    <link rel="stylesheet" href="src/css/style.css?v=58">
 </head>
 <body class="game-page">
     <div class="container">
@@ -187,14 +187,10 @@
     <!-- Modals -->
     <div class="modal" id="buyPropertyModal">
         <div class="modal-content">
-            <div class="modal-header">Buy or Auction</div>
+            <div class="modal-header">Buy or auction</div>
             <div class="property-grid" id="availableProperties"></div>
-            <p class="modal-hint">Buy it at list price, or let every player bid on it.</p>
+            <p class="modal-hint" id="buyPropertyHint"></p>
             <div class="trade-destination" id="buyForChoices" hidden></div>
-            <div class="form-group sr-only">
-                <label>Price</label>
-                <div class="readonly-value" id="purchasePriceDisplay">$0.00</div>
-            </div>
             <div class="sheet-actions">
                 <button id="confirm-purchase-btn" class="btn btn-success">Buy Property</button>
                 <button id="start-auction-btn" class="btn btn-secondary">Start Auction</button>
@@ -423,7 +419,7 @@
     <div class="modal" id="houseModal">
         <div class="modal-content">
             <div class="modal-header">Build houses and hotels</div>
-            <p class="modal-hint">Add up to 4 houses per property. A fifth improvement swaps them for a hotel.</p>
+            <p class="modal-hint">4 houses, then a hotel.</p>
             <div class="form-group" id="houseBuildForGroup" hidden>
                 <label for="houseBuildFor">Build for</label>
                 <select id="houseBuildFor"></select>
@@ -431,7 +427,7 @@
             <div id="houseModalProperties"></div>
             <div id="houseModalTotal"></div>
             <div class="sheet-actions">
-                <button id="confirm-house-purchase-btn" class="btn btn-success">Confirm Purchase</button>
+                <button id="confirm-house-purchase-btn" class="btn btn-success">Build</button>
                 <button class="btn btn-secondary" data-close-modal="houseModal">Cancel</button>
             </div>
         </div>
@@ -474,6 +470,7 @@
             <div id="finalStandings"></div>
             <div class="sheet-actions">
                 <button id="back-to-lobby-btn" class="btn btn-primary">Back to Lobby</button>
+                <button class="btn btn-secondary" data-close-modal="winnerModal">Close</button>
             </div>
         </div>
     </div>
@@ -498,7 +495,7 @@
     <script src="src/js/ui.js?v=2"></script>
     <script src="src/js/rejoin-prompts.js?v=2"></script>
     <script src="src/js/board.js?v=17"></script>
-    <script src="src/js/game/action-dispatcher.js?v=15"></script>
+    <script src="src/js/game/action-dispatcher.js?v=16"></script>
     <script src="src/js/game/turn-alert.js?v=1"></script>
     <script src="src/js/game/turn-end-outlook.js?v=6"></script>
     <script src="src/js/game/loans.js?v=3"></script>
@@ -506,12 +503,12 @@
     <script src="src/js/game/corporation-desk.js?v=12"></script>
     <script src="src/js/turn-notifications.js?v=1"></script>
     <script src="src/js/game/log-format.js?v=6"></script>
-    <script src="src/js/game/valuation.js?v=2"></script>
-    <script src="src/js/game/cash-since-turn.js?v=1"></script>
-    <script src="src/js/game/property-display.js?v=2"></script>
-    <script src="src/js/game/turn-panel.js?v=12"></script>
-    <script src="src/js/game/purchase.js?v=1"></script>
-    <script src="src/js/game/houses.js?v=2"></script>
+    <script src="src/js/game/valuation.js?v=3"></script>
+    <script src="src/js/game/cash-since-turn.js?v=2"></script>
+    <script src="src/js/game/property-display.js?v=3"></script>
+    <script src="src/js/game/turn-panel.js?v=13"></script>
+    <script src="src/js/game/purchase.js?v=2"></script>
+    <script src="src/js/game/houses.js?v=3"></script>
     <script src="src/js/game/debt-outlook.js?v=4"></script>
     <script src="src/js/game/debt.js?v=7"></script>
     <script src="src/js/game/corporations.js?v=8"></script>
@@ -519,6 +516,6 @@
     <script src="src/js/game/market.js?v=12"></script>
     <script src="src/js/game/rule-proposals.js?v=3"></script>
     <script src="src/js/game/device-alerts.js?v=1"></script>
-    <script src="src/js/game.js?v=70"></script>
+    <script src="src/js/game.js?v=71"></script>
 </body>
 </html>

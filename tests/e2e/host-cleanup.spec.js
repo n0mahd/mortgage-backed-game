@@ -140,7 +140,7 @@ test.describe('Host cleanup controls', () => {
 
         page.once('dialog', dialog => dialog.accept());
         await page.getByRole('button', { name: 'Pause Game' }).click();
-        await expect(page.locator('#pausePanel')).toContainText('Game Paused', { timeout: 5000 });
+        await expect(page.locator('#pausePanel')).toContainText('paused the game', { timeout: 5000 });
         await expect(page.getByRole('button', { name: 'Resume Game' })).toBeVisible();
         await expect(page.getByRole('button', { name: 'Roll Dice' })).toBeHidden();
 
