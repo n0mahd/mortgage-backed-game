@@ -167,11 +167,13 @@ function renderSeat(player, isMe, turnPlayerId) {
         .filter(Boolean).join(' ');
     const badges = player.bankrupt
         ? '<span class="badge badge-danger">Bankrupt</span>'
-        : (player.inJail && !(isMe && player.userId === turnPlayerId) ? '<span class="badge badge-gold">In Jail</span>' : '');
+        : (player.inJail && !(isMe && player.userId === turnPlayerId) ? '<span class="badge badge-gold">In Jail</span>' : '')
+            // In Jail on your turn, Use Card in the dock already says you have one.
+            + (player.hasGetOutOfJailCard && !player.bankrupt && !(isMe && player.inJail && player.userId === turnPlayerId) ? '<span class="badge badge-gold">Jail card</span>' : '');
     const name = isMe ? 'Your deeds' : player.name;
     const inner = `
         ${playerAvatarHtml(player, 'sm')}
-        <span class="seat-name">${escapeHtml(name)}</span>
+        <span class="seat-name">${escapeHtml(name)}${isMe ? `<span class="sr-only">, ${escapeHtml(player.name)}</span>` : ''}</span>
         ${badges}
         ${renderSeatSwatches(properties)}
         ${isMe ? '' : `<span class="seat-cash money${Number(player.cash) < 0 ? ' is-negative' : ''}">${formatMoney(player.cash)}</span>`}

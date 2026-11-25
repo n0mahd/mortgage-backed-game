@@ -371,8 +371,9 @@ function renderActionButtons(landing) {
             canPay ? `<button class="btn btn-primary action-btn-buy" data-game-action="buy-property">Buy ${formatMoney(landing.price)}</button>` : '',
         ];
     };
-    // An auction that ended without a sale leaves the square unowned: End Turn moves on.
-    const auctionedAlready = gameState.auction?.status === 'no_sale' && gameState.auction.propertyId === landing.property?.id;
+    // An auction that ended without a sale (or that the host canceled) leaves the square
+    // unowned: End Turn moves on.
+    const auctionedAlready = ['no_sale', 'canceled'].includes(gameState.auction?.status) && gameState.auction.propertyId === landing.property?.id;
 
     const rows = [];
     if (auctionOpen) {
@@ -447,7 +448,8 @@ function renderMoveTools(gameState, player, { paused = false } = {}) {
     const openMoves = active && !paused && !auctionOpen;
     const tradeWaiting = tradeProposalsAwaitingMe();
     const corpVotes = CorporationDesk.votesAwaiting(currentUser.id).length;
-    const corporations = (gameState.corporations || []).filter(corp => !ShareDeals.isClosed(corp));
+    // The Corporations sheet also lists closed ones, so any corporation at all opens it.
+    const corporations = gameState.corporations || [];
     const ownsProperty = !!player && gameState.properties.some(prop => prop.ownerId === player.userId);
     const otherPlayers = gameState.players.some(p => p.userId !== player?.userId && !p.bankrupt);
 

@@ -91,7 +91,8 @@ for (const phone of PHONES) {
             expect(rollBox.y + rollBox.height).toBeLessThanOrEqual(tabBar.y);
             expect(rollBox.height).toBeGreaterThanOrEqual(44);
 
-            await expect(page.locator('.turn-dock .action-btn-end-turn')).toBeDisabled();
+            // Before rolling, End Turn isn't offered at all.
+            await expect(page.locator('.turn-dock .action-btn-end-turn')).toHaveCount(0);
             await expect(page.locator('.turn-dock [data-game-action="host-end"]')).toHaveCount(0);
             await expect(page.locator('.host-panel [data-game-action="host-end"]')).toHaveCount(1);
             await context.close();

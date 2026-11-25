@@ -1854,7 +1854,8 @@ button.seat-row:active { background: var(--paper-deep); }
 
 .seat-swatches {
     flex: 1;
-    min-width: 0;
+    /* Room for two swatches in a row, even beside a badge on a 320px phone */
+    min-width: 23px;
     display: flex;
     flex-wrap: wrap;
     gap: 3px;
@@ -1866,6 +1867,8 @@ button.seat-row:active { background: var(--paper-deep); }
     border-radius: 2px;
     background: var(--property-color, var(--rule-strong));
 }
+
+.seat.is-me .seat-name { flex-shrink: 0; }
 
 .seat-cash {
     font-weight: 700;

@@ -233,7 +233,7 @@ test.describe('Game mechanics — via API state patching', () => {
 });
 
 test.describe('Game mechanics — UI', () => {
-    test('game.html loads with IPO button visible', async ({ page, request }) => {
+    test('game.html shows only the moves you can take: no IPO without property', async ({ page, request }) => {
         const h = await (await request.post(`${BASE_API}/auth/anonymous`)).json();
         const g = await (await request.post(`${BASE_API}/auth/anonymous`)).json();
         const room = await (await request.post(`${BASE_API}/rooms`, {
@@ -261,14 +261,9 @@ test.describe('Game mechanics — UI', () => {
         await page.goto(`${BASE}/game.html?room=${room.id}`);
         await page.waitForLoadState('domcontentloaded');
 
-        // Check for IPO-related button (may not be visible on all tabs)
-        const ipoBtn = page.locator('button, a').filter({ hasText: /ipo/i }).first();
-        if (await ipoBtn.count() > 0) {
-            await expect(ipoBtn).toBeVisible({ timeout: 5000 });
-        } else {
-            // IPO may be under a different tab
-            await expect(page.locator('body')).toBeVisible();
-        }
+        // Only moves you can take now: Borrow, but no IPO without a property to put in one.
+        await expect(page.locator('#game .move-tools [data-game-action="open-debt"]')).toBeVisible({ timeout: 5000 });
+        await expect(page.locator('#game [data-game-action="open-ipo"]')).toHaveCount(0);
     });
 
     test('negative current-player cash shows bankruptcy warning before end turn', async ({ page, request }) => {
@@ -307,7 +302,7 @@ test.describe('Game mechanics — UI', () => {
         await expect(page.locator('.action-btn-end-turn')).toHaveText('Declare Bankruptcy');
     });
 
-    test('after rolling doubles to leave Jail, the UI shows End Turn instead of another Roll Dice', async ({ page, request }) => {
+    test('after rolling doubles to leave Jail, the UI offers the landing instead of another Roll Dice', async ({ page, request }) => {
         const h = await (await request.post(`${BASE_API}/auth/anonymous`)).json();
         const g = await (await request.post(`${BASE_API}/auth/anonymous`)).json();
         const room = await (await request.post(`${BASE_API}/rooms`, {
@@ -343,10 +338,11 @@ test.describe('Game mechanics — UI', () => {
         await page.goto(`${BASE}/game.html?room=${room.id}`);
         await page.waitForLoadState('domcontentloaded');
 
-        await expect(page.getByRole('button', { name: /Roll Dice/ })).toHaveCount(0);
-        await expect(page.locator('.action-btn-end-turn')).toHaveText('End Turn');
-        await expect(page.locator('.action-btn-end-turn')).toBeEnabled();
-        await expect(page.locator('.recent-log')).not.toContainText('roll again');
+        // Virginia Ave is unowned: the dock offers Auction and Buy, and no second roll.
+        await expect(page.locator('#gameContent .turn-ticket .ticket-title')).toContainText('Your turn');
+        await expect(page.locator('.turn-dock [data-game-action="buy-property"]')).toHaveText('Buy $160');
+        await expect(page.locator('.turn-dock [data-game-action="start-auction"]')).toBeVisible();
+        await expect(page.locator('[data-game-action="roll-dice"]')).toHaveCount(0);
 
         const fetched = await (await request.get(`${BASE_API}/games/${game.id}`, {
             headers: { Authorization: `Bearer ${h.token}` },
@@ -452,7 +448,7 @@ test.describe('Game mechanics — UI', () => {
         await page.waitForLoadState('domcontentloaded');
 
         await expect(page.locator('.turn-warning.danger')).toContainText('below zero', { timeout: 5000 });
-        await expect(page.locator('.player-card.current-user')).toContainText('Mediterranean Ave');
+        await expect(page.locator('.seat.is-me')).toContainText('Mediterranean Ave');
 
         await Promise.all([
             page.waitForResponse(response => response.url().includes(`/games/${game.id}/actions`) && response.status() === 200),
@@ -468,9 +464,9 @@ test.describe('Game mechanics — UI', () => {
         await liquidationModal.locator('button', { hasText: 'OK' }).click();
         await expect(liquidationModal).toBeHidden();
 
-        await expect(page.locator('.game-header h2')).toContainText('Bob', { timeout: 5000 });
-        await expect(page.locator('.player-card.current-user')).toContainText('Bankrupt');
-        await expect(page.locator('.player-card.current-user')).not.toContainText('Mediterranean Ave');
+        await expect(page.locator('.turn-strip-title')).toContainText('Bob', { timeout: 5000 });
+        await expect(page.locator('.seat.is-me')).toContainText('Bankrupt');
+        await expect(page.locator('.seat.is-me')).not.toContainText('Mediterranean Ave');
 
         const fetched = await (await request.get(`${BASE_API}/games/${game.id}`, {
             headers: { Authorization: `Bearer ${h.token}` },
@@ -573,7 +569,7 @@ test.describe('Game mechanics — UI', () => {
         await page.waitForLoadState('domcontentloaded');
 
         await expect(page.locator('.turn-warning')).toContainText('Roll Again pays it from your cash first, leaving you $827', { timeout: 5000 });
-        await expect(page.locator('.action-btn-end-turn')).toBeDisabled();
+        await expect(page.locator('.action-btn-end-turn')).toHaveCount(0);
         const roll = page.locator('.turn-dock [data-game-action="roll-dice"]');
         await expect(roll).toHaveText('Pay $173 & Roll Again');
 
@@ -598,7 +594,7 @@ test.describe('Game mechanics — UI', () => {
         await page.waitForLoadState('domcontentloaded');
 
         await expect(page.locator('.turn-warning.danger')).toContainText('You owe Bob $173 and are $73 short. Raise it to roll again', { timeout: 5000 });
-        await expect(page.locator('.turn-dock [data-game-action="roll-dice"]')).toBeDisabled();
+        await expect(page.locator('.turn-dock [data-game-action="roll-dice"]')).toHaveCount(0);
         const endTurn = page.locator('.action-btn-end-turn');
         await expect(endTurn).toHaveText('Declare Bankruptcy');
         await expect(endTurn).toBeEnabled();
@@ -700,9 +696,9 @@ test.describe('Game mechanics — UI', () => {
         await liquidationModal.locator('button', { hasText: 'OK' }).click();
         await expect(liquidationModal).toBeHidden();
 
-        await expect(page.locator('.game-header h2')).toContainText('Bob', { timeout: 5000 });
-        await expect(page.locator('.player-card.current-user')).toContainText('Bankrupt');
-        await expect(page.locator('.player-card.current-user')).not.toContainText('Mediterranean Ave');
+        await expect(page.locator('.turn-strip-title')).toContainText('Bob', { timeout: 5000 });
+        await expect(page.locator('.seat.is-me')).toContainText('Bankrupt');
+        await expect(page.locator('.seat.is-me')).not.toContainText('Mediterranean Ave');
 
         const fetched = await (await request.get(`${BASE_API}/games/${game.id}`, {
             headers: { Authorization: `Bearer ${h.token}` },
@@ -794,7 +790,7 @@ test.describe('Game mechanics — UI', () => {
             page.locator('.action-btn-end-turn').click(),
         ]);
 
-        await expect(page.locator('.recent-log')).toContainText('MBS became insolvent', { timeout: 5000 });
+        await expect(page.locator('#full-game-log')).toContainText('MBS became insolvent', { timeout: 5000 });
         await page.getByRole('button', { name: 'Corporations' }).click();
 
         const modal = page.locator('#corporationModal');

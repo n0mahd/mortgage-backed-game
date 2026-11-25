@@ -673,12 +673,13 @@ async function takeTurn(j, p, { others = [] } = {}) {
             else await actWait(j, p, button(p, 'roll-dice'), 'roll dice');
             continue;
         }
-        if (await usable(button(p, 'open-buy-property'))) {
-            await button(p, 'open-buy-property').click();
-            await j.see(p, '#buyPropertyModal');
-            const buy = p.page.locator('#confirm-purchase-btn');
+        if (await usable(button(p, 'start-auction'))) {
+            // The dock: Buy $X (when affordable) beside Auction. Buy asks who's buying only for a company runner.
+            const buy = button(p, 'buy-property');
             if (await usable(buy)) await actWait(j, p, buy, 'buy property');
-            else await actWait(j, p, p.page.locator('#start-auction-btn'), 'start auction');
+            else await actWait(j, p, button(p, 'start-auction'), 'start auction');
+            const confirm = p.page.locator('#buyPropertyModal.active #confirm-purchase-btn');
+            if (await usable(confirm)) await actWait(j, p, confirm, 'buy property');
             const close = p.page.locator('.modal.active [data-close-modal]');
             if (await usable(close.first())) await close.first().click().catch(() => {});
             continue;
@@ -987,7 +988,7 @@ const JOURNEYS = [
             j.say('open the game again from My games');
             await j.click(guest, `.room-card[data-room-id="${roomId}"] .room-name`);
             await inGame(j, guest);
-            await j.see(guest, '.player-card.current-user', 'Gia');
+            await j.see(guest, '.seat.is-me', 'Gia');
             j.say('the account works from a new browser');
             const other = await j.person('Gia-laptop', { device: 'desktop' });
             await signIn(j, other, username);
@@ -995,7 +996,7 @@ const JOURNEYS = [
             await j.see(other, `#active-rooms-list [data-room-id="${roomId}"]`);
             await j.click(other, `.room-card[data-room-id="${roomId}"] .room-name`);
             await inGame(j, other);
-            await j.see(other, '.player-card.current-user', 'Gia');
+            await j.see(other, '.seat.is-me', 'Gia');
         },
     },
     {
@@ -1045,7 +1046,7 @@ const JOURNEYS = [
             await j.click(laptop, '#transfer-code-btn');
             await inGame(j, laptop);
             if ((await j.userId(laptop)) !== guest.userId) j.fail('The transfer code signed in as someone else');
-            await j.see(laptop, '.player-card.current-user', 'Gia');
+            await j.see(laptop, '.seat.is-me', 'Gia');
             j.say('the code works once');
             const third = await j.person('Stranger', { device: 'phone' });
             await j.goto(third, '/');
@@ -1536,7 +1537,7 @@ const JOURNEYS = [
             await j.gone(host, '#rejoinPromptModal');
             await inGame(j, fresh);
             if ((await j.userId(fresh)) !== guest.userId) j.fail('Approval signed the new browser in as someone else');
-            await j.see(fresh, '.player-card.current-user', 'Gia');
+            await j.see(fresh, '.seat.is-me', 'Gia');
             await playTurns(j, [host, fresh], 2);
         },
     },
@@ -1927,7 +1928,7 @@ const JOURNEYS = [
             await inGame(j, phone);
             if ((await j.userId(phone)) !== guest.userId) j.fail('The seat link signed in as someone else');
             if (/seat=/.test(phone.page.url())) j.fail('The seat token stayed in the address bar');
-            await j.see(phone, '.player-card.current-user', 'Gia');
+            await j.see(phone, '.seat.is-me', 'Gia');
             j.say('the link works once');
             const late = await j.person('Stranger', { device: 'desktop' });
             await j.goto(late, link);
@@ -2377,7 +2378,7 @@ const JOURNEYS = [
             await j.goto(app, `/home-screen.html?code=${code}`);
             await inGame(j, app);
             if ((await j.userId(app)) !== safari.userId) j.fail('The icon signed in as someone else');
-            await j.see(app, '.player-card.current-user', 'Ivy');
+            await j.see(app, '.seat.is-me', 'Ivy');
             j.say('later launches skip the spent code');
             await j.goto(app, `/home-screen.html?code=${code}`);
             await inGame(j, app);

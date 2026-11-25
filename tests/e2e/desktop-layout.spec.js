@@ -52,7 +52,7 @@ test('turn column bottom is reachable on a short desktop window', async ({ brows
         },
     });
 
-    const context = await browser.newContext({ viewport: { width: 1280, height: 640 } });
+    const context = await browser.newContext({ viewport: { width: 1280, height: 360 } });
     const page = await context.newPage();
     await page.goto(`${BASE}/index.html`);
     await page.evaluate(token => {
@@ -63,15 +63,22 @@ test('turn column bottom is reachable on a short desktop window', async ({ brows
     await page.goto(`${BASE}/game.html?room=${room.id}`);
 
     const main = page.locator('.game-layout-main');
-    const lastMove = page.locator('.game-layout-main .moves-grid > *').last();
+    const lastMove = page.locator('.game-layout-main .move-tools > *').last();
     await expect(lastMove).toBeAttached();
+    // Open every player's deeds so the players column is long.
+    const closed = page.locator('.seat-list [data-seat-toggle][aria-expanded="false"]');
+    await expect(closed).toHaveCount(3);
+    for (let i = 0; i < 3; i++) await closed.first().click();
+    await expect(closed).toHaveCount(0);
+    await page.mouse.move(0, 0);
+    await page.evaluate(() => window.scrollTo(0, 0));
 
     // The page really is longer than the window, which is when the bug showed.
     expect(await page.evaluate(() => document.documentElement.scrollHeight > innerHeight * 2)).toBe(true);
 
     // The pinned column fits in the window...
     const mainBox = await main.boundingBox();
-    expect(mainBox && mainBox.y + mainBox.height).toBeLessThanOrEqual(640);
+    expect(mainBox && mainBox.y + mainBox.height).toBeLessThanOrEqual(360);
 
     // ...and scrolling inside it brings the last move into view with the page still at the top.
     await main.hover();

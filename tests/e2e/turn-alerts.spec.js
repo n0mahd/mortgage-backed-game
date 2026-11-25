@@ -81,7 +81,7 @@ test.describe('Turn alerts', () => {
         const launched = await app.newPage();
         await launched.goto(`${BASE}/home-screen.html?code=${code}`);
         await expect(launched).toHaveURL(new RegExp(`game\\.html\\?room=${room.id}`), { timeout: 10000 });
-        await expect(launched.locator('.player-card.current-user')).toContainText('Alice');
+        await expect(launched.locator('.seat.is-me')).toContainText('Alice');
 
         // Later launches reuse the same start address; the spent code is skipped.
         await launched.goto(`${BASE}/home-screen.html?code=${code}`);
@@ -164,7 +164,7 @@ test.describe('Turn alerts', () => {
         await sheet.getByRole('button', { name: 'Not now' }).click();
 
         await page.reload();
-        await expect(page.locator('.player-card.current-user')).toContainText('Alice');
+        await expect(page.locator('.seat.is-me')).toContainText('Alice');
         await expect(prompt).toBeHidden();
         await context.close();
     });
@@ -220,7 +220,7 @@ test.describe('Turn alerts', () => {
             Object.defineProperty(Notification, 'permission', { configurable: true, get: () => 'denied' });
         });
         const page = await signedInGame(context, room, alice.token);
-        await expect(page.locator('.player-card.current-user')).toContainText('Alice');
+        await expect(page.locator('.seat.is-me')).toContainText('Alice');
         await page.waitForLoadState('networkidle');
         await expect(page.locator('#turnAlertsPrompt')).toBeHidden();
         await context.close();

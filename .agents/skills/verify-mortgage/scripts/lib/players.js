@@ -33,7 +33,7 @@ const PERSONAS = {
     auditor: {
         title: 'careful accountant',
         play: 'You play steadily and conservatively: buy cheap property, keep a cash cushion, avoid debt unless you must.',
-        watch: 'Before and after each of your turns, compare your cash, properties and Recent actions and Recent events with what should have happened (GO salary $200, taxes, rent, card effects). Also check the other players\' cards for numbers that change without a log line. Report every discrepancy with the numbers.',
+        watch: 'Before and after each of your turns, compare your cash, deeds, the ticket\'s "Since your last turn" stub, the square card\'s stamp and Recent events with what should have happened (GO salary $200, taxes, rent, card effects). Also check the other players\' rows for numbers that change without a log line. Report every discrepancy with the numbers.',
     },
 };
 const ROTATION = ['newbie', 'trader', 'breaker', 'auditor'];

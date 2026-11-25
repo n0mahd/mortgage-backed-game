@@ -54,15 +54,15 @@ test('a watching host runs a game played only by agents', async ({ page, request
     await expect(page.locator('.moves')).toContainText('Watching');
     await expect(page.locator('[data-game-action="roll"]')).toHaveCount(0);
     await expect(page.locator('.nav-tab[data-section="market"]')).toBeHidden();
-    await expect(page.locator('.players-grid')).toContainText('Claude A');
+    await expect(page.locator('.seat-list')).toContainText('Claude A');
 
     // An agent moves; the watching host sees it live.
     const rolls = await Promise.all(keys.map(key => mcpCall(request, 'take_action', { agent_key: key, type: 'roll_dice' })));
     expect(rolls.filter(roll => !roll.isError)).toHaveLength(1);
-    await expect(page.locator('.recent-log')).toContainText(/Claude [AB] rolled/);
+    await expect(page.locator('#full-game-log')).toContainText(/Claude [AB] rolled/);
 
     page.once('dialog', dialog => dialog.accept());
     await page.locator('[data-game-action="host-pause"]').click();
     await expect(page.locator('[data-game-action="host-resume"]')).toBeVisible();
-    await expect(page.locator('.recent-log')).toContainText(/paused/i);
+    await expect(page.locator('#full-game-log')).toContainText(/paused/i);
 });

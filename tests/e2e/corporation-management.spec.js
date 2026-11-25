@@ -205,10 +205,10 @@ test('a player offers a property, the chairman counters and the offerer accepts'
     await alex.page.click('#send-property-offer-btn');
     await expect(alex.page.locator('#propertyOfferModal')).not.toHaveClass(/active/);
 
-    // Sam's Moves grid flags it; the offer is a Trade proposal in the Market.
+    // Sam's Trade tool flags it; the offer is a Trade proposal in the Market.
     const proposalsTile = sam.page.locator('[data-game-action="open-trade-proposals"]').first();
     await expect(proposalsTile).toContainText('1 waiting for your answer', { timeout: 10000 });
-    await expect(sam.page.locator('[data-game-action="open-corporation"]').first()).toContainText('Shares and chairmen');
+    await expect(sam.page.locator('[data-game-action="open-corporation"]').first()).not.toHaveClass(/is-featured/);
     // The Corporations sheet only points to it.
     await openCorporation(sam.page, 'corp-mbs');
     await expect(sam.page.locator('.corp-offer-pointer')).toContainText('1 property offer waiting for you');
@@ -234,7 +234,7 @@ test('a player offers a property, the chairman counters and the offerer accepts'
     await expect(offerCard).toContainText('You countered: MBS pays $260 for Illinois Avenue');
     await expect(offerCard.locator('.offer-verdict')).toContainText('Your counter is $20 more than Illinois Avenue is worth. If it goes through, you lose $8');
 
-    // Alex's Moves grid flags the counter.
+    // Alex's Trade tool flags the counter.
     await alex.page.locator('[data-game-action="open-trade-proposals"]').first().click({ timeout: 10000 });
     const alexCard = alex.page.locator('#tradeOffersList [data-property-offer-id]');
     await expect(alexCard).toContainText('2,311 new shares', { timeout: 10000 });
@@ -262,7 +262,8 @@ test('the chairman trades as the company and buys a property for it', async ({ b
     const kim = await openGame(browser, room, users.Kim);
 
     // Buy Illinois for MBS from its treasury.
-    await sam.page.click('[data-game-action="open-buy-property"]');
+    // Buy $240 asks who's buying, since Sam runs a company.
+    await sam.page.click('.turn-dock [data-game-action="buy-property"]');
     await expect(sam.page.locator('#buyForChoices')).toBeVisible();
     await expect(sam.page.locator('#buyForChoices')).toContainText('Treasury $600 → $360');
     await sam.page.check('#buyForChoices input[value="corp-mbs"]');

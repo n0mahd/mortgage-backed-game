@@ -56,10 +56,9 @@ test.describe('Property auctions', () => {
         await loginPage(alicePage, setup.host.token);
         await alicePage.goto(`${BASE}/game.html?room=${setup.room.id}`);
         await alicePage.waitForLoadState('domcontentloaded');
-        await alicePage.locator('.action-btn-buy').click();
-        await alicePage.getByRole('button', { name: 'Start Auction' }).click();
+        await alicePage.locator('.turn-dock [data-game-action="start-auction"]').click();
         await expect(alicePage.locator('#auctionPanel')).toContainText('Mediterranean Avenue', { timeout: 5000 });
-        // The dock would hold only a disabled button, so it steps aside for Bid and Pass.
+        // The dock would hold nothing usable, so it steps aside for Bid and Pass.
         await expect(alicePage.locator('.turn-dock')).toHaveCount(0);
 
         const bobPage = await browser.newPage();
@@ -92,8 +91,7 @@ test.describe('Property auctions', () => {
         await loginPage(page, setup.host.token);
         await page.goto(`${BASE}/game.html?room=${setup.room.id}`);
         await page.waitForLoadState('domcontentloaded');
-        await page.locator('.action-btn-buy').click();
-        await page.getByRole('button', { name: 'Start Auction' }).click();
+        await page.locator('.turn-dock [data-game-action="start-auction"]').click();
         await expect(page.locator('#auctionPanel')).toContainText('Mediterranean Avenue', { timeout: 5000 });
         await expect(page.locator('#auctionPanel')).toContainText('Closes in', { timeout: 5000 });
 

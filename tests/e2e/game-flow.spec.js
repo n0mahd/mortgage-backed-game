@@ -124,7 +124,7 @@ test.describe('Game flow', () => {
         await rollButton.dispatchEvent('click');
         await rollButton.dispatchEvent('click');
 
-        await expect(page.locator('.recent-log')).toContainText(/rolled/i, { timeout: 5000 });
+        await expect(page.locator('#gameContent .turn-ticket .dice-pair')).toHaveAttribute('aria-label', /^Rolled/, { timeout: 5000 });
         await expect.poll(() => actionRequests).toBe(1);
         expect(actionRequests).toBe(1);
         expect(dialogs).toEqual([]);
@@ -224,7 +224,7 @@ test.describe('Game flow — multiplayer real-time', () => {
             window.__E2E_NEXT_DICE = [1, 2];
         });
         await page.getByRole('button', { name: /Roll Dice/i }).click();
-        await expect(secondTab.locator('#gameContent')).toContainText(/rolled/i, { timeout: 10000 });
+        await expect(secondTab.locator('#gameContent .turn-ticket .dice-pair')).toHaveAttribute('aria-label', /^Rolled/, { timeout: 10000 });
     });
 });
 
@@ -285,7 +285,7 @@ test.describe('Game flow — tunnel outage', () => {
 
         await rollButton.click();
 
-        await expect(page.locator('.recent-log')).toContainText(/rolled/i, { timeout: 15000 });
+        await expect(page.locator('#gameContent .turn-ticket .dice-pair')).toHaveAttribute('aria-label', /^Rolled/, { timeout: 15000 });
         expect(dialogs).toEqual([]);
     });
 

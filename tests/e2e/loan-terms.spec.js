@@ -126,7 +126,6 @@ test('take a loan on a chosen term, change autopay and pay it off', async ({ pag
     await page.selectOption('#loanAutopay', 'off');
     await Promise.all([actionSaved(page), page.click('#process-debt-btn')]);
     await expect(page.locator('#debtModal')).toBeHidden();
-    await expect(page.locator('#gameContent')).toContainText('Autopay off');
 
     let loan = (await fetchAlice(request, game, alice)).debts[0];
     expect(loan).toMatchObject({ principal: 300, termTurns: 5, turnsRemaining: 5, interestRate: 5, autopay: 'off' });

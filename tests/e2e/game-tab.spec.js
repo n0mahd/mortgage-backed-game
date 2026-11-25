@@ -61,7 +61,7 @@ const baseState = (players, properties) => ({
 });
 
 test.describe('Game tab', () => {
-    test('a bankruptcy that ends the game shows its summary, then the standings, which come back after a reload', async ({ page, request }) => {
+    test('a bankruptcy that ends the game shows its summary, then the standings, which stay on the ticket after a reload', async ({ page, request }) => {
         const { users, room } = await setupGame(request, ['Alice', 'Bob'], ([a, b], properties) => {
             // Square 34 is Pennsylvania Ave (prop-22): Bob's with 3 houses, rent $1,000.
             properties[22] = { ...properties[22], ownerId: b.user.id, ownerName: 'Bob', houses: 3 };
@@ -95,48 +95,55 @@ test.describe('Game tab', () => {
 
         await winner.getByRole('button', { name: 'Close' }).click();
         await expect(winner).toBeHidden();
-        await page.locator('[data-game-action="show-final-standings"]').click();
-        await expect(winner).toBeVisible();
+        // The standings stay on the ticket, and come back after a reload without the sheet.
+        const standings = page.locator('#gameContent .ticket-standings');
+        await expect(page.locator('#gameContent .ticket-title')).toHaveText('Bob won');
+        await expect(standings.locator('.ticket-standing').first()).toContainText('Bob');
 
         await page.reload();
-        await expect(page.locator('#winnerModal')).toBeVisible({ timeout: 10000 });
-        await expect(page.locator('#finalStandings')).toContainText('Bob');
+        await expect(page.locator('#gameContent .ticket-title')).toHaveText('Bob won', { timeout: 10000 });
+        await expect(standings.locator('.ticket-standing.is-out')).toContainText('Alice');
+        await expect(page.locator('#winnerModal')).toBeHidden();
         await expect(page.locator('#gameContent .moves')).toHaveCount(0);
+        await expect(page.locator('#gameContent .game-over-actions')).toContainText('My games');
     });
 
-    test('the cash card on a first turn has one "This turn" heading, and player cards drop the turn counters', async ({ page, request }) => {
+    test('rent shows as a stamp on the square card, and before your next roll as the ticket stub', async ({ page, request }) => {
         const { users, room, game } = await setupGame(request, ['Alice', 'Bob'], ([a, b], properties) => baseState([
             playerState(a.user.id, 'Alice', { cash: 1500 }),
             playerState(b.user.id, 'Bob'),
         ], properties));
         const [alice, bob] = users;
         await openGame(page, alice, room);
-        // Nothing has moved yet: no card at all.
-        await expect(page.locator('.cash-since')).toHaveCount(0);
+        // Nothing has moved yet: no stub, no square card.
+        await expect(page.locator('.ticket-stub')).toHaveCount(0);
+        await expect(page.locator('.square-card')).toHaveCount(0);
 
-        // Square 5 is Reading Railroad, unowned.
+        // Square 5 is Reading Railroad, unowned: the card shows the rent ladder, the dock the price.
         await page.evaluate(() => { window.__E2E_NEXT_DICE = [2, 3]; });
         await page.locator('[data-game-action="roll-dice"]').click();
-        await page.locator('[data-game-action="open-buy-property"]').click();
-        await expect(page.locator('#buyPropertyHint')).toHaveText('Buying leaves you $1,300. Auction: everyone bids, the high bid wins.');
-        await page.locator('#confirm-purchase-btn').click();
-
-        const card = page.locator('.cash-since');
-        await expect(card.locator('.cash-since-summary h3')).toHaveText('This turn', { timeout: 5000 });
-        await expect(card).not.toContainText('Before your first turn');
-        await expect(card.locator('h3', { hasText: 'This turn' })).toHaveCount(1);
-        await expect(card).toContainText('−$200');
+        await expect(page.locator('.square-card')).toContainText('Railroad · for sale');
+        await expect(page.locator('.rent-ladder-step.is-lit')).toContainText('$25');
+        await page.locator('.turn-dock [data-game-action="buy-property"]', { hasText: 'Buy $200' }).click();
+        await expect(page.locator('.square-card')).toContainText('Yours · 1 of 4 railroads');
+        await expect(page.locator('.turn-ticket .ticket-cash')).toContainText('$1,300');
+        await expect(page.locator('.ticket-stub')).toHaveCount(0);
 
         await page.locator('.action-btn-end-turn').click();
-        await expect(page.locator('.game-header h2')).toContainText('Bob', { timeout: 5000 });
-        // Off turn, the money from the turn that just ended isn't "this turn" any more.
-        await expect(page.locator('#gameContent')).not.toContainText('Paid this turn');
-        await expect(page.locator('#gameContent')).not.toContainText('Received between turns');
+        await expect(page.locator('.turn-strip-title')).toContainText('Bob', { timeout: 5000 });
 
-        // Bob lands on Alice's railroad: Alice sees the rent in "Since your turn ended".
+        // Bob lands on Alice's railroad: Alice sees the rent stamped on the card, off her turn.
         await postAction(request, game, bob, 'roll_dice', { testDice: [2, 3] });
-        await expect(page.locator('.cash-since-summary h3')).toHaveText('Since your turn ended', { timeout: 5000 });
-        await expect(page.locator('.cash-since')).toContainText('Rent from Bob');
+        await expect(page.locator('.square-stamp.is-in')).toHaveText('+$25', { timeout: 5000 });
+        await expect(page.locator('.turn-ticket.is-compact .ticket-cash')).toContainText('$1,325');
+
+        // Before Alice rolls again, the stub says where it came from.
+        await postAction(request, game, bob, 'end_turn');
+        const stub = page.locator('.turn-ticket .ticket-stub');
+        await expect(stub).toContainText('Since your last turn', { timeout: 5000 });
+        await expect(stub).toContainText('Rent from Bob');
+        await expect(stub).toContainText('Reading Railroad');
+        await expect(stub.locator('.ticket-stub-amount')).toHaveText('+$25');
     });
 
     test('the auction clock counts down, bids are whole dollars, and the dock steps aside', async ({ page, request }) => {
@@ -149,8 +156,7 @@ test.describe('Game tab', () => {
         }));
         const [alice, bob] = users;
         await openGame(page, alice, room);
-        await page.locator('.action-btn-buy').click();
-        await page.getByRole('button', { name: 'Start Auction' }).click();
+        await page.locator('.turn-dock [data-game-action="start-auction"]').click();
         const panel = page.locator('#auctionPanel');
         await expect(panel).toContainText('No bids yet', { timeout: 5000 });
         await expect(page.locator('.turn-dock')).toHaveCount(0);

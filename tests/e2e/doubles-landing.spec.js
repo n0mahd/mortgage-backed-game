@@ -51,21 +51,23 @@ async function openGameAt(browser, request, { lastDiceRoll }) {
     return { page, context };
 }
 
-test('after doubles onto an unowned property the dock offers Action and Roll Again', async ({ browser, request }) => {
+test('after doubles onto an unowned property the dock offers Auction, Buy and Roll Again', async ({ browser, request }) => {
     const { page, context } = await openGameAt(browser, request, { lastDiceRoll: [3, 3] });
     const dock = page.locator('#gameContent .turn-dock');
 
-    await expect(page.locator('.ticket-status')).toContainText('Doubles! Now on Oriental');
-    await expect(dock.locator('[data-game-action="open-buy-property"]')).toHaveText('Action');
+    await expect(page.locator('.turn-ticket .ticket-title')).toContainText('Doubles!');
+    await expect(page.locator('.square-card')).toContainText('Oriental Ave');
+    await expect(page.locator('.square-card')).toContainText('for sale');
+    await expect(dock.locator('[data-game-action="buy-property"]')).toHaveText('Buy $100');
+    await expect(dock.locator('[data-game-action="start-auction"]')).toHaveText('Auction');
     await expect(dock.locator('[data-game-action="roll-dice"]')).toHaveText('Roll Again');
     await expect(dock.locator('[data-game-action="end-turn"]')).toHaveCount(0);
 
-    await dock.locator('[data-game-action="open-buy-property"]').click();
-    await page.locator('#confirm-purchase-btn').click();
+    await dock.locator('[data-game-action="buy-property"]').click();
 
-    await expect(dock.locator('[data-game-action="open-buy-property"]')).toHaveCount(0);
+    await expect(dock.locator('[data-game-action="buy-property"]')).toHaveCount(0);
     await expect(dock.locator('[data-game-action="roll-dice"]')).toHaveText('Roll Again');
-    await expect(page.locator('.landing-summary')).toContainText('You already own this square.');
+    await expect(page.locator('.square-card')).toContainText('Yours · 1 of 3 light blues');
     await context.close();
 });
 
@@ -73,9 +75,9 @@ test('the square a turn starts on is not offered for sale before rolling', async
     const { page, context } = await openGameAt(browser, request, { lastDiceRoll: null });
     const dock = page.locator('#gameContent .turn-dock');
 
-    await expect(page.locator('.ticket-status')).toHaveText('Roll to move');
-    await expect(page.locator('.landing-summary')).toContainText('roll first');
-    await expect(dock.locator('[data-game-action="open-buy-property"]')).toHaveCount(0);
+    await expect(page.locator('.turn-ticket .ticket-title')).toContainText('Your turn');
+    await expect(page.locator('.square-card')).toHaveCount(0);
+    await expect(dock.locator('[data-game-action="buy-property"]')).toHaveCount(0);
     await expect(dock.locator('[data-game-action="roll-dice"]')).toHaveText('Roll Dice');
     await context.close();
 });

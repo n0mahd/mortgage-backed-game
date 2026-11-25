@@ -35,16 +35,16 @@ const PATHWAYS = [
 
     // ----- jail -----
     { id: 'jail.pay-fine', group: 'Jail', label: 'Pay the $50 fine to leave Jail', match: ev('jail_fine_paid'), hint: 'In Jail, before rolling: Pay $50 Fine.', stage: 'in-jail' },
-    { id: 'jail.use-card', group: 'Jail', label: 'Use a Get Out of Jail Free card', match: ev('jail_card_used'), hint: 'In Jail with a card: Use Jail Card.', stage: 'in-jail-with-card' },
+    { id: 'jail.use-card', group: 'Jail', label: 'Use a Get Out of Jail Free card', match: ev('jail_card_used'), hint: 'In Jail with a card: Use Card.', stage: 'in-jail-with-card' },
     { id: 'jail.doubles-out', group: 'Jail', label: 'Roll doubles to leave Jail', match: ev('dice_roll', d => d.jailReleased), stage: 'in-jail' },
-    { id: 'jail.stay', group: 'Jail', label: 'Fail to roll doubles in Jail', match: ev('dice_roll', d => d.inJail), hint: 'In Jail: Roll for Doubles.', stage: 'in-jail' },
+    { id: 'jail.stay', group: 'Jail', label: 'Fail to roll doubles in Jail', match: ev('dice_roll', d => d.inJail), hint: 'In Jail: Roll Doubles.', stage: 'in-jail' },
     { id: 'jail.forced-bail', group: 'Jail', label: 'Forced $50 bail after the third Jail turn', match: ev('forced_payment', d => d.reason === 'Jail bail'), stage: 'jail-third-turn' },
 
     // ----- property and auctions -----
     { id: 'buy.street', group: 'Property', label: 'Buy a street', match: ev('property_purchase', d => kindOf(propByName.get(d.property) || {}) === 'street') },
     { id: 'buy.railroad', group: 'Property', label: 'Buy a railroad', match: ev('property_purchase', d => kindOf(propByName.get(d.property) || {}) === 'railroad') },
     { id: 'buy.utility', group: 'Property', label: 'Buy a utility', match: ev('property_purchase', d => kindOf(propByName.get(d.property) || {}) === 'utility') },
-    { id: 'auction.start', group: 'Property', label: 'Decline to buy and start an auction', match: ev('property_auction_started'), hint: 'Action → Start Auction.' },
+    { id: 'auction.start', group: 'Property', label: 'Decline to buy and start an auction', match: ev('property_auction_started'), hint: 'Auction, in the dock.' },
     { id: 'auction.bid', group: 'Property', label: 'Bid in an auction', match: ev('property_auction_bid') },
     { id: 'auction.pass', group: 'Property', label: 'Pass in an auction', match: ev('property_auction_passed') },
     { id: 'auction.won', group: 'Property', label: 'Win an auction', match: ev('property_auction_won') },
@@ -67,22 +67,22 @@ const PATHWAYS = [
     { id: 'houses.repairs-card', group: 'Houses', label: 'Pay a repairs card with buildings', match: ev('card_draw', d => /repairs/i.test(d.card) && !/\$0(\.00)?\b/.test(String(d.effect))), stage: 'houses-built' },
 
     // ----- debt -----
-    { id: 'debt.issue', group: 'Debt', label: 'Issue personal debt', match: ev('debt_issued', d => !String(d.issuer).startsWith('[')), hint: 'Manage Debt → Issue New Debt.' },
-    { id: 'debt.issue-corporate', group: 'Debt', label: 'Issue debt as a corporation', match: ev('debt_issued', d => String(d.issuer).startsWith('[')), hint: 'Manage Debt → Issuer: <your corporation>. Needs a corporation you chair.' },
-    { id: 'debt.term-short', group: 'Debt', label: 'Borrow on a 5-turn term', match: ev('debt_issued', d => Number(d.termTurns) === 5), hint: 'Manage Debt → Take a new loan → Term: 5 turns.' },
-    { id: 'debt.term-long', group: 'Debt', label: 'Borrow on a 15-turn term', match: ev('debt_issued', d => Number(d.termTurns) === 15), hint: 'Manage Debt → Take a new loan → Term: 15 turns.' },
-    { id: 'debt.pay', group: 'Debt', label: 'Pay part of a loan', match: ev('debt_payment', d => !d.paidOff), hint: 'Manage Debt → Your loans → Pay an amount.' },
-    { id: 'debt.payoff', group: 'Debt', label: 'Pay a loan off early', match: ev('debt_payment', d => d.paidOff), hint: 'Manage Debt → Your loans → Pay off.' },
-    { id: 'debt.autopay-off', group: 'Debt', label: 'Turn autopay off for a loan', match: ev('debt_autopay', d => d.autopay === 'off'), hint: 'Manage Debt → Your loans → Autopay each turn: Off (works off-turn too).' },
-    { id: 'debt.autopay-interest-only', group: 'Debt', label: 'Switch a loan to interest-only autopay', match: ev('debt_autopay', d => d.autopay === 'interest_only'), hint: 'Manage Debt → Your loans → Autopay each turn: Interest only (works off-turn too).' },
-    { id: 'debt.refinance', group: 'Debt', label: 'Refinance debt', match: ev('debt_refinanced'), hint: 'Manage Debt → Refinance loans: pick loans, a term and a new amount above the payoff.' },
+    { id: 'debt.issue', group: 'Debt', label: 'Issue personal debt', match: ev('debt_issued', d => !String(d.issuer).startsWith('[')), hint: 'Borrow → Issue New Debt.' },
+    { id: 'debt.issue-corporate', group: 'Debt', label: 'Issue debt as a corporation', match: ev('debt_issued', d => String(d.issuer).startsWith('[')), hint: 'Borrow → Issuer: <your corporation>. Needs a corporation you chair.' },
+    { id: 'debt.term-short', group: 'Debt', label: 'Borrow on a 5-turn term', match: ev('debt_issued', d => Number(d.termTurns) === 5), hint: 'Borrow → Take a new loan → Term: 5 turns.' },
+    { id: 'debt.term-long', group: 'Debt', label: 'Borrow on a 15-turn term', match: ev('debt_issued', d => Number(d.termTurns) === 15), hint: 'Borrow → Take a new loan → Term: 15 turns.' },
+    { id: 'debt.pay', group: 'Debt', label: 'Pay part of a loan', match: ev('debt_payment', d => !d.paidOff), hint: 'Borrow → Your loans → Pay an amount.' },
+    { id: 'debt.payoff', group: 'Debt', label: 'Pay a loan off early', match: ev('debt_payment', d => d.paidOff), hint: 'Borrow → Your loans → Pay off.' },
+    { id: 'debt.autopay-off', group: 'Debt', label: 'Turn autopay off for a loan', match: ev('debt_autopay', d => d.autopay === 'off'), hint: 'Borrow → Your loans → Autopay each turn: Off (works off-turn too).' },
+    { id: 'debt.autopay-interest-only', group: 'Debt', label: 'Switch a loan to interest-only autopay', match: ev('debt_autopay', d => d.autopay === 'interest_only'), hint: 'Borrow → Your loans → Autopay each turn: Interest only (works off-turn too).' },
+    { id: 'debt.refinance', group: 'Debt', label: 'Refinance debt', match: ev('debt_refinanced'), hint: 'Borrow → Refinance loans: pick loans, a term and a new amount above the payoff.' },
     { id: 'debt.interest', group: 'Debt', label: 'Loan payment at end of turn', match: ev('interest_accrual', d => Number(d.interestCharged) > 0) },
     { id: 'debt.unpaid-interest', group: 'Debt', label: 'Unpaid interest added to a loan (autopay off)', match: ev('interest_accrual', d => Number(d.unpaidInterest) > 0), hint: 'Turn autopay off, then end your turn.' },
     { id: 'debt.matured-repaid', group: 'Debt', label: 'Repay a loan in full at maturity', match: ev('loan_matured', d => d.repaid), stage: 'loan-due' },
     { id: 'debt.matured-default', group: 'Debt', label: "Go bankrupt on a loan you can't repay at maturity", match: ev('loan_matured', d => !d.repaid && !String(d.borrower).startsWith('[')), stage: 'loan-default' },
     { id: 'debt.corporate-interest', group: 'Debt', label: 'Corporation charged interest', match: ev('interest_accrual', d => String(d.player).startsWith('[') && Number(d.interestCharged) > 0) },
 
-    { id: 'debt.term-max', group: 'Debt', label: 'Borrow on the longest term (30 turns)', match: ev('debt_issued', d => Number(d.termTurns) === 30), hint: 'Manage Debt → Take a new loan → Term: 30 turns.' },
+    { id: 'debt.term-max', group: 'Debt', label: 'Borrow on the longest term (30 turns)', match: ev('debt_issued', d => Number(d.termTurns) === 30), hint: 'Borrow → Take a new loan → Term: 30 turns.' },
 
     // ----- house rules and rule votes (Market › Rule proposals) -----
     { id: 'rules.host-set', group: 'House rules', label: 'Host sets Pass GO and the loan rate in the waiting room', ui: true },
@@ -97,7 +97,7 @@ const PATHWAYS = [
     { id: 'rules.passed-on-bankruptcy', group: 'House rules', label: 'A voter goes bankrupt and everyone left had agreed: the change passes', seq: events => bankruptcyThen(events, 'rule_change_passed'), stage: 'rule-vote-bankrupt-voter' },
     { id: 'rules.dropped-bankrupt', group: 'House rules', label: "A proposer goes bankrupt: their vote is dropped", match: ev('rule_change_withdrawn', d => d.reason === 'bankrupt'), stage: 'rule-vote-bankrupt-proposer' },
     { id: 'rules.pass-go-new-amount', group: 'House rules', label: 'Collect a Pass GO amount other than $200', match: ev('pass_go', d => Number(d.amount) !== 200) },
-    { id: 'rules.loan-at-voted-rate', group: 'House rules', label: 'Take a loan at a rate set by a vote', state: s => (s.ruleChanges || []).some(c => c.rule === 'loanRate') && allDebts(s).some(d => (s.ruleChanges || []).some(c => c.rule === 'loanRate' && Number(c.to) === Number(d.interestRate))), hint: 'After a loan-rate vote passes, Manage Debt → Take a new loan.' },
+    { id: 'rules.loan-at-voted-rate', group: 'House rules', label: 'Take a loan at a rate set by a vote', state: s => (s.ruleChanges || []).some(c => c.rule === 'loanRate') && allDebts(s).some(d => (s.ruleChanges || []).some(c => c.rule === 'loanRate' && Number(c.to) === Number(d.interestRate))), hint: 'After a loan-rate vote passes, Borrow → Take a new loan.' },
     { id: 'rules.old-loan-keeps-rate', group: 'House rules', label: 'A loan taken before a rate vote keeps its old rate', state: s => (s.ruleChanges || []).some(c => c.rule === 'loanRate') && allBorrowers(s).some(b => new Set((b.debts || []).map(d => Number(d.interestRate))).size > 1), hint: 'Hold a loan, pass a loan-rate vote, then borrow again.' },
     { id: 'rules.vote-badge', group: 'House rules', label: 'See the vote badge on Market and open the vote', ui: true },
     { id: 'rules.vote-off-turn', group: 'House rules', label: 'Vote on a rule change off your turn', ui: true },
@@ -165,7 +165,7 @@ const PATHWAYS = [
     // ----- refusals: the game must say no (counted when tried, applied or not) -----
     { id: 'refuse.bid-over-cash', group: 'Refusals', label: 'Try to bid more than your cash', match: act('place_bid', (d, s) => s.refused && /insufficient/i.test(s.error || '')), hint: 'In an auction, bid more cash than you have.' },
     { id: 'refuse.trade-built-group', group: 'Refusals', label: 'Try to trade a street from a colour group with buildings', match: act('propose_trade', (d, s) => s.refused && /buildings/i.test(s.error || '')), uiAlso: true, hint: 'Build houses, then offer one of that group\'s streets in the Market (the box should be greyed out; the rule: IPO the whole group instead).', stage: 'houses-built' },
-    { id: 'refuse.loan-over-limit', group: 'Refusals', label: 'Try to borrow more than your portfolio allows', match: act('issue_debt', (d, s) => s.refused && /up to/i.test(s.error || '')), hint: 'Manage Debt → Take a new loan: ask for more than the limit shown.' },
+    { id: 'refuse.loan-over-limit', group: 'Refusals', label: 'Try to borrow more than your portfolio allows', match: act('issue_debt', (d, s) => s.refused && /up to/i.test(s.error || '')), hint: 'Borrow → Take a new loan: ask for more than the limit shown.' },
     { id: 'refuse.force-buy-shares', group: 'Refusals', label: 'Try to buy a player\'s shares without an offer', match: act('buy_shares', (d, s) => s.refused), uiAlso: true, hint: 'Corporations: try to buy shares that a player holds (the sheet should offer only treasury shares).' },
     { id: 'refuse.pay-over-cash', group: 'Refusals', label: 'Try to pay a player more than your cash', match: act('manual_payment', (d, s) => s.refused && /insufficient/i.test(s.error || '')), hint: 'Market → Payment System: an amount above your cash.' },
     { id: 'refuse.junk-amount', group: 'Refusals', label: 'Submit a zero, negative or non-numeric amount', match: [act('issue_debt', (d, s) => s.refused && !(Number(d.amount) > 0)), act('manual_payment', (d, s) => s.refused && !(Number(d.amount) > 0)), act('place_bid', (d, s) => s.refused && !(Number(d.amount) > 0)), act('create_ipo', (d, s) => s.refused)], hint: 'Enter 0, -5 or text as an amount and submit.' },

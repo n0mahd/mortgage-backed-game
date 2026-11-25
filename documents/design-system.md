@@ -212,7 +212,7 @@ offer, corporation).
 
 **Players list** (`.seat-list`, `renderSeatList` in `property-display.js`). One grouped list: your row
 first as "Your deeds" (your cash is on the ticket), then each player's avatar, name, deed swatches and
-cash; the current player's row has a jade edge. A row with deeds opens to deed lines (`.deed-line`): a
+cash, with In Jail, Jail card or Bankrupt badges; the current player's row has a jade edge. A row with deeds opens to deed lines (`.deed-line`): a
 6px band in the property's colour, the short name, houses, a gold `Set` badge or `n/3`, and the rent it
 charges now.
 

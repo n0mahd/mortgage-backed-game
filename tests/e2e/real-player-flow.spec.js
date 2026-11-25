@@ -56,8 +56,7 @@ test.describe('thorough real-player UI game flow', () => {
 
             await openTab(pages.Alice, 'Game');
             await clickAndWaitForGameVersion(pages.Alice, activeGameButton(pages.Alice, 'roll-dice'));
-            await expect(pages.Alice.locator('#gameContent')).toContainText(/rolled \d\+\d=/, { timeout: 10000 });
-            await expect(pages.Alice.locator('.landing-summary')).toBeVisible({ timeout: 10000 });
+            await expect(pages.Alice.locator('#gameContent .turn-ticket .dice-pair')).toHaveAttribute('aria-label', /^Rolled \d and \d/, { timeout: 10000 });
             await shot(testInfo, pages.Alice, '07-alice-roll-through-ui');
 
             await repairGameState(pages.Alice, { current: 'Alice', positions: { Alice: 1 }, unowned: ['prop-0'], diceRolled: { Alice: true } });
@@ -137,7 +136,7 @@ test.describe('thorough real-player UI game flow', () => {
             });
             await reloadGamePages(pages, ['Bob']);
             await rollWithDiceAndExpect(pages.Bob, [1, 2], /paid \$100 to the Bank for Luxury Tax/i);
-            await expectBuyUnavailable(pages.Bob, /No Property to Buy/i);
+            await expectBuyUnavailable(pages.Bob);
             await shot(testInfo, pages.Bob, '18-bob-pays-luxury-tax');
 
             await endTurnNoAssert(pages.Bob);
@@ -296,13 +295,11 @@ async function openTab(page, tabName, sectionId = tabName.toLowerCase()) {
 
 async function buyCurrentSquare(page, expectedText) {
     await openTab(page, 'Game');
-    await activeGameButton(page, 'open-buy-property').click();
-    await expect(page.locator('#buyPropertyModal')).toBeVisible();
-    await expect(page.locator('#availableProperties')).toContainText(expectedText, { timeout: 10000 });
-    await expect(page.locator('#availableProperties')).toContainText(/\$\d+/);
-    await clickAndWaitForGameVersion(page, page.locator('#confirm-purchase-btn'));
-    await expect(page.locator('#buyPropertyModal')).toBeHidden({ timeout: 10000 });
-    await expect(page.locator('#gameContent')).toContainText(expectedText, { timeout: 10000 });
+    await expect(page.locator('#gameContent .square-card')).toContainText(expectedText, { timeout: 10000 });
+    const buy = activeGameButton(page, 'buy-property');
+    await expect(buy).toHaveText(/^Buy \$\d+/);
+    await clickAndWaitForGameVersion(page, buy);
+    await expect(page.locator('#gameContent .square-card')).toContainText('Yours', { timeout: 10000 });
 }
 
 async function buyHouses(page) {
@@ -439,10 +436,10 @@ async function rollWithDiceAndExpect(page, dice, expectedText) {
     await expect(page.locator('#gameContent')).toContainText(expectedText, { timeout: 10000 });
 }
 
-async function expectBuyUnavailable(page, labelPattern) {
-    const buyButton = page.locator('#game.section.active .action-btn-buy');
-    await expect(buyButton).toBeDisabled({ timeout: 10000 });
-    await expect(buyButton).toContainText(labelPattern);
+// Nothing to buy: no Buy button in the dock, End Turn instead.
+async function expectBuyUnavailable(page) {
+    await expect(page.locator('#game.section.active .turn-dock .action-btn-end-turn')).toBeVisible({ timeout: 10000 });
+    await expect(page.locator('#game.section.active [data-game-action="buy-property"]')).toHaveCount(0);
 }
 
 async function tradeCashForProperty(page, cashFrom, propertyFrom, cashAmount, propertyId) {

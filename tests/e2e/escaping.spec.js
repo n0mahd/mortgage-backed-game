@@ -1,13 +1,13 @@
 // @ts-check
 // A player name is free text that other players' browsers render. It must never be able to
-// open an attribute or inject markup: not in the buy button's tooltip ("Owned by <name>"),
-// and not in the recent-actions list built from game events.
+// open an attribute or inject markup: not on the square card ("<name>'s · 1 of 2 browns"),
+// not in the players list, and not in the Recent events log built from game events.
 const { test, expect } = require('@playwright/test');
 const { BASE, BASE_API, apiJson, playerState } = require('./helpers');
 
 const HOSTILE = `Eve" onmouseover="window.__pwned=1" x="<img src=x onerror=window.__pwned=2>`;
 
-test('hostile player names render as text in tooltips and the recent log', async ({ browser, request }) => {
+test('hostile player names render as text on the square card, players list and the log', async ({ browser, request }) => {
     const users = [];
     for (const name of ['Alice', HOSTILE]) {
         const auth = await apiJson(request, 'post', `${BASE_API}/auth/anonymous`);
@@ -48,7 +48,7 @@ test('hostile player names render as text in tooltips and the recent log', async
         },
     });
 
-    // A payment to Eve puts her name in a game event, which Recent actions shows.
+    // A payment to Eve puts her name in a game event, which Recent events shows.
     const paid = await request.post(`${BASE_API}/games/${game.id}/actions`, {
         headers: { Authorization: `Bearer ${users[0].token}` },
         data: { actionId: `pay-${Date.now()}`, type: 'manual_payment', expectedVersion: game.state_version,
@@ -63,13 +63,13 @@ test('hostile player names render as text in tooltips and the recent log', async
     await page.goto(`${BASE}/game.html?room=${room.id}`);
     await expect(page.locator('.turn-ticket')).toBeVisible();
 
-    const buy = page.locator('#game .action-btn-buy');
-    await expect(buy).toBeDisabled();
-    await expect(buy).toHaveAttribute('title', `Owned by ${HOSTILE}.`);
-    await expect(page.locator('.recent-log')).toContainText(`You paid $5 to ${HOSTILE}`);
+    const card = page.locator('#game .square-card');
+    await expect(card).toContainText(`${HOSTILE}'s · 1 of 2 browns`);
+    await expect(page.locator('#game .seat-list')).toContainText(HOSTILE);
+    await expect(page.locator('#full-game-log')).toContainText(`You paid $5 to ${HOSTILE}`);
 
-    expect(await page.locator('#gameContent [onmouseover], #gameContent img[onerror]').count()).toBe(0);
-    await buy.hover({ force: true });
+    expect(await page.locator('#gameContent [onmouseover], #gameContent img[onerror], #full-game-log [onmouseover], #full-game-log img[onerror]').count()).toBe(0);
+    await card.hover({ force: true });
     expect(await page.evaluate(() => window.__pwned)).toBeUndefined();
     await context.close();
 });

@@ -139,7 +139,8 @@ test.describe('Player feedback 2026-10-20', () => {
     test('End Turn survives a lost response: no error, no double move', async ({ browser, request }) => {
         const { room, game, users } = await setupGame(request);
         const alice = await openGame(browser, room, users.Alice);
-        await alice.page.evaluate(() => { window.__E2E_NEXT_DICE = [1, 2]; });
+        // Income Tax: nothing to buy, so End Turn is the move.
+        await alice.page.evaluate(() => { window.__E2E_NEXT_DICE = [1, 3]; });
         await alice.page.click('[data-game-action="roll-dice"]');
         await expect(alice.page.locator('[data-game-action="end-turn"]')).toBeEnabled();
 
@@ -204,7 +205,7 @@ test.describe('Player feedback 2026-10-20', () => {
         const { room, users } = await setupGame(request, { overrides: { Alice: { hasGetOutOfJailCard: true } } });
         const alice = await openGame(browser, room, users.Alice, { mobile: false });
         const bob = await openGame(browser, room, users.Bob, { mobile: false });
-        await expect(alice.page.locator('.player-card.current-user')).toContainText('Jail card');
+        await expect(alice.page.locator('.seat.is-me')).toContainText('Jail card');
 
         await alice.page.click('.nav-tab[data-section="market"]');
         await alice.page.selectOption('#player1Select', users.Alice.user.id);
@@ -220,11 +221,11 @@ test.describe('Player feedback 2026-10-20', () => {
         await bob.page.click('[data-game-action="accept-trade-offer"]');
 
         await bob.page.click('.nav-tab[data-section="game"]');
-        await expect(bob.page.locator('.player-card.current-user')).toContainText('Jail card');
-        await expect(bob.page.locator('.player-card.current-user')).toContainText('$1,440');
+        await expect(bob.page.locator('.seat.is-me')).toContainText('Jail card');
+        await expect(bob.page.locator('.turn-ticket .ticket-cash')).toContainText('$1,440');
         await alice.page.click('.nav-tab[data-section="game"]');
-        await expect(alice.page.locator('.player-card.current-user')).not.toContainText('Jail card');
-        await expect(alice.page.locator('.player-card.current-user')).toContainText('$1,560');
+        await expect(alice.page.locator('.seat.is-me')).not.toContainText('Jail card');
+        await expect(alice.page.locator('.turn-ticket .ticket-cash')).toContainText('$1,560');
         await alice.context.close();
         await bob.context.close();
     });
@@ -235,7 +236,7 @@ test.describe('Player feedback 2026-10-20', () => {
         const config = await apiJson(request, 'get', `${BASE_API}/games/config`);
         const evil = users[evilName];
         // Make the evil player own Mediterranean Ave and put Alice on it, so the
-        // disabled Buy button's title reads "Owned by <name>".
+        // square card names them as its owner.
         const latest = await apiJson(request, 'get', `${BASE_API}/games/by-room/${room.id}`, {
             headers: { Authorization: `Bearer ${users.Alice.token}` },
         });
@@ -248,7 +249,7 @@ test.describe('Player feedback 2026-10-20', () => {
             houses: 0,
         }));
         state.players[0].position = 1;
-        // The disabled Buy tile (with the "Owned by" title) shows once Alice has rolled onto the square.
+        // The square card shows once Alice has rolled onto the square.
         state.players[0].diceRolled = true;
         await apiJson(request, 'patch', `${BASE_API}/games/${latest.id}/state`, {
             headers: { Authorization: `Bearer ${users.Alice.token}` },
@@ -256,10 +257,10 @@ test.describe('Player feedback 2026-10-20', () => {
         });
 
         const alice = await openGame(browser, room, users.Alice, { mobile: false });
-        const buy = alice.page.locator('#gameContent .action-btn-buy');
-        await expect(buy).toHaveAttribute('title', `Owned by ${evilName}.`);
-        expect(await buy.getAttribute('onmouseover')).toBeNull();
-        await buy.hover();
+        const card = alice.page.locator('#gameContent .square-card');
+        await expect(card).toContainText(`${evilName}'s`);
+        expect(await alice.page.locator('#gameContent [onmouseover], #gameContent [data-x]').count()).toBe(0);
+        await card.hover();
         expect(await alice.page.evaluate(() => window.__xss)).toBeUndefined();
         await alice.context.close();
     });
@@ -279,7 +280,7 @@ test.describe('Player feedback 2026-10-20', () => {
         await other.fill('#transfer-code', `${code.slice(0, 4)} ${code.slice(4)}`);
         await other.click('#transfer-code-btn');
         await expect(other).toHaveURL(new RegExp(`game\\.html\\?room=${room.id}`), { timeout: 10000 });
-        await expect(other.locator('.player-card.current-user')).toContainText('Alice');
+        await expect(other.locator('.seat.is-me')).toContainText('Alice');
         await alice.context.close();
         await otherContext.close();
     });
@@ -295,7 +296,7 @@ test.describe('Player feedback 2026-10-20', () => {
         const other = await otherContext.newPage();
         await other.goto(link);
         await expect(other).toHaveURL(new RegExp(`game\\.html\\?room=${room.id}`), { timeout: 10000 });
-        await expect(other.locator('.player-card.current-user')).toContainText('Alice');
+        await expect(other.locator('.seat.is-me')).toContainText('Alice');
         await expect(other.locator('[data-game-action="roll-dice"]')).toBeVisible();
 
         // The link is single-use.

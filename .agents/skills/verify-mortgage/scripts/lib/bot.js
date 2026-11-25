@@ -188,7 +188,7 @@ class Autoplay {
         const current = state.players[state.currentPlayerIndex];
         for (const seat of online) {
             const dom = await seat.page.evaluate(() => ({
-                heading: document.querySelector('#gameContent .game-header h2')?.innerText || '',
+                heading: document.querySelector('#gameContent .turn-ticket .ticket-title, #gameContent .turn-strip-title')?.innerText || '',
                 myTurnClass: document.body.classList.contains('is-my-turn'),
             })).catch(() => null);
             if (!dom) continue;
@@ -581,20 +581,35 @@ class Autoplay {
         const reserve = 80 + Math.floor(this.rand() * 250);
         let buy = prop && Number(me.cash) - Number(prop.price) >= reserve && this.chance(0.85);
         if (this.explore?.active?.auctionWait || this.explore?.auctionInstead(prop)) buy = false;
-        await this.gameButton(seat, 'open-buy-property').click();
-        await seat.page.locator('#buyPropertyModal').waitFor({ state: 'visible' });
-        await this.firstTime('buy-modal', [seat], 'buy-property-modal');
-        // "Who's buying?": a company the player runs, when exploration wants that path.
-        const forCorp = this.explore?.wants('desk.buy-for-corp') && seat.page.locator('#buyForChoices input[name="buyFor"]:not([value=""]):not(:disabled)').first();
-        if (forCorp && await forCorp.count()) {
-            buy = true;
-            await forCorp.check();
-            await this.firstTime('buy-for-corp', [seat], 'buy-property-for-corporation');
-        }
-        if (buy) {
-            await this.act(seat, forCorp && await forCorp.count() ? 'buy property for a company' : 'buy property', () => seat.page.locator('#confirm-purchase-btn').click());
+        // The dock has Auction and Buy $X. Buy buys outright, or opens "Who's buying?" for a
+        // player who runs a company; Buy is missing when the player can't pay.
+        const buyButton = this.gameButton(seat, 'buy-property');
+        const wantsCorp = this.explore?.wants('desk.buy-for-corp');
+        if ((buy || wantsCorp) && await this.usable(buyButton)) {
+            const sheet = seat.page.locator('#buyPropertyModal');
+            // The same test the page uses to decide whether Buy opens the sheet.
+            const runsCompany = await seat.page.evaluate(id => ShareDeals.corporationsRunBy(currentGame.game_state, id).length > 0, me.userId);
+            if (runsCompany) {
+                await buyButton.click();
+                await sheet.waitFor({ state: 'visible' });
+                await this.firstTime('buy-modal', [seat], 'buy-property-modal');
+                const forCorp = wantsCorp && seat.page.locator('#buyForChoices input[name="buyFor"]:not([value=""]):not(:disabled)').first();
+                if (forCorp && await forCorp.count()) {
+                    await forCorp.check();
+                    await this.firstTime('buy-for-corp', [seat], 'buy-property-for-corporation');
+                    await this.act(seat, 'buy property for a company', () => seat.page.locator('#confirm-purchase-btn').click());
+                } else if (buy) {
+                    await this.act(seat, 'buy property', () => seat.page.locator('#confirm-purchase-btn').click());
+                } else {
+                    await this.act(seat, 'start auction', () => seat.page.locator('#start-auction-btn').click());
+                }
+            } else if (buy) {
+                await this.act(seat, 'buy property', () => buyButton.click());
+            } else {
+                await this.act(seat, 'start auction', () => this.gameButton(seat, 'start-auction').click());
+            }
         } else {
-            await this.act(seat, 'start auction', () => seat.page.locator('#start-auction-btn').click());
+            await this.act(seat, 'start auction', () => this.gameButton(seat, 'start-auction').click());
         }
         await this.closeModals(seat);
     }
@@ -995,7 +1010,7 @@ class Autoplay {
                 continue;
             }
 
-            if (await this.usable(this.gameButton(seat, 'open-buy-property'))) {
+            if (await this.usable(this.gameButton(seat, 'start-auction'))) {
                 await this.buyOrAuction(seat, me, state);
                 continue;
             }

@@ -125,15 +125,17 @@ test('off their turn, the chairman can still borrow', async ({ browser, request 
     await sam.context.close();
 });
 
-test("off their turn, a player's Moves still offer building, IPOs and debt", async ({ browser, request }) => {
+test("off their turn, a player's move tools still offer building and debt", async ({ browser, request }) => {
     const { room, users } = await setupGame(request, 0);
     const sam = await openGame(browser, room, users.Sam);
-    const moves = sam.page.locator('#game .moves-grid');
-    for (const action of ['open-house', 'open-ipo', 'open-debt']) {
+    const moves = sam.page.locator('#game .move-tools');
+    for (const action of ['open-house', 'open-debt']) {
         await expect(moves.locator(`[data-game-action="${action}"]`)).toBeEnabled();
     }
+    // MBS owns the properties; Sam has none of his own to take public, so no IPO tool.
+    await expect(moves.locator('[data-game-action="open-ipo"]')).toHaveCount(0);
     // Turn-only moves stay with the player whose turn it is.
-    for (const action of ['roll-dice', 'end-turn', 'open-buy-property']) {
+    for (const action of ['roll-dice', 'end-turn', 'buy-property', 'start-auction']) {
         await expect(sam.page.locator(`#game [data-game-action="${action}"]`)).toHaveCount(0);
     }
     // Chairman moves are open too, rent policy included.
