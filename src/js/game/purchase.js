@@ -128,7 +128,8 @@ async function placeAuctionBid() {
     const amount = Number(input?.value);
     // Bids are whole dollars, like every price on the board.
     if (!Number.isInteger(amount) || amount <= 0) {
-        alert('Bid a whole number of dollars, above $0.');
+        showToast('Bid a whole number of dollars, above $0.', 'error');
+        input?.focus();
         return;
     }
 
