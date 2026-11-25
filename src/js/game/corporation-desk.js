@@ -183,8 +183,8 @@
             <div class="corp-runner-tools">
                 <h4>Chairman moves</h4>
                 <div class="buy-shares-form">
-                    <label for="dividend-${esc(corp.id)}">Dividend</label>
-                    <input type="number" inputmode="decimal" id="dividend-${esc(corp.id)}" min="1" max="${Math.floor(cash)}" placeholder="Up to ${money(Math.floor(cash))}">
+                    <label for="dividend-${esc(corp.id)}">Dividend <span class="field-max">(up to ${money(Math.floor(cash))})</span></label>
+                    <input type="number" inputmode="decimal" id="dividend-${esc(corp.id)}" min="1" max="${Math.floor(cash)}" placeholder="$0">
                     <button class="btn btn-primary btn-sm" data-game-action="pay-dividend" data-corp-id="${esc(corp.id)}"${ok && cash >= 1 ? '' : ' disabled'}>Pay dividend</button>
                 </div>
                 <div class="moves-grid corp-moves">

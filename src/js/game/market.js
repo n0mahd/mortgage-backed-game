@@ -553,7 +553,7 @@ function renderShareIssueSummary(issue, options = {}) {
         const button = options.showUse && issue.fairShares > 0
             ? ` <button type="button" class="btn btn-secondary btn-sm" data-game-action="use-fair-new-shares" data-side="${escapeHtml(issue.side)}">Use ${ShareDeals.count(issue.fairShares)}</button>`
             : '';
-        fair = `<p class="share-deal-even">Fair is ${ShareDeals.count(issue.fairShares)} new ${escapeHtml(issue.corp.ticker)} shares at today's value per share.${button}</p>`;
+        fair = `<p class="share-deal-even">Fair is ${ShareDeals.count(issue.fairShares)} new ${escapeHtml(issue.corp.ticker)} shares.${button}</p>`;
     }
     if (!fair && !issue.sentences.length) return '';
     return renderShareDealSummary(issue).replace(/<\/div>\s*$/, `${fair}</div>`);
@@ -1237,7 +1237,7 @@ function renderTradeCounterBanner() {
     const offer = activeTradeCounter();
     banner.hidden = !offer;
     if (!offer) return;
-    banner.querySelector('.trade-counter-text').textContent = `Countering ${offer.proposedByName}'s offer. Change the terms below and send it back. Their offer stays open until you do.`;
+    banner.querySelector('.trade-counter-text').textContent = `Countering ${offer.proposedByName}'s offer. It stays open until you send yours.`;
 }
 
 async function acceptTradeOffer(offerId) {

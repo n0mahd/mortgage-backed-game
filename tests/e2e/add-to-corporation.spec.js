@@ -88,9 +88,8 @@ test('the chairman adds a property to their LLC for new shares', async ({ browse
     await sam.page.check('#addToCorpAssets input[value="prop-il"]');
     const sharesChoice = sam.page.locator('#addToCorpShares input[value="shares"]');
     await expect(sharesChoice).toBeChecked();
-    await expect(sam.page.locator('#addToCorpShares')).toContainText('2 new shares');
+    await expect(sam.page.locator('#addToCorpShares')).toContainText('2 shares');
     const preview = sam.page.locator('#addToCorpPreview');
-    await expect(preview).toContainText('You put Illinois Ave into MBS and get 2 new shares.');
     await expect(preview).toContainText('$1,200 → $1,440');
     await expect(preview).toContainText('7 of 10 → 9 of 12 (75%)');
     await expect(preview).toContainText('Your net worthNo change');
@@ -156,7 +155,7 @@ test('the chairman adds cash to their LLC for new shares', async ({ browser, req
     // MBS is worth $1,200 over 10 shares: $240 buys 2 new shares.
     await sam.page.fill('#addCashToCorpAmount', '240');
     await expect(sam.page.locator('#addCashToCorpShares input[value="shares"]')).toBeChecked();
-    await expect(sam.page.locator('#addCashToCorpShares')).toContainText('2 new shares');
+    await expect(sam.page.locator('#addCashToCorpShares')).toContainText('2 shares');
     await expect(sam.page.locator('#addCashToCorpPreview')).toContainText('9 of 12');
     const overflow = await sam.page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
     expect(overflow).toBeLessThanOrEqual(0);

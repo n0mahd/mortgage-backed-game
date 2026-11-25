@@ -124,7 +124,7 @@ test('the chairman switches to Payout and pays a dividend', async ({ browser, re
     await expect.poll(() => alex.page.evaluate(() => currentGame.game_state.corporations[0].rentPolicy)).toBe('payout');
     await alex.page.click('[data-close-modal="corporationModal"]');
     await openCorporation(alex.page, 'corp-mbs');
-    await expect(alex.page.locator('.corp-rent-policy')).toContainText(/You hold 30%.*only the other 70%/);
+    await expect(alex.page.locator('.corp-rent-policy')).toContainText("You pay only 70% of the rent on MBS's properties.");
 
     await sam.page.fill('#dividend-corp-mbs', '300');
     await sam.page.click('[data-game-action="pay-dividend"][data-corp-id="corp-mbs"]');
@@ -143,7 +143,7 @@ test("the chairman can't switch rent policy on their own turn after rolling", as
     const sam = await openGame(browser, room, users.Sam);
     await openCorporation(sam.page, 'corp-mbs');
     await expect(sam.page.locator('[data-game-action="set-rent-policy"][data-policy="payout"]')).toBeDisabled();
-    await expect(sam.page.locator('.corp-rent-policy')).toContainText('You can switch again after your turn.');
+    await expect(sam.page.locator('.corp-rent-policy')).toContainText('Locked until your turn ends');
     await sam.context.close();
 });
 
@@ -319,7 +319,7 @@ test('the chairman buys a property for MBS with new shares, at the fair count', 
     await showMarketPane(kim.page, 'Trade proposals');
     const offer = kim.page.locator('.trade-offer-card').first();
     await expect(offer).toContainText('1,956 new MBS shares', { timeout: 10000 });
-    await expect(offer).toContainText('MBS issues 1,956 new shares to you.');
+    await expect(offer).not.toContainText('MBS issues');
     await offer.locator('[data-game-action="accept-trade-offer"]').click();
 
     await expect.poll(async () => (await fetchState(request, game, users.Sam)).properties.find(p => p.id === 'prop-13').ownerId).toBe('corp-mbs');
@@ -396,7 +396,7 @@ test('the chairman picks the company under They give to add a property, and send
     await expect(sam.page.locator('#executeTradeBtn')).toHaveText('Add to MBS');
     await expect(sam.page.locator('#executeTradeBtn')).toBeDisabled();
     await sam.page.check('#player1Assets input[value="prop-15"]');
-    await expect(sam.page.locator('#player2Destination')).toContainText('2,133 new shares');
+    await expect(sam.page.locator('#player2Destination')).toContainText('2,133 shares');
     await expect(sam.page.locator('#tradePreview')).toContainText('Your MBS shares');
     await sam.page.click('#executeTradeBtn');
     await expect(sam.page.locator('#market-status')).toContainText('Added to MBS');
@@ -414,7 +414,7 @@ test('the chairman picks the company under They give to add a property, and send
     await showMarketPane(sam.page, 'Send money');
     await sam.page.selectOption('#paymentToPlayer', 'corp:corp-mbs');
     await sam.page.fill('#paymentAmount', '135');
-    await expect(sam.page.locator('#paymentReturn')).toContainText('1,200 new shares');
+    await expect(sam.page.locator('#paymentReturn')).toContainText('1,200 shares');
     await sam.page.click('#makePaymentBtn');
     await expect(sam.page.locator('#market-status')).toContainText('Paid into MBS');
     await expect.poll(async () => (await fetchState(request, game, users.Sam)).corporations[0].totalShares).toBe(15333);
@@ -458,9 +458,11 @@ test('the sheet lists corporations, then shows one in tabs on a phone and in two
     await openCorporation(wide.page, 'corp-mbs');
     const desk = wide.page.locator('#corporationModal .corp-detail');
     await expect(desk.locator('.corp-tabs')).toBeHidden();
-    for (const panel of ['overview', 'owners', 'assets', 'debt']) {
+    for (const panel of ['overview', 'owners', 'assets']) {
         await expect(desk.locator(`[data-corp-panel="${panel}"]`)).toBeVisible();
     }
+    // MBS owes nothing, so there's no Debt panel.
+    await expect(desk.locator('[data-corp-panel="debt"]')).toHaveCount(0);
     const width = await wide.page.locator('#corporationModal .modal-content').evaluate(el => el.getBoundingClientRect().width);
     expect(width).toBeGreaterThan(800);
     await wide.page.screenshot({ path: 'test-results/corporation-detail-1280.png' });

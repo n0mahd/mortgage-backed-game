@@ -153,10 +153,16 @@ function logViewerName() {
 }
 
 function logSentenceForViewer(sentence, name = logViewerName()) {
-    if (!name || !sentence.startsWith(name)) return sentence;
-    const rest = sentence.slice(name.length);
+    if (!name) return sentence;
+    const escaped = name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    // Later in the sentence: "to Alex" → "to you", "Alex's offer" → "your offer".
+    let text = sentence
+        .replace(new RegExp(`(\\b(?:to|with|for|from|by|owing) )${escaped}(?=$|[\\s.,;:)])`, 'g'), '$1you')
+        .replace(new RegExp(`( )${escaped}'s `, 'g'), '$1your ');
+    if (!text.startsWith(name)) return text;
+    const rest = text.slice(name.length);
     if (rest.startsWith("'s ")) return `Your ${rest.slice(3)}`;
-    if (!rest.startsWith(' ')) return sentence;
+    if (!rest.startsWith(' ')) return text;
     return `You${rest}`
         .replace(/^You has /, 'You have ')
         .replace(/^You was /, 'You were ')

@@ -42,6 +42,9 @@ test("the viewer's own lines read You", () => {
     expect(text('bankruptcy', { player: 'Alex' })).toBe('You have gone BANKRUPT');
     expect(text('interest_accrual', { player: 'Alex', interestCharged: 5 })).toBe('You were charged $5 in interest');
     expect(text('trade_offer_expired', { proposer: 'Alex', recipient: 'Kim' })).toBe('Your trade offer to Kim expired');
+    expect(text('trade_offer_proposed', { proposer: 'Sam', recipient: 'Alex' })).toBe('Sam proposed a trade with you');
+    expect(text('trade_offer_accepted', { accepter: 'Kim', proposer: 'Alex' })).toBe("Kim accepted your trade offer");
+    expect(text('payment', { from: 'Kim', to: 'Alex', amount: 5 })).toBe('Kim paid $5 to you');
     // Only the whole name: "Alexa" is someone else.
     expect(text('payment', { from: 'Alexa', to: 'Sam', amount: 5 })).toBe('Alexa paid $5 to Sam');
 });
