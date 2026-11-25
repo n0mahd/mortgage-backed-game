@@ -1198,6 +1198,9 @@ class Autoplay {
             await this.act(host, 'host ends game', () => this.gameButton(host, 'host-end').click());
         }
         for (const seat of this.seats) {
+            // A bankruptcy shows its summary first; the standings open when it's closed.
+            const summary = seat.page.locator('#liquidationModal.active [data-close-modal]');
+            if (await summary.isVisible().catch(() => false)) await summary.click().catch(() => {});
             const shown = await seat.page.locator('#winnerModal').isVisible().catch(() => false)
                 || await seat.page.locator('#winnerModal').waitFor({ state: 'visible', timeout: 10000 }).then(() => true).catch(() => false);
             if (!shown && this.server().state.ended) {
@@ -1237,13 +1240,15 @@ class Autoplay {
             if (label && !me.inJail) this.ctx.finding({ severity: 'low', category: 'ui', seat, title: `Square card "${label}" shown on square ${pos}, which has none`, detail: '' });
             return;
         }
-        const name = tax || prop.name;
-        if (label.split(' ')[0] !== name.split(' ')[0]) {
+        // The card uses the board's short names (N. Carolina Ave, B.&O. Railroad).
+        const name = await seat.page.evaluate(p => BOARD_SQUARES[p]?.name, pos).catch(() => null) || tax || prop.name;
+        if (label !== name) {
             this.ctx.finding({ severity: 'medium', category: 'ui', seat, title: `Square card says "${label}" after landing on ${name}`, detail: '' });
             await this.ctx.shot(seat, 'wrong-square-card');
             return;
         }
-        const stamp = await card.first().locator('.square-stamp').innerText().catch(() => '');
+        const stampEl = card.first().locator('.square-stamp');
+        const stamp = await stampEl.count() ? await stampEl.first().innerText().catch(() => '') : '';
         if (prop && !prop.ownerId) {
             this.ctx.markUi('ui.square-card-for-sale');
             await this.firstTime('square-card-for-sale', [seat], 'square-card-for-sale');
@@ -1281,7 +1286,8 @@ class Autoplay {
             this.ctx.markUi('ui.move-tools');
             await this.firstTime('move-tools', [seat], 'move-tools');
         }
-        const stub = await seat.page.locator('#game.section.active .ticket-stub').first().innerText().catch(() => '');
+        const stubEl = seat.page.locator('#game.section.active .ticket-stub');
+        const stub = await stubEl.count() ? await stubEl.first().innerText().catch(() => '') : '';
         if (/Since your last turn/.test(stub)) {
             this.ctx.markUi('ui.cash-since-turn');
             await this.firstTime('cash-since-turn', [seat], 'cash-since-turn');

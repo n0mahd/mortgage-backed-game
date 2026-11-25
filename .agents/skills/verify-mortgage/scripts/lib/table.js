@@ -142,8 +142,11 @@ async function signInByEmail(ctx, seat) {
     await page.locator('#send-code-btn').click();
     const code = await readOtp(ctx, seat, since);
     await page.locator('#code-input').fill(code);
+    // Let My games finish loading: leaving mid-fetch logs a console error that is the harness's doing.
+    const roomsLoaded = page.waitForResponse(res => /\/api\/rooms\/mine/.test(res.url()), { timeout: 20000 }).catch(() => {});
     await page.locator('#verify-code-btn').click();
     await page.waitForURL(/lobby\.html/, { timeout: 20000 });
+    await roomsLoaded;
     ctx.log(`  seat ${seat.index} ${seat.name} signed in as ${seat.email}`);
     ctx.markUi('ui.email-sign-in');
 }

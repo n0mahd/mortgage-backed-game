@@ -2394,7 +2394,8 @@ const JOURNEYS = [
             await inGame(j, app);
             j.say('inside the icon, alerts can be turned on');
             await j.click(app, '#turn-alerts-btn');
-            await j.see(app, '#turnAlertsHint', /./);
+            // The sheet first says "Checking this device…" while it asks the browser.
+            await j.see(app, '#turnAlertsHint', /^(?!Checking this device)\S/);
             const hint = (await app.page.locator('#turnAlertsHint').innerText()).trim();
             if (/Home Screen/.test(hint) || hint === 'Checking this device…') j.fail(`Inside the icon the sheet still says: ${hint}`);
             j.say('an expired code in a fresh icon');
