@@ -461,10 +461,10 @@ test.describe('Game mechanics — UI', () => {
 
         const liquidationModal = page.locator('#liquidationModal');
         await expect(liquidationModal).toBeVisible({ timeout: 5000 });
-        await expect(liquidationModal).toContainText('Alice Bankruptcy Summary');
-        await expect(liquidationModal).toContainText('returned to the Bank');
-        await expect(liquidationModal).toContainText('Mediterranean Ave to the Bank');
-        await expect(liquidationModal).toContainText('Personal debts cleared');
+        await expect(liquidationModal).toContainText('Alice is bankrupt');
+        await expect(liquidationModal).toContainText("Alice couldn't pay the Bank");
+        await expect(liquidationModal).toContainText('Mediterranean Ave to the Bank, without houses');
+        await expect(liquidationModal).toContainText(/Loans\s*Cleared/);
         await liquidationModal.locator('button', { hasText: 'OK' }).click();
         await expect(liquidationModal).toBeHidden();
 
@@ -597,7 +597,7 @@ test.describe('Game mechanics — UI', () => {
         await page.goto(`${BASE}/game.html?room=${room.id}`);
         await page.waitForLoadState('domcontentloaded');
 
-        await expect(page.locator('.turn-warning.danger')).toContainText('Raise $73 more to pay it and roll again', { timeout: 5000 });
+        await expect(page.locator('.turn-warning.danger')).toContainText('You owe Bob $173 and are $73 short. Raise it to roll again', { timeout: 5000 });
         await expect(page.locator('.turn-dock [data-game-action="roll-dice"]')).toBeDisabled();
         const endTurn = page.locator('.action-btn-end-turn');
         await expect(endTurn).toHaveText('Declare Bankruptcy');
@@ -621,7 +621,7 @@ test.describe('Game mechanics — UI', () => {
         await page.goto(`${BASE}/game.html?room=${room.id}`);
         await page.waitForLoadState('domcontentloaded');
 
-        await expect(page.locator('.turn-warning.danger')).toContainText('$173 unpaid to Bob. Raise $163 more', { timeout: 5000 });
+        await expect(page.locator('.turn-warning.danger')).toContainText('You owe Bob $173 and are $163 short', { timeout: 5000 });
         await expect(page.locator('.action-btn-end-turn')).toHaveText('Declare Bankruptcy');
     });
 
@@ -683,7 +683,7 @@ test.describe('Game mechanics — UI', () => {
         await page.goto(`${BASE}/game.html?room=${room.id}`);
         await page.waitForLoadState('domcontentloaded');
 
-        await expect(page.locator('.turn-warning.danger')).toContainText('unpaid to Bob', { timeout: 5000 });
+        await expect(page.locator('.turn-warning.danger')).toContainText('You owe Bob $30', { timeout: 5000 });
         await expect(page.locator('.action-btn-end-turn')).toHaveText('Declare Bankruptcy');
 
         await Promise.all([
@@ -693,10 +693,10 @@ test.describe('Game mechanics — UI', () => {
 
         const liquidationModal = page.locator('#liquidationModal');
         await expect(liquidationModal).toBeVisible({ timeout: 5000 });
-        await expect(liquidationModal).toContainText('Alice Bankruptcy Summary');
-        await expect(liquidationModal).toContainText('owing Bob');
+        await expect(liquidationModal).toContainText('Alice is bankrupt');
+        await expect(liquidationModal).toContainText("Alice couldn't pay Bob");
         await expect(liquidationModal).toContainText('Mediterranean Ave to Bob');
-        await expect(liquidationModal).toContainText('Personal debts cleared');
+        await expect(liquidationModal).toContainText(/Loans\s*Cleared/);
         await liquidationModal.locator('button', { hasText: 'OK' }).click();
         await expect(liquidationModal).toBeHidden();
 

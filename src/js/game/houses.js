@@ -75,7 +75,7 @@ function openHouseModal(corpId = null) {
                     <div>
                         <span class="house-swatch" style="background:${escapeHtml(PROP_COLORS[prop.color])}"></span>
                         <strong>${escapeHtml(prop.name)}</strong>
-                        <small>${formatMoney(costPer)} per improvement</small>
+                        <small>${formatMoney(costPer)} each</small>
                     </div>
                     <div class="house-count-control">
                         <button data-game-action="adjust-house" data-property-id="${escapeHtml(prop.id)}" data-delta="-1" ${delta <= 0 ? 'disabled' : ''}>−</button>
@@ -86,9 +86,16 @@ function openHouseModal(corpId = null) {
         }).join('');
 
         document.getElementById('houseModalProperties').innerHTML = rowsHtml;
-        document.getElementById('houseModalTotal').textContent = corp
-            ? `Total cost ${formatMoney(totalCost)}, from the ${corp.ticker} treasury. It has ${formatMoney(cash)}.`
-            : `Total cost ${formatMoney(totalCost)}. You have ${formatMoney(cash)}.`;
+        // The button carries the cost and what is left; the line below says only
+        // whose cash pays, or by how much it falls short.
+        const left = cash - totalCost;
+        const button = document.getElementById('confirm-house-purchase-btn');
+        button.textContent = totalCost > 0 ? `Build for ${formatMoney(totalCost)} · ${formatMoney(left)} left` : 'Build';
+        button.disabled = totalCost <= 0 || left < 0;
+        const payer = corp ? `the ${corp.ticker} treasury` : 'you';
+        document.getElementById('houseModalTotal').textContent = left < 0
+            ? `${corp ? `The ${corp.ticker} treasury has` : 'You have'} ${formatMoney(cash)}, ${formatMoney(-left)} short.`
+            : (corp ? `Paid from ${payer}.` : '');
     }
 
     houseModalRender = renderHouseModal;

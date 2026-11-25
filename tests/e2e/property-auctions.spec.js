@@ -59,7 +59,8 @@ test.describe('Property auctions', () => {
         await alicePage.locator('.action-btn-buy').click();
         await alicePage.getByRole('button', { name: 'Start Auction' }).click();
         await expect(alicePage.locator('#auctionPanel')).toContainText('Mediterranean Avenue', { timeout: 5000 });
-        await expect(alicePage.locator('.action-btn-end-turn')).toHaveText('Resolve Auction');
+        // The dock would hold only a disabled button, so it steps aside for Bid and Pass.
+        await expect(alicePage.locator('.turn-dock')).toHaveCount(0);
 
         const bobPage = await browser.newPage();
         await loginPage(bobPage, setup.guest.token);
@@ -68,11 +69,11 @@ test.describe('Property auctions', () => {
         await expect(bobPage.locator('#auctionPanel')).toContainText('No bids yet', { timeout: 5000 });
         await bobPage.locator('#auctionBidAmount').fill('70');
         await bobPage.getByRole('button', { name: /^Bid$/ }).click();
-        await expect(bobPage.locator('#auctionPanel')).toContainText('You are the current high bidder', { timeout: 5000 });
+        await expect(bobPage.locator('#auctionPanel')).toContainText('You lead at $70', { timeout: 5000 });
 
         await alicePage.reload();
         await alicePage.waitForLoadState('domcontentloaded');
-        await expect(alicePage.locator('#auctionPanel')).toContainText('High bid: $70.00 by Bob', { timeout: 5000 });
+        await expect(alicePage.locator('#auctionPanel')).toContainText('Bob leads at $70', { timeout: 5000 });
         await alicePage.getByRole('button', { name: /^Pass$/ }).click();
         await expect(alicePage.locator('#auctionPanel')).toHaveCount(0, { timeout: 5000 });
 
@@ -94,7 +95,7 @@ test.describe('Property auctions', () => {
         await page.locator('.action-btn-buy').click();
         await page.getByRole('button', { name: 'Start Auction' }).click();
         await expect(page.locator('#auctionPanel')).toContainText('Mediterranean Avenue', { timeout: 5000 });
-        await expect(page.locator('#auctionPanel')).toContainText('Timeout if idle', { timeout: 5000 });
+        await expect(page.locator('#auctionPanel')).toContainText('Closes in', { timeout: 5000 });
 
         page.once('dialog', dialog => dialog.accept());
         await page.getByRole('button', { name: 'Cancel Auction' }).click();

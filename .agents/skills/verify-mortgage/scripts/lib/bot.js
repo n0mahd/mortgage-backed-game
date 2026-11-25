@@ -146,7 +146,7 @@ class Autoplay {
 
     async closeModals(seat) {
         if (!seat.human) await declineStrayRejoin(this.ctx, seat);
-        const open = seat.page.locator('.modal.active [data-close-modal]');
+        const open = seat.page.locator('.modal.active:not(#winnerModal) [data-close-modal]');
         try {
             const n = await open.count();
             for (let i = 0; i < n; i++) if (await open.nth(i).isVisible()) await open.nth(i).click();
@@ -614,18 +614,24 @@ class Autoplay {
             const button = plus.nth(i % n);
             if (await button.isEnabled()) await button.click();
         }
-        // Step back down until the modal's own total fits the cash, keeping $50 spare.
+        // Step back down until the modal's own total ("Build for $X · $Y left") fits the cash, keeping $50 spare.
         const minus = modal.locator('[data-game-action="adjust-house"][data-delta="-1"]');
+        const confirm = modal.locator('#confirm-house-purchase-btn');
         for (let i = 0; i < n * 5; i++) {
-            const total = await modal.locator('#houseModalTotal').innerText().catch(() => '');
-            const cost = Number((/Total cost: \$([\d.]+)/.exec(total) || [])[1] || 0);
+            const total = await confirm.innerText().catch(() => '');
+            const cost = Number(((/Build for \$([\d,.]+)/.exec(total) || [])[1] || '0').replace(/,/g, ''));
             if (cost <= cash - 50) break;
             const enabled = [];
             for (let j = 0; j < n; j++) if (await minus.nth(j).isEnabled()) enabled.push(j);
             if (!enabled.length) break;
             await minus.nth(enabled[enabled.length - 1]).click();
         }
-        await this.act(seat, opts.label || 'buy houses', () => modal.locator('#confirm-house-purchase-btn').click(), { allowRejection: true });
+        // Build stays disabled with nothing chosen or more than the builder has.
+        if (!await confirm.isEnabled()) {
+            await this.closeModals(seat);
+            return;
+        }
+        await this.act(seat, opts.label || 'buy houses', () => confirm.click(), { allowRejection: true });
         await this.closeModals(seat);
     }
 

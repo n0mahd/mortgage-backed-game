@@ -1,5 +1,5 @@
 // What things are worth: player net worth, property and LLC (corporation) values,
-// debt totals, cash flow this turn, and listed shares. Display numbers only; the
+// debt totals and listed shares. Display numbers only; the
 // server decides real outcomes. Part of the game page; reads game.js's currentGame.
 
 function getPlayerNetWorth(player) {
@@ -82,15 +82,6 @@ function getCorporationShareValue(corp) {
     const totalShares = Number(corp.totalShares || 0);
     if (totalShares <= 0) return 0;
     return Math.max(0, getCorporationNetAssetValue(corp)) / totalShares;
-}
-
-function getEntityCashFlow(entityId) {
-    const flow = currentGame?.game_state?.turnCashFlow?.[entityId] || {};
-    return {
-        paid: Number(flow.paid || 0),
-        received: Number(flow.received || 0),
-        receivedBetweenTurns: Number(flow.receivedBetweenTurns || 0),
-    };
 }
 
 function ownershipPercent(sharesOwned, totalShares) {

@@ -171,14 +171,12 @@ function renderOwnedProperties(player, ownedProperties) {
 function renderPlayerCard(player, isCurrentUser) {
     const ownedProperties = getOwnedPropertyDetails(player);
     const netWorth = getPlayerNetWorth(player);
-    const cashFlow = getEntityCashFlow(player.userId);
     const bankruptBadge = player.bankrupt ? '<span class="badge badge-danger">Bankrupt</span>' : '';
     const jailBadge = player.inJail && !player.bankrupt ? '<span class="badge badge-gold">In Jail</span>' : '';
-    const jailCardBadge = player.hasGetOutOfJailCard ? '<span class="badge badge-gold">Get Out of Jail Free card</span>' : '';
+    const jailCardBadge = player.hasGetOutOfJailCard ? '<span class="badge badge-gold">Jail card</span>' : '';
     const gameState = currentGame?.game_state;
     const isTurnPlayer = gameState && gameState.players[gameState.currentPlayerIndex]?.userId === player.userId;
     const cardClass = [player.bankrupt ? 'bankrupt' : '', isTurnPlayer ? 'is-turn-player' : ''].join(' ').trim();
-    const hasCashFlow = cashFlow.paid || cashFlow.received || cashFlow.receivedBetweenTurns;
 
     const cardDetails = `
         <div class="player-stats">
@@ -195,13 +193,6 @@ function renderPlayerCard(player, isCurrentUser) {
                 <span class="stat-value">${formatMoney(Math.round(netWorth))}</span>
             </div>
         </div>
-        ${hasCashFlow ? `
-            <div class="cash-flow-summary">
-                <div><span>Paid this turn</span><strong>${formatMoney(cashFlow.paid)}</strong></div>
-                <div><span>Received this turn</span><strong>${formatMoney(cashFlow.received)}</strong></div>
-                <div><span>Received between turns</span><strong>${formatMoney(cashFlow.receivedBetweenTurns)}</strong></div>
-            </div>
-        ` : ''}
         ${ownedProperties.length > 0 ? renderOwnedProperties(player, ownedProperties) : ''}
         ${player.corporations.length > 0 ? `
             <div class="player-corporations">

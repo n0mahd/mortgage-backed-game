@@ -23,6 +23,7 @@
         'end-turn': () => global.endTurn(),
         'host-pause': () => global.hostPauseGame(),
         'host-end': () => global.hostEndGame(),
+        'show-final-standings': () => global.showFinalStandings(),
         'host-resume': () => global.hostResumeGame(),
         'buy-shares': button => global.buyShares(button.dataset.corpId),
         'offer-property-for-shares': button => global.offerPropertyForShares(button.dataset.corpId),

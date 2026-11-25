@@ -204,7 +204,7 @@ test.describe('Player feedback 2026-10-20', () => {
         const { room, users } = await setupGame(request, { overrides: { Alice: { hasGetOutOfJailCard: true } } });
         const alice = await openGame(browser, room, users.Alice, { mobile: false });
         const bob = await openGame(browser, room, users.Bob, { mobile: false });
-        await expect(alice.page.locator('.player-card.current-user')).toContainText('Get Out of Jail Free card');
+        await expect(alice.page.locator('.player-card.current-user')).toContainText('Jail card');
 
         await alice.page.click('.nav-tab[data-section="market"]');
         await alice.page.selectOption('#player1Select', users.Alice.user.id);
@@ -220,10 +220,10 @@ test.describe('Player feedback 2026-10-20', () => {
         await bob.page.click('[data-game-action="accept-trade-offer"]');
 
         await bob.page.click('.nav-tab[data-section="game"]');
-        await expect(bob.page.locator('.player-card.current-user')).toContainText('Get Out of Jail Free card');
+        await expect(bob.page.locator('.player-card.current-user')).toContainText('Jail card');
         await expect(bob.page.locator('.player-card.current-user')).toContainText('$1,440');
         await alice.page.click('.nav-tab[data-section="game"]');
-        await expect(alice.page.locator('.player-card.current-user')).not.toContainText('Get Out of Jail Free card');
+        await expect(alice.page.locator('.player-card.current-user')).not.toContainText('Jail card');
         await expect(alice.page.locator('.player-card.current-user')).toContainText('$1,560');
         await alice.context.close();
         await bob.context.close();

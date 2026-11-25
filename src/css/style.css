@@ -1354,8 +1354,7 @@ input[type="radio"] {
     box-shadow: inset 4px 0 0 var(--gold-bright);
 }
 
-.card-effect-summary span,
-.pause-label {
+.card-effect-summary span {
     display: block;
     font-size: var(--text-caption);
     font-weight: 650;
@@ -1365,7 +1364,6 @@ input[type="radio"] {
 .card-effect-summary strong,
 .pause-panel strong {
     display: block;
-    margin-top: 2px;
     font-size: var(--text-body);
     font-weight: 650;
     color: var(--ink);
@@ -1426,8 +1424,7 @@ input[type="radio"] {
 .cash-since-head h3 { font-size: var(--text-sub); font-weight: 650; }
 .cash-since-net { font-size: var(--text-title3); font-weight: 700; white-space: nowrap; }
 
-.cash-since-totals,
-.cash-since-empty {
+.cash-since-totals {
     font-size: var(--text-footnote);
     color: var(--ink-3);
     margin-top: 2px;
@@ -1507,10 +1504,20 @@ input[type="radio"] {
     font-variant-numeric: lining-nums proportional-nums;
 }
 
+/* "No bids yet" is a state, not a number */
+.auction-header > strong.is-empty {
+    font-family: var(--font-ui);
+    font-size: var(--text-body);
+    font-weight: 600;
+    color: var(--ink-2);
+}
+
 .auction-panel > p {
     font-size: var(--text-footnote);
     color: var(--ink-2);
 }
+
+.auction-expiry { margin-top: var(--s2); }
 
 .auction-note {
     margin-top: var(--s1);
@@ -1531,7 +1538,6 @@ input[type="radio"] {
     font-variant-numeric: lining-nums proportional-nums;
 }
 
-.auction-host-actions { margin-top: var(--s2); }
 
 /* ── 11. Game: action dock and moves ───────────────────────────── */
 
@@ -1634,14 +1640,9 @@ input[type="radio"] {
 }
 
 .host-panel h3 {
+    margin-bottom: var(--s3);
     font-size: var(--text-sub);
     font-weight: 650;
-}
-
-.host-panel p {
-    margin: 2px 0 var(--s3);
-    font-size: var(--text-footnote);
-    color: var(--ink-3);
 }
 
 .host-panel .host-actions {
@@ -1711,23 +1712,6 @@ input[type="radio"] {
     font-weight: 700;
     color: var(--ink);
     white-space: nowrap;
-}
-
-.cash-flow-summary {
-    display: flex;
-    flex-wrap: wrap;
-    gap: var(--s1) var(--s4);
-    padding: var(--s3) var(--s4) 0;
-    font-size: var(--text-caption);
-    color: var(--ink-3);
-}
-
-.cash-flow-summary div { display: flex; gap: 4px; }
-
-.cash-flow-summary strong {
-    font-weight: 650;
-    color: var(--ink-2);
-    font-variant-numeric: tabular-nums;
 }
 
 .player-section-heading {
@@ -3557,6 +3541,10 @@ button.policy-option:active:not(:disabled) { background: var(--mint-wash); }
 }
 
 .winner-hero p { color: var(--ink-2) !important; margin-top: var(--s2); }
+
+/* Game tab after the game ends: reopens the standings */
+.game-over-actions { margin-top: var(--s3); }
+.game-over-actions .btn { width: 100%; }
 
 #finalStandings {
     border-radius: var(--r-group);

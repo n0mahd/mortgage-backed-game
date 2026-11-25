@@ -7,6 +7,7 @@ async function openBuyPropertyModal() {
     const gameState = currentGame.game_state;
     const position = currentPlayerData.position || 0;
     const square = BOARD_SQUARES[position];
+    document.getElementById('buyPropertyHint').textContent = '';
 
     if (!square || square.propertyId === null) {
         selectedPropertyId = null;
@@ -35,8 +36,13 @@ async function openBuyPropertyModal() {
     `;
 
     selectedPropertyId = property.id;
-    document.getElementById('purchasePriceDisplay').textContent = `$${Number(property.price).toFixed(2)}`;
     document.getElementById('availableProperties').innerHTML = propertiesHtml;
+    // With companies to buy for, "Who's buying?" shows each buyer's cash after.
+    const cash = Number(currentPlayerData?.cash || 0);
+    const runsCompanies = ShareDeals.corporationsRunBy(gameState, currentUser.id).length > 0;
+    document.getElementById('buyPropertyHint').textContent = runsCompanies
+        ? 'Auction: everyone bids, the high bid wins.'
+        : `Buying leaves you ${formatMoney(cash - property.price)}. Auction: everyone bids, the high bid wins.`;
     renderBuyForChoices(property);
     openModal('buyPropertyModal');
 }
@@ -119,9 +125,10 @@ function closeBuyPropertyModal() {
 
 async function placeAuctionBid() {
     const input = document.getElementById('auctionBidAmount');
-    const amount = parseFloat(input?.value);
-    if (!amount || amount <= 0) {
-        alert('Enter a bid amount greater than $0.');
+    const amount = Number(input?.value);
+    // Bids are whole dollars, like every price on the board.
+    if (!Number.isInteger(amount) || amount <= 0) {
+        alert('Bid a whole number of dollars, above $0.');
         return;
     }
 

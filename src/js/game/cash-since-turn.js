@@ -169,34 +169,41 @@ function renderCashSinceNet(rows) {
     return `<strong class="cash-since-net money ${net < 0 ? 'is-out' : 'is-in'}">${formatSignedMoney(net)}</strong>`;
 }
 
-function renderCashSinceBody(rows, emptyText) {
-    if (!rows.length) return `<p class="cash-since-empty">${escapeHtml(emptyText)}</p>`;
+// Totals in and out only help once there are enough rows to add up.
+const CASH_SINCE_TOTALS_FROM = 4;
+
+function renderCashSinceBody(rows) {
     const totals = cashSinceTotals(rows);
     return `
-        <p class="cash-since-totals">In <span class="money">${formatMoney(totals.in)}</span> · Out <span class="money">${formatMoney(totals.out)}</span></p>
+        ${rows.length >= CASH_SINCE_TOTALS_FROM ? `<p class="cash-since-totals">In <span class="money">${formatMoney(totals.in)}</span> · Out <span class="money">${formatMoney(totals.out)}</span></p>` : ''}
         ${renderCashSinceList(rows)}`;
 }
 
 // The Game tab card: a collapsible details whose summary keeps the heading and
-// the net amount in view. Nothing for spectators or before the ledger exists.
+// the net amount in view. Nothing for spectators, before the ledger exists, or
+// while no money has moved. With nothing between turns, "This turn" is the heading.
 function renderCashSinceTurn(gameState, userId) {
     if (!userId || !Array.isArray(gameState.cashLedger)) return '';
     if (!gameState.players.some(player => player.userId === userId)) return '';
     const { window, between, thisTurn } = cashSinceRows(gameState, userId);
-    const heading = window.hadTurn ? (window.isMyTurn ? 'Since your last turn' : 'Since your turn ended') : 'Before your first turn';
-    const thisTurnGroup = window.isMyTurn && thisTurn.length ? `
+    const turnRows = window.isMyTurn ? thisTurn : [];
+    if (!between.length && !turnRows.length) return '';
+    const heading = !between.length ? 'This turn'
+        : (window.hadTurn ? (window.isMyTurn ? 'Since your last turn' : 'Since your turn ended') : 'Before your first turn');
+    const firstRows = between.length ? between : turnRows;
+    const thisTurnGroup = between.length && turnRows.length ? `
         <div class="cash-since-group">
-            <div class="cash-since-head"><h3>This turn</h3>${renderCashSinceNet(thisTurn)}</div>
-            ${renderCashSinceBody(thisTurn, '')}
+            <div class="cash-since-head"><h3>This turn</h3>${renderCashSinceNet(turnRows)}</div>
+            ${renderCashSinceBody(turnRows)}
         </div>` : '';
     return `
         <details class="cash-since"${cashSinceIsOpen() ? ' open' : ''}>
             <summary class="cash-since-summary">
                 <h3>${escapeHtml(heading)}</h3>
-                ${renderCashSinceNet(between)}
+                ${renderCashSinceNet(firstRows)}
                 <svg class="cash-since-chevron" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 8l5 5 5-5"/></svg>
             </summary>
-            <div class="cash-since-group cash-since-first">${renderCashSinceBody(between, 'No money in or out.')}</div>
+            <div class="cash-since-group cash-since-first">${renderCashSinceBody(firstRows)}</div>
             ${thisTurnGroup}
         </details>`;
 }

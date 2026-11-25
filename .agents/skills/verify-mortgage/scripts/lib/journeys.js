@@ -2107,7 +2107,7 @@ const JOURNEYS = [
             if (await j.visible(guest, '.host-panel')) j.fail('A non-host sees Host controls');
             j.say('pause');
             await j.click(host, '[data-game-action="host-pause"]');
-            await j.see(guest, '#pausePanel', 'Game Paused', { timeout: 8000 });
+            await j.see(guest, '#pausePanel', 'paused the game', { timeout: 8000 });
             if (await usable(button(guest, 'roll-dice')) || await usable(button(host, 'roll-dice'))) j.fail('Roll Dice is usable while paused');
             await j.shot(guest, 'paused-guest');
             await j.layout(guest, 'Game paused', [390]);
