@@ -102,12 +102,14 @@ Other docs: player rules in `documents/game-rules.md` and `README.md`, open deci
   `currentUser`, ...), startup, `resyncGame` (on rejoin, `visibilitychange`, `online` and a fallback
   poll), `performGameAction`/`submitGameAction` (one `actionId` across retries) and sheets. Feature
   code is in `src/js/game/`, loaded before it:
-  - `turn-panel.js`: turn ticket, landing summary, warnings, auction panel, `renderActionButtons`,
-    the moves grid and `renderHostPanel`.
+  - `turn-panel.js`: the turn ticket (off-turn strip, compact note, final standings), warnings,
+    auction panel, `renderActionButtons` (the dock), `renderMoveTools` (the row of move tools) and
+    `renderHostPanel`. `square-card.js`: the square in play as a title deed (rent ladder, or a stamp
+    with the rent paid or received for this landing, from `state.cashLedger`).
   - `purchase.js` (buying and auctions), `houses.js`, `debt.js` (the Debt sheet) and `debt-outlook.js` (its End Turn cards, before/after previews and limit sum, built on `TurnEndOutlook`), `corporations.js`
     (IPO and add-to-corporation sheets, the Corporations sheet: a list of every corporation, then one
     corporation's detail in tabs; chairman votes, buying treasury shares), `corporation-desk.js` (the chairman's tools: rent policy, dividends, Build houses and Borrow for buttons; property offers, whose cards `market.js` lists under Trade proposals),
-    `cash-since-turn.js` (the Game tab's "Since your last turn" card: your cash in and out between turns, from `state.cashLedger`),
+    `cash-since-turn.js` (the ticket's "Since your last turn" stub before you roll: the money in and out between your turns, from `state.cashLedger`),
     `market.js` (the Market's panes: trade form, payments, trade proposals and past transactions; share-deal summary),
     `mergers.js` (`Mergers`: the merge sheet opened from New trade, recalculated on every keystroke,
     the merger vote cards in Trade proposals and the value-flow chart; its numbers mirror
@@ -115,7 +117,7 @@ Other docs: player rules in `documents/game-rules.md` and `README.md`, open deci
     `rule-proposals.js` (`RuleProposals`: Market › Rule proposals, the house rules, the open vote, the
     proposal form, and the 📜 badge on the Market tab), `device-alerts.js` (another
     device, turn alerts, and the one-time turn alerts offer on the Game tab).
-  - `property-display.js` (player cards, property rows, colours), `valuation.js` (net worth and
+  - `property-display.js` (the players list with your deeds, deed lines, property colours and rent), `valuation.js` (net worth and
     company values), `log-format.js` (Recent events: wording, category icons, filters and turn headings).
   - Display mirrors of server rules, kept in step with the backend: `loans.js` (`LoanMath`: terms,
     quotes and status wording, mirroring `gameRulesInternal/loans.js`), `share-deals.js`

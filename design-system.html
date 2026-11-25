@@ -10,7 +10,7 @@
     <title>Design system — Mortgage Backed Monopoly</title>
     <link rel="preload" href="src/assets/fonts/besley-latin.woff2" as="font" type="font/woff2" crossorigin>
     <link rel="stylesheet" href="src/css/tokens.css?v=14">
-    <link rel="stylesheet" href="src/css/style.css?v=59">
+    <link rel="stylesheet" href="src/css/style.css?v=60">
     <style>
         /* Specimen-only layout */
         .spec-swatches { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: var(--s2); }
@@ -58,31 +58,56 @@
         </div>
 
         <div class="section-heading"><h3>Turn ticket</h3></div>
-        <section class="turn-ticket" style="--turn-color:#e74c3c">
+        <section class="turn-ticket is-mine" style="--turn-color:#e74c3c">
             <div class="ticket-top">
                 <span class="avatar" style="--token-color:#e74c3c" aria-hidden="true">AB</span>
-                <div class="ticket-heading">
-                    <h2 class="ticket-title">Your turn</h2>
-                    <span class="ticket-status">Rolled 7, now on Chance</span>
-                </div>
-                <span class="dice-pair" role="img" aria-label="Rolled 3 and 4, total 7"> <span class="die-face " aria-hidden="true"><i class=""></i><i class=""></i><i class="pip"></i><i class=""></i><i class="pip"></i><i class=""></i><i class="pip"></i><i class=""></i><i class=""></i></span><span class="die-face " aria-hidden="true"><i class="pip"></i><i class=""></i><i class="pip"></i><i class=""></i><i class=""></i><i class=""></i><i class="pip"></i><i class=""></i><i class="pip"></i></span> </span>
+                <div class="ticket-heading"><h2 class="ticket-title">Your turn</h2></div>
+                <span class="dice-pair" role="img" aria-label="Not rolled yet"><span class="die-face is-blank" aria-hidden="true"></span><span class="die-face is-blank" aria-hidden="true"></span></span>
             </div>
             <div class="ticket-money">
-                <div><span class="ticket-money-label">Your cash</span><strong class="ticket-cash">$1,212</strong></div>
+                <strong class="ticket-cash">$1,212</strong>
                 <div class="ticket-side">Net worth<strong>$2,940</strong></div>
             </div>
-            <div class="turn-checklist">
-                <div class="turn-step complete"><span>Roll</span></div>
-                <div class="turn-step current"><span>Resolve</span></div>
-                <div class="turn-step upcoming"><span>Actions</span></div>
-                <div class="turn-step upcoming"><span>End</span></div>
+            <div class="ticket-stub">
+                <span class="ticket-stub-caption">Since your last turn</span>
+                <div class="ticket-stub-row">
+                    <span class="ticket-stub-band" style="--stub-color:#8B4513" aria-hidden="true"></span>
+                    <span class="ticket-stub-copy"><strong>Rent from Bob</strong><span>Baltic Ave</span></span>
+                    <span class="ticket-stub-amount money is-in">+$8</span>
+                </div>
             </div>
+        </section>
+        <div class="turn-strip" style="--turn-color:#3498db">
+            <span class="avatar sm" style="--token-color:#3498db" aria-hidden="true">BO</span>
+            <strong class="turn-strip-title">Bob's turn</strong>
+        </div>
+        <section class="turn-ticket is-compact">
+            <div class="ticket-money">
+                <span class="avatar sm" style="--token-color:#e74c3c" aria-hidden="true">AB</span>
+                <strong class="ticket-cash">$1,212</strong>
+                <div class="ticket-side">Net worth<strong>$2,940</strong></div>
+            </div>
+        </section>
+        <section class="square-card" style="--square-color:#444444;--square-ink:#ffffff">
+            <div class="square-card-band"><div class="square-card-title"><strong>Reading Railroad</strong><span>Railroad · for sale</span></div></div>
+            <div class="square-card-body">
+                <div class="rent-ladder">
+                    <div class="rent-ladder-step is-lit"><span>1 RR</span><strong class="money">$25</strong></div>
+                    <div class="rent-ladder-step"><span>2 RR</span><strong class="money">$50</strong></div>
+                    <div class="rent-ladder-step"><span>3 RR</span><strong class="money">$100</strong></div>
+                    <div class="rent-ladder-step"><span>4 RR</span><strong class="money">$200</strong></div>
+                </div>
+            </div>
+        </section>
+        <section class="square-card" style="--square-color:#E74C3C;--square-ink:#ffffff">
+            <div class="square-card-band"><div class="square-card-title"><strong>Illinois Ave</strong><span>Bob's · 2 of 3 reds</span></div><span class="avatar sm" style="--token-color:#3498db" aria-hidden="true">BO</span></div>
+            <div class="square-card-body has-stamp"><span class="square-stamp is-out">−$20</span></div>
         </section>
         <div class="turn-dock spec-dock">
             <div class="dock-inner">
                 <div class="dock-row">
-                    <button class="btn btn-secondary action-btn-end-turn">End Turn</button>
-                    <button class="btn btn-success">Buy for $200</button>
+                    <button class="btn btn-secondary">Auction</button>
+                    <button class="btn btn-primary">Buy $200</button>
                 </div>
             </div>
         </div>
@@ -98,20 +123,18 @@
         </div>
 
         <div class="section-heading"><h3>Moves</h3></div>
-        <div class="moves-grid">
-            <button class="btn btn-success btn-sm is-featured">Build Houses<small>You own a full set</small></button>
-            <button class="btn btn-secondary btn-sm">Create IPO<small>Take properties public</small></button>
-        </div>
+        <nav class="moves move-tools" aria-label="Moves">
+            <button type="button" class="move-tool is-featured" aria-label="Build houses"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 11l8-6 8 6v8H4z"/><path d="M10 19v-5h4v5"/></svg><span aria-hidden="true">Build</span></button>
+            <button type="button" class="move-tool" aria-label="Trade"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 8h13l-3.5-3.5M20 16H7l3.5 3.5"/></svg><span aria-hidden="true">Trade</span><span class="move-tool-count">1</span></button>
+            <button type="button" class="move-tool" aria-label="Borrow"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="6" width="18" height="12" rx="2"/><circle cx="12" cy="12" r="2.5"/></svg><span aria-hidden="true">Borrow</span></button>
+            <button type="button" class="move-tool" aria-label="Create IPO"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 19V5M4 19h16"/><path d="M7 15l4-4 3 3 5-6"/></svg><span aria-hidden="true">IPO</span></button>
+            <button type="button" class="move-tool" aria-label="Corporations"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="3" width="14" height="18" rx="1"/><path d="M9 7h2M13 7h2M9 11h2M13 11h2M10 21v-4h4v4"/></svg><span aria-hidden="true">Corps</span></button>
+        </nav>
 
         <div class="section-heading"><h3>Context cards</h3></div>
         <div class="turn-context">
-            <div class="landing-summary can-buy" style="--square-color:#F97C2A">
-                <span class="landing-deed"></span>
-                <div class="landing-copy"><span class="landing-label">You are on</span><strong>New York Ave</strong><p>Unowned property. Buy it or send it to auction.</p></div>
-                <span class="landing-price">$200</span>
-            </div>
-            <div class="card-effect-summary"><span>Chance</span><strong>Bank error in your favor</strong><p>Applied: received $200.</p></div>
-            <div class="turn-warning danger">You are $40 below zero. Recover before ending your turn or End Turn will declare bankruptcy.</div>
+            <div class="card-effect-summary"><span>Chance</span><strong>Bank error in your favor</strong><p>Received $200</p></div>
+            <div class="turn-warning danger">You're $40 below zero. Borrow, sell or trade to raise it, or End Turn makes you bankrupt.</div>
         </div>
 
         <div class="section-heading"><h3>Segmented control</h3></div>
@@ -122,23 +145,17 @@
             <button type="button" class="segmented-option" role="tab" aria-selected="false">Past transactions</button>
         </div>
 
-        <div class="section-heading"><h3>Deeds and badges</h3></div>
-        <div class="player-card">
-            <div class="player-header">
-                <span class="avatar" style="--token-color:#3498db">SA</span>
-                <h3>Sara</h3>
-                <span class="badge">You</span><span class="badge badge-gold">Get Out of Jail Free card</span><span class="badge badge-danger">Bankrupt</span>
+        <div class="section-heading"><h3>Players and deeds</h3></div>
+        <div class="group seat-list">
+            <div class="seat is-me is-open">
+                <div class="seat-row"><span class="avatar sm" style="--token-color:#e74c3c">AB</span><span class="seat-name">Your deeds</span><span class="seat-swatches"><i style="--property-color:#E74C3C"></i><i style="--property-color:#E74C3C"></i></span></div>
+                <ul class="seat-deeds">
+                    <li class="deed-line" style="--property-color:#E74C3C"><span class="deed-line-name">Kentucky Ave</span><span class="development-icons"><span class="house-pip"></span><span class="house-pip"></span></span><span class="badge badge-gold">Set</span><span class="deed-line-rent">$250</span></li>
+                    <li class="deed-line" style="--property-color:#87CEEB"><span class="deed-line-name">Oriental Ave</span><span class="deed-line-set">1/3</span><span class="deed-line-rent">$6</span></li>
+                </ul>
             </div>
-            <div class="player-section-heading"><h4>Properties</h4><span>2 owned, worth $440</span></div>
-            <div class="owned-property-list">
-                <div class="owned-property-row" style="--property-color:#E74C3C">
-                    <div class="owned-property-copy">
-                        <div class="owned-property-title"><strong>Kentucky Avenue</strong></div>
-                        <div class="owned-property-meta"><span>Red street</span><span>Value $220</span></div>
-                        <div class="owned-property-chips"><span class="owned-property-chip set-chip complete">Monopoly</span><span class="owned-property-chip"><span class="development-icons"><span class="house-pip"></span><span class="house-pip"></span></span>2 houses</span><span class="owned-property-chip rent-chip">Rent $90</span></div>
-                    </div>
-                </div>
-            </div>
+            <div class="seat is-turn"><div class="seat-row"><span class="avatar sm" style="--token-color:#3498db">BO</span><span class="seat-name">Bob</span><span class="badge badge-gold">In Jail</span><span class="seat-swatches"><i style="--property-color:#444444"></i></span><span class="seat-cash money">$1,212</span></div></div>
+            <div class="seat is-out"><div class="seat-row"><span class="avatar sm" style="--token-color:#2ecc71">CA</span><span class="seat-name">Cara</span><span class="badge badge-danger">Bankrupt</span><span class="seat-swatches"></span><span class="seat-cash money">$0</span></div></div>
         </div>
 
         <div class="section-heading"><h3>Sheet</h3></div>

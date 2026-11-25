@@ -851,6 +851,8 @@ input[type="radio"] {
     box-shadow: inset 0 0 0 2px rgba(255, 255, 255, 0.35);
 }
 
+.avatar.sm { width: 28px; height: 28px; font-size: 0.6875rem; }
+
 /* ── 7. Sheets (modals) ────────────────────────────────────────── */
 
 .modal {
@@ -947,9 +949,13 @@ input[type="radio"] {
     padding-bottom: calc(var(--tabbar-h) + var(--safe-bottom) + var(--s6));
 }
 
-/* Reserve space for the action dock on your turn */
+/* Reserve space for the action dock on your turn (two rows in jail or when buying after doubles) */
 .game-page.is-my-turn .container {
     padding-bottom: calc(var(--tabbar-h) + var(--safe-bottom) + 96px);
+}
+
+.game-page.is-my-turn.has-double-dock .container {
+    padding-bottom: calc(var(--tabbar-h) + var(--safe-bottom) + 158px);
 }
 
 .section { display: none; }
@@ -1113,7 +1119,14 @@ input[type="radio"] {
     box-shadow: 0 0 0 2px var(--forest), 0 0 0 4px var(--turn-color);
 }
 
-.ticket-heading { flex: 1; min-width: 0; }
+.ticket-heading {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: var(--s2);
+}
 
 .game-header h2,
 .ticket-title {
@@ -1124,25 +1137,24 @@ input[type="radio"] {
     color: var(--on-dark);
 }
 
-.ticket-status {
-    display: block;
-    margin-top: 2px;
-    font-size: var(--text-footnote);
-    color: var(--mint);
+/* Jail: three turns to roll doubles, the used ones filled */
+.jail-tries { display: inline-flex; gap: 4px; }
+
+.jail-tries i {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    border: 1.5px solid var(--mint);
 }
+
+.jail-tries i.is-used { background: var(--mint); }
 
 .ticket-money {
     display: flex;
     align-items: flex-end;
     justify-content: space-between;
     gap: var(--s3);
-    margin-top: var(--s4);
-}
-
-.ticket-money-label {
-    display: block;
-    font-size: var(--text-caption);
-    color: color-mix(in srgb, var(--mint-wash) 75%, transparent);
+    margin-top: var(--s3);
 }
 
 .ticket-cash {
@@ -1173,42 +1185,169 @@ input[type="radio"] {
     font-variant-numeric: lining-nums proportional-nums;
 }
 
-/* Turn progress rail */
-.turn-checklist {
-    display: grid;
-    grid-template-columns: repeat(4, 1fr);
-    gap: 4px;
-    margin-top: var(--s4);
-}
+/* Off your turn: your cash on a compact note, under the strip for whose turn it is */
+.turn-ticket.is-compact { padding: var(--s3) var(--s4); }
+.turn-ticket.is-compact .ticket-money { margin-top: 0; align-items: center; }
+.turn-ticket.is-compact .ticket-cash { flex: 1; min-width: 0; font-size: var(--text-title1); }
 
-.turn-step {
+.turn-strip {
+    --turn-color: var(--emerald);
     display: flex;
-    flex-direction: column;
-    gap: 6px;
+    align-items: center;
+    gap: var(--s3);
+    margin-top: var(--s2);
+    padding: var(--s2) var(--s3) var(--s2) var(--s4);
+    border-radius: var(--r-group);
+    background: var(--note);
+    border: 1px solid var(--rule);
+    box-shadow: inset 4px 0 0 var(--turn-color);
+}
+
+.turn-strip + .turn-ticket { margin-top: var(--s2); }
+.turn-strip.is-paused { opacity: 0.7; }
+
+.turn-strip-title {
+    flex: 1;
     min-width: 0;
+    font-family: var(--font-money);
+    font-size: var(--text-title3);
+    font-weight: 700;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
-.turn-step::before {
-    content: '';
-    height: 4px;
-    border-radius: 2px;
-    background: color-mix(in srgb, var(--mint-wash) 22%, transparent);
+.turn-strip .die-face {
+    width: 26px;
+    height: 26px;
+    padding: 4px;
+    border-radius: 6px;
+    box-shadow: inset 0 0 0 1px var(--rule-strong);
 }
 
-.turn-step.complete::before { background: var(--mint); }
-.turn-step.current::before { background: var(--gold-bright); }
+.turn-strip .die-face i.pip { width: 4px; height: 4px; }
 
-.turn-step span {
+/* The stub: a tear-off strip at the foot of the note for what came in since your last turn */
+.ticket-stub {
+    display: block;
+    margin: var(--s3) calc(var(--s4) * -1) calc(var(--s3) * -1);
+    padding: var(--s3) var(--s4);
+    border-top: 1.5px dashed color-mix(in srgb, var(--mint) 40%, transparent);
+    background: rgba(0, 0, 0, 0.16);
+}
+
+.ticket-stub-caption {
+    flex-basis: 100%;
+    display: block;
     font-size: var(--text-caption);
-    font-weight: 650;
-    color: color-mix(in srgb, var(--mint-wash) 60%, transparent);
+    color: color-mix(in srgb, var(--mint-wash) 70%, transparent);
 }
 
-.turn-step.current span,
-.turn-step.complete span { color: var(--on-dark); }
+.ticket-stub-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    column-gap: var(--s3);
+    row-gap: 4px;
+}
 
-.turn-step strong {
-    display: none;
+summary.ticket-stub-row { list-style: none; cursor: pointer; }
+summary.ticket-stub-row::-webkit-details-marker { display: none; }
+
+.ticket-stub-band {
+    --stub-color: var(--mint);
+    width: 6px;
+    align-self: stretch;
+    min-height: 32px;
+    border-radius: 3px;
+    background: var(--stub-color);
+}
+
+.ticket-stub-copy { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.ticket-stub-copy strong { font-size: var(--text-body); font-weight: 650; overflow-wrap: anywhere; }
+.ticket-stub-copy span { font-size: var(--text-footnote); color: var(--mint); overflow-wrap: anywhere; }
+
+.ticket-stub-amount {
+    font-size: var(--text-title2);
+    font-weight: 800;
+    white-space: nowrap;
+}
+
+.ticket-stub-amount.is-in { color: var(--mint); }
+.ticket-stub-amount.is-out { color: #FFB4A8; }
+
+.ticket-stub-chevron {
+    width: 20px;
+    height: 20px;
+    color: var(--mint);
+    transition: transform var(--dur) var(--ease-out);
+}
+
+.ticket-stub[open] .ticket-stub-chevron { transform: rotate(180deg); }
+
+.ticket-stub-list {
+    list-style: none;
+    margin: var(--s2) 0 0;
+    padding: 0;
+}
+
+.ticket-stub-list .ticket-stub-row {
+    padding: var(--s2) 0;
+    border-top: 1px solid color-mix(in srgb, var(--mint) 18%, transparent);
+}
+
+.ticket-stub-list .ticket-stub-copy strong { font-size: var(--text-sub); }
+.ticket-stub-list .ticket-stub-amount { font-size: var(--text-body); }
+
+/* Game over: the standings on the note */
+.ticket-standings {
+    list-style: none;
+    margin: var(--s3) 0 0;
+    padding: 0;
+}
+
+.ticket-standing {
+    display: flex;
+    align-items: center;
+    gap: var(--s3);
+    padding: var(--s2) 0;
+    border-top: 1px solid color-mix(in srgb, var(--mint) 18%, transparent);
+}
+
+.ticket-standing:first-child { border-top: 0; }
+
+.ticket-rank {
+    width: 1.4em;
+    font-family: var(--font-money);
+    font-weight: 700;
+    color: var(--mint);
+}
+
+.ticket-standing-name {
+    flex: 1;
+    min-width: 0;
+    font-weight: 650;
+    overflow-wrap: anywhere;
+}
+
+.ticket-standing-worth {
+    font-family: var(--font-money);
+    font-size: var(--text-title3);
+    font-weight: 700;
+    font-variant-numeric: lining-nums proportional-nums;
+    white-space: nowrap;
+}
+
+.ticket-standing.is-winner .ticket-rank,
+.ticket-standing.is-winner .ticket-standing-worth { color: var(--gold-bright); }
+
+.ticket-standing.is-out { opacity: 0.55; }
+.ticket-standing.is-out .ticket-standing-name { text-decoration: line-through; }
+
+.ticket-standing.is-you .ticket-standing-name::after {
+    content: ' (you)';
+    font-weight: 500;
+    color: var(--mint);
 }
 
 /* CSS dice */
@@ -1265,10 +1404,10 @@ input[type="radio"] {
     .game-header h2,
     .ticket-title { font-size: var(--text-title3); }
     .ticket-cash { font-size: 2.25rem; }
-    .ticket-money { margin-top: var(--s3); }
+    .turn-ticket.is-compact .ticket-cash { font-size: var(--text-title2); }
     .die-face { width: 28px; height: 28px; padding: 4px; border-radius: 7px; }
     .die-face i.pip { width: 5px; height: 5px; }
-    .turn-checklist { margin-top: var(--s3); }
+    .ticket-stub { margin-left: calc(var(--s3) * -1); margin-right: calc(var(--s3) * -1); padding-left: var(--s3); padding-right: var(--s3); }
 }
 
 /* ── 10. Game: context cards under the ticket ──────────────────── */
@@ -1280,56 +1419,116 @@ input[type="radio"] {
     margin-top: var(--s3);
 }
 
-.landing-summary {
+.turn-context:empty { display: none; }
+
+/* The square in play, as a title deed: colour band, then rent ladder or a stamp */
+.square-card {
+    --square-color: var(--ink-3);
+    --square-ink: var(--on-dark);
+    margin-top: var(--s3);
+    border-radius: var(--r-group);
+    background: var(--note);
+    border: 1px solid var(--rule);
+    overflow: hidden;
+}
+
+.square-card-band {
     display: flex;
     align-items: center;
     gap: var(--s3);
     padding: var(--s3) var(--s4);
-    border-radius: var(--r-group);
-    background: var(--note);
-    border: 1px solid var(--rule);
+    background: var(--square-color);
+    color: var(--square-ink);
 }
 
-.landing-deed {
-    width: 6px;
-    align-self: stretch;
-    border-radius: 3px;
-    background: var(--square-color, var(--rule-strong));
-    flex-shrink: 0;
+.square-card.is-plain .square-card-band {
+    background: var(--paper-deep);
+    color: var(--ink);
 }
 
-.landing-copy { flex: 1; min-width: 0; }
-
-.landing-label {
-    display: block;
-    font-size: var(--text-caption);
-    color: var(--ink-3);
+.square-card-title {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
 }
 
-.landing-summary strong {
-    display: block;
-    font-size: var(--text-body);
-    font-weight: 650;
-}
-
-.landing-summary p {
-    font-size: var(--text-footnote);
-    color: var(--ink-2);
-    margin-top: 2px;
-}
-
-.landing-summary.can-buy {
-    border-color: var(--jade);
-    background: var(--mint-wash);
-}
-
-.landing-price {
+.square-card-title strong {
     font-family: var(--font-money);
     font-size: var(--text-title3);
     font-weight: 700;
-    color: var(--forest);
-    font-variant-numeric: lining-nums proportional-nums;
+    line-height: 1.15;
+    overflow-wrap: anywhere;
 }
+
+.square-card-title span { font-size: var(--text-caption); opacity: 0.9; }
+
+.square-card-band .avatar { box-shadow: 0 0 0 2px var(--on-dark); }
+
+.square-card-ticker {
+    padding: 2px 8px;
+    border-radius: var(--r-chip);
+    background: var(--note);
+    color: var(--forest);
+    font-family: var(--font-money);
+    font-size: var(--text-caption);
+    font-weight: 700;
+    letter-spacing: 0.06em;
+}
+
+.square-card-body { padding: var(--s3) var(--s4) var(--s4); }
+
+.square-card-body.has-stamp {
+    display: flex;
+    justify-content: center;
+    padding: var(--s4);
+}
+
+.rent-ladder {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: var(--s1);
+}
+
+.rent-ladder-step {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    min-width: 0;
+    padding: var(--s2) 2px;
+    border-radius: var(--r-control);
+    background: var(--paper);
+}
+
+.rent-ladder-step span {
+    font-size: var(--text-caption);
+    color: var(--ink-3);
+    white-space: nowrap;
+}
+
+.rent-ladder-step strong { font-size: var(--text-body); font-weight: 700; white-space: nowrap; }
+
+.rent-ladder-step.is-lit {
+    background: var(--mint-wash);
+    box-shadow: inset 0 0 0 1.5px var(--jade);
+}
+
+/* Rent paid or received for this landing, stamped across the deed */
+.square-stamp {
+    transform: rotate(-6deg);
+    padding: 4px 12px;
+    border: 2.5px solid currentColor;
+    border-radius: 8px;
+    font-family: var(--font-money);
+    font-size: var(--text-title1);
+    font-weight: 800;
+    font-variant-numeric: lining-nums proportional-nums;
+    line-height: 1.2;
+}
+
+.square-stamp.is-out { color: var(--danger); }
+.square-stamp.is-in { color: var(--emerald); }
+.square-stamp.is-neutral { color: var(--ink-2); }
 
 .turn-warning {
     padding: var(--s3) var(--s4);
@@ -1374,100 +1573,6 @@ input[type="radio"] {
     margin-top: 2px;
     font-size: var(--text-footnote);
     color: var(--ink-2);
-}
-
-/* Since your last turn: your cash in and out between turns, one row per payment (cash-since-turn.js) */
-.cash-since {
-    margin-top: var(--s3);
-    border-radius: var(--r-group);
-    background: var(--note);
-    border: 1px solid var(--rule);
-    overflow: hidden;
-}
-
-.cash-since-group { padding: var(--s3) var(--s4); }
-.cash-since-group + .cash-since-group { border-top: 1px solid var(--rule); }
-.cash-since-group.cash-since-first { padding-top: 0; }
-
-/* The summary row stays in view when the card is collapsed: heading, net, chevron */
-.cash-since-summary {
-    display: flex;
-    align-items: center;
-    gap: var(--s3);
-    min-height: 48px;
-    padding: var(--s2) var(--s4);
-    list-style: none;
-    cursor: pointer;
-}
-
-.cash-since-summary::-webkit-details-marker { display: none; }
-.cash-since-summary:active { background: var(--paper-deep); }
-.cash-since-summary h3 { flex: 1; min-width: 0; font-size: var(--text-sub); font-weight: 650; }
-
-.cash-since-chevron {
-    width: 20px;
-    height: 20px;
-    flex-shrink: 0;
-    color: var(--ink-3);
-    transition: transform var(--dur) var(--ease-out);
-}
-
-.cash-since[open] .cash-since-chevron { transform: rotate(180deg); }
-
-.cash-since-head {
-    display: flex;
-    align-items: baseline;
-    justify-content: space-between;
-    gap: var(--s3);
-}
-
-.cash-since-head h3 { font-size: var(--text-sub); font-weight: 650; }
-.cash-since-net { font-size: var(--text-title3); font-weight: 700; white-space: nowrap; }
-
-.cash-since-totals {
-    font-size: var(--text-footnote);
-    color: var(--ink-3);
-    margin-top: 2px;
-}
-
-.cash-since-list { list-style: none; margin: var(--s2) 0 0; padding: 0; }
-
-.cash-since-row {
-    display: flex;
-    align-items: center;
-    gap: var(--s3);
-    padding: var(--s2) 0;
-    border-top: 1px solid var(--rule);
-}
-
-.cash-since-icon {
-    flex: none;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 32px;
-    height: 32px;
-    border-radius: 50%;
-    background: var(--paper-deep);
-    font-size: var(--text-sub);
-}
-
-.cash-since-row.is-in .cash-since-icon { background: var(--mint-wash); }
-
-.cash-since-copy { flex: 1; min-width: 0; }
-.cash-since-copy strong { display: block; font-size: var(--text-sub); font-weight: 600; overflow-wrap: anywhere; }
-.cash-since-copy span { display: block; font-size: var(--text-footnote); color: var(--ink-2); overflow-wrap: anywhere; }
-
-.cash-since-amount { flex: none; font-weight: 700; white-space: nowrap; color: var(--ink-2); }
-.is-in.cash-since-net,
-.cash-since-row.is-in .cash-since-amount { color: var(--emerald); }
-
-.cash-since-more summary {
-    padding: var(--s2) 0 0;
-    font-size: var(--text-footnote);
-    font-weight: 600;
-    color: var(--emerald);
-    cursor: pointer;
 }
 
 /* Auction */
@@ -1573,28 +1678,85 @@ input[type="radio"] {
     min-width: 0;
 }
 
-/* Disabled end-turn shrinks to make room for the move you can make */
-.dock-row > .btn.action-btn-end-turn:disabled {
-    flex: 0 0 auto;
-    padding: 0 var(--s4);
-    font-size: var(--text-sub);
-}
-
-.dock-row > .btn.action-btn-end-turn:disabled:only-child {
-    flex: 1 1 0;
-    font-size: var(--text-body);
-}
-
-.dock-row-choices > .btn {
-    min-height: var(--tap);
-    font-size: var(--text-sub);
-}
+.dock-row > .btn-secondary,
+.dock-row > .btn-warning { flex: 0.7 1 0; }
+.dock-row > .btn:only-child { flex: 1 1 0; }
 
 .moves {
-    margin-top: var(--s2);
+    margin-top: var(--s3);
 }
 
-.action-btn-secondary-group,
+/* Moves: one row of icon tools, only the ones you can take now */
+.move-tools {
+    display: flex;
+    gap: var(--s2);
+}
+
+.move-tool {
+    position: relative;
+    flex: 1 1 0;
+    min-width: 0;
+    /* A fifth of the row at most, so one or two tools don't stretch across it */
+    max-width: calc((100% - 4 * var(--s2)) / 5);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 2px;
+    min-height: 56px;
+    padding: var(--s1) 2px;
+    border: 0;
+    border-radius: var(--r-control);
+    background: var(--note);
+    box-shadow: inset 0 0 0 1px var(--rule);
+    color: var(--forest);
+    font-size: var(--text-caption);
+    font-weight: 650;
+    cursor: pointer;
+}
+
+.move-tool > span {
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.move-tool svg {
+    width: 22px;
+    height: 22px;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 1.8;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+}
+
+.move-tool:active { background: var(--mint-wash); }
+
+.move-tool.is-featured {
+    background: var(--gold-wash);
+    box-shadow: inset 0 0 0 1.5px var(--gold-bright);
+    color: var(--gold-ink);
+}
+
+.move-tool.is-featured:active { background: var(--gold-wash); filter: brightness(0.96); }
+
+.move-tool .move-tool-count {
+    position: absolute;
+    top: 4px;
+    right: 4px;
+    min-width: 18px;
+    height: 18px;
+    padding: 0 5px;
+    border-radius: var(--r-chip);
+    background: var(--gold-bright);
+    color: var(--forest-deep);
+    font-size: 0.6875rem;
+    font-weight: 700;
+    line-height: 18px;
+}
+
 .moves-grid {
     display: grid;
     grid-template-columns: repeat(2, 1fr);
@@ -1654,105 +1816,96 @@ input[type="radio"] {
 
 /* ── 12. Game: players and portfolio ───────────────────────────── */
 
-.players-grid {
+/* One list: your deeds first, then each player's swatches and cash; a row opens to its deeds */
+.seat-list { margin-top: var(--s4); }
+
+.seat { border-top: 1px solid var(--rule); }
+.seat:first-child { border-top: 0; }
+
+.seat-row {
     display: flex;
-    flex-direction: column;
-    gap: var(--s2);
-}
-
-.player-card {
-    background: var(--note);
-    border: 1px solid var(--rule);
-    border-radius: var(--r-group);
-    overflow: hidden;
-}
-
-.player-card.current-user { border-color: var(--rule-strong); }
-
-.player-card.bankrupt { opacity: 0.7; }
-
-.player-header {
-    display: flex;
-    flex-wrap: wrap;
     align-items: center;
-    gap: var(--s2);
-    padding: var(--s4) var(--s4) 0;
+    gap: var(--s3);
+    width: 100%;
+    min-height: 52px;
+    padding: var(--s2) var(--s4);
+    border: 0;
+    background: none;
+    color: inherit;
+    font: inherit;
+    text-align: left;
 }
 
-.player-header h3 {
-    font-size: var(--text-body);
-    font-weight: 700;
-}
+button.seat-row { cursor: pointer; }
+button.seat-row:active { background: var(--paper-deep); }
 
-.player-stats {
-    display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    margin: var(--s3) var(--s4) 0;
-    border-radius: var(--r-control);
-    background: var(--paper);
-}
+.seat.is-turn > .seat-row { box-shadow: inset 4px 0 0 var(--jade); }
+.seat.is-out > .seat-row { opacity: 0.6; }
 
-.stat {
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
-    padding: var(--s3);
+.seat-name {
+    flex: 0 1 auto;
     min-width: 0;
-}
-
-.stat + .stat { box-shadow: inset 1px 0 0 var(--rule); }
-
-.stat-label {
-    font-size: var(--text-caption);
-    color: var(--ink-3);
-}
-
-.stat-value {
-    font-size: var(--text-title3);
-    font-weight: 700;
-    color: var(--ink);
+    font-size: var(--text-sub);
+    font-weight: 650;
+    overflow: hidden;
+    text-overflow: ellipsis;
     white-space: nowrap;
 }
 
-.player-section-heading {
+.seat-swatches {
+    flex: 1;
+    min-width: 0;
     display: flex;
-    align-items: baseline;
-    justify-content: space-between;
-    gap: var(--s3);
-    padding: var(--s5) var(--s4) var(--s2);
+    flex-wrap: wrap;
+    gap: 3px;
 }
 
-.player-section-heading h4,
-.player-corporations h4,
-.player-debts h4 {
-    font-size: var(--text-sub);
+.seat-swatches i {
+    width: 10px;
+    height: 10px;
+    border-radius: 2px;
+    background: var(--property-color, var(--rule-strong));
+}
+
+.seat-cash {
     font-weight: 700;
+    white-space: nowrap;
 }
 
-.player-section-heading span {
-    font-size: var(--text-caption);
+.seat-cash.is-negative { color: var(--danger); }
+
+.seat-chevron {
+    width: 20px;
+    height: 20px;
+    flex-shrink: 0;
     color: var(--ink-3);
+    transition: transform var(--dur) var(--ease-out);
 }
 
-/* Deed rows: color band on the left, like the top of a title deed */
-.owned-property-list {
-    display: flex;
-    flex-direction: column;
+.seat.is-open .seat-chevron { transform: rotate(180deg); }
+
+/* Deed lines: a colour band, the name, Set or n/3, the rent it charges now */
+.seat-deeds {
+    list-style: none;
+    margin: 0;
+    padding: 0;
     border-top: 1px solid var(--rule);
 }
 
-.owned-property-row {
+.deed-line {
     position: relative;
     display: flex;
-    align-items: flex-start;
-    gap: var(--s3);
-    padding: var(--s3) var(--s4) var(--s3) calc(var(--s4) + 6px);
-    border-bottom: 1px solid var(--rule);
+    align-items: center;
+    gap: var(--s2);
+    min-height: 40px;
+    padding: 0 var(--s4) 0 calc(var(--s4) + 6px);
+    border-top: 1px solid var(--rule);
+    font-size: var(--text-sub);
 }
 
-.owned-property-row:last-child { border-bottom: 0; }
+.deed-line:first-child { border-top: 0; }
 
-.owned-property-row::before {
+.deed-line::before {
     content: '';
     position: absolute;
     left: 0;
@@ -1762,65 +1915,27 @@ input[type="radio"] {
     background: var(--property-color, var(--rule-strong));
 }
 
-.owned-property-icon {
-    display: none;
+.deed-line-name {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
-.owned-property-icon.type-railroad,
-.owned-property-icon.type-utility {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 28px;
-    height: 28px;
-    flex-shrink: 0;
-    border-radius: var(--r-deed);
-    background: var(--paper-deep);
-    color: var(--ink-2);
-    font-size: 0.6875rem;
-    font-weight: 800;
-}
-
-.owned-property-copy { flex: 1; min-width: 0; }
-
-.owned-property-title strong {
-    font-size: var(--text-sub);
-    font-weight: 650;
-}
-
-.owned-property-meta {
-    display: flex;
-    gap: var(--s3);
-    margin-top: 1px;
+.deed-line-set {
     font-size: var(--text-caption);
+    font-weight: 600;
     color: var(--ink-3);
 }
 
-.owned-property-chips {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 6px;
-    margin-top: 6px;
-}
-
-.owned-property-chip {
-    display: inline-flex;
-    align-items: center;
-    gap: 5px;
-    padding: 2px 8px;
-    border-radius: var(--r-chip);
-    background: var(--paper);
+.deed-line-rent {
+    min-width: 2.5em;
+    font-weight: 650;
     color: var(--ink-2);
-    font-size: var(--text-caption);
-    font-weight: 600;
+    text-align: right;
+    white-space: nowrap;
 }
-
-.set-chip.complete {
-    background: var(--gold-wash);
-    color: var(--gold);
-}
-
-.rent-chip { font-variant-numeric: tabular-nums; }
 
 .development-icons { display: inline-flex; align-items: flex-end; gap: 2px; }
 
@@ -1838,97 +1953,8 @@ input[type="radio"] {
 .empty-house-pip { background: var(--rule-strong); opacity: 0.5; }
 .building-na { display: none; }
 
-.player-corporations,
-.player-debts {
-    padding: var(--s4) var(--s4) 0;
-}
-
-.player-card > :last-child,
-.player-card-details > :last-child { padding-bottom: var(--s4); }
-
-.player-card .owned-property-list:last-child { padding-bottom: 0; }
-
-.corp-badge,
-.debt-badge {
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
-    margin-top: var(--s2);
-    padding: var(--s3);
-    border-radius: var(--r-control);
-    background: var(--paper);
-    font-size: var(--text-sub);
-    font-weight: 600;
-    font-variant-numeric: tabular-nums;
-}
-
-.debt-badge { box-shadow: inset 3px 0 0 var(--danger); }
-
-.corp-assets-owned,
-.debt-badge span {
-    font-size: var(--text-caption);
-    font-weight: 500;
-    color: var(--ink-3);
-}
-
-/* Other players: compact rows that expand */
-.player-card-summary {
-    display: flex;
-    align-items: center;
-    gap: var(--s3);
-    min-height: 60px;
-    padding: var(--s2) var(--s4);
-    cursor: pointer;
-}
-
-.player-card-summary:active { background: var(--paper-deep); }
-
-.player-name-sm {
-    flex: 1;
-    min-width: 0;
-    font-weight: 650;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-}
-
-.player-name-sm small {
-    display: block;
-    font-size: var(--text-caption);
-    font-weight: 500;
-    color: var(--ink-3);
-}
-
-.player-stat-sm {
-    font-family: var(--font-money);
-    font-weight: 700;
-    font-variant-numeric: lining-nums proportional-nums;
-    white-space: nowrap;
-}
-
-.player-card-chevron {
-    width: 20px;
-    height: 20px;
-    flex-shrink: 0;
-    color: var(--ink-3);
-    transition: transform var(--dur) var(--ease-out);
-}
-
-.player-card:not(.collapsed) .player-card-chevron { transform: rotate(180deg); }
-
-.player-card-details { border-top: 1px solid var(--rule); }
-.player-card-details .player-header { display: none; }
-
-.player-card-other.is-turn-player {
-    border-color: var(--jade);
-    box-shadow: inset 4px 0 0 var(--jade);
-}
-
-/* Recent and full log */
-.recent-log { margin-top: var(--s2); }
-
-.game-log,
-.log-entries {
+/* Full log */
+.game-log {
     display: flex;
     flex-direction: column;
     background: var(--note);
@@ -3160,6 +3186,11 @@ input[type="radio"] {
     background: var(--note);
 }
 
+.stat-label {
+    font-size: var(--text-caption);
+    color: var(--ink-3);
+}
+
 .corp-stat-value {
     font-family: var(--font-money);
     font-size: var(--text-title3);
@@ -3548,9 +3579,9 @@ button.policy-option:active:not(:disabled) { background: var(--mint-wash); }
 
 .winner-hero p { color: var(--ink-2) !important; margin-top: var(--s2); }
 
-/* Game tab after the game ends: reopens the standings */
-.game-over-actions { margin-top: var(--s3); }
-.game-over-actions .btn { width: 100%; }
+/* Game tab after the game ends: the log and your other games */
+.game-over-actions { display: flex; gap: var(--s2); margin-top: var(--s3); }
+.game-over-actions .btn { flex: 1; }
 
 #finalStandings {
     border-radius: var(--r-group);
@@ -4713,7 +4744,8 @@ button.policy-option:active:not(:disabled) { background: var(--mint-wash); }
     .nav-tab .tab-badge { position: static; width: 20px; height: 20px; margin-left: calc(-1 * var(--s1)); }
 
     .game-page .container,
-    .game-page.is-my-turn .container { padding-bottom: var(--s10); }
+    .game-page.is-my-turn .container,
+    .game-page.is-my-turn.has-double-dock .container { padding-bottom: var(--s10); }
 
 
     /* Turn layout: ticket + actions left, players right */
@@ -4750,6 +4782,7 @@ button.policy-option:active:not(:disabled) { background: var(--mint-wash); }
     }
 
     .moves-grid { grid-template-columns: repeat(3, 1fr); }
+    .game-layout-side .seat-list { margin-top: var(--s2); }
 
     .transaction-form { flex-direction: row; align-items: stretch; }
     .transaction-side { flex: 1; }

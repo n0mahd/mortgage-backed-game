@@ -152,8 +152,6 @@ async function loadGameData(roomId) {
         // Render game state
         renderGameState(gameState);
         if (!isHotseatMode && !isSpectator && !gameState.ended) maybeShowTurnAlertsPrompt();
-        // An ended game opens on the final standings, also after a reload.
-        if (gameState.ended) showWinnerFromState(gameState, winnerReasonFromState(gameState));
 
         // A resumed or reloaded hotseat game starts on player 1's token; hand the
         // device to whoever's turn it is.
@@ -303,44 +301,33 @@ function renderGameState(gameState) {
 
     document.body.classList.toggle('is-my-turn', isMyTurn && !paused);
 
-    const orderedPlayers = [
-        ...gameState.players.filter(p => p.userId === currentUser.id),
-        ...gameState.players.filter(p => p.userId !== currentUser.id)
-    ];
+    const ended = !!gameState.ended;
+    // Warnings, the pause and the last card, between the square in play and the moves.
+    const turnContext = ended ? '' : [
+        renderCashWarning(currentPlayer, isMyTurn),
+        renderPauseBanner(gameState),
+        renderLastCardSummary(gameState, currentPlayer),
+    ].join('').trim();
+    const moves = ended ? renderGameOverActions()
+        : (isSpectator ? renderSpectatorNote() : (paused ? renderPausedActions() : (isMyTurn ? renderActionButtons(landing) : renderNonTurnActions())));
 
     gameContent.innerHTML = `
         <div class="game-layout">
             <div class="game-layout-main">
-                ${renderTurnTicket(gameState, currentPlayer, landing, isMyTurn, paused)}
-                <div class="turn-context">
-                    ${renderLandingSummary(landing, currentPlayer, isMyTurn)}
-                    ${renderCashWarning(currentPlayer, isMyTurn)}
-                    ${renderPauseBanner(gameState)}
-                    ${renderLastCardSummary(gameState, currentPlayer)}
-                </div>
-                ${renderAuctionPanel(gameState)}
-                ${gameState.ended ? renderGameOverActions() : `
-                    ${renderCashSinceTurn(gameState, currentUser?.id)}
-                    ${isSpectator ? renderSpectatorNote() : (paused ? renderPausedActions(gameState) : (isMyTurn ? renderActionButtons(landing) : renderNonTurnActions()))}
-                `}
+                ${renderTurnTicket(gameState, currentPlayer, isMyTurn, paused)}
+                ${renderSquareCard(gameState, currentPlayer)}
+                ${ended ? '' : `${turnContext ? `<div class="turn-context">${turnContext}</div>` : ''}${renderAuctionPanel(gameState)}`}
+                ${moves}
             </div>
 
-            <div>
-                <div class="section-heading"><h3>Players</h3></div>
-                <div class="players-grid">
-                    ${orderedPlayers.map(player => renderPlayerCard(player, player.userId === currentUser.id)).join('')}
-                </div>
-
-                <div class="recent-log">
-                    <div class="section-heading"><h3>Recent actions</h3></div>
-                    <div class="log-entries" id="game-recent-actions">${renderGameTabRecentActions()}</div>
-                </div>
-
+            <div class="game-layout-side">
+                ${ended ? '' : renderSeatList(gameState)}
                 ${renderHostPanel(gameState)}
             </div>
         </div>
     `;
 
+    document.body.classList.toggle('has-double-dock', !!gameContent.querySelector('.turn-dock .dock-row + .dock-row'));
     RuleProposals.render();
     updateTabAlerts();
 }
@@ -377,21 +364,11 @@ function renderGameLog() {
             data-game-action="log-filter" data-log-filter="${filter.key}"
             aria-pressed="${filter.key === logEventFilter}">${escapeHtml(filter.label)}</button>`).join('');
     }
-    const recentActions = document.getElementById('game-recent-actions');
-    if (recentActions) recentActions.innerHTML = renderGameTabRecentActions();
     const logContainer = document.getElementById('full-game-log');
     if (!logContainer) return;
     const state = currentGame && currentGame.game_state;
     const currentPlayer = state && !state.ended ? state.players[state.currentPlayerIndex] : null;
     logContainer.innerHTML = renderGameLogHtml(recentGameEvents, logEventFilter, currentPlayer ? currentPlayer.name : null);
-}
-
-// The Game tab's last few events, in the same rows as the Recent events tab,
-// which has the rest.
-const GAME_TAB_RECENT_ACTIONS = 3;
-function renderGameTabRecentActions() {
-    const rows = recentGameEvents.slice(0, GAME_TAB_RECENT_ACTIONS).map(renderGameLogRow).join('');
-    return rows || '<div class="log-entry"><span class="log-message empty-state">No moves yet.</span></div>';
 }
 
 function setLogEventFilter(filterKey) {
@@ -660,11 +637,7 @@ function makeActionId() {
 }
 
 function showWinnerFromState(gameState, reason) {
-    const standings = gameState.standings || gameState.players.map(player => ({
-        name: player.name,
-        netWorth: player.netWorth || player.cash,
-        bankrupt: player.bankrupt
-    })).sort((a, b) => b.netWorth - a.netWorth);
+    const standings = finalStandingsFrom(gameState);
     // The tab keeps its players until it leaves, so the final screens still load.
     if (isHotseatMode && currentRoom && currentRoom.invite_code) clearHotseatResume(currentRoom.invite_code);
     const winner = standings[0];
@@ -695,18 +668,14 @@ function winnerReasonFromState(gameState) {
     return reason;
 }
 
-// Game over: what's left to do on the Game tab is look at the standings again.
+// Game over: the standings are on the ticket; what's left is the log and your other games.
 function renderGameOverActions() {
     return `
         <div class="game-over-actions">
-            <button class="btn btn-primary" data-game-action="show-final-standings">Final standings</button>
+            <button type="button" class="btn btn-secondary" data-switch-section="log">Recent events</button>
+            <a class="btn btn-primary" href="lobby.html">My games</a>
         </div>
     `;
-}
-
-function showFinalStandings() {
-    const gameState = currentGame?.game_state;
-    if (gameState?.ended) showWinnerFromState(gameState, winnerReasonFromState(gameState));
 }
 
 function hasLiquidationEvent(events) {
@@ -854,9 +823,9 @@ function bindStaticGameControls() {
             return;
         }
 
-        const playerSummary = event.target.closest('.player-card-summary');
-        if (playerSummary) {
-            togglePlayerCard(playerSummary);
+        const seatToggle = event.target.closest('[data-seat-toggle]');
+        if (seatToggle) {
+            toggleSeat(seatToggle);
             return;
         }
 
@@ -873,14 +842,6 @@ function bindStaticGameControls() {
 
         const actionButton = event.target.closest('[data-game-action]');
         if (actionButton) GameActionDispatcher.run(actionButton);
-    });
-
-    document.addEventListener('keydown', (event) => {
-        if (event.key !== 'Enter' && event.key !== ' ') return;
-        const playerSummary = event.target.closest('.player-card-summary');
-        if (!playerSummary) return;
-        event.preventDefault();
-        togglePlayerCard(playerSummary);
     });
 
     // Desktop: pointing at a board square shows its details in the centre.

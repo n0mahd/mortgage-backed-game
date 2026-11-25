@@ -2,6 +2,16 @@
 // it to auction, and bidding.
 // Part of the game page; reads game.js's state. Buttons run via action-dispatcher.js.
 
+// The dock's Buy $X: buys outright, or asks who's buying when you run a company.
+async function buyLandedProperty() {
+    const gameState = currentGame.game_state;
+    if (ShareDeals.corporationsRunBy(gameState, currentUser.id).length > 0) {
+        await openBuyPropertyModal();
+        return;
+    }
+    await submitGameAction('buy_property', {}, { errorText: 'Failed to purchase property' });
+}
+
 // Open Buy Property Modal
 async function openBuyPropertyModal() {
     const gameState = currentGame.game_state;

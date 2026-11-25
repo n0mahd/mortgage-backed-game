@@ -102,13 +102,16 @@ Press state scales to 0.97; there are no hover-only affordances.
 - `.btn-ghost`: text-only, in app bars.
 - `.btn-gold`, `.btn-on-dark`: only on forest backgrounds (landing hero, invite code).
 
-**Action dock** (`.turn-dock`, rendered by `renderActionButtons`). Fixed above the tab bar on your turn.
-The right-hand button is the move the game needs now: Roll Dice, then Action (buy or auction) on an unowned property, then
-End Turn. End Turn is always present, disabled and narrow until you roll, so the sequence is visible.
-Jail choices get their own row above. Never put optional moves or host controls in the dock.
+**Action dock** (`.turn-dock`, rendered by `renderActionButtons`). Fixed above the tab bar on your turn,
+holding only the moves the game needs next, each saying what it does and costs: `Roll Dice`; on an
+unowned property `Auction` + `Buy $200`; then `End Turn` (or `Pay $X & End Turn`, `Declare Bankruptcy`).
+In Jail, `Roll Doubles` above `Pay $50` + `Use Card`. Nothing disabled is shown, and there is no dock
+off your turn or during an auction. Never put optional moves or host controls in the dock.
 
-**Moves grid** (`.moves-grid` via `renderMovesGrid`). Two-column tiles with a title and a one-line
-`<small>` explaining the move. `.is-featured` highlights a move that just became available (a full set).
+**Move tools** (`.move-tools` of `.move-tool`, `renderMoveTools`). One row of icon tools with a
+one-word label: Build, Trade, Borrow, IPO, Corps (and Vote while a rule vote waits on you). Only the
+moves you can take now appear; none is shown disabled. `.is-featured` (gold) marks Build when you own a
+full set and anything waiting on you, with a `.move-tool-count` for how many.
 
 **Host panel** (`renderHostPanel`). Pause/Resume and End Game, host only, dashed outline at the bottom
 of the game tab.
@@ -157,8 +160,22 @@ Screen, the same page shows "Opening your game" while it signs in; if the code h
 risk, so it isn't red.
 
 **Turn ticket** (`.turn-ticket`). The signature element: `--banknote`, the guilloché (`--guilloche`)
-over the forest gradient. Don't reuse it elsewhere except the invite code, the hotseat hand-off, the Board
-tab's turn strip, and the landing hero, which share its meaning: this is the money moment.
+over the forest gradient, and the only place your cash and net worth appear. On your turn: your
+avatar, "Your turn" / "In Jail" (with `.jail-tries`, three dots) / "Doubles!", and the dice. Before you
+roll, a tear-off `.ticket-stub` shows "Since your last turn" as one line with the net, opening to one
+line per payment when there were several. Off your turn a `.turn-strip` in the current player's colour
+("Bob's turn" and their dice) sits above a compact note (`.is-compact`) with your cash; your cash is never
+shown under another player's colour. At game over the ticket holds the standings (`.ticket-standings`),
+from the state, so they survive a reload. Don't reuse the banknote elsewhere except the invite code,
+the hotseat hand-off, the Board tab's turn strip, and the landing hero, which share its meaning: this is
+the money moment.
+
+**Square card** (`.square-card`, `renderSquareCard` in `square-card.js`). The square the current player
+landed on this turn, as a title deed under the ticket: a band in its colour with the name and a short
+kind line ("Railroad · for sale", "Bob's · 2 of 3 reds", "Yours · brown set") and the owner's avatar;
+then the rent ladder (`.rent-ladder`, the rent that would apply lit) when it's for sale, or a rotated
+`.square-stamp` with the money that moved for that landing from your side (−$20 red, +$8 green, grey for
+a bystander). Tax squares get a plain card with the stamp; other squares none. No prose.
 
 **Board tab** (`renderBoard` in `board.js`, `.board-view`). A real square board, GO bottom-right, play
 clockwise, sized to fit: the screen's width on phones, the window's height on desktop (players and
@@ -193,8 +210,11 @@ the corporation and tab in view when the sheet re-renders.
 rooms, steps), not in separate cards. Cards are reserved for things that stand alone (auction, trade
 offer, corporation).
 
-**Deed rows** (`.owned-property-row`). A 6px band in the property's color on the leading edge, then
-name, type and value, then chips: set progress (gold when complete), buildings, current rent.
+**Players list** (`.seat-list`, `renderSeatList` in `property-display.js`). One grouped list: your row
+first as "Your deeds" (your cash is on the ticket), then each player's avatar, name, deed swatches and
+cash; the current player's row has a jade edge. A row with deeds opens to deed lines (`.deed-line`): a
+6px band in the property's colour, the short name, houses, a gold `Set` badge or `n/3`, and the rent it
+charges now.
 
 **Property dots** (`propertyDot(id)`, `.property-dot`). Everywhere else a property is named in a list
 (IPO and trade pickers, auction, corporation assets, loan details), a small square in its

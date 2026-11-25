@@ -1,33 +1,9 @@
-// "Since your last turn" on the Game tab: every dollar that came in or went out
-// of your cash between your turns, with where it came from (rent and who landed,
-// dividends, cards, trades) and where it went.
+// "Since your last turn" on the turn ticket's stub, before you roll: the money that
+// came in or went out of your cash between your turns, as one line with the net,
+// opening to one line per payment when there were several.
 // Reads state.cashLedger, state.turnStarts and state.turnNumber, written by
 // recordCashFlow and startLedgerTurn in backend/domain/gameRulesInternal/ledger.js.
 // Part of the game page; plain top-level functions, loaded before game.js.
-
-const CASH_SINCE_ICONS = {
-    rent: '🏠',
-    rent_share: '📈',
-    dividend: '📈',
-    pass_go: '🏁',
-    card: '🃏',
-    tax: '🏛️',
-    jail: '🔒',
-    purchase: '🏠',
-    houses: '🏗️',
-    auction: '🔨',
-    shares: '📈',
-    company_cash: '📈',
-    property_sale: '🏢',
-    loan: '🏦',
-    loan_payment: '🏦',
-    trade: '🤝',
-    payment: '💸',
-    debt: '💸',
-    merger: '🏢',
-};
-
-const CASH_SINCE_VISIBLE_ROWS = 6;
 
 // The bank has no name in the ledger; companies are [TICKER].
 function cashSinceParty(name) {
@@ -40,9 +16,9 @@ function describeCashSinceEntry(entry, incoming) {
     const note = entry.note || '';
     switch (entry.kind) {
         case 'rent':
-            return { title: incoming ? `Rent from ${other}` : `Rent to ${other}`, detail: note.replace(/^Rent: /, '') };
+            return { title: incoming ? `Rent from ${other}` : `Rent to ${other}`, detail: note.replace(/^Rent: .* landed on /, '') };
         case 'rent_share':
-            return { title: `Rent share from ${other}`, detail: note.replace(/^Your share of \[?[^\]]*\]? rent: /, '') };
+            return { title: `Rent share from ${other}`, detail: note.replace(/^Your share of .* rent: /, '') };
         case 'dividend':
             return { title: `Dividend from ${other}`, detail: '' };
         case 'card': {
@@ -117,93 +93,55 @@ function formatSignedMoney(value) {
     return `${rounded > 0 ? '+' : '−'}${formatMoney(Math.abs(rounded))}`;
 }
 
-function renderCashSinceRow(row) {
+// The property a rent entry was for ("Rent: Bob landed on Baltic Avenue").
+function cashSinceProperty(entry) {
+    if (entry.kind !== 'rent' && entry.kind !== 'rent_share') return null;
+    const match = /landed on (.+)$/.exec(entry.note || '');
+    return (match && (currentGame?.game_state?.properties || []).find(prop => prop.name === match[1])) || null;
+}
+
+function renderStubLine({ title, detail, amount, color }) {
+    return `
+        <span class="ticket-stub-band"${color ? ` style="--stub-color:${escapeHtml(color)}"` : ''} aria-hidden="true"></span>
+        <span class="ticket-stub-copy">
+            <strong>${escapeHtml(title)}</strong>
+            ${detail ? `<span>${escapeHtml(detail)}</span>` : ''}
+        </span>
+        <span class="ticket-stub-amount money ${amount < 0 ? 'is-out' : 'is-in'}">${formatSignedMoney(amount)}</span>`;
+}
+
+// Rent shows the square's colour band and its short name.
+function stubLineFor(row) {
     const { title, detail } = describeCashSinceEntry(row.entry, row.incoming);
-    return `
-        <li class="cash-since-row ${row.incoming ? 'is-in' : 'is-out'}">
-            <span class="cash-since-icon" aria-hidden="true">${CASH_SINCE_ICONS[row.entry.kind] || '💸'}</span>
-            <span class="cash-since-copy">
-                <strong>${escapeHtml(title)}</strong>
-                ${detail ? `<span>${escapeHtml(detail)}</span>` : ''}
-            </span>
-            <span class="cash-since-amount money">${formatSignedMoney(row.signed)}</span>
-        </li>`;
+    const property = cashSinceProperty(row.entry);
+    if (!property) return { title, detail, amount: row.signed, color: '' };
+    const shortDetail = row.entry.kind === 'rent' ? propertyShortName(property) : detail;
+    return { title, detail: shortDetail, amount: row.signed, color: getPropertyColorValue(property.color) };
 }
 
-function renderCashSinceList(rows) {
-    const visible = rows.slice(0, CASH_SINCE_VISIBLE_ROWS);
-    const hidden = rows.slice(CASH_SINCE_VISIBLE_ROWS);
-    return `
-        <ul class="cash-since-list">${visible.map(renderCashSinceRow).join('')}</ul>
-        ${hidden.length ? `
-            <details class="cash-since-more">
-                <summary>${hidden.length} more</summary>
-                <ul class="cash-since-list">${hidden.map(renderCashSinceRow).join('')}</ul>
-            </details>` : ''}`;
-}
-
-// Open or collapsed is remembered on this device, so a re-render or reload keeps it.
-const CASH_SINCE_OPEN_KEY = 'cash_since_open';
-
-function cashSinceIsOpen() {
-    try {
-        return localStorage.getItem(CASH_SINCE_OPEN_KEY) !== 'false';
-    } catch (error) {
-        return true;
-    }
-}
-
-// toggle doesn't bubble, so listen in the capture phase for the card's details.
-document.addEventListener('toggle', event => {
-    if (!event.target.classList || !event.target.classList.contains('cash-since')) return;
-    try {
-        localStorage.setItem(CASH_SINCE_OPEN_KEY, event.target.open ? 'true' : 'false');
-    } catch (error) {
-        // Private windows can refuse storage; the card still opens and closes.
-    }
-}, true);
-
-function renderCashSinceNet(rows) {
-    if (!rows.length) return '';
-    const net = cashSinceTotals(rows).net;
-    return `<strong class="cash-since-net money ${net < 0 ? 'is-out' : 'is-in'}">${formatSignedMoney(net)}</strong>`;
-}
-
-// Totals in and out only help once there are enough rows to add up.
-const CASH_SINCE_TOTALS_FROM = 4;
-
-function renderCashSinceBody(rows) {
-    const totals = cashSinceTotals(rows);
-    return `
-        ${rows.length >= CASH_SINCE_TOTALS_FROM ? `<p class="cash-since-totals">In <span class="money">${formatMoney(totals.in)}</span> · Out <span class="money">${formatMoney(totals.out)}</span></p>` : ''}
-        ${renderCashSinceList(rows)}`;
-}
-
-// The Game tab card: a collapsible details whose summary keeps the heading and
-// the net amount in view. Nothing for spectators, before the ledger exists, or
-// while no money has moved. With nothing between turns, "This turn" is the heading.
-function renderCashSinceTurn(gameState, userId) {
+// The ticket's tear-off stub on your turn before you roll. Nothing when no money moved.
+function renderTicketStub(gameState, userId) {
     if (!userId || !Array.isArray(gameState.cashLedger)) return '';
-    if (!gameState.players.some(player => player.userId === userId)) return '';
-    const { window, between, thisTurn } = cashSinceRows(gameState, userId);
-    const turnRows = window.isMyTurn ? thisTurn : [];
-    if (!between.length && !turnRows.length) return '';
-    const heading = !between.length ? 'This turn'
-        : (window.hadTurn ? (window.isMyTurn ? 'Since your last turn' : 'Since your turn ended') : 'Before your first turn');
-    const firstRows = between.length ? between : turnRows;
-    const thisTurnGroup = between.length && turnRows.length ? `
-        <div class="cash-since-group">
-            <div class="cash-since-head"><h3>This turn</h3>${renderCashSinceNet(turnRows)}</div>
-            ${renderCashSinceBody(turnRows)}
-        </div>` : '';
+    const { window, between } = cashSinceRows(gameState, userId);
+    if (!window.isMyTurn || !between.length) return '';
+    const caption = window.hadTurn ? 'Since your last turn' : 'Before your first turn';
+    if (between.length === 1) {
+        return `
+            <div class="ticket-stub">
+                <span class="ticket-stub-caption">${caption}</span>
+                <div class="ticket-stub-row">${renderStubLine(stubLineFor(between[0]))}</div>
+            </div>`;
+    }
+    const net = cashSinceTotals(between).net;
     return `
-        <details class="cash-since"${cashSinceIsOpen() ? ' open' : ''}>
-            <summary class="cash-since-summary">
-                <h3>${escapeHtml(heading)}</h3>
-                ${renderCashSinceNet(firstRows)}
-                <svg class="cash-since-chevron" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 8l5 5 5-5"/></svg>
+        <details class="ticket-stub">
+            <summary class="ticket-stub-row">
+                <span class="ticket-stub-caption">${caption}</span>
+                ${renderStubLine({ title: `${between.length} payments`, amount: net })}
+                <svg class="ticket-stub-chevron" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 8l5 5 5-5"/></svg>
             </summary>
-            <div class="cash-since-group cash-since-first">${renderCashSinceBody(firstRows)}</div>
-            ${thisTurnGroup}
+            <ul class="ticket-stub-list">
+                ${between.map(row => `<li class="ticket-stub-row">${renderStubLine(stubLineFor(row))}</li>`).join('')}
+            </ul>
         </details>`;
 }

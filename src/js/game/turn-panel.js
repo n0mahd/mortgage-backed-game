@@ -1,67 +1,127 @@
-// The top of the Game tab: turn ticket, landing summary, warnings, auction panel,
-// the action dock and moves grid (renderActionButtons), and host controls.
+// The top of the Game tab: turn ticket (with its stub and the final standings),
+// warnings, auction panel, the action dock (renderActionButtons), the row of move
+// tools (renderMoveTools) and host controls. The square in play is square-card.js.
 // Part of the game page; reads game.js's state. Buttons run via action-dispatcher.js.
 
 // The last dice shown, so the dice only animate when a new roll arrives.
 let previousDiceSignature = null;
 
-function renderTurnTicket(gameState, currentPlayer, landing, isMyTurn, paused) {
-    const { hasRolled, hasMoved, rollAgain } = getRollState(gameState, currentPlayer);
+function turnDiceState(gameState, currentPlayer) {
+    const { hasRolled, hasMoved } = getRollState(gameState, currentPlayer);
     const dice = hasMoved ? gameState.lastDiceRoll : null;
     const diceSignature = `${gameState.currentPlayerIndex}|${hasRolled}|${Array.isArray(dice) ? dice.join(',') : ''}`;
     const rolling = !!dice && previousDiceSignature !== null && previousDiceSignature !== diceSignature;
     previousDiceSignature = diceSignature;
+    return { dice, rolling };
+}
 
-    const me = currentPlayerData || currentPlayer;
-    const myNetWorth = getPlayerNetWorth(me);
-    const visibleTitle = gameState.ended ? 'Game over' : (isMyTurn ? 'Your turn' : `${currentPlayer.name}'s turn`);
-    let status;
-    if (gameState.ended) status = 'Final standings are in the Game Over summary';
-    else if (paused) status = 'Paused by the host';
-    else if (rollAgain) status = `Doubles! Now on ${BOARD_SQUARES[currentPlayer.position || 0]?.name || 'the board'}, ${isMyTurn ? 'roll again' : 'rolling again'}`;
-    else if (currentPlayer.inJail && !hasRolled) status = isMyTurn ? 'In Jail. Roll doubles, pay $50, or use a card.' : 'In Jail, deciding how to get out';
-    else if (!hasRolled) status = isMyTurn ? 'Roll to move' : 'About to roll';
-    else status = `Rolled ${dice ? dice[0] + dice[1] : ''}, now on ${BOARD_SQUARES[currentPlayer.position || 0]?.name || 'the board'}`;
+function playerAvatarHtml(player, extraClass = '') {
+    return `<span class="avatar${extraClass ? ` ${extraClass}` : ''}" style="--token-color:${escapeHtml(getPlayerColor(player))}" aria-hidden="true">${escapeHtml(playerInitials(player.name))}</span>`;
+}
 
+// The banknote: your cash and net worth, the only place they appear. On your turn it
+// also says what kind of turn it is and holds the dice; before you roll its stub shows
+// the money that moved since your last turn. Off your turn a strip in the current
+// player's colour says whose turn it is, above a compact note with your cash.
+function renderTurnTicket(gameState, currentPlayer, isMyTurn, paused) {
+    if (gameState.ended) return renderFinalTicket(gameState);
+    const { dice, rolling } = turnDiceState(gameState, currentPlayer);
+    const me = currentPlayerData;
+    const pausedClass = paused ? ' is-paused' : '';
+    const turnLabel = `<span class="sr-only">Current Turn: ${escapeHtml(currentPlayer.name)}</span>`;
+
+    if (!isMyTurn) {
+        const strip = `
+            <div class="turn-strip${pausedClass}" style="--turn-color:${escapeHtml(getPlayerColor(currentPlayer))}">
+                ${playerAvatarHtml(currentPlayer, 'sm')}
+                <strong class="turn-strip-title waiting-indicator">${turnLabel}<span aria-hidden="true">${escapeHtml(`${currentPlayer.name}'s turn`)}</span></strong>
+                ${currentPlayer.inJail ? '<span class="badge badge-gold">In Jail</span>' : ''}
+                ${dice ? renderDicePair(dice, { rolling }) : ''}
+            </div>`;
+        if (!me) return strip;
+        return `${strip}
+            <section class="game-header turn-ticket is-compact${pausedClass}">
+                ${renderTicketMoney(me, true)}
+            </section>`;
+    }
+
+    const { hasRolled, hasMoved, rollAgain } = getRollState(gameState, currentPlayer);
+    const inJail = currentPlayer.inJail;
+    const title = inJail ? 'In Jail' : (rollAgain ? 'Doubles!' : 'Your turn');
+    const jailTurn = Math.min(Number(currentPlayer.jailTurns || 0), 2);
+    const tries = inJail && !hasRolled ? `
+        <span class="jail-tries" role="img" aria-label="Jail turn ${jailTurn + 1} of 3">
+            ${[0, 1, 2].map(i => `<i class="${i < jailTurn ? 'is-used' : ''}${i === jailTurn ? ' is-now' : ''}"></i>`).join('')}
+        </span>` : '';
     return `
-        <section class="game-header turn-ticket${isMyTurn ? ' is-mine' : ''}${paused ? ' is-paused' : ''}" style="--turn-color:${escapeHtml(getPlayerColor(currentPlayer))}">
+        <section class="game-header turn-ticket is-mine${pausedClass}" style="--turn-color:${escapeHtml(getPlayerColor(currentPlayer))}">
             <div class="ticket-top">
-                <span class="avatar" style="--token-color:${escapeHtml(getPlayerColor(currentPlayer))}" aria-hidden="true">${escapeHtml(playerInitials(currentPlayer.name))}</span>
+                ${playerAvatarHtml(currentPlayer)}
                 <div class="ticket-heading">
-                    <h2 class="ticket-title"><span class="sr-only">Current Turn: ${escapeHtml(currentPlayer.name)}</span><span aria-hidden="true">${escapeHtml(visibleTitle)}</span></h2>
-                    <span class="ticket-status ${isMyTurn && !paused ? 'turn-indicator' : 'waiting-indicator'}">${escapeHtml(status)}</span>
+                    <h2 class="ticket-title ${paused ? 'waiting-indicator' : 'turn-indicator'}">${turnLabel}<span aria-hidden="true">${escapeHtml(title)}</span></h2>
+                    ${tries}
                 </div>
                 ${renderDicePair(dice, { rolling })}
             </div>
-            <div class="ticket-money">
-                <div>
-                    <span class="ticket-money-label">Your cash</span>
-                    <strong class="ticket-cash${Number(me.cash) < 0 ? ' is-negative' : ''}">${formatMoney(me.cash)}</strong>
-                </div>
-                <div class="ticket-side">
-                    Net worth
-                    <strong>${formatMoney(Math.round(myNetWorth))}</strong>
-                </div>
-            </div>
-            ${renderTurnChecklist(gameState, currentPlayer, landing, isMyTurn)}
+            ${renderTicketMoney(me || currentPlayer, false)}
+            ${hasMoved ? '' : renderTicketStub(gameState, currentPlayer.userId)}
         </section>
     `;
 }
 
-function renderLandingSummary(landing, currentPlayer, isMyTurn) {
-    const square = BOARD_SQUARES[currentPlayer.position || 0] || {};
-    const who = isMyTurn ? 'You are on' : `${currentPlayer.name} is on`;
+function renderTicketMoney(player, compact) {
     return `
-        <div class="landing-summary ${landing.canBuy ? 'can-buy' : ''}" style="--square-color:${escapeHtml(square.color || 'var(--rule-strong)')}">
-            <span class="landing-deed" aria-hidden="true"></span>
-            <div class="landing-copy">
-                <span class="landing-label">${escapeHtml(who)}</span>
-                <strong>${escapeHtml(landing.squareName)}</strong>
-                <p>${escapeHtml(landing.detail)}</p>
+        <div class="ticket-money">
+            ${compact ? playerAvatarHtml(player, 'sm') : ''}
+            <strong class="ticket-cash${Number(player.cash) < 0 ? ' is-negative' : ''}"><span class="sr-only">Your cash </span>${formatMoney(player.cash)}</strong>
+            <div class="ticket-side">
+                Net worth
+                <strong>${formatMoney(Math.round(getPlayerNetWorth(player)))}</strong>
             </div>
-            ${landing.canBuy && landing.price ? `<span class="landing-price">${formatMoney(landing.price)}</span>` : ''}
-        </div>
+        </div>`;
+}
+
+// Game over: the standings stay on the ticket, from the state, so a reload keeps them.
+function renderFinalTicket(gameState) {
+    const standings = finalStandingsFrom(gameState);
+    const winner = standings[0];
+    const draw = standings.length > 0 && standings.every(row => row.bankrupt);
+    const playerFor = row => gameState.players.find(p => (row.userId && p.userId === row.userId) || p.name === row.name) || { name: row.name };
+    const title = !winner ? 'Game over' : (draw ? "It's a draw" : `${winner.name} won`);
+    return `
+        <section class="game-header turn-ticket is-final"${winner && !draw ? ` style="--turn-color:${escapeHtml(getPlayerColor(playerFor(winner)))}"` : ''}>
+            <div class="ticket-top">
+                ${winner && !draw ? playerAvatarHtml(playerFor(winner)) : ''}
+                <div class="ticket-heading"><h2 class="ticket-title">${escapeHtml(title)}</h2></div>
+            </div>
+            <ol class="ticket-standings" aria-label="Final standings">
+                ${standings.map((row, i) => {
+                    const player = playerFor(row);
+                    const classes = [
+                        i === 0 && !draw ? 'is-winner' : '',
+                        row.bankrupt ? 'is-out' : '',
+                        player.userId && player.userId === currentUser?.id ? 'is-you' : '',
+                    ].filter(Boolean).join(' ');
+                    return `
+                        <li class="ticket-standing ${classes}">
+                            <span class="ticket-rank">${row.bankrupt ? '–' : i + 1}</span>
+                            ${playerAvatarHtml(player, 'sm')}
+                            <span class="ticket-standing-name">${escapeHtml(row.name)}${row.bankrupt ? '<span class="sr-only"> (bankrupt)</span>' : ''}</span>
+                            <span class="ticket-standing-worth">${formatMoney(Math.round(Number(row.netWorth || 0)))}</span>
+                        </li>`;
+                }).join('')}
+            </ol>
+        </section>
     `;
+}
+
+function finalStandingsFrom(gameState) {
+    return gameState.standings || gameState.players.map(player => ({
+        userId: player.userId,
+        name: player.name,
+        netWorth: player.netWorth || player.cash,
+        bankrupt: player.bankrupt
+    })).sort((a, b) => b.netWorth - a.netWorth);
 }
 
 // The reason the engine records when the host gives none (turns.js pauseGame).
@@ -236,59 +296,6 @@ function startAuctionCountdown() {
     }, 1000);
 }
 
-function renderTurnChecklist(gameState, currentPlayer, landing, isMyTurn) {
-    const { hasRolled, hasMoved, rollAgain } = getRollState(gameState, currentPlayer);
-    const ended = !!gameState.ended;
-    const waitingForJailChoice = currentPlayer.inJail && !hasRolled;
-    const items = [
-        {
-            label: waitingForJailChoice ? 'Jail' : 'Roll',
-            state: hasMoved && !(rollAgain && !landing.canBuy) ? 'complete' : (isMyTurn ? 'current' : 'upcoming'),
-            detail: hasMoved
-                ? `${formatDiceLabel(gameState.lastDiceRoll)}${rollAgain ? ', roll again' : ''}`
-                : (waitingForJailChoice ? 'Roll doubles, pay fine, or use card' : 'Waiting for dice'),
-        },
-        {
-            label: 'Resolve',
-            state: !hasMoved ? 'upcoming' : (landing.canBuy || gameState.auction?.status === 'open' ? 'current' : (rollAgain ? 'upcoming' : 'complete')),
-            detail: landing.canBuy ? 'Property available' : landing.squareName,
-        },
-        {
-            label: 'Actions',
-            state: hasRolled && !ended ? 'current' : 'upcoming',
-            detail: 'Assets, debt, market',
-        },
-        {
-            label: 'End',
-            state: ended ? 'complete' : (hasRolled && isMyTurn ? 'current' : 'upcoming'),
-            detail: 'Interest and next player',
-        },
-    ];
-
-    let currentSeen = false;
-    items.forEach(item => {
-        if (item.state !== 'current') return;
-        if (currentSeen) item.state = 'upcoming';
-        currentSeen = true;
-    });
-
-    return `
-        <div class="turn-checklist" aria-label="Turn progress">
-            ${items.map(item => `
-                <div class="turn-step ${item.state}"${item.state === 'current' ? ' aria-current="step"' : ''}>
-                    <span>${escapeHtml(item.label)}</span>
-                    <strong>${escapeHtml(item.detail)}</strong>
-                </div>
-            `).join('')}
-        </div>
-    `;
-}
-
-function formatDiceLabel(dice) {
-    if (!Array.isArray(dice) || dice.length < 2) return 'Rolled';
-    return `${dice[0]} + ${dice[1]} = ${dice[0] + dice[1]}`;
-}
-
 // diceRolled means the move is finished. After doubles it stays false so the player
 // can roll again, but they have still landed: lastDiceRoll is set for this turn.
 function getRollState(gameState, player) {
@@ -297,70 +304,15 @@ function getRollState(gameState, player) {
     return { hasRolled, hasMoved, rollAgain: hasMoved && !hasRolled };
 }
 
+// The square the current player is on, and whether they can buy it now.
 function getLandingSummary(gameState, player) {
-    const position = player.position || 0;
-    const square = BOARD_SQUARES[position] || BOARD_SQUARES[0];
+    const square = BOARD_SQUARES[player.position || 0] || BOARD_SQUARES[0];
     const property = square.propertyId
         ? gameState.properties.find(prop => prop.id === square.propertyId)
         : null;
     const isBuyableSquare = ['property', 'railroad', 'utility'].includes(square.type);
-    const unowned = !!(isBuyableSquare && property && !property.ownerId);
-    const canBuy = unowned && getRollState(gameState, player).hasMoved;
-
-    if (unowned && !canBuy) {
-        return {
-            squareName: square.name,
-            detail: `Unowned ${square.type.replace('_', ' ')}. You can only buy where you land, so roll first.`,
-            canBuy,
-        };
-    }
-
-    if (canBuy) {
-        return {
-            squareName: square.name,
-            detail: `Unowned ${square.type.replace('_', ' ')}. Buy it or send it to auction.`,
-            canBuy,
-            price: property.price,
-        };
-    }
-
-    if (isBuyableSquare && property && property.ownerId) {
-        const ownerName = describeOwner(gameState, property.ownerId, property.ownerName).label;
-        const mine = property.ownerId === player.userId;
-        return {
-            squareName: square.name,
-            detail: mine ? 'You already own this square.' : `Owned by ${ownerName}.${corporationRentNote(gameState, property.ownerId, player.userId)}`,
-            canBuy: false,
-            owner: mine ? 'self' : 'other',
-        };
-    }
-
-    const detailsByType = {
-        go: 'Collect salary when you pass GO.',
-        community_chest: 'Community Chest effect is applied automatically.',
-        chance: 'Chance effect is applied automatically.',
-        tax: `Tax square. Amount: $${square.taxAmount || 0}.`,
-        jail: player.inJail ? 'You are in Jail.' : 'Just visiting.',
-        free_parking: 'Free Parking.',
-        go_to_jail: 'Go directly to Jail.',
-    };
-
-    return {
-        squareName: square.name,
-        detail: detailsByType[square.type] || 'No purchasable property on this square.',
-        canBuy: false,
-    };
-}
-
-// " MBS is in Payout: your 30% stake cut the rent to 70%." for a company square.
-function corporationRentNote(gameState, ownerId, userId) {
-    const corp = (gameState.corporations || []).find(c => c.id === ownerId);
-    if (!corp || ShareDeals.isClosed(corp)) return '';
-    if (corp.rentPolicy !== 'payout') return ` ${corp.ticker} is reinvesting: rent goes into its treasury.`;
-    const mine = ShareDeals.sharesHeld(corp, userId);
-    if (mine <= 0) return ` ${corp.ticker} is in Payout: rent goes to its shareholders.`;
-    const total = Number(corp.totalShares || 0);
-    return ` ${corp.ticker} is in Payout: your ${ShareDeals.percent(mine, total)} stake cuts the rent to ${ShareDeals.percent(total - mine, total)}.`;
+    const canBuy = !!(isBuyableSquare && property && !property.ownerId) && getRollState(gameState, player).hasMoved;
+    return { square, property, canBuy, price: canBuy ? Number(property.price) : 0 };
 }
 
 function renderLastCardSummary(gameState, player) {
@@ -370,7 +322,7 @@ function renderLastCardSummary(gameState, player) {
         <div class="card-effect-summary">
             <span>${escapeHtml(deckDisplayName(lastCard.deckType))}</span>
             <strong>${escapeHtml(lastCard.card)}</strong>
-            <p>${escapeHtml(lastCard.effect ? `Applied: ${lastCard.effect}.` : 'Card effect was applied automatically.')}</p>
+            ${lastCard.effect ? `<p>${escapeHtml(lastCard.effect)}</p>` : ''}
         </div>
     `;
 }
@@ -387,27 +339,7 @@ function deckDisplayName(deckType) {
     return 'Card';
 }
 
-function renderImprovePropertiesButton(gameState, player, auctionOpen) {
-    const ownGroups = getCompleteGroupProperties(player.userId, gameState);
-    const corpGroups = ShareDeals.corporationsRunBy(gameState, player.userId)
-        .flatMap(corp => getCompleteGroupProperties(corp.id, gameState));
-    const completeGroupProperties = [...ownGroups, ...corpGroups];
-    if (!completeGroupProperties.length) return '';
-
-    const hasAvailableImprovement = completeGroupProperties.some(prop => Number(prop.houses || 0) < 5);
-    if (!hasAvailableImprovement) {
-        return '<button class="btn btn-secondary btn-sm" disabled title="All complete color groups already have hotels">Hotels Built<small>Every set is maxed out</small></button>';
-    }
-
-    if (auctionOpen) {
-        return '<button class="btn btn-secondary btn-sm" disabled title="Resolve auction before buying houses or hotels">Build Houses<small>After the auction</small></button>';
-    }
-
-    const hint = ownGroups.length ? 'You own a full set' : 'Your company owns a full set';
-    return `<button class="btn btn-success btn-sm is-featured" data-game-action="open-house">Build Houses<small>${hint}</small></button>`;
-}
-
-// Your turn: the dock holds the move the game needs next; optional moves sit in the grid.
+// Your turn: the dock holds the moves the game needs next, each saying what it costs.
 // landing is getLandingSummary() for the current player.
 function renderActionButtons(landing) {
     const gameState = currentGame.game_state;
@@ -419,115 +351,130 @@ function renderActionButtons(landing) {
     // can't pay it may only End Turn, which declares bankruptcy.
     const claimBeforeRoll = rollAgain && turnEnd.claim;
     const rollBlocked = !!claimBeforeRoll && (!turnEnd.creditorActive || turnEnd.cash < turnEnd.unpaid);
-    const canEndTurn = hasRolled || rollBlocked;
+    const auctionOpen = gameState.auction?.status === 'open';
+    const waitingForJailChoice = currentPlayer.inJail && !hasRolled;
+
     const endTurnLabel = owesMoney
         ? 'Declare Bankruptcy'
         : (turnEnd.settlesClaim ? `Pay ${formatMoney(turnEnd.unpaid)} & End Turn` : 'End Turn');
-    const auctionOpen = gameState.auction?.status === 'open';
-    const waitingForJailChoice = currentPlayer.inJail && !hasRolled;
-    const rollButtonLabel = waitingForJailChoice ? 'Roll for Doubles'
-        : (claimBeforeRoll && !rollBlocked ? `Pay ${formatMoney(turnEnd.unpaid)} & Roll Again` : (rollAgain ? 'Roll Again' : 'Roll Dice'));
-    const rollDisabled = rollBlocked ? 'disabled title="Pay what you owe before rolling again"' : '';
-    const buyInDock = landing.canBuy && !auctionOpen;
+    const endTurnButton = variant => `<button class="btn ${owesMoney ? 'btn-danger' : variant} action-btn-end-turn" data-game-action="end-turn">${escapeHtml(endTurnLabel)}</button>`;
+    const rollLabel = waitingForJailChoice ? 'Roll Doubles'
+        : (claimBeforeRoll ? `Pay ${formatMoney(turnEnd.unpaid)} & Roll Again` : (rollAgain ? 'Roll Again' : 'Roll Dice'));
+    const rollButton = variant => `<button class="btn ${variant}" data-game-action="roll-dice">${escapeHtml(rollLabel)}</button>`;
 
-    const jailChoiceButtons = waitingForJailChoice ? `
-        <div class="dock-row dock-row-choices">
-            <button class="btn btn-warning btn-sm" data-game-action="pay-jail-fine">Pay $50 Fine</button>
-            ${currentPlayer.hasGetOutOfJailCard ? '<button class="btn btn-secondary btn-sm" data-game-action="use-jail-card">Use Jail Card</button>' : ''}
-        </div>
-    ` : '';
-    const endTurnClass = owesMoney ? 'btn-danger' : (hasRolled && !buyInDock ? 'btn-success' : 'btn-secondary');
-    const endTurnDisabled = !canEndTurn ? 'disabled title="Roll before ending your turn"' : '';
-    // After doubles on an unowned property, Action (buy or auction) takes the primary slot and Roll Again
-    // takes End Turn's, which stays unavailable until the final roll anyway.
-    const rollAgainButton = rollAgain && buyInDock && !rollBlocked
-        ? `<button class="btn btn-secondary" data-game-action="roll-dice">${escapeHtml(rollButtonLabel)}</button>`
-        : '';
-    const endTurnButton = rollAgainButton || `<button class="btn ${endTurnClass} action-btn-end-turn" data-game-action="end-turn" ${endTurnDisabled}>${escapeHtml(endTurnLabel)}</button>`;
-    const primaryButton = buyInDock
-        ? `<button class="btn btn-success action-btn-buy" data-game-action="open-buy-property">Action</button>`
-        : (!hasRolled && !auctionOpen ? `<button class="btn btn-primary" data-game-action="roll-dice" ${rollDisabled}>${escapeHtml(rollButtonLabel)}</button>` : '');
+    // Buying: Auction and Buy $X. Buy needs the cash, unless a company you run can pay.
+    const buyRow = () => {
+        const runsCompanies = ShareDeals.corporationsRunBy(gameState, currentPlayer.userId).length > 0;
+        const canPay = runsCompanies || Number(currentPlayer.cash) >= landing.price;
+        return [
+            '<button class="btn btn-secondary" data-game-action="start-auction">Auction</button>',
+            canPay ? `<button class="btn btn-primary action-btn-buy" data-game-action="buy-property">Buy ${formatMoney(landing.price)}</button>` : '',
+        ];
+    };
+    // An auction that ended without a sale leaves the square unowned: End Turn moves on.
+    const auctionedAlready = gameState.auction?.status === 'no_sale' && gameState.auction.propertyId === landing.property?.id;
 
-    const buyTile = buyInDock || (!hasRolled && !auctionOpen) ? '' : (auctionOpen
-        ? '<button class="btn btn-secondary btn-sm action-btn-buy" disabled>Auction Open<small>Bid in the panel above</small></button>'
-        : `<button class="btn btn-secondary btn-sm action-btn-buy" disabled title="${escapeHtml(landing.detail)}">${escapeHtml(buyUnavailableLabel(landing))}<small>${escapeHtml(landing.squareName)}</small></button>`);
+    const rows = [];
+    if (auctionOpen) {
+        // The dock would hold nothing usable, and on a phone it covers the auction's Bid and Pass.
+    } else if (waitingForJailChoice) {
+        rows.push([rollButton('btn-primary')]);
+        rows.push([
+            '<button class="btn btn-warning" data-game-action="pay-jail-fine">Pay $50</button>',
+            currentPlayer.hasGetOutOfJailCard ? '<button class="btn btn-secondary" data-game-action="use-jail-card">Use Card</button>' : '',
+        ]);
+    } else if (rollBlocked) {
+        rows.push([endTurnButton('btn-primary')]);
+    } else if (!hasRolled) {
+        if (landing.canBuy) {
+            rows.push([rollButton('btn-secondary')]);
+            rows.push(buyRow());
+        } else {
+            rows.push([rollButton('btn-primary')]);
+        }
+    } else if (landing.canBuy) {
+        if (auctionedAlready) rows.push([endTurnButton('btn-primary')]);
+        const buy = buyRow();
+        rows.push(buy[1] ? buy : [endTurnButton('btn-secondary'), buy[0]]);
+    } else {
+        rows.push([endTurnButton('btn-primary')]);
+    }
 
-    // While an auction is open the dock would hold only a disabled button, and on a
-    // phone it covers the auction's Bid and Pass, so it steps aside.
-    const dock = auctionOpen ? '' : `
+    const dock = rows.length ? `
         <div class="action-buttons turn-dock">
             <div class="dock-inner">
-                ${jailChoiceButtons}
-                <div class="dock-row">
-                    ${endTurnButton}
-                    ${primaryButton}
-                </div>
+                ${rows.map(row => `<div class="dock-row">${row.join('')}</div>`).join('')}
             </div>
-        </div>`;
+        </div>` : '';
 
+    return `${dock}${renderMoveTools(gameState, currentPlayer)}`;
+}
+
+// The moves open now, as one row of icon tools; nothing is shown disabled. Building,
+// IPOs, loans and trades are open to every active player at any time (the engine
+// turn-locks only movement), and an open auction holds all but trading.
+const MOVE_TOOL_ICONS = {
+    build: '<path d="M4 11l8-6 8 6v8H4z"/><path d="M10 19v-5h4v5"/>',
+    trade: '<path d="M4 8h13l-3.5-3.5M20 16H7l3.5 3.5"/>',
+    borrow: '<rect x="3" y="6" width="18" height="12" rx="2"/><circle cx="12" cy="12" r="2.5"/>',
+    ipo: '<path d="M4 19V5M4 19h16"/><path d="M7 15l4-4 3 3 5-6"/>',
+    corps: '<rect x="5" y="3" width="14" height="18" rx="1"/><path d="M9 7h2M13 7h2M9 11h2M13 11h2M10 21v-4h4v4"/>',
+    vote: '<path d="M5 12l4 4 10-10"/><path d="M4 20h16"/>',
+};
+
+function renderMoveTool({ icon, label, name, action, section, featured, count }) {
+    const target = action ? `data-game-action="${action}"` : `data-switch-section="${section}"`;
+    const countBadge = count ? `<span class="move-tool-count">${count}<span class="sr-only"> waiting for your answer</span></span>` : '';
     return `
-        ${dock}
-        ${renderMovesGrid(`
-            ${renderAnytimeMoves(gameState, currentPlayer, auctionOpen)}
-            ${renderProposalsButton()}
-            ${renderCorporationsButton()}
-            ${buyTile}
-        `)}
-    `;
+        <button type="button" class="move-tool${featured ? ' is-featured' : ''}" ${target} aria-label="${escapeHtml(name)}">
+            <svg viewBox="0 0 24 24" aria-hidden="true">${MOVE_TOOL_ICONS[icon]}</svg>
+            <span aria-hidden="true">${escapeHtml(label)}</span>
+            ${countBadge}
+        </button>`;
 }
 
-// Moves open to every active player at any time, not just on their turn
-// (the engine turn-locks only movement); an open auction holds them.
-function renderAnytimeMoves(gameState, player, auctionOpen) {
-    return `
-        ${renderImprovePropertiesButton(gameState, player, auctionOpen)}
-        <button class="btn btn-secondary btn-sm" data-game-action="open-ipo" ${auctionOpen ? 'disabled' : ''}>Create IPO<small>Take properties public</small></button>
-        <button class="btn btn-secondary btn-sm" data-game-action="open-debt" ${auctionOpen ? 'disabled' : ''}>Manage Debt<small>Borrow, repay, refinance</small></button>
-    `;
+// Complete colour groups you (or a company you run) can still build on.
+function canBuildHousesNow(gameState, player) {
+    const ownGroups = getCompleteGroupProperties(player.userId, gameState);
+    const corpGroups = ShareDeals.corporationsRunBy(gameState, player.userId)
+        .flatMap(corp => getCompleteGroupProperties(corp.id, gameState));
+    return [...ownGroups, ...corpGroups].some(prop => Number(prop.houses || 0) < 5);
 }
 
-function renderMovesGrid(buttonsHtml) {
-    return `
-        <section class="moves">
-            <div class="section-heading"><h3>Moves</h3></div>
-            <div class="action-btn-secondary-group moves-grid">${buttonsHtml}</div>
-        </section>
-    `;
+function renderMoveTools(gameState, player, { paused = false } = {}) {
+    const active = !!player && !player.bankrupt && !gameState.ended;
+    const auctionOpen = gameState.auction?.status === 'open';
+    const openMoves = active && !paused && !auctionOpen;
+    const tradeWaiting = tradeProposalsAwaitingMe();
+    const corpVotes = CorporationDesk.votesAwaiting(currentUser.id).length;
+    const corporations = (gameState.corporations || []).filter(corp => !ShareDeals.isClosed(corp));
+    const ownsProperty = !!player && gameState.properties.some(prop => prop.ownerId === player.userId);
+    const otherPlayers = gameState.players.some(p => p.userId !== player?.userId && !p.bankrupt);
+
+    const tools = [];
+    if (openMoves && canBuildHousesNow(gameState, player)) {
+        tools.push({ icon: 'build', label: 'Build', name: 'Build houses', action: 'open-house', featured: true });
+    }
+    if (tradeWaiting) {
+        tools.push({ icon: 'trade', label: 'Trade', name: 'Trade proposals', action: 'open-trade-proposals', featured: true, count: tradeWaiting });
+    } else if (active && !paused && otherPlayers) {
+        tools.push({ icon: 'trade', label: 'Trade', name: 'Trade', section: 'market' });
+    }
+    if (openMoves) tools.push({ icon: 'borrow', label: 'Borrow', name: 'Borrow', action: 'open-debt' });
+    if (openMoves && ownsProperty) tools.push({ icon: 'ipo', label: 'IPO', name: 'Create IPO', action: 'open-ipo' });
+    if (corporations.length || corpVotes) {
+        tools.push({ icon: 'corps', label: 'Corps', name: 'Corporations', action: 'open-corporation', featured: corpVotes > 0, count: corpVotes });
+    }
+    if (RuleProposals.needsMyVote()) {
+        tools.push({ icon: 'vote', label: 'Vote', name: 'Rule proposal vote', action: 'open-rule-proposals', featured: true });
+    }
+    if (!tools.length) return '';
+    return `<nav class="moves move-tools" aria-label="Moves">${tools.map(renderMoveTool).join('')}</nav>`;
 }
 
-function buyUnavailableLabel(landing) {
-    if (landing.owner === 'other') return 'Property Owned';
-    if (landing.owner === 'self') return 'Already Yours';
-    return 'No Property to Buy';
-}
-
-// Flags rent-policy votes waiting for this shareholder.
-function renderCorporationsButton() {
-    const waiting = CorporationDesk.votesAwaiting(currentUser.id).length;
-    const hint = waiting ? `${waiting} waiting for your answer` : 'Shares and chairmen';
-    return `<button class="btn btn-secondary btn-sm${waiting ? ' is-featured' : ''}" data-game-action="open-corporation">Corporations<small>${hint}</small></button>`;
-}
-
-// Trade and property offers waiting for this player's answer, so none is missed before End Turn.
-function renderProposalsButton() {
-    const ruleVote = RuleProposals.needsMyVote()
-        ? '<button class="btn btn-secondary btn-sm is-featured" data-game-action="open-rule-proposals">Rule proposals<small>A vote is waiting for you</small></button>'
-        : '';
-    const waiting = tradeProposalsAwaitingMe();
-    if (!waiting) return ruleVote;
-    return `${ruleVote}<button class="btn btn-secondary btn-sm is-featured" data-game-action="open-trade-proposals">Trade proposals<small>${waiting} waiting for your answer</small></button>`;
-}
-
-// Off your turn: the same optional moves as on it, without rolling, buying or ending the turn.
+// Off your turn: the same moves as on it, without rolling, buying or ending the turn.
 function renderNonTurnActions() {
-    const gameState = currentGame.game_state;
-    const active = !!currentPlayerData && !currentPlayerData.bankrupt && !gameState.ended;
-    return renderMovesGrid(`
-        ${active ? renderAnytimeMoves(gameState, currentPlayerData, gameState.auction?.status === 'open') : ''}
-        ${renderProposalsButton()}
-        ${renderCorporationsButton()}
-        <button class="btn btn-secondary btn-sm" data-switch-section="market">Trade or pay<small>Opens the market</small></button>
-    `);
+    return renderMoveTools(currentGame.game_state, currentPlayerData);
 }
 
 function renderSpectatorNote() {
@@ -540,10 +487,7 @@ function renderSpectatorNote() {
 }
 
 function renderPausedActions() {
-    return renderMovesGrid(`
-        ${renderProposalsButton()}
-        ${renderCorporationsButton()}
-    `);
+    return renderMoveTools(currentGame.game_state, currentPlayerData, { paused: true });
 }
 
 // Host-only controls, kept away from turn actions so End Game is never a slip of the thumb.
