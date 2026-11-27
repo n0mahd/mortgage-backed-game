@@ -1,0 +1,48 @@
+name: Tech debt
+description: Track refactors, testing work, cleanup, and maintainability improvements.
+title: "[Tech Debt]: "
+labels:
+  - tech-debt
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What maintainability, reliability, testing, or cleanup problem should be addressed?
+      placeholder: Describe why this work matters.
+    validations:
+      required: true
+  - type: textarea
+    id: current-behavior
+    attributes:
+      label: Current behavior
+      description: How does the codebase or process work today?
+      placeholder: Include brittle code, missing tests, duplicated logic, or manual steps.
+    validations:
+      required: true
+  - type: textarea
+    id: desired-behavior
+    attributes:
+      label: Desired behavior
+      description: What healthier state should replace it?
+      placeholder: Describe the target code, test, or operational state.
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance-criteria
+    attributes:
+      label: Acceptance criteria
+      description: What must be true before this is done?
+      placeholder: |
+        - [ ] ...
+        - [ ] ...
+    validations:
+      required: true
+  - type: textarea
+    id: codex-notes
+    attributes:
+      label: Notes for Codex
+      description: Implementation hints, risky areas, test expectations, or files to inspect first.
+      placeholder: Mention likely files, routes, tests, edge cases, or dev ports.
+    validations:
+      required: false
